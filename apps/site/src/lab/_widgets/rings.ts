@@ -12,10 +12,7 @@ export interface RingSpec {
     value: number;
 }
 
-/**
- * Activity-ring renderer. Progress above 100% wraps around, and the overlapping tip
- * gets a soft shadow so the ring reads as stacked - all analytic.
- */
+/** Activity ring with a fixed color ramp and a soft shadow beneath the overlapping tip. */
 export function drawRing(
     g: SilkGraphics,
     cx: number,
@@ -25,36 +22,37 @@ export function drawRing(
     spec: RingSpec,
     p: number,
 ): void {
+    p = Number.isFinite(p) ? Math.max(0, Math.min(2, p)) : 0;
+
     g.circle(cx, cy, r).stroke({ width, color: spec.track });
-    if (p <= 0.0005) {
-        // a dot at the start, like the real thing
+    if (p === 0) {
         g.circle(cx, cy - r, width / 2).fill(spec.from);
 
         return;
     }
-    const grad = conic([spec.from, spec.to]);
+    const sweep = Math.min(p, 1) * TAU;
+    const stops = [spec.from, spec.to];
+    const options = { sweep: Math.PI, sweepDirection: 'shape' as const };
+    const start = conic(stops, { ...options, range: [0, 0.5] });
+    const end = conic(stops, { ...options, range: [0.5, 1] });
 
-    if (p < 1) {
-        g.arcSweep(cx, cy, r, TOP, p * TAU).stroke({ width, cap: 'round', gradient: grad });
-
-        return;
+    g.arcSweep(cx, cy, r, TOP, Math.min(sweep, Math.PI)).stroke({ width, cap: 'round', gradient: start });
+    if (sweep > Math.PI) {
+        g.arcSweep(cx, cy, r, Math.PI / 2, sweep - Math.PI).stroke({ width, cap: 'round', gradient: end });
     }
-    // full lap with the gradient, then the overflow in the end colour
-    g.circle(cx, cy, r).stroke({ width, gradient: conic([spec.from, spec.to], { startAngle: TOP, sweep: TAU }) });
-    const extra = Math.min(p - 1, 0.999) * TAU;
-    const endA = TOP + extra;
-    const ex = cx + Math.cos(endA) * r;
-    const ey = cy + Math.sin(endA) * r;
-    // tip shadow: offset a little along the direction of travel
-    const dx = -Math.sin(endA);
-    const dy = Math.cos(endA);
+    if (p <= 1) return;
 
-    g.circle(ex + dx * width * 0.18, ey + dy * width * 0.18, width * 0.5).fill({
+    const extra = (p - 1) * TAU;
+    const endAngle = TOP + extra;
+    const ex = cx + Math.cos(endAngle) * r;
+    const ey = cy + Math.sin(endAngle) * r;
+
+    g.circle(ex - Math.sin(endAngle) * width * 0.18, ey + Math.cos(endAngle) * width * 0.18, width / 2).fill({
         color: 0x000000,
         alpha: 0.6,
         blur: width * 0.16,
     });
-    g.arcSweep(cx, cy, r, TOP - 0.02, extra + 0.02).stroke({ width, cap: 'round', color: spec.to });
+    g.arcSweep(cx, cy, r, TOP, extra).stroke({ width, cap: 'round', color: spec.to });
 }
 
 export const MOVE: RingSpec = { from: 0xe8134f, to: 0xff5aa0, track: 0x3a0717, value: 0.82 };

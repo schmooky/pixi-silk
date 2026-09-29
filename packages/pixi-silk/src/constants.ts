@@ -21,7 +21,7 @@ export const INSTANCE_ATTRIBUTES = [
     'aFill', // premultiplied rgba (for gradients: alpha multiplier as premultiplied white)
     'aStroke', // premultiplied rgba
     'aGrad', // gradient geometry in local space
-    'aPaint', // gradientKind, atlasRow, extendMode, 0
+    'aPaint', // gradientKind, atlasRow, extendMode, arc tip shadow / segment neighbour radius
     'aDash', // dash, gap, offset, strokeAlign (-1 inside .. 0 center .. +1 outside)
 ] as const;
 
@@ -51,6 +51,8 @@ export const Flag = {
     EdgeRight: 128,
     GradStroke: 4096,
     Closed: 8192,
+    GradArcAligned: 16384,
+    ArcTipOverlap: 32768,
 } as const;
 export type Flag = (typeof Flag)[keyof typeof Flag];
 

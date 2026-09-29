@@ -10,6 +10,41 @@ api: [SilkGraphics, conic]
 
 <Demo name="rings" height={240} />
 
+## Progress rings
+
+The demo draws each track with `circle()` and its progress with `arcSweep()`, using
+`conic()` for a gradient that spans the arc.
+
+To keep the colours fixed around a full turn while progress grows, draw two half-arcs. Each
+samples its half of the same ramp, and `sweepDirection: 'shape'` keeps the gradient pointing
+with the arc. This uses only the public API:
+
+```ts
+import { conic, SilkGraphics } from 'pixi-silk';
+
+const stops = [0xe8134f, 0xff5aa0];
+const first = conic(stops, { range: [0, 0.5], sweep: Math.PI, sweepDirection: 'shape' });
+const second = conic(stops, { range: [0.5, 1], sweep: Math.PI, sweepDirection: 'shape' });
+
+function drawProgressRing(g: SilkGraphics, progress: number) {
+    const cx = 100, cy = 100, radius = 60, width = 14;
+    const sweep = Math.max(0, Math.min(progress, 1)) * Math.PI * 2;
+
+    g.circle(cx, cy, radius).stroke({ width, color: 0x3a0717 });
+    if (sweep > 0) {
+        g.arcSweep(cx, cy, radius, -Math.PI / 2, Math.min(sweep, Math.PI))
+            .stroke({ width, cap: 'round', gradient: first });
+    }
+    if (sweep > Math.PI) {
+        g.arcSweep(cx, cy, radius, Math.PI / 2, sweep - Math.PI)
+            .stroke({ width, cap: 'round', gradient: second });
+    }
+}
+```
+
+At zero progress, you can draw a dot at 12 o'clock. To show progress above 100%, add another
+arc in the final colour for the extra lap.
+
 ## Arcs
 
 ```ts nocheck
@@ -28,18 +63,29 @@ g.arcSweep(100, 100, 60, -Math.PI / 2, Math.PI * 2 * progress)
     .stroke({ width: 14, cap: 'round', color: 0x30d158 });
 ```
 
-A sweep of `2π` or more draws a full ring. The primitive is one exact distance field, so a ring is
-as cheap as a circle.
+A sweep of `2π` or more covers a full ring. `arcSweep()` preserves the extra turns, so the
+end keeps moving over the previous lap. For round-capped strokes, the shadow appears when the
+end cap starts touching the start cap near a full turn. It shades the earlier stroke beneath
+the tip and fades out within one stroke width of the tip centre. Dashed arcs do not use it.
+
+Set `tipShadow: true` to enable the shadow explicitly. It is already on by default. Set
+`tipShadow: false` to disable it, even when the caps overlap or the sweep passes a full turn.
+
+`arc()` retains canvas semantics and stops at one turn. Each ring still uses one primitive.
+
 
 ## Gradients on arcs
 
 A `conic()` gradient on an arc spans that arc. Its start and sweep default to the arc's own. So the
-ramp always runs from the start cap to the end cap, however long the arc is.
+ramp runs from the start cap to the end cap. Short round arcs ease out of the first color
+until their length reaches one cap diameter (the stroke width). On overlapping turns, the latest lap is visible.
 
 ```ts
 const RING = conic([0xfa114f, 0xff5e8a]);
 
-g.arcSweep(100, 100, 60, -Math.PI / 2, sweep).stroke({ width: 16, cap: 'round', gradient: RING });
+g.arcSweep(100, 100, 60, -Math.PI / 2, sweep).stroke({
+    width: 16, cap: 'round', gradient: RING, tipShadow: true,
+});
 ```
 
 ## Sectors and donut segments

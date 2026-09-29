@@ -42,6 +42,8 @@ export interface GradientOptions {
     space?: ColorSpace;
     /** How the ramp moves between stops. Default `linear`. */
     easing?: Easing;
+    /** Portion of the colour ramp to sample, before easing. Endpoints are clamped to 0..1. Non-finite values reset to `[0, 1]`. */
+    range?: [number, number];
     /** What the gradient does outside 0..1. Default `pad`. */
     extend?: ExtendMode;
     /** Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). */
@@ -136,6 +138,8 @@ export abstract class Gradient {
     readonly space: ColorSpace;
     /** How the ramp moves between stops. */
     readonly easing: Easing;
+    /** Portion of the colour ramp sampled before easing. */
+    readonly range: readonly [number, number];
     /** What the gradient does outside 0..1. */
     readonly extend: ExtendMode;
     /** Coordinates of the gradient's points and radii. */
@@ -147,6 +151,12 @@ export abstract class Gradient {
         this.stops = normalizeStops(options.stops);
         this.space = options.space ?? 'oklab';
         this.easing = options.easing ?? 'linear';
+        const range = options.range;
+
+        this.range =
+            range && Number.isFinite(range[0]) && Number.isFinite(range[1])
+                ? [Math.min(1, Math.max(0, range[0])), Math.min(1, Math.max(0, range[1]))]
+                : [0, 1];
         this.extend = options.extend ?? 'pad';
         this.units = options.units ?? 'shape';
 
@@ -162,7 +172,7 @@ export abstract class Gradient {
             easingKey = `fn${id}`;
         } else easingKey = this.easing;
 
-        this.key = `${this.space}|${easingKey}|${this.stops.map((s) => `${s.offset.toFixed(5)}:${s.rgba.map((c) => c.toFixed(5)).join(',')}`).join(';')}`;
+        this.key = `${this.space}|${easingKey}|${this.range.join(',')}|${this.stops.map((s) => `${s.offset.toFixed(5)}:${s.rgba.map((c) => c.toFixed(5)).join(',')}`).join(';')}`;
     }
 
     /** @internal Writes the gradient geometry (local space) for a shape into `out[0..3]`. */
@@ -191,7 +201,7 @@ export abstract class Gradient {
         const v = [0, 0, 0, 0];
 
         for (let i = 0; i < RAMP_WIDTH; i++) {
-            let t = i / (RAMP_WIDTH - 1);
+            let t = this.range[0] + (i / (RAMP_WIDTH - 1)) * (this.range[1] - this.range[0]);
 
             if (remap) t = Math.min(1, Math.max(0, remap(t)));
 
@@ -337,6 +347,8 @@ export interface ConicGradientOptions extends GradientOptions {
     startAngle?: number;
     /** Angular length of the ramp. Defaults to the arc sweep for arcs/sectors, otherwise a full turn. */
     sweep?: number;
+    /** With an explicit sweep, `shape` uses its magnitude and the arc's direction. Default `fixed` preserves its sign. */
+    sweepDirection?: 'fixed' | 'shape';
 }
 
 /** An angular ramp around a centre. On arcs it follows the arc. Create it with {@link conic}. */
@@ -349,12 +361,15 @@ export class ConicGradient extends Gradient {
     startAngle?: number;
     /** Angular length of the ramp. Unset follows the arc, or a full turn for other shapes. */
     sweep?: number;
+    /** Whether an explicit sweep keeps its sign or follows the painted arc's direction. */
+    sweepDirection: 'fixed' | 'shape';
 
     constructor(options: ConicGradientOptions) {
         super(options);
         this.center = options.center ?? [0.5, 0.5];
         this.startAngle = options.startAngle;
         this.sweep = options.sweep;
+        this.sweepDirection = options.sweepDirection ?? 'fixed';
     }
 
     /** @internal */
@@ -364,7 +379,10 @@ export class ConicGradient extends Gradient {
         out[o] = c[0];
         out[o + 1] = c[1];
         out[o + 2] = this.startAngle ?? frame.start ?? -Math.PI / 2;
-        out[o + 3] = this.sweep ?? frame.sweep ?? TAU;
+        out[o + 3] =
+            this.sweep !== undefined && this.sweepDirection === 'shape'
+                ? Math.abs(this.sweep) * ((frame.sweep ?? 0) < 0 ? -1 : 1)
+                : (this.sweep ?? frame.sweep ?? TAU);
     }
 }
 
@@ -408,7 +426,9 @@ export const radial = (stops: StopInput[], options: Omit<RadialGradientOptions, 
 
 /**
  * Conic (angular) gradient. On arcs and sectors it spans the arc by default, so a ring's ramp
- * always runs from its start cap to its end cap.
+ * runs from its start cap to its end cap. Short round arcs ease out of the first stop
+ * over one cap diameter. This applies to padded ramps aligned
+ * with the arc. Independently positioned gradients keep their angular mapping.
  */
 export const conic = (stops: StopInput[], options: Omit<ConicGradientOptions, 'stops'> = {}): ConicGradient =>
     new ConicGradient({ ...options, stops });

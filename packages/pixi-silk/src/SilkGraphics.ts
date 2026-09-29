@@ -15,7 +15,7 @@ import { GradientAtlas } from './atlas';
 import { parseColor, type RGBA } from './color';
 import { CAP0_SHIFT, CAP1_SHIFT, Cap, Extend, Flag, INSTANCE_ATTRIBUTES, Prim, STRIDE, TAU } from './constants';
 import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput, toFlat } from './curves';
-import { Gradient, type ShapeFrame } from './gradient';
+import { ConicGradient, Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { createSilkShader } from './shader';
 
@@ -58,6 +58,8 @@ export interface StrokeStyle extends FillStyle {
     dashOffset?: number;
     /** On closed outlines stretch the pattern so it tiles without a seam. Default true. */
     dashFit?: boolean;
+    /** Shade a round arc tip when it touches the start cap near one full turn. Default true. Set false to disable. */
+    tipShadow?: boolean;
     /** Accepted for Pixi compatibility. Joins are always round, the smoothest choice. */
     join?: 'round' | 'miter' | 'bevel';
     /** Accepted for Pixi compatibility and ignored. */
@@ -162,6 +164,7 @@ interface Stroke extends Paint {
     dash: [number, number] | null;
     dashOffset: number;
     dashFit: boolean;
+    tipShadow: boolean;
 }
 
 interface LastEmit {
@@ -182,6 +185,7 @@ const FILL_KEYS = [
     'dash',
     'dashOffset',
     'dashFit',
+    'tipShadow',
     'join',
 ];
 const CAPS: Record<LineCap, Cap> = { butt: Cap.Butt, round: Cap.Round, square: Cap.Square };
@@ -258,6 +262,7 @@ function resolveStroke(input: StrokeInput | undefined): Stroke {
         dash,
         dashOffset: p.dashOffset ?? 0,
         dashFit: p.dashFit ?? true,
+        tipShadow: p.tipShadow ?? true,
     };
 }
 
@@ -674,9 +679,9 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this.arcSweep(cx, cy, radius, startAngle, sweep);
     }
 
-    /** Open arc given start angle and signed sweep (positive = clockwise on screen). */
+    /** Open arc given start angle and signed sweep (positive = clockwise on screen). Sweeps may exceed one turn. */
     arcSweep(cx: number, cy: number, radius: number, startAngle: number, sweep: number): this {
-        sweep = Math.max(-TAU, Math.min(TAU, sweep));
+        sweep = Number.isFinite(sweep) ? sweep : 0;
         const k = this._k;
 
         return this._begin({
@@ -1335,8 +1340,22 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const hw = stroke.width / 2;
         const sigma = stroke.blur;
         let flags = Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
+        let tipShadow = false;
+        let overlapsStart = false;
 
         if (sigma > 0) flags |= Flag.Dither;
+        if (
+            (stroke.tipShadow || stroke.gradient instanceof ConicGradient) &&
+            stroke.cap === Cap.Round &&
+            !stroke.dash &&
+            shape.r > hw
+        ) {
+            const sweep = Math.abs(shape.sweep);
+            // Round caps touch when the distance between their centres falls below the stroke width.
+            overlapsStart =
+                sweep >= TAU || (sweep > Math.PI && 2 * shape.r * Math.sin((TAU - sweep) / 2) < stroke.width);
+            tipShadow = stroke.tipShadow && overlapsStart;
+        }
         this._set4(o + 4, shape.cx, shape.cy, shape.r, shape.start);
         this._set4(o + 8, shape.sweep, 0, 0, 0);
         const b = this._box;
@@ -1348,7 +1367,31 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
         this._setBounds(o, b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad);
         this._premul(o + 24, stroke.rgba);
-        if (stroke.gradient) flags |= this._gradient(o, stroke.gradient, this._frame(shape), true);
+        if (stroke.gradient) {
+            const gradient = stroke.gradient;
+
+            flags |= this._gradient(o, gradient, this._frame(shape), true);
+            if (gradient instanceof ConicGradient) {
+                const centerAligned =
+                    gradient.units === 'shape'
+                        ? gradient.center[0] === 0.5 && gradient.center[1] === 0.5
+                        : gradient.center[0] === shape.cx && gradient.center[1] === shape.cy;
+                const sweep =
+                    gradient.sweep !== undefined && gradient.sweepDirection === 'shape'
+                        ? Math.abs(gradient.sweep) * (shape.sweep < 0 ? -1 : 1)
+                        : (gradient.sweep ?? shape.sweep);
+
+                if (centerAligned && (gradient.startAngle ?? shape.start) === shape.start && sweep === shape.sweep) {
+                    flags |= Flag.GradArcAligned;
+                    if (overlapsStart) flags |= Flag.ArcTipOverlap;
+                    // Use identical float32 geometry for both centres and angles.
+                    this._f[o + 28] = this._f[o + 4];
+                    this._f[o + 29] = this._f[o + 5];
+                    this._f[o + 30] = this._f[o + 7];
+                    this._f[o + 31] = this._f[o + 8];
+                }
+            }
+        }
         if (stroke.dash) {
             let [dash, gap] = stroke.dash;
 
@@ -1363,6 +1406,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             flags |= Flag.Dash;
             this._set4(o + 36, dash, gap, stroke.dashOffset, 0);
         }
+        this._f[o + 35] = tipShadow ? 1 : 0;
         this._set4(o + 16, Prim.Arc, flags, stroke.width, sigma);
     }
 

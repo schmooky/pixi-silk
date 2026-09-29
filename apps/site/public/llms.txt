@@ -83,7 +83,7 @@ app.stage.addChild(g);
 - [Spring](https://pixi-silk.schmooky.dev/api/classes/Spring/): Class. Damped harmonic spring (semi-implicit Euler with fixed sub-steps). stiffness / damping follow the usual UI spring convention (e.g. 170 / 26).
 - [along](https://pixi-silk.schmooky.dev/api/functions/along/): Function. Gradient that follows a stroke from its first point (t = 0) to its last (t = 1).
 - [catmullRom](https://pixi-silk.schmooky.dev/api/functions/catmullRom/): Function. Centripetal Catmull-Rom spline through the points (no cusps or self-loops).
-- [conic](https://pixi-silk.schmooky.dev/api/functions/conic/): Function. Conic (angular) gradient. On arcs and sectors it spans the arc by default, so a ring's ramp always runs from its start cap to its end cap.
+- [conic](https://pixi-silk.schmooky.dev/api/functions/conic/): Function. Conic (angular) gradient. On arcs and sectors it spans the arc by default, so a ring's ramp runs from its start cap to its end cap.
 - [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/): Function. Creates a Pixi application tuned for smooth vector output:. Function createSilkApp of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [damp](https://pixi-silk.schmooky.dev/api/functions/damp/): Function. Exponential approach: moves current towards target. lambda is about 1/seconds, higher is snappier.
 - [dampAngle](https://pixi-silk.schmooky.dev/api/functions/dampAngle/): Function. Damped angle approach along the shortest path. Function dampAngle of pixi-silk, smooth anti-aliased graphics for PixiJS v8.

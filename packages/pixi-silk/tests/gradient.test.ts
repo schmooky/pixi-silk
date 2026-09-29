@@ -41,6 +41,19 @@ describe('stops', () => {
         expect(linear([0xff0000, 0x0000ff]).key).toBe(vertical([0xff0000, 0x0000ff]).key);
         expect(linear([0xff0000, 0x0000ff]).key).not.toBe(linear([0xff0000, 0x0000ff], { space: 'srgb' }).key);
     });
+
+    it('uses a different key for a range than for the default ramp', () => {
+        const stops = [0x000000, 0xffffff];
+
+        expect(linear(stops, { range: [0, 0.5] }).key).not.toBe(linear(stops).key);
+    });
+
+    it('clamps range endpoints and resets non-finite ranges', () => {
+        const stops = [0x000000, 0xffffff];
+
+        expect(linear(stops, { range: [-1, 2] }).range).toEqual([0, 1]);
+        expect(linear(stops, { range: [Number.NaN, 0.5] }).range).toEqual([0, 1]);
+    });
 });
 
 describe('bake', () => {
@@ -52,6 +65,32 @@ describe('bake', () => {
 
         expect(last[0]).toBeCloseTo(0, 5);
         expect(last[2]).toBeCloseTo(1, 5);
+    });
+
+    it('bakes only the first half of the ramp for range [0, 0.5]', () => {
+        const out = bake(linear([0x000000, 0xffffff], { range: [0, 0.5], space: 'srgb' }));
+        const middle = Math.floor((RAMP_WIDTH - 1) / 2);
+
+        expect(out[0]).toBe(0);
+        expect(out[middle * 4]).toBeCloseTo((middle / (RAMP_WIDTH - 1)) * 0.5, 5);
+        expect(out[(RAMP_WIDTH - 1) * 4]).toBeCloseTo(0.5, 5);
+    });
+
+    it('bakes a reversed range in reverse colour order', () => {
+        const out = bake(linear([0x000000, 0xffffff], { range: [0.5, 0], space: 'srgb' }));
+        const middle = Math.floor((RAMP_WIDTH - 1) / 2);
+
+        expect(out[0]).toBeCloseTo(0.5, 5);
+        expect(out[middle * 4]).toBeCloseTo(0.5 * (1 - middle / (RAMP_WIDTH - 1)), 5);
+        expect(out[(RAMP_WIDTH - 1) * 4]).toBe(0);
+    });
+
+    it('bakes a constant colour when range endpoints are equal', () => {
+        const out = bake(linear([0x000000, 0xffffff], { range: [0.25, 0.25], space: 'srgb' }));
+
+        for (let i = 0; i < RAMP_WIDTH; i++) {
+            expect(out[i * 4]).toBeCloseTo(0.25, 5);
+        }
     });
 
     it('premultiplies alpha, so fading to transparent never darkens', () => {
@@ -140,6 +179,22 @@ describe('geometry', () => {
 
         conic([0, 0xffffff]).resolve({ x: 0, y: 0, w: 100, h: 100, start: 1, sweep: 2 }, out, 0);
         expect(out[2]).toBe(1);
+        expect(out[3]).toBe(2);
+    });
+
+    it('uses the shape direction for an explicit conic sweep', () => {
+        const out = new Float32Array(4);
+        const frame = { x: 0, y: 0, w: 100, h: 100, sweep: -Math.PI };
+
+        conic([0, 0xffffff], { sweep: 2, sweepDirection: 'shape' }).resolve(frame, out, 0);
+        expect(out[3]).toBe(-2);
+    });
+
+    it('keeps the explicit conic sweep sign in fixed mode', () => {
+        const out = new Float32Array(4);
+        const frame = { x: 0, y: 0, w: 100, h: 100, sweep: -Math.PI };
+
+        conic([0, 0xffffff], { sweep: 2, sweepDirection: 'fixed' }).resolve(frame, out, 0);
         expect(out[3]).toBe(2);
     });
 });

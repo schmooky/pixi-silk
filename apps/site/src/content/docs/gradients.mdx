@@ -51,6 +51,23 @@ Interpolation is premultiplied, so fading a colour to transparent never darkens 
 Mach bands at every stop of a linear ramp. It never overshoots. A function `(t) => t` remaps the
 ramp parameter for custom falloffs.
 
+## Sampling part of a ramp
+
+`range: [from, to]` selects a portion of the colour ramp before easing. The default
+is `[0, 1]`. Reversed endpoints reverse the colours. Equal endpoints sample one colour.
+This works with every gradient kind and preserves the original stops and interpolation.
+
+```ts
+const stops = [0xff375f, 0xffd60a, 0x30d158];
+const first = conic(stops, { range: [0, 0.5], sweep: Math.PI, sweepDirection: 'shape' });
+const second = conic(stops, { range: [0.5, 1], sweep: Math.PI, sweepDirection: 'shape' });
+```
+
+An explicit `sweep` normally keeps its signed angle. With `sweepDirection: 'shape'`,
+its magnitude stays fixed while its sign follows the painted arc, including reflections.
+Without an arc direction it uses a positive sweep. This lets a progress arc grow while
+its colour ramp keeps the same angular length.
+
 ## Units and extend
 
 - With `units: 'shape'` (default), coordinates are fractions of the shape's bounding box. One
