@@ -14,6 +14,10 @@ export const DOCS_NAV = [
     { title: 'Drawing', items: ['shapes', 'arcs-and-rings', 'lines-and-paths', 'fills-and-strokes', 'dashes'] },
     { title: 'Paint', items: ['gradients', 'blur-and-shadows'] },
     { title: 'Building UI', items: ['charts', 'transforms', 'hit-testing', 'animation', 'radial-menus-and-buttons'] },
+    {
+        title: 'Editor UI',
+        items: ['transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
+    },
     { title: 'Rendering', items: ['resolution', 'performance', 'how-it-works'] },
 ];
 

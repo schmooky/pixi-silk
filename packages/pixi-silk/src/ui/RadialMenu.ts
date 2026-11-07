@@ -2,6 +2,7 @@ import { Container, type FederatedPointerEvent, type Text, type TextStyleOptions
 import { damp, Spring } from '../motion';
 import { SilkGraphics } from '../SilkGraphics';
 import { type Signal, signal } from '../signal';
+import { angleDelta } from './arc';
 import { Driver } from './driver';
 import { createIcon, type IconSource } from './icon';
 import {
@@ -15,6 +16,8 @@ import {
 import { clamp01, hex, mix } from './paint';
 
 const TAU = Math.PI * 2;
+
+export { angleDelta };
 
 /** One entry of a {@link RadialMenu}. Entries with `children` open another ring around themselves. */
 export interface RadialItem {
@@ -158,16 +161,6 @@ export interface RadialState {
     path: Signal<readonly RadialItem[]>;
     /** Pointer kind currently driving the menu. */
     kind: Signal<InputKind>;
-}
-
-/** Signed shortest difference between two angles, in -PI..PI. */
-export function angleDelta(a: number, b: number): number {
-    let d = (a - b) % TAU;
-
-    if (d > Math.PI) d -= TAU;
-    if (d < -Math.PI) d += TAU;
-
-    return d;
 }
 
 /**

@@ -11,7 +11,8 @@
       "pixi-silk/ui": ["../../packages/pixi-silk/src/ui/index.ts"],
       "pixi-silk/ui/radial": ["../../packages/pixi-silk/src/ui/RadialMenu.ts"],
       "pixi-silk/ui/button": ["../../packages/pixi-silk/src/ui/SilkButton.ts"],
-      "pixi-silk/ui/dock": ["../../packages/pixi-silk/src/ui/ButtonDock.ts"]
+      "pixi-silk/ui/dock": ["../../packages/pixi-silk/src/ui/ButtonDock.ts"],
+      "pixi-silk/ui/*": ["../../packages/pixi-silk/src/ui/*.ts"]
     },
     "noUnusedLocals": true,
     "noUnusedParameters": true

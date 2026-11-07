@@ -42,6 +42,11 @@ export default defineConfig({
                     find: /^pixi-silk\/ui\/dock$/,
                     replacement: resolve(repoRoot, 'packages/pixi-silk/src/ui/ButtonDock.ts'),
                 },
+                // editor widgets: pixi-silk/ui/<name> is src/ui/<name>.ts
+                {
+                    find: /^pixi-silk\/ui\/(gizmo|outline|snap|color|halo|brush|modes|dial|timeline|odometer|gesture|arc|keys|pill)$/,
+                    replacement: `${resolve(repoRoot, 'packages/pixi-silk/src/ui')}/$1.ts`,
+                },
                 { find: '@', replacement: resolve(here, 'src') },
             ],
             dedupe: ['react', 'react-dom', 'pixi.js'],

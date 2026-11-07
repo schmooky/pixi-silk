@@ -110,6 +110,7 @@ writeFileSync(
                 'pixi-silk/ui/radial': [join(SRC, 'ui/RadialMenu.ts')],
                 'pixi-silk/ui/button': [join(SRC, 'ui/SilkButton.ts')],
                 'pixi-silk/ui/dock': [join(SRC, 'ui/ButtonDock.ts')],
+                'pixi-silk/ui/*': [join(SRC, 'ui/*.ts')],
             },
         },
         include: ['*.ts'],
