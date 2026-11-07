@@ -61,6 +61,7 @@ export const GET: APIRoute = async () => {
             .filter((p) => p.href !== '/api/')
             .map((p) => ({ path: p.href, priority: '0.6' })),
         { path: '/faq/', priority: '0.8', lastmod: newest },
+        { path: '/studio/', priority: '0.7' },
         ...LAB_SECTIONS.flatMap(([, items]) => items.map(([slug]) => ({ path: `/lab/${slug}/`, priority: '0.4' }))),
         { path: '/changelog/', priority: '0.4' },
     ];

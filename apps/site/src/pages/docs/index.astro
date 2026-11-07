@@ -18,16 +18,16 @@ const steps = [
     {
         n: '02',
         title: 'Pick an area',
-        body: 'Each area is a tour: every feature explained, shown live, and linked to its guide and experiments.',
+        body: 'Each area is a tour: every feature explained and shown live, with its guide one click away.',
         href: '#areas',
         cta: 'See the areas',
     },
     {
         n: '03',
         title: 'Go deeper',
-        body: 'Every guide ends with full-screen experiments on its topic. The Reference area covers every export.',
-        href: '/docs/reference/',
-        cta: 'Open the reference',
+        body: 'Studio opens every demo and experiment as code next to its canvas. Edit it and watch it run.',
+        href: '/studio/',
+        cta: 'Open Studio',
     },
 ];
 ---
@@ -70,11 +70,6 @@ const steps = [
                         <a href={d.href} class="flex flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
                             <div class="font-semibold">{d.title}</div>
                             <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{d.description}</p>
-                            {(d.demo || d.lab.length > 0) && (
-                                <p class="mt-auto pt-3 font-mono text-[11px] text-silk">
-                                    {[d.demo && 'Live demo', d.lab.length > 0 && `${d.lab.length} ${d.lab.length === 1 ? 'experiment' : 'experiments'}`].filter(Boolean).join(' + ')}
-                                </p>
-                            )}
                         </a>
                     ))}
                     {a.links.map((l) => (

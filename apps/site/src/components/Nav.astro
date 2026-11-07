@@ -11,6 +11,7 @@ const links = [
     { href: '/docs/examples/', label: 'Examples' },
     { href: '/docs/reference/', label: 'Reference' },
     { href: '/faq/', label: 'FAQ' },
+    { href: '/studio/', label: 'Studio' },
 ];
 const path = Astro.url.pathname;
 // Examples and Reference are docs areas with their own tab: their hub, pages and extras light it up
@@ -20,7 +21,7 @@ const under = (id: string, extra: string[] = []) => {
 
     return prefixes.some((p) => path.startsWith(p));
 };
-const tab = under('reference', ['/api/', '/changelog/']) ? '/docs/reference/' : under('examples') ? '/docs/examples/' : path.startsWith('/faq/') ? '/faq/' : path.startsWith('/docs/') ? '/docs/' : '';
+const tab = under('reference', ['/api/', '/changelog/']) ? '/docs/reference/' : under('examples') ? '/docs/examples/' : path.startsWith('/faq/') ? '/faq/' : path.startsWith('/studio/') ? '/studio/' : path.startsWith('/docs/') ? '/docs/' : '';
 const active = (href: string) => href === tab;
 ---
 

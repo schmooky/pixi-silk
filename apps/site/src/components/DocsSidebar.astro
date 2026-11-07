@@ -1,6 +1,6 @@
 ---
 interface Props {
-    nav: { title: string; items: { label: string; href: string; children?: { label: string; href: string }[] }[] }[];
+    nav: { title: string; items: { label: string; href: string }[] }[];
     pathname: string;
     /** The docs areas, shown as a switcher above the current area's pages. */
     areas?: { label: string; href: string; active: boolean }[];
@@ -49,17 +49,6 @@ const activeArea = areas.find((a) => a.active);
                                 ]}>
                                     {item.label}
                                 </a>
-                                {item.children && item.children.length > 0 && (isActive(item.href) || item.children.some((c) => isActive(c.href))) && (
-                                    <ul class="mb-1 mt-0.5 space-y-0.5">
-                                        {item.children.map((c) => (
-                                            <li>
-                                                <a href={c.href} class="-ml-px flex items-baseline gap-1.5 border-l border-transparent py-0.5 pl-5 text-xs text-muted-foreground transition-colors hover:text-foreground">
-                                                    <span class="font-mono text-[10px] text-silk">Lab</span>{c.label}
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
                             </li>
                         ))}
                     </ul>
