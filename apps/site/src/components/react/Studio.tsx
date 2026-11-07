@@ -48,6 +48,8 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
     const [auto, setAuto] = useState(true);
     const [copied, setCopied] = useState(false);
     const [query, setQuery] = useState('');
+    // narrow screens show one pane at a time
+    const [pane, setPane] = useState<'code' | 'canvas'>('canvas');
     const shown = useMemo(() => {
         const q = query.trim().toLowerCase();
 
@@ -246,7 +248,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                 ))}
             </nav>
 
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-2 xl:grid-rows-[auto_minmax(0,1fr)]">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-2">
                 <header className="col-span-full flex flex-wrap items-center gap-2 border-b px-3 py-2">
                     <div className="mr-auto min-w-0">
                         <div className="truncate text-sm font-semibold">{current.title}</div>
@@ -256,6 +258,20 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                                 {current.page.title}
                             </a>
                         </div>
+                    </div>
+                    <div className="flex rounded-md border p-0.5 text-xs xl:hidden" role="tablist" aria-label="Pane">
+                        {(['code', 'canvas'] as const).map((p) => (
+                            <button
+                                key={p}
+                                type="button"
+                                role="tab"
+                                aria-selected={pane === p}
+                                onClick={() => setPane(p)}
+                                className={`rounded px-2.5 py-0.5 capitalize ${pane === p ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground'}`}
+                            >
+                                {p}
+                            </button>
+                        ))}
                     </div>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
@@ -295,7 +311,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                     </button>
                 </header>
 
-                <div className="min-h-[280px] border-b xl:border-b-0 xl:border-r">
+                <div className={`min-h-0 xl:block xl:border-r ${pane === 'code' ? 'block' : 'hidden'}`}>
                     {code === undefined ? (
                         <div className="p-4 font-mono text-xs text-muted-foreground">Loading source…</div>
                     ) : (
@@ -326,7 +342,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                     )}
                 </div>
 
-                <div className="relative min-h-[320px] bg-[#0b0b0d]">
+                <div className={`relative min-h-0 bg-[#0b0b0d] xl:block ${pane === 'canvas' ? 'block' : 'hidden'}`}>
                     <iframe
                         ref={frame}
                         key={run}
