@@ -24,15 +24,51 @@
     "gzip": 371
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 20326
+    "gzip": 20497
   },
   "ui/button (SilkButton)": {
-    "gzip": 18166
+    "gzip": 18202
   },
   "ui/dock (ButtonDock)": {
-    "gzip": 1033
+    "gzip": 1044
+  },
+  "ui/gizmo": {
+    "gzip": 22467
+  },
+  "ui/outline": {
+    "gzip": 17345
+  },
+  "ui/snap": {
+    "gzip": 17860
+  },
+  "ui/snap (SnapEngine only)": {
+    "gzip": 1303
+  },
+  "ui/color": {
+    "gzip": 25041
+  },
+  "ui/halo": {
+    "gzip": 19164
+  },
+  "ui/brush": {
+    "gzip": 17973
+  },
+  "ui/modes": {
+    "gzip": 22777
+  },
+  "ui/dial": {
+    "gzip": 19686
+  },
+  "ui/timeline": {
+    "gzip": 19050
+  },
+  "ui/odometer": {
+    "gzip": 2159
+  },
+  "ui/gesture": {
+    "gzip": 940
   },
   "ui (everything)": {
-    "gzip": 22901
+    "gzip": 52555
   }
 }

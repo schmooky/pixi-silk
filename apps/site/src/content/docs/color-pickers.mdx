@@ -1,0 +1,99 @@
+---
+title: Colour pickers
+eyebrow: Editor UI
+seoTitle: 'Colour pickers for PixiJS: hue rings, wheels, OKLCH and swatches'
+description: 'Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatch palettes, a radial swatch popup and an eyedropper. All bound to one colour model.'
+keywords: ['PixiJS color picker', 'hue ring', 'color wheel', 'OKLCH picker', 'eyedropper', 'swatches']
+updated: 2026-11-07
+---
+
+<Demo name="color-rings" height={330} caption="Three pickers on one model. Release a drag to add the colour to the recent row." />
+
+## One model, many pickers
+
+Every picker edits a `ColorModel`. Give several pickers the same model and they stay in sync. The
+model stores hue, saturation, value and alpha, so the hue survives greys and black. It also reads
+and writes hex, RGB and OKLCH.
+
+```ts
+import { ColorModel, ColorWheel, HueTrianglePicker, SwatchPalette } from 'pixi-silk/ui/color';
+
+const model = new ColorModel({ color: 0x30d158 });
+const triangle = new HueTrianglePicker({ model, size: 220 });
+const wheel = new ColorWheel({ model, size: 196 });
+const recent = new SwatchPalette({ model }); // no colours given: shows the recent ones
+
+declare const brush: { tint: number };
+declare function save(color: number): void;
+
+model.value.subscribe(() => (brush.tint = model.hex)); // live, while dragging
+model.committed.subscribe(() => save(model.hex)); // once per release
+```
+
+`value` changes on every move of a drag. Pickers call `commit()` when a drag ends, which adds the
+colour to `history` and bumps `committed`.
+
+## The pickers
+
+- **`HueTrianglePicker`**: hue ring around a triangle with the pure hue, white and black at its
+  corners. The triangle turns to face its hue.
+- **`HueSquarePicker`**: hue ring around a saturation and value square.
+- **`ColorWheel`**: hue around a disc, saturation from the centre out, value on a strip beside it.
+- **`OklchPicker`**: lightness against chroma for one OKLCH hue, plus a hue strip. Colours keep
+  their look as you move, and the part outside sRGB is greyed out.
+- **`ColorSlider`** and **`ChannelSliders`**: gradient tracks for HSV, RGB, OKLCH and alpha. Each
+  track shows what its positions would give with the rest of the colour unchanged.
+- **`SwatchPalette`**: fixed colours or the recent ones, as a grid or a ring.
+- **`SwatchPopup`**: a ring of swatches that opens around the pointer.
+- **`Eyedropper`**: samples the scene through a function the app supplies.
+
+A drag belongs to the part it started on. Start on the ring and the drag only turns the hue, even
+across the square. Handles grow under a finger and glide when another picker moves the colour.
+
+<Demo name="color-oklch" height={260} caption="OKLCH plane with channel sliders. The grey area is outside sRGB." />
+
+## OKLCH
+
+OKLCH is lightness, chroma and hue in a space built to match how colours look. Moving lightness
+does not shift the hue, and equal steps look equal. Not every OKLCH colour fits on a screen, so the
+picker greys out the area outside sRGB and draws its edge. A drag into that area slides along the
+edge.
+
+```ts
+import { ChannelSliders, ColorModel, OklchPicker } from 'pixi-silk/ui/color';
+
+const model = new ColorModel();
+const plane = new OklchPicker({ model, width: 260, height: 180 });
+const sliders = new ChannelSliders({ model, mode: 'oklch' }); // 'hsv', 'rgb'; alpha on by default
+```
+
+<Demo name="color-popup" height={260} caption="Press the artwork for the swatch ring. The pipette samples the artwork." />
+
+## Swatch ring and eyedropper
+
+The swatch popup works like the [radial menu](/docs/radial-menus-and-buttons/). Press, drag towards
+a colour and let go, or tap to keep it open.
+
+The eyedropper does not read pixels itself. Your app knows its scene, so it supplies a sampler.
+That can be a texture lookup, `renderer.extract` on a render target, or plain maths.
+
+```ts
+import type { Container } from 'pixi.js';
+import { ColorModel, Eyedropper, SwatchPopup } from 'pixi-silk/ui/color';
+
+declare const canvasArea: Container;
+declare const pipetteButton: Container;
+declare function colorAt(x: number, y: number): number | null;
+
+const model = new ColorModel();
+const popup = new SwatchPopup({ model, colors: [0xff453a, 0xffd60a, 0x30d158, 0x0a84ff] });
+const dropper = new Eyedropper({ model, sample: (x, y) => colorAt(x, y) });
+
+canvasArea.on('pointerdown', (e) => popup.openAt(e.global.x, e.global.y, e));
+pipetteButton.on('pointertap', () => dropper.start()); // click to pick, Escape or right click to cancel
+```
+
+All pickers draw with pixi-silk gradients. Hue rings are conic gradients interpolated in sRGB, so
+every angle is an exact HSV hue. The square and the wheel layer white and black ramps for exact
+HSV colours. The OKLCH plane is drawn row by row, and chroma along a row is a straight line in
+OKLab, so every row is exact too.

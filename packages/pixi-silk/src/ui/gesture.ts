@@ -1,4 +1,4 @@
-import type { Container, FederatedPointerEvent, PointData } from 'pixi.js';
+import type { Container, FederatedPointerEvent, Point, PointData } from 'pixi.js';
 import { type InputKind, type InputProfiles, inputKind, inputProfile } from './input';
 
 /** A point in the gesture's space plus the event behind it. */
@@ -9,6 +9,13 @@ export interface GesturePoint {
     dx: number;
     dy: number;
     kind: InputKind;
+    /** Copied from the event, so a point stays valid after Pixi reuses the event object. */
+    pointerId: number;
+    pointerType: string;
+    buttons: number;
+    /** Position on the canvas (a copy). */
+    global: Point;
+    /** The live event. Pixi pools events: read it inside the callback only. */
     event: FederatedPointerEvent;
 }
 
@@ -66,7 +73,18 @@ export function trackGesture(target: Container, handlers: GestureHandlers, optio
     const point = (e: FederatedPointerEvent): GesturePoint => {
         const p: PointData = space().toLocal(e.global);
 
-        return { x: p.x, y: p.y, dx: p.x - start.x, dy: p.y - start.y, kind: inputKind(e), event: e };
+        return {
+            x: p.x,
+            y: p.y,
+            dx: p.x - start.x,
+            dy: p.y - start.y,
+            kind: inputKind(e),
+            pointerId: e.pointerId,
+            pointerType: e.pointerType,
+            buttons: e.buttons,
+            global: e.global.clone(),
+            event: e,
+        };
     };
     const clearTimer = () => {
         if (timer) clearTimeout(timer);
@@ -91,13 +109,10 @@ export function trackGesture(target: Container, handlers: GestureHandlers, optio
 
         handlers.onDown?.(p);
         if (holdMs > 0 && handlers.onHold) {
-            // Pixi pools events: hand the hold callback a snapshot
-            const snap = { ...p, event: e };
-
             timer = setTimeout(() => {
                 timer = null;
                 held = true;
-                handlers.onHold?.(snap);
+                handlers.onHold?.(p);
             }, holdMs);
         }
     };

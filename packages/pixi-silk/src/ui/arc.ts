@@ -53,3 +53,15 @@ export class AngleAccumulator {
         return step;
     }
 }
+
+/**
+ * Soft limit: inside `min..max` the value passes through, past a limit it keeps moving but slows
+ * down and never goes further than `limit` beyond it (the rubber band of scroll views).
+ */
+export function rubberBand(value: number, min: number, max: number, limit: number): number {
+    if (limit <= 0) return clamp(value, min, max);
+    if (value > max) return max + limit * (1 - Math.exp(-(value - max) / limit));
+    if (value < min) return min - limit * (1 - Math.exp(-(min - value) / limit));
+
+    return value;
+}

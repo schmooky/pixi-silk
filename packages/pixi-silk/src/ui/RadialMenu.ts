@@ -109,6 +109,8 @@ export interface RadialMenuOptions {
     textStyle?: TextStyleOptions;
     /** Escape closes the menu. Default true. */
     escapeCloses?: boolean;
+    /** Draw the centre disc. Turn it off when the menu opens around a button that should stay visible. Default true. */
+    hub?: boolean;
     /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link RadialMenu.tick}. */
     ticker?: Ticker | null;
     /** An item was picked. `path` runs from the first ring to the item. */
@@ -230,6 +232,7 @@ export class RadialMenu extends Container {
             closeOnSelect: options.closeOnSelect ?? true,
             selectParents: options.selectParents ?? false,
             escapeCloses: options.escapeCloses ?? true,
+            hub: options.hub ?? true,
         };
         const theme = { ...RADIAL_THEME, ...options.theme };
 
@@ -702,7 +705,7 @@ export class RadialMenu extends Container {
         const hubR = (o.innerRadius - 7) * (0.4 + 0.6 * Math.min(this._hub.value, 1.1));
 
         // soft shadow under the first ring and the hub
-        if (hub > 0.01) {
+        if (o.hub && hub > 0.01) {
             g.circle(0, 0, hubR + 4).fill({ color: t.shadow, alpha: 0.25 * hub, blur: 8 });
         }
 
@@ -739,7 +742,7 @@ export class RadialMenu extends Container {
         }
 
         // hub and the aim notch pointing at the cursor
-        if (hub > 0.001) {
+        if (o.hub && hub > 0.001) {
             g.circle(0, 0, hubR).fill({ color: t.hub, alpha: hub });
             if (this._aim > 0.01) {
                 g.arcSweep(0, 0, hubR - 5, ptr.a - 0.32, 0.64).stroke({

@@ -18,6 +18,7 @@ export const DOCS_NAV = [
         title: 'Editor UI',
         items: ['transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
     },
+    { title: 'Examples', items: ['slot-hud'] },
     { title: 'Rendering', items: ['resolution', 'performance', 'how-it-works'] },
 ];
 

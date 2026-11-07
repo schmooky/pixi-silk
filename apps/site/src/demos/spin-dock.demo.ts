@@ -3,6 +3,7 @@ import { SilkGraphics } from 'pixi-silk';
 import { signal } from 'pixi-silk/signal';
 import { SilkButton } from 'pixi-silk/ui/button';
 import { ButtonDock } from 'pixi-silk/ui/dock';
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
 import { defineDemo } from './runtime';
 
 const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
@@ -12,26 +13,15 @@ const plus = (g: SilkGraphics, s: number) => {
     minus(g, s);
     g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
 };
-const bolt = (g: SilkGraphics, s: number) =>
-    g
-        .poly([
-            s * 0.08,
-            -s * 0.48,
-            -s * 0.3,
-            s * 0.06,
-            -s * 0.02,
-            s * 0.06,
-            -s * 0.1,
-            s * 0.48,
-            s * 0.3,
-            -s * 0.08,
-            0,
-            -s * 0.08,
-        ])
-        .fill(0xffffff);
+// a lightning bolt as two rounded triangles (closed polygons cannot be filled yet)
+const bolt = (g: SilkGraphics, s: number) => {
+    g.triangle(s * 0.12, -s * 0.5, -s * 0.3, s * 0.08, s * 0.08, s * 0.02, 1).fill(0xffffff);
+    g.triangle(-s * 0.12, s * 0.5, s * 0.3, -s * 0.08, -s * 0.08, -s * 0.02, 1).fill(0xffffff);
+};
 
-// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave and the
-// spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave, the speed
+// switch locks and the spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+const SPEED: Record<string, number> = { normal: 1.1, turbo: 0.6, quick: 0.3 };
 export default defineDemo({
     size: [560, 340],
     touchAction: 'none',
@@ -61,7 +51,17 @@ export default defineDemo({
             icon: plus,
             onPress: () => bet.update((b) => Math.min(10, b + 1)),
         });
-        const turbo = new SilkButton({ ...side, width: 92, height: 48, icon: bolt, label: 'Turbo' });
+        const speed = new SegmentedSwitch({
+            ticker,
+            value: 'normal',
+            segmentWidth: 78,
+            height: 34,
+            options: [
+                { id: 'normal', label: 'Normal' },
+                { id: 'turbo', icon: bolt },
+                { id: 'quick', label: 'Quick' },
+            ],
+        });
         const spin = new SilkButton({
             ticker,
             shape: 'circle',
@@ -73,26 +73,31 @@ export default defineDemo({
             onPress: () => run(1),
             onHold: () => run(5),
         });
-        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more, turbo);
+        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more);
         let spinning = 0;
+        let duration = 1.1;
         let left = 0;
 
         bet.subscribe((b) => (label.text = `bet ${b}`));
         label.text = `bet ${bet.value}`;
         label.anchor.set(0.5);
-        label.position.set(280, 34);
+        label.position.set(90, 34);
+        speed.position.set(400, 34);
         dock.position.set(280, 282);
-        stage.addChild(reels, label, dock);
+        stage.addChild(reels, label, speed, dock);
 
         async function run(count: number) {
             left = count;
             spin.state.busy.set(true);
-            await Promise.all([less.hide(), more.hide(), turbo.hide()]);
+            speed.state.enabled.set(false);
+            await Promise.all([less.hide(), more.hide()]);
             while (left-- > 0) {
-                spinning = 1.1;
-                await new Promise((r) => setTimeout(r, 1100));
+                duration = SPEED[speed.state.value.value] ?? 1.1;
+                spinning = duration;
+                await new Promise((r) => setTimeout(r, duration * 1000));
             }
             spin.state.busy.set(false);
+            speed.state.enabled.set(true);
             await dock.showAll();
         }
 
@@ -102,7 +107,7 @@ export default defineDemo({
             reels.clear();
             for (let c = 0; c < 5; c++) {
                 const x = 60 + c * 92;
-                const run = spinning > 0 && spinning < 1.1 - c * 0.05 ? 1 : 0;
+                const run = spinning > 0 && spinning < duration * (1 - c * 0.05) ? 1 : 0;
 
                 reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
                 for (let r = 0; r < 3; r++) {

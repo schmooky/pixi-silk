@@ -36,6 +36,18 @@ const IMPORTS = {
     'ui/radial (RadialMenu)': ['RadialMenu, bindRadialTrigger', ['SilkButton', 'ButtonDock'], '/ui/radial'],
     'ui/button (SilkButton)': ['SilkButton', ['RadialMenu', 'ButtonDock'], '/ui/button'],
     'ui/dock (ButtonDock)': ['ButtonDock', ['RadialMenu', '#version 300 es'], '/ui/dock'],
+    'ui/gizmo': ['*', ['RadialMenu', 'ColorModel'], '/ui/gizmo'],
+    'ui/outline': ['*', ['RadialMenu', 'TransformGizmo'], '/ui/outline'],
+    'ui/snap': ['*', ['RadialMenu'], '/ui/snap'],
+    'ui/snap (SnapEngine only)': ['SnapEngine', ['#version 300 es', 'RadialMenu'], '/ui/snap'],
+    'ui/color': ['*', ['RadialMenu', 'TransformGizmo'], '/ui/color'],
+    'ui/halo': ['*', ['ColorModel', 'TransformGizmo'], '/ui/halo'],
+    'ui/brush': ['*', ['RadialMenu', 'ColorModel'], '/ui/brush'],
+    'ui/modes': ['*', ['ColorModel', 'TransformGizmo'], '/ui/modes'],
+    'ui/dial': ['*', ['RadialMenu', 'MiniTimeline'], '/ui/dial'],
+    'ui/timeline': ['*', ['RadialMenu', 'JogDial'], '/ui/timeline'],
+    'ui/odometer': ['*', ['RadialMenu', '#version 300 es'], '/ui/odometer'],
+    'ui/gesture': ['*', ['#version 300 es', 'RadialMenu'], '/ui/gesture'],
     'ui (everything)': ['*', [], '/ui'],
 };
 
