@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content';
 import type { APIRoute } from 'astro';
 import { LAB_SECTIONS } from '@/lab/catalog.mjs';
 import { apiPages } from '@/lib/api';
-import { docsInOrder } from '@/lib/docs';
+import { docsAreas, docsInOrder } from '@/lib/docs';
 import { canonical, imageUrl, isoDate } from '@/lib/seo';
 import { SHEETS } from '@/lib/showcase';
 import { SITE } from '@/lib/site';
@@ -20,6 +20,7 @@ const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 /** Every route family is listed on purpose; lastmod only where content dates are known. */
 export const GET: APIRoute = async () => {
     const docs = await docsInOrder();
+    const areas = await docsAreas();
     const updated = new Map((await getCollection('docs')).map((e) => [e.id, isoDate(e.data.updated)]));
     const newest = [...updated.values()].sort().at(-1);
     const showcaseImages = await Promise.all(
@@ -36,6 +37,16 @@ export const GET: APIRoute = async () => {
             images: [{ loc: imageUrl('/og/home.png'), title: SITE.tagline }],
         },
         { path: '/docs/', priority: '0.9', lastmod: newest },
+        ...areas.map((a) => ({
+            path: a.href,
+            priority: '0.85',
+            lastmod:
+                a.pages
+                    .map((d) => updated.get(d.slug))
+                    .sort()
+                    .at(-1) ?? newest,
+            images: [{ loc: imageUrl(`/og/docs/${a.id}.png`), title: a.title }],
+        })),
         ...docs.map((d) => ({
             path: d.href,
             priority: '0.85',

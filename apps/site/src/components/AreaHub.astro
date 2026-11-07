@@ -1,0 +1,61 @@
+---
+import type { Area } from '@/lib/docs';
+
+interface Props {
+    area: Area;
+}
+const { area } = Astro.props;
+const arrow = 'M5 12h14M13 6l6 6-6 6';
+---
+
+{area.intro.map((p) => <p>{p}</p>)}
+
+{area.pages.length > 0 && (
+    <section class="not-prose mt-10">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Read in order</h2>
+        <ol class="!m-0 list-none divide-y border-y !p-0">
+            {area.pages.map((p, i) => (
+                <li class="!m-0">
+                    <a href={p.href} class="group grid grid-cols-[2rem_minmax(0,1fr)_auto] items-baseline gap-x-3 py-4 no-underline">
+                        <span class="font-mono text-xs text-silk">{String(i + 1).padStart(2, '0')}</span>
+                        <span class="min-w-0">
+                            <span class="block font-semibold text-foreground">{p.title}</span>
+                            <span class="mt-1 block text-sm leading-relaxed text-muted-foreground">{p.description}</span>
+                        </span>
+                        <svg class="h-4 w-4 shrink-0 self-center text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                    </a>
+                </li>
+            ))}
+        </ol>
+    </section>
+)}
+
+{area.links.length > 0 && (
+    <section class="not-prose mt-10">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{area.pages.length > 0 ? 'Also here' : 'Open'}</h2>
+        <div class="grid gap-3 sm:grid-cols-2">
+            {area.links.map((l) => (
+                <a href={l.href} class="rounded-xl border bg-card p-5 no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
+                    <div class="font-semibold text-foreground">{l.label}</div>
+                    <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                </a>
+            ))}
+        </div>
+    </section>
+)}
+
+{area.lab.length > 0 && (
+    <section class="not-prose mt-10">
+        <h2 class="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Go deeper in the lab</h2>
+        <p class="mb-4 text-sm text-muted-foreground">Full-screen experiments on the same topics. Press <kbd class="rounded border px-1 font-mono text-xs">L</kbd> on any of them for a pixel loupe.</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+            {area.lab.map((l) => (
+                <a href={l.href} class="rounded-xl border bg-card p-5 no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
+                    <div class="font-mono text-[11px] text-silk">Lab {l.slug.slice(0, 2)}</div>
+                    <div class="mt-1.5 font-semibold text-foreground">{l.name}</div>
+                    <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                </a>
+            ))}
+        </div>
+    </section>
+)}

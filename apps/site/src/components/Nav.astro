@@ -7,13 +7,15 @@ import { SILK_VERSION } from '@/lib/version';
 
 const links = [
     { href: '/docs/', label: 'Docs' },
-    { href: '/api/', label: 'API' },
     { href: '/lab/', label: 'Lab' },
     { href: '/showcase/', label: 'Showcase' },
+    { href: '/docs/reference/', label: 'Reference' },
     { href: '/faq/', label: 'FAQ' },
 ];
 const path = Astro.url.pathname;
-const active = (href: string) => path.startsWith(href);
+// the Reference area, the API pages and the changelog light up Reference, not Docs
+const reference = ['/docs/reference/', '/docs/glossary/', '/api/', '/changelog/'].some((p) => path.startsWith(p));
+const active = (href: string) => (href === '/docs/reference/' ? reference : href === '/docs/' ? path.startsWith(href) && !reference : path.startsWith(href));
 ---
 
 <header class="glass sticky top-0 z-40 border-b">
@@ -45,7 +47,7 @@ const active = (href: string) => path.startsWith(href);
         </div>
     </div>
     <nav id="nav-mobile" aria-label="Main" class="hidden border-t px-4 py-3 md:hidden">
-        {links.map((l) => <a href={l.href} class="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">{l.label}</a>)}
+        {links.map((l) => <a href={l.href} class:list={['block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-foreground', active(l.href) ? 'text-foreground' : 'text-muted-foreground']}>{l.label}</a>)}
     </nav>
 </header>
 <script is:inline>

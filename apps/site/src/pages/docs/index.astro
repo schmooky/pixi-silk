@@ -1,38 +1,90 @@
 ---
-import { DOCS_NAV } from '@/content/nav.mjs';
 import Base from '@/layouts/Base.astro';
-import { docsInOrder } from '@/lib/docs';
+import { docsAreas } from '@/lib/docs';
 import { breadcrumbLd } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 
-const docs = await docsInOrder();
-const description = `Guides for ${SITE.name}: install it, draw smooth shapes, paint gradients and glows, build charts and UI, and learn how analytic anti-aliasing works.`;
+const areas = await docsAreas();
+const start = areas.find((a) => a.id === 'start');
+const description = `Guides for ${SITE.name}, grouped into areas: get started, draw smooth shapes, paint gradients and glows, build UI, and learn how analytic anti-aliasing works.`;
+const steps = [
+    {
+        n: '01',
+        title: 'Get started',
+        body: 'Install the package and draw a first scene. The introduction says when pixi-silk helps.',
+        href: start?.href ?? '/docs/introduction/',
+        cta: 'Start here',
+    },
+    {
+        n: '02',
+        title: 'Pick an area',
+        body: 'Each area opens with an overview, then its pages in reading order. Switch areas from the sidebar.',
+        href: '#areas',
+        cta: 'See the areas',
+    },
+    {
+        n: '03',
+        title: 'Go deeper',
+        body: 'Every area links to lab experiments on the same topic. The API reference covers every export.',
+        href: '/lab/',
+        cta: 'Open the lab',
+    },
+];
 ---
 
 <Base title={`Docs: smooth, anti-aliased graphics for PixiJS v8 | ${SITE.name}`} description={description} path="/docs/" jsonLd={[breadcrumbLd([{ name: SITE.name, url: '/' }, { name: 'Docs', url: '/docs/' }])]}>
     <div class="container-page py-14" data-pagefind-body data-pagefind-filter="section:Docs">
-        <h1 class="text-4xl font-semibold tracking-tight">Documentation</h1>
+        <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-silk">Documentation</div>
+        <h1 class="mt-2 text-4xl font-semibold tracking-tight">How pixi-silk works, area by area</h1>
         <p class="mt-3 max-w-2xl text-muted-foreground">{description} Every guide has live demos with their source.</p>
-        {DOCS_NAV.map((section) => (
-            <section class="mt-12" id={section.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>
-                <h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{section.title}</h2>
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {docs.filter((d) => d.section === section.title).map((d) => (
+
+        <ol class="mt-10 grid gap-3 md:grid-cols-3">
+            {steps.map((s) => (
+                <li>
+                    <a href={s.href} class="group flex h-full flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
+                        <span class="font-mono text-xs text-silk">{s.n}</span>
+                        <span class="mt-1.5 font-semibold">{s.title}</span>
+                        <span class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.body}</span>
+                        <span class="mt-auto pt-4 text-sm font-semibold">{s.cta}</span>
+                    </a>
+                </li>
+            ))}
+        </ol>
+
+        <nav id="areas" aria-label="Docs areas" class="mt-14 flex scroll-mt-20 flex-wrap gap-2 border-b pb-4">
+            {areas.map((a) => (
+                <a href={`#${a.id}`} class="rounded-full border px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">{a.title}</a>
+            ))}
+        </nav>
+
+        {areas.map((a) => (
+            <section class="mt-12 scroll-mt-20" id={a.id}>
+                {a.aliases.map((id) => <span id={id} class="block scroll-mt-20" />)}
+                <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <h2 class="text-2xl font-semibold tracking-tight"><a href={a.href} class="hover:underline">{a.title}</a></h2>
+                    <a href={a.href} class="text-sm text-muted-foreground hover:text-foreground">Area overview</a>
+                </div>
+                <p class="mt-1.5 max-w-2xl text-sm text-muted-foreground">{a.summary}</p>
+                <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {a.pages.map((d) => (
                         <a href={d.href} class="rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
                             <div class="font-semibold">{d.title}</div>
                             <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{d.description}</p>
                         </a>
                     ))}
+                    {a.links.map((l) => (
+                        <a href={l.href} class="rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
+                            <div class="font-semibold">{l.label}</div>
+                            <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                        </a>
+                    ))}
                 </div>
+                {a.lab.length > 0 && (
+                    <p class="mt-3 text-sm text-muted-foreground">
+                        In the lab: {a.lab.map((l, i) => (<>{i > 0 && ', '}<a href={l.href} class="underline-offset-4 hover:text-foreground hover:underline">{l.name}</a></>))}
+                    </p>
+                )}
             </section>
         ))}
-        <section class="mt-12">
-            <h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Reference</h2>
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <a href="/api/" class="rounded-xl border bg-card p-5 hover:border-foreground/30"><div class="font-semibold">API reference</div><p class="mt-1.5 text-sm text-muted-foreground">Every export, generated from the source's JSDoc.</p></a>
-                <a href="/faq/" class="rounded-xl border bg-card p-5 hover:border-foreground/30"><div class="font-semibold">FAQ</div><p class="mt-1.5 text-sm text-muted-foreground">Short answers to the usual questions.</p></a>
-                <a href="/llms-full.txt" class="rounded-xl border bg-card p-5 hover:border-foreground/30"><div class="font-semibold">llms-full.txt</div><p class="mt-1.5 text-sm text-muted-foreground">All docs and demo sources as one plain-text file for AI assistants.</p></a>
-            </div>
-        </section>
     </div>
 </Base>

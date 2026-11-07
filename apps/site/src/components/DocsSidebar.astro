@@ -2,34 +2,58 @@
 interface Props {
     nav: { title: string; items: { label: string; href: string }[] }[];
     pathname: string;
+    /** The docs areas, shown as a switcher above the current area's pages. */
+    areas?: { label: string; href: string; active: boolean }[];
 }
-const { nav, pathname } = Astro.props;
+const { nav, pathname, areas = [] } = Astro.props;
 const isActive = (href: string) => pathname === href || pathname === href.replace(/\/$/, '');
 const current = nav.flatMap((s) => s.items).find((i) => isActive(i.href));
+const activeArea = areas.find((a) => a.active);
 ---
 
 <aside class="md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:self-start md:overflow-y-auto md:pb-8">
     <details class="group md:hidden" data-pagefind-ignore>
-        <summary class="cursor-pointer rounded-md border px-3 py-2 text-sm">{current?.label ?? 'Menu'}</summary>
+        <summary class="cursor-pointer rounded-md border px-3 py-2 text-sm">
+            {activeArea && current ? `${activeArea.label}: ${current.label}` : (current?.label ?? activeArea?.label ?? 'Menu')}
+        </summary>
         <div class="mt-2"><slot name="mobile" /></div>
     </details>
-    <nav aria-label="Docs" class="hidden text-sm md:block" data-pagefind-ignore>
-        {nav.map((section) => (
-            <div class="mb-6">
-                <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section.title}</div>
-                <ul class="space-y-0.5 border-l">
-                    {section.items.map((item) => (
+    <div class="hidden text-sm md:block" data-pagefind-ignore>
+        {areas.length > 0 && (
+            <nav aria-label="Docs areas" class="mb-6 border-b pb-5">
+                <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Areas</div>
+                <ul class="grid gap-0.5">
+                    {areas.map((a) => (
                         <li>
-                            <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} class:list={[
-                                '-ml-px block border-l py-1 pl-3 transition-colors',
-                                isActive(item.href) ? 'border-silk font-medium text-foreground' : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                            <a href={a.href} aria-current={a.active ? 'true' : undefined} class:list={[
+                                'block rounded-md px-2 py-1 transition-colors',
+                                a.active ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                             ]}>
-                                {item.label}
+                                {a.label}
                             </a>
                         </li>
                     ))}
                 </ul>
-            </div>
-        ))}
-    </nav>
+            </nav>
+        )}
+        <nav aria-label="Docs">
+            {nav.map((section) => (
+                <div class="mb-6">
+                    <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section.title}</div>
+                    <ul class="space-y-0.5 border-l">
+                        {section.items.map((item) => (
+                            <li>
+                                <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} class:list={[
+                                    '-ml-px block border-l py-1 pl-3 transition-colors',
+                                    isActive(item.href) ? 'border-silk font-medium text-foreground' : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                                ]}>
+                                    {item.label}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+        </nav>
+    </div>
 </aside>

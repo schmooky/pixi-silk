@@ -1,10 +1,10 @@
 ---
 import type { MarkdownHeading } from 'astro';
 import DocsSidebar from '@/components/DocsSidebar.astro';
-import { DOCS_LINKS, DOCS_NAV } from '@/content/nav.mjs';
+import { DOCS_LINKS } from '@/content/nav.mjs';
 import Base from '@/layouts/Base.astro';
 import { apiNav } from '@/lib/api';
-import { docsInOrder } from '@/lib/docs';
+import { docsAreas, docsInOrder } from '@/lib/docs';
 import { articleLd, breadcrumbLd, isoDate, pageTitle } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 import { SILK_VERSION } from '@/lib/version';
@@ -25,6 +25,8 @@ interface Props {
     markdown?: string;
     /** Extra structured data for this page. */
     jsonLd?: unknown[];
+    /** Set on an area hub (`/docs/<area>/`): the area it introduces. */
+    area?: string;
 }
 const props = Astro.props;
 const fm = props.frontmatter ?? {};
@@ -39,24 +41,42 @@ const fullTitle = pageTitle(props.seoTitle ?? (section === 'api' ? `${title} (${
 const modified = props.updated ? isoDate(props.updated) : undefined;
 
 const docs = await docsInOrder();
+const areas = await docsAreas();
+const current = docs.find((d) => d.href === pathname);
+const area = areas.find((a) => a.id === (props.area ?? current?.area));
 const nav = section === 'api'
     ? apiNav()
-    : [
-        ...DOCS_NAV.map((s) => ({ title: s.title, items: s.items.map((id) => ({ label: docs.find((d) => d.slug === id)!.title, href: `/docs/${id}/` })) })),
-        { title: 'More', items: DOCS_LINKS.map((l) => ({ label: l.label, href: l.href })) },
-    ];
-const current = docs.find((d) => d.href === pathname);
-const index = current ? docs.indexOf(current) : -1;
-const prev = index > 0 ? docs[index - 1] : null;
-const next = index >= 0 && index < docs.length - 1 ? docs[index + 1] : null;
+    : area
+      ? [
+            {
+                title: area.title,
+                items: [
+                    { label: 'Overview', href: area.href },
+                    ...area.pages.map((p) => ({ label: p.title, href: p.href })),
+                    ...area.links.map((l) => ({ label: l.label, href: l.href })),
+                ],
+            },
+            ...(area.id === 'reference' ? [] : [{ title: 'More', items: DOCS_LINKS.map((l) => ({ label: l.label, href: l.href })) }]),
+        ]
+      : [];
+// One reading path through the docs: each area's hub, then its pages, then the next area.
+const sequence = areas.flatMap((a) => [
+    { href: a.href, title: a.title, label: 'Area' },
+    ...a.pages.map((p) => ({ href: p.href, title: p.title, label: a.title })),
+]);
+const index = section === 'api' ? -1 : sequence.findIndex((s) => s.href === pathname);
+const prev = index > 0 ? sequence[index - 1] : null;
+const next = index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : null;
 const crumbs = [
     { name: SITE.name, url: '/' },
     { name: sectionLabel, url: section === 'api' ? '/api/' : '/docs/' },
-    ...(current ? [{ name: current.section, url: `/docs/#${current.section.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` }] : []),
+    ...(area ? [{ name: area.title, url: area.href }] : []),
     { name: title, url: pathname },
 ].filter((c, i, all) => i === 0 || c.url !== all[i - 1].url);
+const sectionName = area?.title ?? sectionLabel;
+const tabs = section === 'api' ? [] : areas.map((a) => ({ label: a.title, href: a.href, active: a.id === area?.id }));
 const jsonLd = [
-    articleLd({ title, description, path: pathname, section: current?.section ?? sectionLabel, keywords: props.keywords, published: SITE.published, modified }),
+    articleLd({ title, description, path: pathname, section: sectionName, keywords: props.keywords, published: SITE.published, modified }),
     breadcrumbLd(crumbs),
     ...(props.jsonLd ?? []),
 ];
@@ -67,14 +87,20 @@ const jsonLd = [
     description={description}
     path={pathname}
     type="article"
-    article={{ section: current?.section ?? sectionLabel, tags: props.keywords, published: SITE.published, modified }}
+    article={{ section: sectionName, tags: props.keywords, published: SITE.published, modified }}
     keywords={props.keywords}
     markdown={props.markdown}
     jsonLd={jsonLd}
 >
     <div class="container-page grid gap-10 py-10 md:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_200px]">
-        <DocsSidebar nav={nav} pathname={pathname}>
+        <DocsSidebar nav={nav} pathname={pathname} areas={tabs}>
             <nav slot="mobile" aria-label="Docs" class="space-y-4 text-sm">
+                {tabs.length > 0 && (
+                    <div>
+                        <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Areas</div>
+                        {tabs.map((t) => <a href={t.href} class:list={['block py-1', t.active ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground']}>{t.label}</a>)}
+                    </div>
+                )}
                 {nav.map((s) => (
                     <div>
                         <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.title}</div>
@@ -83,7 +109,7 @@ const jsonLd = [
                 ))}
             </nav>
         </DocsSidebar>
-        <article class="prose-docs min-w-0 max-w-3xl animate-fade-in" data-pagefind-body data-pagefind-filter={`section:${sectionLabel}`}>
+        <article class="prose-docs min-w-0 max-w-3xl animate-fade-in" data-pagefind-body data-pagefind-filter={`section:${sectionLabel}`} data-area={area?.id}>
             <nav aria-label="Breadcrumb" class="not-prose mb-3 text-xs text-muted-foreground" data-pagefind-ignore>
                 <ol class="flex flex-wrap items-center gap-1.5">
                     {crumbs.slice(0, -1).map((c) => (
@@ -91,7 +117,11 @@ const jsonLd = [
                     ))}
                 </ol>
             </nav>
-            {eyebrow && <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-silk" data-pagefind-ignore>{eyebrow}</div>}
+            {area && !props.area ? (
+                <a href={area.href} class="mb-2 inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-silk no-underline hover:underline" data-pagefind-ignore>{area.title}</a>
+            ) : (
+                (eyebrow ?? (props.area ? 'Docs' : undefined)) && <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-silk" data-pagefind-ignore>{eyebrow ?? 'Docs'}</div>
+            )}
             <h1 class="!mt-0 mb-4 text-4xl font-semibold tracking-tight">{title}</h1>
             {props.description && <p class="!mt-0 text-lg !text-muted-foreground">{props.description}</p>}
             {modified && (
@@ -105,13 +135,13 @@ const jsonLd = [
                 <nav aria-label="Previous and next page" class="not-prose mt-16 grid gap-3 sm:grid-cols-2" data-pagefind-ignore>
                     {prev ? (
                         <a href={prev.href} rel="prev" class="group rounded-xl border bg-card p-4 no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Previous</div>
+                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Previous{prev.label === 'Area' ? ' area' : ''}</div>
                             <div class="mt-1 font-semibold text-foreground">{prev.title}</div>
                         </a>
                     ) : <div />}
                     {next && (
                         <a href={next.href} rel="next" class="group rounded-xl border bg-card p-4 text-right no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Next</div>
+                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Next{next.label === 'Area' ? ' area' : ''}</div>
                             <div class="mt-1 font-semibold text-foreground">{next.title}</div>
                         </a>
                     )}

@@ -1,4 +1,5 @@
 import { getCollection } from 'astro:content';
+import { DOCS_NAV, VISIBLE_AREAS } from '@/content/nav.mjs';
 import { LAB_SECTIONS } from '@/lab/catalog.mjs';
 import type { OgTarget } from './render';
 
@@ -54,9 +55,15 @@ export async function ogTargets(): Promise<OgTarget[]> {
         },
         ...docs.map((d) => ({
             id: `docs/${d.id}`,
-            eyebrow: d.data.eyebrow ?? 'Docs',
+            eyebrow: DOCS_NAV.find((a) => a.items.includes(d.id))?.title ?? 'Docs',
             title: d.data.title,
             subtitle: d.data.description,
+        })),
+        ...VISIBLE_AREAS.map((a) => ({
+            id: `docs/${a.id}`,
+            eyebrow: 'Docs area',
+            title: a.title,
+            subtitle: a.summary,
         })),
         ...LAB_SECTIONS.flatMap(([section, items]) =>
             items.map(([slug, name, description]) => ({
