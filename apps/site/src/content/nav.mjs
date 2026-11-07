@@ -2,25 +2,27 @@
  * The docs, grouped into areas. This file is the one place that says what the site knows and in
  * which order a reader meets it.
  *
- * Each area gets a hub page at `/docs/<id>/` (an introduction, its pages in reading order, the
- * lab experiments that go deeper and links out), a block on the `/docs/` index and its own sidebar
- * in the docs layout. Its pages keep their URLs at `/docs/<page>/`.
+ * An area is a self-contained module: a hub page at `/docs/<id>/` (introduction, pages in reading
+ * order, each page with the lab experiments that go deeper on it, links out and the questions on
+ * its topic), a block on the `/docs/` index and its own sidebar. Pages keep their URLs at
+ * `/docs/<page>/`, lab experiments at `/lab/<slug>/`.
  *
- * Every page in src/content/docs must appear in exactly one area (checked at build time), so the
- * sidebar, hubs, sitemap, llms.txt and prev/next links can never drift apart.
+ * Every docs page and every lab experiment belongs to exactly one place (checked at build time),
+ * so the sidebar, hubs, sitemap, llms.txt and prev/next links can never drift apart.
  *
  * To add a page: drop `<page>.mdx` in src/content/docs and list its id under one area.
+ * To attach a lab experiment: list its slug under the page it deepens (`{ page, lab: [...] }`).
  * To add an area: add an entry below. Its id becomes the hub URL and must not match a page id.
  * An area with no pages and no links yet is left out of the site until it has some.
  *
  * @typedef {{ label: string, href: string, description: string }} AreaLink
+ * @typedef {string | { page: string, lab: string[] }} AreaItem
  * @typedef {{
  *   id: string,
  *   title: string,
  *   summary: string,
  *   intro: string[],
- *   items: string[],
- *   lab?: string[],
+ *   items: AreaItem[],
  *   links?: AreaLink[],
  *   aliases?: string[],
  * }} DocsArea
@@ -35,8 +37,12 @@ export const DOCS_AREAS = [
             'Start here if pixi-silk is new to you. The introduction says what it is and when it helps.',
             'Installation and the quick start get a smooth scene on screen in a few minutes. The migration page maps Graphics calls to SilkGraphics.',
         ],
-        items: ['introduction', 'installation', 'quick-start', 'migrating-from-graphics'],
-        lab: ['01-primitives', '02-versus'],
+        items: [
+            { page: 'introduction', lab: ['01-primitives'] },
+            'installation',
+            'quick-start',
+            { page: 'migrating-from-graphics', lab: ['02-versus'] },
+        ],
         aliases: ['getting-started'],
     },
     {
@@ -47,8 +53,14 @@ export const DOCS_AREAS = [
             'Everything SilkGraphics can draw, one primitive family per page. Each page opens with a live demo and its source.',
             'Read shapes first. The other pages build on its fill and stroke calls, and transforms apply to all of them.',
         ],
-        items: ['shapes', 'arcs-and-rings', 'lines-and-paths', 'fills-and-strokes', 'dashes', 'transforms'],
-        lab: ['07-rounded-rects', '08-activity-rings', '09-lines', '10-dashes', '11-icons'],
+        items: [
+            { page: 'shapes', lab: ['07-rounded-rects', '11-icons'] },
+            { page: 'arcs-and-rings', lab: ['08-activity-rings'] },
+            { page: 'lines-and-paths', lab: ['09-lines'] },
+            'fills-and-strokes',
+            { page: 'dashes', lab: ['10-dashes'] },
+            'transforms',
+        ],
     },
     {
         id: 'paint',
@@ -58,8 +70,10 @@ export const DOCS_AREAS = [
             'What goes inside a shape once it is drawn. Gradients cover linear, radial, conic and along-the-path ramps.',
             'Blur turns the same distance field into glows and shadows without a filter pass.',
         ],
-        items: ['gradients', 'blur-and-shadows'],
-        lab: ['12-gradients', '13-banding', '14-glow'],
+        items: [
+            { page: 'gradients', lab: ['12-gradients', '13-banding'] },
+            { page: 'blur-and-shadows', lab: ['14-glow'] },
+        ],
     },
     {
         id: 'ui',
@@ -70,8 +84,12 @@ export const DOCS_AREAS = [
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
             'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
         ],
-        items: ['charts', 'hit-testing', 'animation', 'radial-menus-and-buttons'],
-        lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'],
+        items: [
+            { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
+            'hit-testing',
+            { page: 'animation', lab: ['23-timers'] },
+            'radial-menus-and-buttons',
+        ],
         aliases: ['building-ui'],
     },
     {
@@ -90,21 +108,27 @@ export const DOCS_AREAS = [
         summary: 'Whole screens built with pixi-silk, from reference sheets rebuilt 1:1 to a live dashboard.',
         intro: [
             'Complete scenes that combine the other areas. They are examples on the site, not library code.',
-            'The showcase compares five design sheets with their live rebuild. The widget viewer opens any of its widgets up close.',
+            'The showcase compares five design sheets with their live rebuild, and every sheet and widget opens full screen. The slot HUD page has game controls to copy.',
         ],
-        items: ['slot-hud'],
-        lab: ['26-dashboard', '30-sheet-health', '33-sheet-live-activities', '35-widget-viewer'],
-        links: [
+        items: [
             {
-                label: 'Showcase',
-                href: '/showcase/',
-                description: 'Five design reference sheets next to their live rebuild, 81 widgets in all.',
+                page: 'showcase',
+                lab: [
+                    '30-sheet-health',
+                    '31-sheet-complications',
+                    '32-sheet-fitness',
+                    '33-sheet-live-activities',
+                    '34-sheet-watch',
+                    '35-widget-viewer',
+                    '17-pills-waves',
+                    '19-health-cards',
+                    '22-sleep',
+                    '24-journeys',
+                    '25-sky',
+                    '26-dashboard',
+                ],
             },
-            {
-                label: 'Widget viewer',
-                href: '/lab/35-widget-viewer/',
-                description: 'Any showcase widget, large, next to its crop of the reference or laid over it.',
-            },
+            'slot-hud',
         ],
     },
     {
@@ -117,13 +141,12 @@ export const DOCS_AREAS = [
         ],
         items: [
             'smooth-graphics-pixijs',
-            'antialiasing-in-pixijs',
+            { page: 'antialiasing-in-pixijs', lab: ['03-zoom', '04-subpixel'] },
             'graphics-smooth-v8',
-            'resolution',
-            'performance',
+            { page: 'resolution', lab: ['05-resolution', '06-render-texture'] },
+            { page: 'performance', lab: ['27-stress'] },
             'how-it-works',
         ],
-        lab: ['03-zoom', '04-subpixel', '05-resolution', '06-render-texture', '27-stress'],
         aliases: ['smooth-graphics'],
     },
     {
@@ -141,7 +164,7 @@ export const DOCS_AREAS = [
                 href: '/api/',
                 description: 'Every export, generated from the source JSDoc.',
             },
-            { label: 'FAQ', href: '/faq/', description: 'Short answers to the usual questions.' },
+            { label: 'FAQ', href: '/faq/', description: 'Short answers to the usual questions, grouped by area.' },
             { label: 'Changelog', href: '/changelog/', description: 'What changed in each release.' },
             {
                 label: 'llms-full.txt',
@@ -152,6 +175,12 @@ export const DOCS_AREAS = [
     },
 ];
 
+/** Page id of an area item. */
+export const itemPage = (/** @type {AreaItem} */ item) => (typeof item === 'string' ? item : item.page);
+
+/** Lab experiments attached to an area item. */
+export const itemLab = (/** @type {AreaItem} */ item) => (typeof item === 'string' ? [] : item.lab);
+
 /** Areas the site shows: those with at least one page or link. */
 export const VISIBLE_AREAS = DOCS_AREAS.filter((a) => a.items.length > 0 || (a.links?.length ?? 0) > 0);
 
@@ -159,7 +188,7 @@ export const VISIBLE_AREAS = DOCS_AREAS.filter((a) => a.items.length > 0 || (a.l
 export const DOCS_NAV = DOCS_AREAS.filter((a) => a.items.length > 0).map((a) => ({
     id: a.id,
     title: a.title,
-    items: a.items,
+    items: a.items.map(itemPage),
 }));
 
 /** Extra links under the sidebar. */

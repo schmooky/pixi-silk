@@ -1,1 +1,1 @@
-export declare const FAQ: { q: string; a: string }[];
+export declare const FAQ: { area: string; q: string; a: string }[];

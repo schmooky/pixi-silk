@@ -52,7 +52,11 @@ const nav = section === 'api'
                 title: area.title,
                 items: [
                     { label: 'Overview', href: area.href },
-                    ...area.pages.map((p) => ({ label: p.title, href: p.href })),
+                    ...area.pages.map((p) => ({
+                        label: p.title,
+                        href: p.href,
+                        children: p.lab.map((l) => ({ label: l.name, href: l.href })),
+                    })),
                     ...area.links.map((l) => ({ label: l.label, href: l.href })),
                 ],
             },
@@ -104,7 +108,12 @@ const jsonLd = [
                 {nav.map((s) => (
                     <div>
                         <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.title}</div>
-                        {s.items.map((i) => <a href={i.href} class="block py-1 text-muted-foreground hover:text-foreground">{i.label}</a>)}
+                        {s.items.map((i) => (
+                            <>
+                                <a href={i.href} class="block py-1 text-muted-foreground hover:text-foreground">{i.label}</a>
+                                {'children' in i && (i.children as { label: string; href: string }[]).map((c) => <a href={c.href} class="block py-0.5 pl-3 text-xs text-muted-foreground hover:text-foreground">Lab: {c.label}</a>)}
+                            </>
+                        ))}
                     </div>
                 ))}
             </nav>
@@ -131,6 +140,21 @@ const jsonLd = [
                 </p>
             )}
             <slot />
+            {current && current.lab.length > 0 && (
+                <section class="not-prose mt-14" data-pagefind-ignore>
+                    <h2 class="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Go further, full screen</h2>
+                    <p class="mb-4 text-sm text-muted-foreground">Experiments on this page's topic. Press <kbd class="rounded border px-1 font-mono text-xs">L</kbd> on any of them for a pixel loupe.</p>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        {current.lab.map((l) => (
+                            <a href={l.href} class="rounded-xl border bg-card p-5 no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
+                                <div class="font-mono text-[11px] text-silk">Lab {l.slug.slice(0, 2)}</div>
+                                <div class="mt-1.5 font-semibold text-foreground">{l.name}</div>
+                                <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                            </a>
+                        ))}
+                    </div>
+                </section>
+            )}
             {(prev || next) && (
                 <nav aria-label="Previous and next page" class="not-prose mt-16 grid gap-3 sm:grid-cols-2" data-pagefind-ignore>
                     {prev ? (

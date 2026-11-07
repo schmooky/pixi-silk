@@ -11,7 +11,7 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { FAQ } from '../src/content/faq.mjs';
 import { GLOSSARY } from '../src/content/glossary.mjs';
-import { DOCS_NAV, VISIBLE_AREAS } from '../src/content/nav.mjs';
+import { DOCS_AREAS, DOCS_NAV, itemLab, itemPage, VISIBLE_AREAS } from '../src/content/nav.mjs';
 import { LAB_SECTIONS } from '../src/lab/catalog.mjs';
 import { mdxToMarkdown } from '../src/lib/mdx-to-md.mjs';
 import { SITE_URL } from '../src/lib/site-url.mjs';
@@ -52,6 +52,10 @@ const docs = DOCS_NAV.flatMap((section) =>
         return { id, area: section.id, section: section.title, title: data.title, description: data.description, body };
     }),
 );
+
+// lab experiments, listed under the page each one deepens
+const labItems = new Map(LAB_SECTIONS.flatMap(([, items]) => items.map((i) => [i[0], i])));
+const labOf = new Map(DOCS_AREAS.flatMap((a) => a.items.map((item) => [itemPage(item), itemLab(item)])));
 
 // ---------------------------------------------------------------------------------- API
 
@@ -139,7 +143,7 @@ const lines = [
     '',
     '## Docs',
     '',
-    'The docs are grouped into areas. Each area has an overview page that lists its pages in reading order.',
+    'The docs are grouped into areas. Each area overview tours its features with live demos. Every guide lists the full-screen experiments that go deeper on it.',
     '',
     ...VISIBLE_AREAS.flatMap((a) => [
         `### ${a.title}`,
@@ -147,23 +151,20 @@ const lines = [
         `- [${a.title} overview](${url(`/docs/${a.id}/`)}): ${a.summary}`,
         ...docs
             .filter((d) => d.area === a.id)
-            .map(
-                (d) =>
-                    `- [${d.title}](${url(`/docs/${d.id}/`)}): ${d.description} (Markdown: ${url(`/docs/${d.id}.md`)})`,
-            ),
+            .flatMap((d) => [
+                `- [${d.title}](${url(`/docs/${d.id}/`)}): ${d.description} (Markdown: ${url(`/docs/${d.id}.md`)})`,
+                ...(labOf.get(d.id) ?? []).map((slug) => {
+                    const [, name, description] = labItems.get(slug);
+
+                    return `  - Experiment: [${name}](${url(`/lab/${slug}/`)}): ${description}`;
+                }),
+            ]),
         '',
     ]),
     '## API reference',
     '',
     `- [Overview](${url('/api/')}): every export, generated from the source JSDoc.`,
     ...api.map((p) => `- [${p.title}](${url(p.href)}): ${p.kind}. ${p.description}`),
-    '',
-    '## Lab and showcase',
-    '',
-    `- [Showcase](${url('/showcase/')}): five design reference sheets rebuilt 1:1 (81 widgets).`,
-    ...LAB_SECTIONS.flatMap(([, items]) =>
-        items.map(([slug, name, description]) => `- [${name}](${url(`/lab/${slug}/`)}): ${description}`),
-    ),
     '',
     '## FAQ',
     '',

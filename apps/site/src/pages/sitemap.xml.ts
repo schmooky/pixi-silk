@@ -51,15 +51,16 @@ export const GET: APIRoute = async () => {
             path: d.href,
             priority: '0.85',
             lastmod: updated.get(d.slug),
-            images: [{ loc: imageUrl(`/og/docs/${d.slug}.png`), title: d.title }],
+            images: [
+                { loc: imageUrl(`/og/docs/${d.slug}.png`), title: d.title },
+                ...(d.slug === 'showcase' ? showcaseImages : []),
+            ],
         })),
         { path: '/api/', priority: '0.8' },
         ...apiPages()
             .filter((p) => p.href !== '/api/')
             .map((p) => ({ path: p.href, priority: '0.6' })),
         { path: '/faq/', priority: '0.8', lastmod: newest },
-        { path: '/showcase/', priority: '0.7', images: showcaseImages },
-        { path: '/lab/', priority: '0.6' },
         ...LAB_SECTIONS.flatMap(([, items]) => items.map(([slug]) => ({ path: `/lab/${slug}/`, priority: '0.4' }))),
         { path: '/changelog/', priority: '0.4' },
     ];

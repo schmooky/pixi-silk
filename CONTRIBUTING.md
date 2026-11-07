@@ -5,14 +5,14 @@ Thanks for helping! The repo is a pnpm workspace:
 | path | what |
 |---|---|
 | `packages/pixi-silk` | the library (published to npm): TypeScript built by tsdown into ESM, one file per module |
-| `apps/site` | docs site: Astro + React islands, MDX guides with live demos, TypeDoc API pages, lab |
+| `apps/site` | docs site: Astro + React islands, MDX guides with live demos and lab experiments, TypeDoc API pages |
 | `scripts` | release helpers and the screenshot / measurement tools |
 
 ## Setup
 
 ```bash
 pnpm install
-pnpm site:dev          # docs + lab at http://localhost:5178
+pnpm site:dev          # docs site at http://localhost:5178
 pnpm --filter pixi-silk test
 ```
 
@@ -46,18 +46,23 @@ The docs are grouped into areas: Get started, Drawing, Paint, UI widgets, Editor
 Rendering and Reference. `apps/site/src/content/nav.mjs` lists them and is the only file that says
 where a page belongs.
 
-- Each area has an overview at `/docs/<area>/`. It holds an introduction, the pages in reading order,
-  the lab experiments that go deeper and links out. The docs sidebar shows one area at a time, with a
-  switcher above it.
+- Each area is a module with an overview at `/docs/<area>/`. The overview tours the area feature by
+  feature: a short pitch, the page's first live demo, a link to the guide and the experiments that go
+  deeper. It ends with the area's links out and its FAQ answers. The docs sidebar shows one area at a
+  time, with a switcher above it.
 - A new page: add `<page>.mdx` to `apps/site/src/content/docs` and list its id under one area. Its URL is
-  `/docs/<page>/`, whichever area it is in, so moving a page between areas keeps its URL.
-- A new area: add an entry to `DOCS_AREAS` with an id, title, summary, intro, pages and lab slugs. The
-  overview, the docs index, the footer, the sitemap, the Open Graph card and llms.txt pick it up. An area
-  with no pages and no links stays hidden until it has some.
-- The build fails when a page is in no area or in two, or when an area lists a page or lab slug that
-  does not exist.
-- The lab (`apps/site/src/lab/catalog.mjs`) holds full-screen experiments. Link one from an area's `lab`
-  list, and the lab index links it back to that area.
+  `/docs/<page>/`, whichever area it is in, so moving a page between areas keeps its URL. Its first
+  `<Demo />` becomes its demo on the overview.
+- A lab experiment (`apps/site/src/lab/catalog.mjs`) belongs to the page it deepens: list its slug as
+  `{ page, lab: [...] }`. The page then ends with it, the sidebar nests it under the page, and the
+  experiment's back link and breadcrumbs lead to that page. There is no separate lab index.
+- An FAQ answer (`apps/site/src/content/faq.mjs`) names its area. The area overview shows it, and `/faq/`
+  groups the answers by area.
+- A new area: add an entry to `DOCS_AREAS` with an id, title, summary, intro and items. The overview,
+  the docs index, the footer, the sitemap, the Open Graph card and llms.txt pick it up. An area with no
+  pages and no links stays hidden until it has some.
+- The build fails when a page or an experiment is in no place or in two, or when a slug does not exist.
+- Moved URLs keep working through `redirects` in `apps/site/astro.config.mjs` (`/lab/` and `/showcase/`).
 
 ## Writing style
 

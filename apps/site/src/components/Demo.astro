@@ -7,8 +7,10 @@ interface Props {
     name: string;
     height?: number;
     caption?: string;
+    /** Leave out the source panel (feature tours, where the guide has the code). */
+    compact?: boolean;
 }
-const { name, height = 280, caption } = Astro.props;
+const { name, height = 280, caption, compact = false } = Astro.props;
 const sources = import.meta.glob<string>('../demos/*.demo.ts', { query: '?raw', import: 'default', eager: true });
 const code = sources[`../demos/${name}.demo.ts`];
 
@@ -21,12 +23,14 @@ if (!code) {
 
 <figure class="demo not-prose my-7 overflow-hidden rounded-xl border bg-card" data-demo={name} id={`demo-${name}`}>
     <DemoRunner client:visible={{ rootMargin: '300px' }} name={name} height={height} label={caption ?? `Live pixi-silk demo: ${name.replace(/-/g, ' ')}`} />
-    <details class="demo-code border-t">
-        <summary class="cursor-pointer select-none px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground">
-            Source <span class="font-mono">src/demos/{name}.demo.ts</span>
-        </summary>
-        <Code code={code.trim()} lang="ts" theme="github-dark-dimmed" class="demo-source" />
-    </details>
+    {!compact && (
+        <details class="demo-code border-t">
+            <summary class="cursor-pointer select-none px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground">
+                Source <span class="font-mono">src/demos/{name}.demo.ts</span>
+            </summary>
+            <Code code={code.trim()} lang="ts" theme="github-dark-dimmed" class="demo-source" />
+        </details>
+    )}
     {caption && <figcaption class="border-t px-4 py-2.5 text-xs text-muted-foreground">{caption}</figcaption>}
 </figure>
 

@@ -26,9 +26,17 @@ function areaMarkdown(area: Area): string {
         `> ${area.summary}`,
         `Source: ${SITE.url}${area.href}`,
         area.intro.join('\n\n'),
-        area.pages.length ? `## Read in order\n\n${list(area.pages)}` : '',
-        area.links.length ? `## Also here\n\n${list(area.links.map((l) => ({ ...l, title: l.label })))}` : '',
-        area.lab.length ? `## In the lab\n\n${list(area.lab.map((l) => ({ ...l, title: l.name })))}` : '',
+        ...area.pages.map((p, i) =>
+            [
+                `## ${String(i + 1).padStart(2, '0')}. ${p.title}`,
+                p.description,
+                `Guide: ${new URL(p.href, SITE.url)}`,
+                p.lab.length ? `Experiments:\n\n${list(p.lab.map((l) => ({ ...l, title: l.name })))}` : '',
+            ]
+                .filter(Boolean)
+                .join('\n\n'),
+        ),
+        area.links.length ? `## Also in this area\n\n${list(area.links.map((l) => ({ ...l, title: l.label })))}` : '',
     ];
 
     return `${parts.filter(Boolean).join('\n\n')}\n`;

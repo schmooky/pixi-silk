@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { createSilkApp, SilkGraphics } from 'pixi-silk';
 import { attachLoupe } from '../_shared/loupe';
 import '../_shared/proto.css';
-import { LAB_HOME, REFS } from '../_shared/paths';
+import { LAB_HOME, LAB_HOME_LABEL, REFS } from '../_shared/paths';
 import { Cx, SF, type SheetWidget } from './cx';
 
 export interface SheetOptions {
@@ -58,7 +58,7 @@ export async function sheetPage(o: SheetOptions): Promise<void> {
         const chrome = document.createElement('div');
 
         chrome.className = 'chrome';
-        chrome.innerHTML = `<a class="back" href="${LAB_HOME}">Back to lab</a><div class="titles"><h1></h1><p></p></div>`;
+        chrome.innerHTML = `<a class="back" href="${LAB_HOME}">${LAB_HOME_LABEL}</a><div class="titles"><h1></h1><p></p></div>`;
         chrome.querySelector('h1')!.textContent = o.title;
         chrome.querySelector('p')!.textContent = o.subtitle;
         document.body.appendChild(chrome);

@@ -17,6 +17,11 @@ const glossaryMarkdown = () =>
  */
 export function mdxToMarkdown(body, demoSource) {
     return body
+        .replace(/^import .*$\n?/gm, '')
+        .replace(
+            /<ShowcaseSheets\s*\/>/g,
+            'The five sheets open full screen from the experiments listed with this page.',
+        )
         .replace(/<Glossary\s*\/>/g, () => glossaryMarkdown())
         .replace(/<Demo\s+name="([^"]+)"[^>]*\/>/g, (_, name) => {
             const code = demoSource(name);

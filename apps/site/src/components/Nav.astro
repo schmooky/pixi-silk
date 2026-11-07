@@ -2,20 +2,26 @@
 import { Menu } from 'lucide-react';
 import Search from '@/components/Search.astro';
 import ThemeToggle from '@/components/ThemeToggle.astro';
+import { DOCS_AREAS, itemPage } from '@/content/nav.mjs';
 import { SITE } from '@/lib/site';
 import { SILK_VERSION } from '@/lib/version';
 
 const links = [
     { href: '/docs/', label: 'Docs' },
-    { href: '/lab/', label: 'Lab' },
-    { href: '/showcase/', label: 'Showcase' },
+    { href: '/docs/examples/', label: 'Examples' },
     { href: '/docs/reference/', label: 'Reference' },
     { href: '/faq/', label: 'FAQ' },
 ];
 const path = Astro.url.pathname;
-// the Reference area, the API pages and the changelog light up Reference, not Docs
-const reference = ['/docs/reference/', '/docs/glossary/', '/api/', '/changelog/'].some((p) => path.startsWith(p));
-const active = (href: string) => (href === '/docs/reference/' ? reference : href === '/docs/' ? path.startsWith(href) && !reference : path.startsWith(href));
+// Examples and Reference are docs areas with their own tab: their hub, pages and extras light it up
+const under = (id: string, extra: string[] = []) => {
+    const area = DOCS_AREAS.find((a) => a.id === id);
+    const prefixes = [`/docs/${id}/`, ...(area?.items ?? []).map((i) => `/docs/${itemPage(i)}/`), ...extra];
+
+    return prefixes.some((p) => path.startsWith(p));
+};
+const tab = under('reference', ['/api/', '/changelog/']) ? '/docs/reference/' : under('examples') ? '/docs/examples/' : path.startsWith('/faq/') ? '/faq/' : path.startsWith('/docs/') ? '/docs/' : '';
+const active = (href: string) => href === tab;
 ---
 
 <header class="glass sticky top-0 z-40 border-b">

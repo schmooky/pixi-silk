@@ -1,10 +1,12 @@
 ---
 import SEO from '@/components/SEO.astro';
+import type { LabLink } from '@/lib/docs';
 import { articleLd, breadcrumbLd, ogUrlForPath } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 
-interface Props { slug: string; name: string; description: string; section: string }
-const { slug, name, description, section } = Astro.props;
+interface Props { slug: string; name: string; description: string; home: LabLink }
+const { slug, name, description, home } = Astro.props;
+const section = home.areaTitle;
 const path = `/lab/${slug}/`;
 ---
 
@@ -17,18 +19,28 @@ const path = `/lab/${slug}/`;
             path={path}
             image={ogUrlForPath(path)}
             type="article"
-            article={{ section: `Lab: ${section}` }}
-            jsonLd={[articleLd({ title: name, description, path, section: 'Lab' }), breadcrumbLd([{ name: SITE.name, url: '/' }, { name: 'Lab', url: '/lab/' }, { name, url: path }])]}
+            article={{ section }}
+            jsonLd={[
+                articleLd({ title: name, description, path, section }),
+                breadcrumbLd([
+                    { name: SITE.name, url: '/' },
+                    { name: 'Docs', url: '/docs/' },
+                    { name: section, url: `/docs/${home.area}/` },
+                    { name: home.pageTitle, url: home.pageHref },
+                    { name, url: path },
+                ]),
+            ]}
         />
     </head>
-    <body data-lab={slug}>
+    <body data-lab={slug} data-home={home.pageHref} data-home-label={home.pageTitle}>
         <noscript>
             <main style="font-family: system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1rem; color: #eee; background: #000;">
                 <h1>{name}</h1>
                 <p>{description}</p>
                 <p>This lab page is a live WebGL2 scene drawn with <a href="/">pixi-silk</a>, smooth anti-aliased graphics for PixiJS v8, and needs JavaScript.</p>
                 <ul>
-                    <li><a href="/lab/">All lab pages</a></li>
+                    <li><a href={home.pageHref}>{home.pageTitle}</a>, the guide this experiment belongs to</li>
+                    <li><a href={`/docs/${home.area}/`}>{section}</a></li>
                     <li><a href="/docs/">Docs</a></li>
                     <li><a href="/docs/antialiasing-in-pixijs/">Anti-aliasing in PixiJS v8</a></li>
                 </ul>
