@@ -74,14 +74,24 @@ The docs are grouped into areas. Each area has an overview page that lists its p
 
 ### UI widgets
 
-- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, pointer input and animation for interfaces drawn on the canvas.
+- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
 - [Charts](https://pixi-silk.schmooky.dev/docs/charts/): Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots. (Markdown: https://pixi-silk.schmooky.dev/docs/charts.md)
 - [Hit testing & events](https://pixi-silk.schmooky.dev/docs/hit-testing/): Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded. (Markdown: https://pixi-silk.schmooky.dev/docs/hit-testing.md)
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
+- [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
+
+### Editor UI
+
+- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): Transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.
+- [Transform gizmos](https://pixi-silk.schmooky.dev/docs/transform-gizmos/): Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps. (Markdown: https://pixi-silk.schmooky.dev/docs/transform-gizmos.md)
+- [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/): Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model. (Markdown: https://pixi-silk.schmooky.dev/docs/color-pickers.md)
+- [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/): Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch. (Markdown: https://pixi-silk.schmooky.dev/docs/editor-tools.md)
+- [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline/): A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits. (Markdown: https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md)
 
 ### Examples
 
 - [Examples overview](https://pixi-silk.schmooky.dev/docs/examples/): Whole screens built with pixi-silk, from reference sheets rebuilt 1:1 to a live dashboard.
+- [Slot HUD examples](https://pixi-silk.schmooky.dev/docs/slot-hud/): Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy. (Markdown: https://pixi-silk.schmooky.dev/docs/slot-hud.md)
 
 ### Rendering
 

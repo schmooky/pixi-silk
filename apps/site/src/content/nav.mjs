@@ -64,24 +64,25 @@ export const DOCS_AREAS = [
     {
         id: 'ui',
         title: 'UI widgets',
-        summary: 'Charts, pointer input and animation for interfaces drawn on the canvas.',
+        summary: 'Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
         intro: [
             'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
+            'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
         ],
-        items: ['charts', 'hit-testing', 'animation'],
+        items: ['charts', 'hit-testing', 'animation', 'radial-menus-and-buttons'],
         lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'],
         aliases: ['building-ui'],
     },
     {
         id: 'editor-ui',
         title: 'Editor UI',
-        summary: 'Tools for editors and design apps built on the pixi-silk/ui widgets.',
+        summary: 'Transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.',
         intro: [
-            'Widgets for editors and design tools, built from the UI building blocks.',
-            'Each page shows one tool live, then its options and events.',
+            'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
+            'Start with transform gizmos for selecting and moving things. Colour pickers, editor tools and dials add the controls around them.',
         ],
-        items: [],
+        items: ['transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
     },
     {
         id: 'examples',
@@ -91,7 +92,7 @@ export const DOCS_AREAS = [
             'Complete scenes that combine the other areas. They are examples on the site, not library code.',
             'The showcase compares five design sheets with their live rebuild. The widget viewer opens any of its widgets up close.',
         ],
-        items: [],
+        items: ['slot-hud'],
         lab: ['26-dashboard', '30-sheet-health', '33-sheet-live-activities', '35-widget-viewer'],
         links: [
             {

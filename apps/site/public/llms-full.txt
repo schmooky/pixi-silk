@@ -1551,6 +1551,2239 @@ compares Silk with tessellated graphics.
 
 ---
 
+# Radial menus and buttons
+
+URL: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/
+Section: UI widgets
+
+> Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable.
+
+Live demo `radial-menu` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import type { SilkGraphics } from 'pixi-silk';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { bindRadialTrigger, type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
+import { defineDemo } from './runtime';
+
+// Vector icons: drawn once in white around (0, 0); the menu tints them.
+type Icon = (g: SilkGraphics, s: number) => void;
+const pointer: Icon = (g, s) => {
+    g.triangle(-s * 0.3, -s * 0.42, s * 0.34, s * 0.06, -s * 0.06, s * 0.16, 2).fill(0xffffff);
+    g.line(-s * 0.02, s * 0.12, s * 0.16, s * 0.42).stroke({ width: s * 0.12, cap: 'round', color: 0xffffff });
+};
+const move: Icon = (g, s) => {
+    const r = s * 0.42;
+
+    g.line(-r, 0, r, 0).stroke({ width: s * 0.09, cap: 'round', color: 0xffffff });
+    g.line(0, -r, 0, r).stroke({ width: s * 0.09, cap: 'round', color: 0xffffff });
+    for (let i = 0; i < 4; i++) {
+        const a = (i * Math.PI) / 2;
+
+        g.regularPoly(Math.cos(a) * r, Math.sin(a) * r, s * 0.14, 3, a + Math.PI / 2, 1).fill(0xffffff);
+    }
+};
+const rotate: Icon = (g, s) => {
+    g.arcSweep(0, 0, s * 0.32, -Math.PI * 0.35, Math.PI * 1.6).stroke({
+        width: s * 0.1,
+        cap: 'round',
+        color: 0xffffff,
+    });
+    g.regularPoly(s * 0.18, -s * 0.3, s * 0.14, 3, Math.PI / 2, 1).fill(0xffffff);
+};
+const scale: Icon = (g, s) => {
+    g.roundRect(-s * 0.4, -s * 0.1, s * 0.5, s * 0.5, 3).stroke({ width: s * 0.08, color: 0xffffff });
+    g.roundRect(-s * 0.1, -s * 0.42, s * 0.52, s * 0.52, 3).fill(0xffffff);
+};
+const gear: Icon = (g, s) => {
+    g.circle(0, 0, s * 0.33).stroke({ width: s * 0.16, dash: [s * 0.13, s * 0.13], color: 0xffffff });
+    g.circle(0, 0, s * 0.22).stroke({ width: s * 0.1, color: 0xffffff });
+};
+const more: Icon = (g, s) => {
+    for (const x of [-1, 0, 1]) g.circle(x * s * 0.28, 0, s * 0.09).fill(0xffffff);
+};
+const heart: Icon = (g, s) => g.heart(0, 0, s * 0.8, 0.1).fill(0xffffff);
+const star: Icon = (g, s) => g.star(0, 0, 5, s * 0.45, undefined, 0, 1.5).fill(0xffffff);
+const plus: Icon = (g, s) => {
+    g.line(-s * 0.35, 0, s * 0.35, 0).stroke({ width: s * 0.13, cap: 'round', color: 0xffffff });
+    g.line(0, -s * 0.35, 0, s * 0.35).stroke({ width: s * 0.13, cap: 'round', color: 0xffffff });
+};
+
+const tools: RadialItem[] = [
+    { id: 'select', label: 'SELECT', icon: pointer },
+    {
+        id: 'move',
+        label: 'MOVE',
+        icon: move,
+        children: [
+            { id: 'intuitive', label: 'Intuitive' },
+            { id: 'axis', label: 'Axis' },
+            { id: 'free', label: 'Free' },
+        ],
+    },
+    {
+        id: 'rotate',
+        label: 'ROTATE',
+        icon: rotate,
+        children: [
+            { id: 'uniform', label: 'Uniform' },
+            { id: 'axis', label: 'Axis' },
+            { id: 'free', label: 'Free' },
+        ],
+    },
+    { id: 'scale', label: 'SCALE', icon: scale },
+    { id: 'settings', label: 'SETTINGS', icon: gear, disabled: true },
+    { id: 'more', label: 'MORE', icon: more },
+];
+
+// Press anywhere (or the round button) and drag to an item, or tap to keep the menu open.
+// The `+` button opens a half ring that turns away from the edge it sits on.
+export default defineDemo({
+    size: [640, 400],
+    touchAction: 'none',
+    controls: {
+        closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const surface = new Container();
+        const status = new Text({
+            text: 'press, drag, release, or tap',
+            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+        });
+        const bounds = { x: 0, y: 0, width: 640, height: 400 };
+        const report = (_item: RadialItem, path: readonly RadialItem[]) => {
+            status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
+        };
+        const menu = new RadialMenu({ items: tools, bounds, ticker, onSelect: report });
+        const quick = new RadialMenu({
+            items: [
+                { id: 'heart', label: 'LIKE', icon: heart },
+                { id: 'star', label: 'FAVOURITE', icon: star },
+                { id: 'plus', label: 'ADD', icon: plus },
+                { id: 'more', label: 'MORE', icon: more },
+            ],
+            sweep: Math.PI * 0.9,
+            innerRadius: 34,
+            outerRadius: 92,
+            bounds,
+            ticker,
+            onSelect: report,
+        });
+        const hub = new SilkButton({ shape: 'circle', height: 64, icon: gear, iconSize: 28, ticker });
+        const add = new SilkButton({ shape: 'circle', height: 52, icon: plus, iconSize: 22, ticker });
+
+        surface.eventMode = 'static';
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 640 && y <= 400 };
+        status.position.set(20, 18);
+        hub.position.set(200, 210);
+        add.position.set(586, 346);
+        stage.addChild(surface, status, hub, add, menu, quick);
+
+        bindRadialTrigger(surface, menu, { at: 'pointer' });
+        bindRadialTrigger(hub, menu);
+        bindRadialTrigger(add, quick);
+        menu.state.hover.subscribe((item) => {
+            if (item) status.text = `${menu.state.kind.value}: ${item.id}${item.disabled ? ' (disabled)' : ''}`;
+        });
+
+        tick(() => {
+            menu.closeOnLeave = quick.closeOnLeave = params.closeOnLeave;
+        });
+
+        return undefined;
+    },
+});
+```
+
+## Import only what you use
+
+Each widget has its own entry point. Nothing else comes along: the menu does not pull in the button,
+and `pixi-silk/signal` has no Pixi code at all.
+
+```ts
+import { RadialMenu, bindRadialTrigger } from 'pixi-silk/ui/radial';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { signal, computed, batch } from 'pixi-silk/signal';
+```
+
+## Radial menus
+
+```ts
+import { bindRadialTrigger, RadialMenu } from 'pixi-silk/ui/radial';
+
+const menu = new RadialMenu({
+    items: [
+        { id: 'select', label: 'SELECT', icon: drawPointer },
+        { id: 'move', label: 'MOVE', icon: drawMove, children: [{ id: 'axis', label: 'Axis' }, { id: 'free', label: 'Free' }] },
+        { id: 'delete', label: 'DELETE', icon: drawTrash, disabled: true },
+    ],
+    sweep: Math.PI * 2, // Math.PI for a half ring
+    bounds: { x: 0, y: 0, width: app.screen.width, height: app.screen.height },
+    onSelect: (item, path) => console.log(path.map((i) => i.id).join(' > ')),
+});
+
+app.stage.addChild(menu);
+bindRadialTrigger(toolButton, menu); // or menu.openAt(x, y, event)
+```
+
+How it behaves:
+
+- **Marking.** Press, drag towards an item, release: picked in one gesture. A tap opens the menu
+  and leaves it up for a second tap.
+- **Angle, not hit boxes.** Past the dead zone the whole wedge counts, out to the falloff
+  distance. A fast flick lands on its item even when the pointer overshoots the ring.
+- **Hysteresis.** The current item holds until the pointer is clearly past its edge, so a shaky
+  finger on a boundary does not flicker between two items.
+- **It stays.** Moving away does not close the menu. Set `closeOnLeave` to close it after the
+  pointer stays outside the falloff area for a grace delay.
+- **Nested rings.** Items with `children` open the next ring around themselves, to any depth.
+- **Edges.** Full rings slide inside `bounds`. Partial rings turn to face the inside instead.
+- **Per device.** Dead zone, falloff, size, tap time and hysteresis come from an input profile per
+  pointer kind. Touch gets bigger targets and more forgiveness. Override any of it with `profiles`.
+
+Icons are a string, a texture, a container or a function that draws with `SilkGraphics` in white.
+The menu tints them, so hover colours cost no redraw.
+
+## Buttons that know when to stay still
+
+Live demo `spin-dock` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
+import { defineDemo } from './runtime';
+
+const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
+const minus = (g: SilkGraphics, s: number) =>
+    g.line(-s * 0.3, 0, s * 0.3, 0).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+const plus = (g: SilkGraphics, s: number) => {
+    minus(g, s);
+    g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+};
+// a lightning bolt as two rounded triangles (closed polygons cannot be filled yet)
+const bolt = (g: SilkGraphics, s: number) => {
+    g.triangle(s * 0.12, -s * 0.5, -s * 0.3, s * 0.08, s * 0.08, s * 0.02, 1).fill(0xffffff);
+    g.triangle(-s * 0.12, s * 0.5, s * 0.3, -s * 0.08, -s * 0.08, -s * 0.02, 1).fill(0xffffff);
+};
+
+// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave, the speed
+// switch locks and the spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+const SPEED: Record<string, number> = { normal: 1.1, turbo: 0.6, quick: 0.3 };
+export default defineDemo({
+    size: [560, 340],
+    touchAction: 'none',
+    controls: {
+        enabled: { type: 'toggle', label: 'spin enabled', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const bet = signal(1);
+        const reels = new SilkGraphics();
+        const label = new Text({
+            text: '',
+            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '600' },
+        });
+        const side = { ticker, theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e } };
+        const less = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: minus,
+            onPress: () => bet.update((b) => Math.max(1, b - 1)),
+        });
+        const more = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: plus,
+            onPress: () => bet.update((b) => Math.min(10, b + 1)),
+        });
+        const speed = new SegmentedSwitch({
+            ticker,
+            value: 'normal',
+            segmentWidth: 78,
+            height: 34,
+            options: [
+                { id: 'normal', label: 'Normal' },
+                { id: 'turbo', icon: bolt },
+                { id: 'quick', label: 'Quick' },
+            ],
+        });
+        const spin = new SilkButton({
+            ticker,
+            shape: 'circle',
+            height: 76,
+            icon: play,
+            iconSize: 30,
+            holdMs: 450,
+            theme: { fill: 0x30d158, fillHover: 0x4ade80, fillPress: 0x248a3d },
+            onPress: () => run(1),
+            onHold: () => run(5),
+        });
+        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more);
+        let spinning = 0;
+        let duration = 1.1;
+        let left = 0;
+
+        bet.subscribe((b) => (label.text = `bet ${b}`));
+        label.text = `bet ${bet.value}`;
+        label.anchor.set(0.5);
+        label.position.set(90, 34);
+        speed.position.set(400, 34);
+        dock.position.set(280, 282);
+        stage.addChild(reels, label, speed, dock);
+
+        async function run(count: number) {
+            left = count;
+            spin.state.busy.set(true);
+            speed.state.enabled.set(false);
+            await Promise.all([less.hide(), more.hide()]);
+            while (left-- > 0) {
+                duration = SPEED[speed.state.value.value] ?? 1.1;
+                spinning = duration;
+                await new Promise((r) => setTimeout(r, duration * 1000));
+            }
+            spin.state.busy.set(false);
+            speed.state.enabled.set(true);
+            await dock.showAll();
+        }
+
+        tick((t, dt) => {
+            spin.state.enabled.set(params.enabled);
+            spinning = Math.max(0, spinning - dt);
+            reels.clear();
+            for (let c = 0; c < 5; c++) {
+                const x = 60 + c * 92;
+                const run = spinning > 0 && spinning < duration * (1 - c * 0.05) ? 1 : 0;
+
+                reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
+                for (let r = 0; r < 3; r++) {
+                    const y = 70 + r * 54 + (run ? ((t * 900 + c * 40) % 54) - 27 : 0);
+                    const hue = [0xff453a, 0xffd60a, 0x0a84ff, 0xbf5af2][(r + c + (run ? Math.floor(t * 20) : 0)) % 4];
+
+                    reels.roundRect(x + 12, y + 6, 56, 40, 10, 0.6).fill({ color: hue, alpha: run ? 0.55 : 0.9 });
+                }
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+import { SilkButton } from 'pixi-silk/ui/button';
+
+const spin = new SilkButton({ shape: 'circle', height: 76, icon: drawPlay, holdMs: 450, onPress: spinOnce, onHold: autoplay });
+const turbo = new SilkButton({ label: 'Turbo' });
+
+await turbo.hide();        // resolves when the animation ends
+spin.state.busy.set(true); // spinner, input off
+spin.state.active.subscribe((on) => console.log('accepts input', on));
+```
+
+A button only accepts input when it is shown, settled, enabled and not busy. `show()` and `hide()`
+return promises that resolve `false` if the animation was reversed half way. A press that slides a
+little off the button still counts on release.
+
+`ButtonDock` lines buttons up and closes the gap when one hides. Slot sizes follow each button's
+animated appearance, so the reflow and the fade move together.
+
+## State in signals
+
+Every widget keeps its state in `state`: small signals you can read, write and subscribe to. A
+signal is a value with `subscribe`. There is no tracking magic, so it plugs into React, MobX or
+plain callbacks.
+
+```ts
+import { batch, computed, signal } from 'pixi-silk/signal';
+
+const bet = signal(1);
+const label = computed([bet], () => `bet ${bet.value}`);
+
+bet.subscribe((now, before) => console.log(before, '->', now));
+batch(() => {
+    bet.set(2);
+    bet.set(3);
+}); // one notification
+```
+
+Widgets animate on `Ticker.shared` and leave the ticker once nothing moves. Pass `ticker` to use
+your application's ticker, or `null` to step them yourself with `tick(dt)`.
+
+---
+
+# Transform gizmos
+
+URL: https://pixi-silk.schmooky.dev/docs/transform-gizmos/
+Section: Editor UI
+
+> Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps.
+
+Live demo `gizmo` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { type GizmoMode, type GizmoSpace, TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { defineDemo } from './runtime';
+
+// Click a shape to select it, then drag the handles. Hold Shift to snap.
+export default defineDemo({
+    size: [640, 420],
+    touchAction: 'none',
+    controls: {
+        mode: {
+            type: 'select',
+            label: 'mode',
+            options: ['universal', 'move', 'rotate', 'scale', 'box'],
+            value: 'universal',
+        },
+        space: { type: 'select', label: 'space', options: ['local', 'world'], value: 'local' },
+        snap: { type: 'toggle', label: 'always snap', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const scene = new Container();
+        const overlay = new Container();
+        const background = new Container();
+        const hover = new SelectionOutline({ ticker });
+        const selection = new SelectionOutline({ ticker });
+        const gizmo = new TransformGizmo({ ticker });
+
+        background.eventMode = 'static';
+        background.hitArea = { contains: () => true };
+        background.on('pointerdown', () => {
+            gizmo.attach(null);
+            selection.select(null);
+        });
+        stage.addChild(background, scene, overlay);
+        overlay.addChild(hover, selection, gizmo);
+
+        const shape = (x: number, y: number, rotation: number, draw: (g: SilkGraphics) => void) => {
+            const item = new Container();
+            const g = new SilkGraphics();
+
+            draw(g);
+            item.addChild(g);
+            item.position.set(x, y);
+            item.rotation = rotation;
+            item.eventMode = 'static';
+            item.cursor = 'pointer';
+            item.on('pointerover', () => hover.hover(item));
+            item.on('pointerout', () => hover.hover(null));
+            item.on('pointerdown', (e) => {
+                e.stopPropagation();
+                selection.select(item);
+                gizmo.attach(item);
+            });
+            scene.addChild(item);
+
+            return item;
+        };
+
+        const card = shape(190, 210, -0.2, (g) => g.roundRect(-70, -45, 140, 90, 18, 0.6).fill(0x30d158));
+
+        shape(400, 150, 0.3, (g) => g.star(0, 0, 5, 52, undefined, 0, 6).fill(0xffd60a));
+        shape(460, 300, 0, (g) => g.roundRect(-55, -30, 110, 60, 30).fill(0xbf5af2));
+        selection.select(card);
+        gizmo.attach(card);
+
+        tick(() => {
+            gizmo.state.mode.set(params.mode as GizmoMode);
+            gizmo.state.space.set(params.space as GizmoSpace);
+            // the box mode draws its own frame
+            selection.alpha = params.mode === 'box' ? 0 : 1;
+            gizmo.snap.enabled = params.snap;
+        });
+
+        return undefined;
+    },
+});
+```
+
+## Three pieces
+
+```ts
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { SnapEngine, SnapGuides } from 'pixi-silk/ui/snap';
+```
+
+Each one works alone. Put the outline and the gizmo in an overlay above your scene: they read the
+target's transform every frame, so they follow it wherever it sits in the tree.
+
+## Transform gizmo
+
+```ts
+import { Container } from 'pixi.js';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+
+const overlay = new Container();
+const selectedShape = new Container();
+const gizmo = new TransformGizmo({
+    mode: 'universal', // 'move' | 'rotate' | 'scale' | 'box' | 'universal'
+    space: 'local', // move along the object's own axes, or 'world'
+    snap: { translate: 10, angle: Math.PI / 12, scale: 0.1 },
+    onChange: (t) => console.log(t.x, t.y, t.rotation, t.scaleX, t.scaleY),
+});
+
+overlay.addChild(gizmo);
+gizmo.attach(selectedShape);
+gizmo.state.mode.set('rotate');
+```
+
+- **Move.** The arrows lock to one axis, the centre square moves freely.
+- **Rotate.** The ring turns the object about its pivot. The swept angle is shaded and read out
+  in a pill, and snap ticks appear while snapping.
+- **Scale.** Cube handles stretch one axis, the centre ring (or the corner cube in universal mode)
+  scales evenly. Scale handles follow the object's own axes in both spaces.
+- **Box.** Eight handles resize in the object's own frame while the opposite side stays put.
+  Shift keeps the aspect, Alt resizes from the centre. The zones right outside the corners rotate
+  the box about its centre.
+
+Moving the gizmo to another object pops it. The old handles shrink away where they were, and the
+new ones spring in group by group: arrows first, then the ring, then the scale handles. The gizmo
+ignores the pointer until they land. `transition: 'glide'` slides the handles over instead.
+
+Shift snaps moves to the grid, angles to 15 degrees and scales to steps. Set `snap.enabled` to snap
+by default, and Shift then turns it off. Handles light up under the pointer, step back while
+another one is dragged, and grow under a finger.
+
+The gizmo writes the new transform into the target. Pass `apply: false` to handle it yourself in
+`onChange`, for undo stacks or networked editors. `gizmo.grab(event)` starts a move from a press
+on the object itself, so a click on an unselected shape can select and drag it in one gesture.
+
+The box handles assume the object is not mirrored (positive scales).
+
+## Selection outline
+
+```ts
+import { Container } from 'pixi.js';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+
+const [shape, shapeA, shapeB] = [new Container(), new Container(), new Container()];
+const hover = new SelectionOutline();
+const selection = new SelectionOutline({ dash: [5, 4], march: 16, padding: 4 });
+
+shape.on('pointerover', () => hover.hover(shape));
+shape.on('pointerout', () => hover.hover(null));
+selection.select([shapeA, shapeB]); // one box around both
+```
+
+The hover style is a quiet line. The selected style has marching dashes and corner brackets.
+Rotated objects get a rotated box, several objects one box around all of them. The frame follows
+its objects exactly while they move.
+
+When the selection changes, the old frame shrinks and fades where it was, its dashes and brackets
+retracting, while the new frame springs in around the new objects. Pass `transition: 'glide'` to
+slide one frame over instead.
+
+## Smart guides
+
+Live demo `snap` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { boundsQuad, SelectionOutline } from 'pixi-silk/ui/outline';
+import { SnapEngine, SnapGuides } from 'pixi-silk/ui/snap';
+
+import { defineDemo } from './runtime';
+
+// Drag a card: edges and centres line up with the others, and equal gaps show their size.
+// Hold Ctrl or Cmd to move without guides.
+export default defineDemo({
+    size: [640, 380],
+    touchAction: 'none',
+    controls: {
+        spacing: { type: 'toggle', label: 'equal spacing', value: true },
+        threshold: { type: 'range', label: 'threshold', min: 2, max: 16, step: 1, value: 6 },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const scene = new Container();
+        const engine = new SnapEngine({ lines: { x: [320], y: [190] } });
+        const guides = new SnapGuides({ ticker });
+        const selection = new SelectionOutline({ ticker });
+        const gizmo = new TransformGizmo({ ticker, mode: 'box', snapEngine: engine, snapGuides: guides });
+        const cards: Container[] = [];
+        const colors = [0x0a84ff, 0xff9f0a, 0x30d158, 0xbf5af2];
+        const select = (card: Container | null) => {
+            selection.select(card);
+            gizmo.attach(card);
+        };
+
+        stage.eventMode = 'static';
+        stage.hitArea = { contains: () => true };
+        stage.on('pointerdown', () => select(null));
+        stage.addChild(scene, guides, selection, gizmo);
+        [
+            [70, 80],
+            [250, 80],
+            [430, 120],
+            [140, 240],
+        ].forEach(([x, y], i) => {
+            const card = new Container();
+            const g = new SilkGraphics();
+
+            g.roundRect(0, 0, i === 2 ? 140 : 110, 80, 14, 0.6).fill(colors[i]);
+            card.addChild(g);
+            card.position.set(x, y);
+            card.eventMode = 'static';
+            card.cursor = 'move';
+            card.on('pointerdown', (e) => {
+                e.stopPropagation();
+                select(card);
+                // press and drag in one go, even on a card that was not selected yet
+                gizmo.grab(e);
+            });
+            scene.addChild(card);
+            cards.push(card);
+        });
+        select(cards[3]);
+
+        // what to snap against: every card, read as rectangles in the scene's space
+        const refresh = () => {
+            engine.targets = cards.map((c) => {
+                const q = boundsQuad(c, scene);
+                const xs = q.map((p) => p.x);
+                const ys = q.map((p) => p.y);
+
+                return {
+                    x: Math.min(...xs),
+                    y: Math.min(...ys),
+                    width: Math.max(...xs) - Math.min(...xs),
+                    height: Math.max(...ys) - Math.min(...ys),
+                };
+            });
+        };
+
+        gizmo.state.dragging.subscribe((on) => on && refresh());
+        refresh();
+        tick(() => {
+            engine.spacing = params.spacing;
+            engine.threshold = params.threshold;
+        });
+
+        return undefined;
+    },
+});
+```
+
+`SnapEngine` is plain maths with no drawing. Give it rectangles, guide lines and points, and ask
+where a moving rectangle should go:
+
+```ts
+import { SnapEngine } from 'pixi-silk/ui/snap';
+
+const otherRects = [{ x: 0, y: 0, width: 100, height: 60 }];
+const engine = new SnapEngine({ threshold: 6, targets: otherRects, lines: { x: [320] } });
+const box = { x: 103, y: 40, width: 80, height: 60 };
+const r = engine.snap(box);
+
+box.x += r.dx;
+box.y += r.dy;
+```
+
+It aligns edges with edges and centres with centres, and also offers equal spacing: centred
+between two neighbours, or at a gap that already exists in the row. `SnapGuides` draws the
+result, with dashed lines and gap sizes in pills. Each alignment fades in when found and out when
+lost, so guides never slide from one alignment to the next. Hand both to a gizmo with `snapEngine` and
+`snapGuides` and its free moves snap on their own.
+
+---
+
+# Colour pickers
+
+URL: https://pixi-silk.schmooky.dev/docs/color-pickers/
+Section: Editor UI
+
+> Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model.
+
+Live demo `color-rings` (source):
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { ColorModel, ColorWheel, HueSquarePicker, HueTrianglePicker, SwatchPalette } from 'pixi-silk/ui/color';
+import { defineDemo } from './runtime';
+
+// Three pickers bound to one model: drag any of them and the others follow. Releasing a drag
+// commits the colour into the recent row at the bottom.
+export default defineDemo({
+    size: [740, 330],
+    touchAction: 'none',
+    setup({ silk, stage, tick }) {
+        const ticker = silk.app.ticker;
+        const model = new ColorModel({ color: 0x30d158 });
+        const triangle = new HueTrianglePicker({ model, size: 220, ticker });
+        const square = new HueSquarePicker({ model, size: 220, ticker });
+        const wheel = new ColorWheel({ model, size: 196, ticker });
+        const recent = new SwatchPalette({ model, columns: 12, size: 26, gap: 8, ticker });
+        const chip = new SilkGraphics();
+
+        triangle.position.set(20, 16);
+        square.position.set(262, 16);
+        wheel.position.set(506, 28);
+        recent.position.set(64, 278);
+        chip.position.set(20, 278);
+        stage.addChild(triangle, square, wheel, recent, chip);
+        for (const c of [0xff453a, 0xffd60a, 0x0a84ff]) {
+            model.setHex(c);
+            model.commit();
+        }
+        model.setHex(0x30d158);
+
+        tick(() => {
+            chip.clear().roundRect(0, 0, 32, 26, 8).fill(model.hex);
+        });
+
+        return undefined;
+    },
+});
+```
+
+## One model, many pickers
+
+Every picker edits a `ColorModel`. Give several pickers the same model and they stay in sync. The
+model stores hue, saturation, value and alpha, so the hue survives greys and black. It also reads
+and writes hex, RGB and OKLCH.
+
+```ts
+import { ColorModel, ColorWheel, HueTrianglePicker, SwatchPalette } from 'pixi-silk/ui/color';
+
+const model = new ColorModel({ color: 0x30d158 });
+const triangle = new HueTrianglePicker({ model, size: 220 });
+const wheel = new ColorWheel({ model, size: 196 });
+const recent = new SwatchPalette({ model }); // no colours given: shows the recent ones
+
+declare const brush: { tint: number };
+declare function save(color: number): void;
+
+model.value.subscribe(() => (brush.tint = model.hex)); // live, while dragging
+model.committed.subscribe(() => save(model.hex)); // once per release
+```
+
+`value` changes on every move of a drag. Pickers call `commit()` when a drag ends, which adds the
+colour to `history` and bumps `committed`.
+
+## The pickers
+
+- **`HueTrianglePicker`**: hue ring around a triangle with the pure hue, white and black at its
+  corners. The triangle turns to face its hue.
+- **`HueSquarePicker`**: hue ring around a saturation and value square.
+- **`ColorWheel`**: hue around a disc, saturation from the centre out, value on a strip beside it.
+- **`OklchPicker`**: lightness against chroma for one OKLCH hue, plus a hue strip. Colours keep
+  their look as you move, and the part outside sRGB is greyed out.
+- **`ColorSlider`** and **`ChannelSliders`**: gradient tracks for HSV, RGB, OKLCH and alpha. Each
+  track shows what its positions would give with the rest of the colour unchanged.
+- **`SwatchPalette`**: fixed colours or the recent ones, as a grid or a ring.
+- **`SwatchPopup`**: a ring of swatches that opens around the pointer.
+- **`Eyedropper`**: samples the scene through a function the app supplies.
+
+A drag belongs to the part it started on. Start on the ring and the drag only turns the hue, even
+across the square. Handles grow under a finger and glide when another picker moves the colour.
+
+Live demo `color-oklch` (source):
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { ChannelSliders, ColorModel, checker, OklchPicker } from 'pixi-silk/ui/color';
+import { defineDemo } from './runtime';
+
+// Lightness against chroma for one OKLCH hue. The grey area is outside sRGB; dragging into it
+// slides along the edge. The sliders edit the same colour in the chosen space.
+export default defineDemo({
+    size: [600, 260],
+    touchAction: 'none',
+    controls: {
+        sliders: { type: 'select', label: 'sliders', options: ['oklch', 'hsv', 'rgb'], value: 'oklch' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const model = new ColorModel({ color: 0xbf5af2 });
+        const plane = new OklchPicker({ model, width: 260, height: 180, ticker });
+        const preview = new SilkGraphics();
+        let mode = '';
+        let sliders: ChannelSliders | null = null;
+
+        plane.position.set(20, 20);
+        preview.position.set(330, 196);
+        stage.addChild(plane, preview);
+
+        tick(() => {
+            if (params.sliders !== mode) {
+                mode = params.sliders;
+                sliders?.destroy();
+                sliders = new ChannelSliders({ model, mode: params.sliders as 'oklch', width: 220, ticker });
+                sliders.position.set(330, 24);
+                stage.addChild(sliders);
+            }
+            preview.clear();
+            checker(preview, 22, 0, 220, 36, 10, 9);
+            preview.roundRect(22, 0, 220, 36, 10).fill({ color: model.hex, alpha: model.alpha });
+        });
+
+        return undefined;
+    },
+});
+```
+
+## OKLCH
+
+OKLCH is lightness, chroma and hue in a space built to match how colours look. Moving lightness
+does not shift the hue, and equal steps look equal. Not every OKLCH colour fits on a screen, so the
+picker greys out the area outside sRGB and draws its edge. A drag into that area slides along the
+edge.
+
+```ts
+import { ChannelSliders, ColorModel, OklchPicker } from 'pixi-silk/ui/color';
+
+const model = new ColorModel();
+const plane = new OklchPicker({ model, width: 260, height: 180 });
+const sliders = new ChannelSliders({ model, mode: 'oklch' }); // 'hsv', 'rgb'; alpha on by default
+```
+
+Live demo `color-popup` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { horizontal, SilkGraphics, vertical } from 'pixi-silk';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ColorModel, Eyedropper, hsvToRgb, rgbToHex, SwatchPalette, SwatchPopup } from 'pixi-silk/ui/color';
+import { defineDemo } from './runtime';
+
+// Press anywhere on the artwork for the swatch ring: drag to a colour and let go, or tap to keep
+// it open. The pipette samples the artwork (the app supplies the sampler, here plain maths).
+const W = 600;
+const H = 260;
+const ART = { x: 20, y: 20, w: 420, h: 220 };
+/** Colour of the artwork at a design-space point: hue across, value down. */
+const artColor = (x: number, y: number): number | null => {
+    const u = (x - ART.x) / ART.w;
+    const v = (y - ART.y) / ART.h;
+
+    return u < 0 || u > 1 || v < 0 || v > 1 ? null : rgbToHex(hsvToRgb(u * 360, 0.85, 1 - v * 0.8));
+};
+const pipette = (g: SilkGraphics, s: number) => {
+    g.line(-s * 0.32, s * 0.32, s * 0.12, -s * 0.12).stroke({ width: s * 0.16, cap: 'round', color: 0xffffff });
+    g.circle(s * 0.22, -s * 0.22, s * 0.16).fill(0xffffff);
+};
+
+export default defineDemo({
+    size: [W, H],
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const ticker = silk.app.ticker;
+        const model = new ColorModel({ color: 0xff9f0a });
+        const art = new SilkGraphics();
+        const surface = new Container();
+        const popup = new SwatchPopup({
+            model,
+            colors: [0xff453a, 0xff9f0a, 0xffd60a, 0x30d158, 0x64d2ff, 0x0a84ff, 0xbf5af2, 0xffffff],
+            ticker,
+        });
+        const chip = new SilkGraphics();
+        const recent = new SwatchPalette({ model, columns: 4, size: 26, gap: 8, ticker });
+        const dropper = new Eyedropper({
+            model,
+            ticker,
+            // global canvas point -> design space of the demo
+            sample: (gx, gy) => {
+                const p = stage.toLocal({ x: gx, y: gy });
+
+                return artColor(p.x, p.y);
+            },
+        });
+        const button = new SilkButton({
+            shape: 'circle',
+            height: 44,
+            icon: pipette,
+            ticker,
+            theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e },
+            onPress: () => dropper.start(),
+        });
+
+        art.roundRect(ART.x, ART.y, ART.w, ART.h, 14).fill({
+            gradient: horizontal([0xff0000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0xff0000], {
+                space: 'srgb',
+            }),
+        });
+        art.roundRect(ART.x, ART.y, ART.w, ART.h, 14).fill({ color: 0xffffff, alpha: 0.15 });
+        art.roundRect(ART.x, ART.y, ART.w, ART.h, 14).fill({
+            gradient: vertical(
+                [
+                    [0, 0x000000, 0],
+                    [1, 0x000000, 0.8],
+                ],
+                { space: 'srgb' },
+            ),
+        });
+        surface.eventMode = 'static';
+        surface.hitArea = { contains: (x, y) => x >= ART.x && y >= ART.y && x <= ART.x + ART.w && y <= ART.y + ART.h };
+        surface.on('pointerdown', (e) => {
+            const p = stage.toLocal(e.global);
+
+            popup.openAt(p.x, p.y, e);
+        });
+        button.position.set(482, 42);
+        chip.position.set(520, 20);
+        recent.position.set(462, 96);
+        stage.addChild(art, surface, chip, recent, button, popup, dropper);
+        model.value.subscribe(() => chip.clear().roundRect(0, 0, 60, 44, 12).fill(model.hex));
+        chip.roundRect(0, 0, 60, 44, 12).fill(model.hex);
+
+        return undefined;
+    },
+});
+```
+
+## Swatch ring and eyedropper
+
+The swatch popup works like the [radial menu](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/). Press, drag towards
+a colour and let go, or tap to keep it open.
+
+The eyedropper does not read pixels itself. Your app knows its scene, so it supplies a sampler.
+That can be a texture lookup, `renderer.extract` on a render target, or plain maths.
+
+```ts
+import type { Container } from 'pixi.js';
+import { ColorModel, Eyedropper, SwatchPopup } from 'pixi-silk/ui/color';
+
+declare const canvasArea: Container;
+declare const pipetteButton: Container;
+declare function colorAt(x: number, y: number): number | null;
+
+const model = new ColorModel();
+const popup = new SwatchPopup({ model, colors: [0xff453a, 0xffd60a, 0x30d158, 0x0a84ff] });
+const dropper = new Eyedropper({ model, sample: (x, y) => colorAt(x, y) });
+
+canvasArea.on('pointerdown', (e) => popup.openAt(e.global.x, e.global.y, e));
+pipetteButton.on('pointertap', () => dropper.start()); // click to pick, Escape or right click to cancel
+```
+
+All pickers draw with pixi-silk gradients. Hue rings are conic gradients interpolated in sRGB, so
+every angle is an exact HSV hue. The square and the wheel layer white and black ramps for exact
+HSV colours. The OKLCH plane is drawn row by row, and chroma along a row is a straight line in
+OKLab, so every row is exact too.
+
+---
+
+# Editor tools
+
+URL: https://pixi-silk.schmooky.dev/docs/editor-tools/
+Section: Editor UI
+
+> Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch.
+
+Live demo `halo` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { ContextHalo } from 'pixi-silk/ui/halo';
+import { defineDemo } from './runtime';
+
+// Icons drawn in white around (0, 0). The halo tints them.
+const copy = (g: SilkGraphics, s: number) => {
+    g.roundRect(-s * 0.4, -s * 0.2, s * 0.55, s * 0.6, 3).stroke({ width: s * 0.1, color: 0xffffff });
+    g.roundRect(-s * 0.15, -s * 0.45, s * 0.55, s * 0.6, 3).fill(0xffffff);
+};
+const trash = (g: SilkGraphics, s: number) => {
+    g.roundRect(-s * 0.3, -s * 0.22, s * 0.6, s * 0.66, 3).fill(0xffffff);
+    g.line(-s * 0.42, -s * 0.34, s * 0.42, -s * 0.34).stroke({ width: s * 0.1, cap: 'round', color: 0xffffff });
+};
+const lock = (g: SilkGraphics, s: number) => {
+    g.roundRect(-s * 0.32, -s * 0.05, s * 0.64, s * 0.46, 4).fill(0xffffff);
+    g.arcSweep(0, -s * 0.08, s * 0.2, Math.PI, Math.PI).stroke({ width: s * 0.1, color: 0xffffff });
+};
+const front = (g: SilkGraphics, s: number) => {
+    g.regularPoly(0, -s * 0.12, s * 0.3, 3, 0, 2).fill(0xffffff);
+    g.line(-s * 0.3, s * 0.32, s * 0.3, s * 0.32).stroke({ width: s * 0.1, cap: 'round', color: 0xffffff });
+};
+const paint = (g: SilkGraphics, s: number) => g.circle(0, 0, s * 0.36).fill(0xffffff);
+
+// Click a shape to select it. Drag it around: the halo follows and turns away from the edges.
+export default defineDemo({
+    size: [640, 380],
+    touchAction: 'none',
+    controls: {
+        hideWhileDragging: { type: 'toggle', label: 'hide while dragging', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        const world = new Container();
+        const halo = new ContextHalo({
+            items: [
+                { id: 'copy', label: 'Duplicate', icon: copy },
+                { id: 'paint', label: 'Colour', icon: paint },
+                { id: 'front', label: 'Bring to front', icon: front },
+                { id: 'lock', label: 'Lock', icon: lock, disabled: true },
+                { id: 'delete', label: 'Delete', icon: trash },
+            ],
+            bounds: { x: 0, y: 0, width: 640, height: 380 },
+            ticker: silk.app.ticker,
+            onSelect: (item) => {
+                const target = halo.state.target.value as SilkGraphics | null;
+
+                if (!target) return;
+                if (item.id === 'delete') {
+                    halo.detach();
+                    target.destroy();
+                } else if (item.id === 'front') world.addChild(target);
+                else if (item.id === 'paint') redraw(target, (Math.random() * 0xffffff) | 0);
+            },
+        });
+        const redraw = (g: SilkGraphics, colour: number) => {
+            g.clear().roundRect(-60, -40, 120, 80, 18, 0.6).fill(colour);
+        };
+        const backdrop = new Container();
+
+        backdrop.eventMode = 'static';
+        backdrop.hitArea = { contains: () => true };
+        backdrop.on('pointerdown', () => halo.detach());
+        stage.addChild(backdrop, world, halo);
+
+        [
+            [170, 190, 0x0a84ff],
+            [420, 110, 0x30d158],
+            [520, 300, 0xff9f0a],
+        ].forEach(([x, y, colour]) => {
+            const g = new SilkGraphics();
+            let grab = { x: 0, y: 0 };
+
+            redraw(g, colour);
+            g.position.set(x, y);
+            g.cursor = 'grab';
+            world.addChild(g);
+            trackGesture(g, {
+                onDown: (p) => {
+                    halo.attach(g);
+                    grab = { x: p.x - g.x, y: p.y - g.y };
+                },
+                onDragStart: () => halo.state.dragging.set(true),
+                onDrag: (p) => g.position.set(p.x - grab.x, p.y - grab.y),
+                onDragEnd: () => halo.state.dragging.set(false),
+            });
+        });
+        halo.attach(world.children[0]);
+
+        tick(() => {
+            halo.hideWhileDragging = params.hideWhileDragging;
+        });
+
+        return undefined;
+    },
+});
+```
+
+Each tool has its own entry point and pulls in nothing else:
+
+```ts
+import { ContextHalo } from 'pixi-silk/ui/halo';
+import { BrushCursor } from 'pixi-silk/ui/brush';
+import { ModeSwitcher, SegmentedSwitch } from 'pixi-silk/ui/modes';
+```
+
+## Context halo
+
+Round action buttons orbit the selected object, the way 3D and design tools show context actions.
+
+```ts
+import { ContextHalo } from 'pixi-silk/ui/halo';
+
+const halo = new ContextHalo({
+    items: [
+        { id: 'copy', label: 'Duplicate', icon: drawMove },
+        { id: 'delete', label: 'Delete', icon: drawTrash },
+    ],
+    bounds: { x: 0, y: 0, width: app.screen.width, height: app.screen.height },
+    onSelect: (item) => console.log(item.id, halo.state.target.value),
+});
+
+app.stage.addChild(halo);
+halo.attach(stage.children[0]); // the selected object
+halo.state.dragging.set(true); // while the user drags the selection
+```
+
+- The buttons follow the target's bounds every frame, so drags, tweens and camera moves need no wiring.
+- Selecting another object never slides the buttons across the scene. They pop out at the old
+  object and pop back in around the new one, with a stagger. `transition: 'glide'` slides instead.
+  Input is off while they pop.
+- They sit on an arc that hugs the target's box, evenly spaced on wide and tall shapes alike.
+- Near an edge of `bounds` the arc turns to the side with room, gliding round rather than jumping.
+- While `state.dragging` is true they follow faster, or fold away with `hideWhileDragging`.
+- A label pill shows on hover. Disabled items dim and ignore taps.
+
+## Brush cursor
+
+Live demo `brush` (source):
+
+```ts
+import { Container, RenderTexture, Sprite } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { BrushCursor } from 'pixi-silk/ui/brush';
+import { defineDemo } from './runtime';
+
+// Paint on the canvas. Hold F and move (or drag with the right button) to resize: sideways is
+// size, up and down is hardness. [ and ] step the size. A pen's pressure shows as the inner disc.
+export default defineDemo({
+    size: [640, 360],
+    touchAction: 'none',
+    setup({ silk, stage, width, height }) {
+        const surface = new Container();
+        const canvas = RenderTexture.create({ width, height, resolution: silk.resolution });
+        const dab = new SilkGraphics();
+        const brush = new BrushCursor({ size: 36, hardness: 0.6, surface, ticker: silk.app.ticker });
+        let painting = false;
+        let last: { x: number; y: number } | null = null;
+
+        surface.eventMode = 'static';
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+        stage.addChild(new Sprite(canvas), surface, brush);
+
+        const stamp = (x: number, y: number, pressure: number) => {
+            const { size, hardness, opacity } = brush.state;
+            const r = (size.value / 2) * (0.35 + 0.65 * pressure);
+
+            // soft brushes are a blurred dab, hard ones a crisp disc
+            dab.clear()
+                .circle(x, y, r * (0.6 + 0.4 * hardness.value))
+                .fill({ color: 0x0a84ff, alpha: 0.35 * opacity.value, blur: r * (1 - hardness.value) * 0.6 });
+            silk.app.renderer.render({ container: dab, target: canvas, clear: false });
+        };
+        const paintTo = (x: number, y: number, pressure: number) => {
+            const from = last ?? { x, y };
+            const step = Math.max(1, brush.state.size.value * 0.12);
+            const n = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / step));
+
+            for (let i = 1; i <= n; i++)
+                stamp(from.x + ((x - from.x) * i) / n, from.y + ((y - from.y) * i) / n, pressure);
+            last = { x, y };
+        };
+
+        surface.on('pointerdown', (e) => {
+            if (e.button !== 0 || brush.state.resizing.value) return;
+            painting = true;
+            last = null;
+            const p = stage.toLocal(e.global);
+
+            paintTo(p.x, p.y, e.pointerType === 'pen' ? e.pressure : 0.6);
+        });
+        surface.on('globalpointermove', (e) => {
+            if (!painting || brush.state.resizing.value) return;
+            const p = stage.toLocal(e.global);
+
+            paintTo(p.x, p.y, e.pointerType === 'pen' ? e.pressure : 0.6);
+        });
+        const stop = () => {
+            painting = false;
+            last = null;
+        };
+
+        surface.on('pointerup', stop);
+        surface.on('pointerupoutside', stop);
+
+        return () => canvas.destroy(true);
+    },
+});
+```
+
+```ts
+import { BrushCursor } from 'pixi-silk/ui/brush';
+
+const brush = new BrushCursor({ size: 24, hardness: 0.8, surface: stage });
+
+app.stage.addChild(brush);
+brush.state.size.subscribe((size) => console.log('brush size', size));
+```
+
+- The ring is the brush size. A dashed inner ring shows hardness, and a disc grows with pen pressure.
+- Small brushes get a crosshair, so the hot spot stays visible.
+- Hold `F` (`resizeKey`) or drag with the right button to resize. The ring stays where the resize
+  began, and a pill reads out size and hardness.
+- `[` and `]` step the size. The OS cursor is hidden over `surface`.
+
+## Mode switcher
+
+Live demo `modes` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import type { SilkGraphics } from 'pixi-silk';
+import { ModeSwitcher, SegmentedSwitch } from 'pixi-silk/ui/modes';
+import { defineDemo } from './runtime';
+
+type Icon = (g: SilkGraphics, s: number) => void;
+const brush: Icon = (g, s) => {
+    g.line(-s * 0.3, s * 0.3, s * 0.3, -s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+    g.circle(-s * 0.32, s * 0.32, s * 0.14).fill(0xffffff);
+};
+const eraser: Icon = (g, s) => g.roundRect(-s * 0.36, -s * 0.2, s * 0.72, s * 0.4, 4).fill(0xffffff);
+const smudge: Icon = (g, s) => g.heart(0, 0, s * 0.7, 0.2).fill(0xffffff);
+const fill: Icon = (g, s) => g.regularPoly(0, 0, s * 0.38, 6, 0, 3).fill(0xffffff);
+const pick: Icon = (g, s) => {
+    g.circle(0, 0, s * 0.3).stroke({ width: s * 0.1, color: 0xffffff });
+    g.circle(0, 0, s * 0.08).fill(0xffffff);
+};
+
+// Hold Space over the canvas (or long-press it) for the mode ring, release on a mode.
+// Tap Space to swap back to the previous mode. The pill below is a SegmentedSwitch.
+export default defineDemo({
+    size: [640, 360],
+    touchAction: 'none',
+    setup({ silk, stage, width, height }) {
+        const ticker = silk.app.ticker;
+        const status = new Text({
+            text: '',
+            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 18, fontWeight: '600' },
+        });
+        const hint = new Text({
+            text: 'hold Space or long-press, tap Space to swap back',
+            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+        });
+        const speed = new SegmentedSwitch({
+            options: [
+                { id: 'slow', label: 'Slow' },
+                { id: 'normal', label: 'Normal' },
+                { id: 'turbo', label: 'Turbo' },
+            ],
+            value: 'normal',
+            ticker,
+        });
+        const tools = new SegmentedSwitch({
+            options: [
+                { id: 'brush', icon: brush },
+                { id: 'eraser', icon: eraser },
+                { id: 'smudge', icon: smudge },
+                { id: 'fill', icon: fill },
+                { id: 'pick', icon: pick },
+            ],
+            segmentWidth: 48,
+            ticker,
+        });
+        const modes = new ModeSwitcher({
+            modes: [
+                { id: 'brush', label: 'BRUSH', icon: brush },
+                { id: 'eraser', label: 'ERASER', icon: eraser },
+                { id: 'smudge', label: 'SMUDGE', icon: smudge },
+                { id: 'fill', label: 'FILL', icon: fill },
+                { id: 'pick', label: 'PICKER', icon: pick },
+            ],
+            longPressTarget: stage,
+            ticker,
+        });
+
+        stage.eventMode = 'static';
+        stage.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+        status.anchor.set(0.5);
+        hint.anchor.set(0.5);
+        status.position.set(width / 2, 70);
+        hint.position.set(width / 2, 100);
+        tools.position.set(width / 2, 190);
+        speed.position.set(width / 2, 290);
+        stage.addChild(status, hint, tools, speed, modes);
+
+        // the switcher and the toolbar share one source of truth
+        const show = (mode: string) => {
+            status.text = `mode: ${mode}`;
+            tools.state.value.set(mode);
+        };
+
+        modes.state.mode.subscribe(show);
+        tools.state.value.subscribe((id) => modes.set(id));
+        show(modes.mode);
+
+        return undefined;
+    },
+});
+```
+
+```ts
+import { ModeSwitcher } from 'pixi-silk/ui/modes';
+
+const modes = new ModeSwitcher({
+    modes: [
+        { id: 'brush', label: 'BRUSH', icon: drawPointer },
+        { id: 'eraser', label: 'ERASER', icon: drawTrash },
+    ],
+    longPressTarget: app.stage,
+    onChange: (mode, previous) => console.log(previous, '->', mode),
+});
+
+app.stage.addChild(modes);
+```
+
+Hold the key and a ring of modes opens under the pointer, most recently used first, so the
+previous mode sits on top. Release over a mode to switch. A quick tap of the key swaps back to the
+previous mode without showing anything. On touch screens a long-press opens the same ring, and
+sliding the finger picks.
+
+The keyboard only acts while the pointer is over the canvas, and never while a text field has
+focus. The ring is a `RadialMenu`, styled through the `menu` option.
+
+## Segmented switch
+
+```ts
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
+
+const speed = new SegmentedSwitch({
+    options: [{ id: 'slow', label: 'Slow' }, { id: 'normal', label: 'Normal' }, { id: 'turbo', label: 'Turbo' }],
+    value: 'normal',
+});
+
+speed.state.value.subscribe((id) => console.log(id));
+```
+
+A pill of choices with a thumb that slides to the selected one. The leading edge moves first, so
+the thumb stretches on the way and settles with a little give. Tap a segment, or press and slide
+along the pill: the thumb follows the finger and the choice lands on release. Segments grow to fit
+their labels or icons.
+
+---
+
+# Dials and timeline
+
+URL: https://pixi-silk.schmooky.dev/docs/dials-and-timeline/
+Section: Editor UI
+
+> A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits.
+
+Live demo `dial` (source):
+
+```ts
+import { JogDial, Scrubber } from 'pixi-silk/ui/dial';
+import { defineDemo } from './runtime';
+
+// Drag around a dial: the value keeps adding up over full turns, and further out turns slower.
+// Flick it to spin. The right dial clicks through steps and stretches past its limits.
+// Scrub the fields sideways. Shift is fine, Ctrl or Cmd snaps, a tap on either end steps.
+export default defineDemo({
+    size: [600, 300],
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const ticker = silk.app.ticker;
+        const endless = new JogDial({ ticker, radius: 62, turn: 360, format: (v) => `${Math.round(v)}°` });
+        const stepped = new JogDial({
+            ticker,
+            radius: 62,
+            step: 1,
+            min: 0,
+            max: 24,
+            value: 6,
+            theme: { fill: 0x30d158 },
+        });
+        const size = new Scrubber({ ticker, label: 'Size', value: 24, step: 1, min: 1, max: 200, perPixel: 0.5 });
+        const opacity = new Scrubber({
+            ticker,
+            label: 'Opacity',
+            value: 0.8,
+            step: 0.05,
+            min: 0,
+            max: 1,
+            perPixel: 0.005,
+            format: (v) => `${Math.round(v * 100)}%`,
+            theme: { fill: 0xbf5af2 },
+        });
+        const angle = new Scrubber({
+            ticker,
+            label: 'Angle',
+            value: 0,
+            step: 15,
+            perPixel: 1,
+            format: (v) => `${v.toFixed(1)}°`,
+        });
+
+        endless.position.set(110, 130);
+        stepped.position.set(290, 130);
+        size.position.set(420, 70);
+        opacity.position.set(420, 125);
+        angle.position.set(420, 180);
+        // the endless dial drives the angle field
+        endless.state.value.subscribe((v) => angle.state.value.set(Math.round(v * 10) / 10));
+        stage.addChild(endless, stepped, size, opacity, angle);
+
+        return undefined;
+    },
+});
+```
+
+## Jog dial
+
+```ts
+import { JogDial } from 'pixi-silk/ui/dial';
+
+const camera = { zoom: 1 };
+const undo: number[] = [];
+const zoom = new JogDial({
+    radius: 64,
+    turn: 2,          // value change per full turn
+    step: 0.1,        // detents: the value clicks through steps
+    min: 0.1,
+    max: 8,           // past a limit it stretches and springs back
+    onChange: (v) => (camera.zoom = v),
+    onCommit: (v) => undo.push(v),
+});
+```
+
+Press anywhere on the dial and drag around its centre. The value follows the angle and keeps
+adding up over full turns, so there is no seam at the top. Past the ring the dial turns slower the
+further out the pointer is: move out for fine control without letting go. `fine` sets how quickly
+that happens, and 0 turns it off.
+
+A fast release keeps the dial spinning and `friction` slows it down. With `min` and `max` the ring
+becomes a gauge of the range, and one turn covers the range unless `turn` says otherwise. Past a
+limit the dial stretches like a rubber band and springs back. A tap on the right half steps up, on
+the left half steps down. `onChange` fires on every snapped change, `onCommit` once the dial rests.
+
+## Scrub fields
+
+```ts
+import { Scrubber } from 'pixi-silk/ui/dial';
+
+const size = new Scrubber({ label: 'Size', value: 24, step: 1, min: 1, max: 200, perPixel: 0.5 });
+```
+
+The number fields of 3D and compositing tools: drag sideways to change the value. Shift scrubs at
+a tenth of the speed, and Ctrl or Cmd snaps to the step. A tap on either end steps down or up.
+With `min` and `max` the field fills like a slider. A pill shows the value above the pointer while
+dragging.
+
+## Mini timeline
+
+Live demo `timeline` (source):
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { JogDial } from 'pixi-silk/ui/dial';
+import { MiniTimeline } from 'pixi-silk/ui/timeline';
+import { defineDemo } from './runtime';
+
+// Scrub the ruler (past the ends it stretches), drag keys, Shift-click or box-select several,
+// and move the green loop handles. The wheel zooms, sideways or with Shift it pans, and a
+// double tap on the ruler zooms in or back out. Tap the dial to play or pause.
+export default defineDemo({
+    size: [620, 220],
+    touchAction: 'none',
+    setup({ silk, stage, tick }) {
+        const ticker = silk.app.ticker;
+        const timeline = new MiniTimeline({
+            ticker,
+            width: 470,
+            height: 70,
+            duration: 120,
+            loop: [24, 96],
+            keys: [0, 12, 30, 44, 60, 72, 90, 108].map((time, i) => ({ id: `k${i}`, time })),
+        });
+        const ball = new SilkGraphics();
+        const jog = new JogDial({ ticker, radius: 34, thickness: 10, turn: 24, readout: false });
+        let last = 0;
+
+        timeline.position.set(20, 130);
+        jog.position.set(560, 165);
+        // the dial scrubs the playhead, a tap on it plays or pauses
+        jog.state.value.subscribe((v) => {
+            timeline.state.time.set(Math.max(0, Math.min(120, timeline.state.time.value + v - last)));
+            last = v;
+        });
+        jog.on('pointertap', () => timeline.toggle());
+        timeline.state.playing.set(true);
+        stage.addChild(ball, timeline, jog);
+        tick(() => {
+            // something to animate: a ball eased between the keys
+            const time = timeline.state.time.value;
+            const keys = timeline.keys.map((k) => k.time).sort((a, b) => a - b);
+            const i = keys.findIndex((k) => k > time);
+            const a = keys[Math.max(0, i - 1)] ?? 0;
+            const b = keys[i] ?? 120;
+            const u = b > a ? (time - a) / (b - a) : 0;
+            const y = 90 - Math.sin(Math.PI * u) * 60;
+            const x = 20 + (time / 120) * 470;
+
+            ball.clear();
+            ball.circle(x, 108, 12).fill({ color: 0x000000, alpha: 0.4, blur: 6 });
+            ball.circle(x, y, 12).fill(0x0a84ff);
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+import { MiniTimeline } from 'pixi-silk/ui/timeline';
+
+const timeline = new MiniTimeline({
+    duration: 120,
+    fps: 30,
+    loop: [24, 96],
+    keys: [{ id: 'jump', time: 30 }, { id: 'land', time: 44 }],
+    onKeysChange: (keys) => localStorage.setItem('keys', JSON.stringify(keys)),
+});
+
+timeline.state.time.subscribe((frame) => console.log('frame', frame));
+timeline.state.playing.set(true);
+```
+
+- **Scrub** the ruler. The playhead snaps to frames and stretches past either end of the track.
+- **Keys** drag together when several are selected, snapped, and stop at the ends of the track.
+  Shift-click adds to the selection, and a drag on empty track draws a selection box.
+- **Loop range**: drag its green handles on the ruler. Playback wraps inside it.
+- **Zoom** with the wheel around the pointer, pan sideways or with Shift. Pixi listens to the wheel
+  passively, so the page scrolls too unless the canvas fills it. Without a wheel, a double tap on
+  the ruler zooms in, and another zooms back out. `zoomBy`, `panBy` and `showAll` do the same from code.
+
+State lives in `state`: `time`, `playing`, `selection`, `range` and `view`.
+
+## Odometer
+
+Live demo `odometer` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Odometer } from 'pixi-silk/ui/odometer';
+import { defineDemo } from './runtime';
+
+// Tap the canvas to add a random amount. Bigger jumps count for longer, and a second tap while
+// it counts skips to the end. The small readout below rolls frame numbers with a minimum width.
+export default defineDemo({
+    size: [520, 240],
+    touchAction: 'none',
+    setup({ silk, stage, tick }) {
+        const ticker = silk.app.ticker;
+        const panel = new SilkGraphics();
+        const balance = new Odometer({ ticker, value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+        const frame = new Odometer({
+            ticker,
+            minDigits: 4,
+            thousands: '',
+            fontSize: 18,
+            color: 0x8e8e93,
+            duration: 0.06,
+            speedUp: false,
+        });
+        const hit = new Container();
+        let f = 0;
+
+        panel.roundRect(40, 40, 440, 110, 22, 0.6).fill(0x1c1c1e);
+        balance.position.set(260, 95);
+        frame.position.set(260, 190);
+        hit.eventMode = 'static';
+        hit.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 520 && y <= 240 };
+        hit.cursor = 'pointer';
+        hit.on('pointertap', () => {
+            if (balance.state.counting.value) {
+                balance.skip();
+
+                return;
+            }
+            const big = Math.random() < 0.25;
+
+            balance.set(balance.state.value.value + (big ? 2000 + Math.random() * 40000 : 1 + Math.random() * 90));
+        });
+        stage.addChild(panel, balance, frame, hit);
+        tick((_t, dt) => {
+            f += dt * 12;
+            frame.set(Math.floor(f));
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+import { Odometer } from 'pixi-silk/ui/odometer';
+
+const balance = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+
+balance.set(9800);       // counts up, longer for bigger jumps (speedUp)
+balance.skip();          // straight to the end
+balance.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
+```
+
+Every digit column rolls on its own. A column only moves while the one below it passes from 9 to 0,
+so carries ripple like a mechanical counter. Each column holds two glyphs at most. Glyphs come
+from a bitmap font made from the text style, so a frame only moves them, and one mask clips them all.
+`format(value)` returns the same text without rolling, for labels and accessibility.
+
+---
+
+# Slot HUD examples
+
+URL: https://pixi-silk.schmooky.dev/docs/slot-hud/
+Section: Examples
+
+> Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy.
+
+These controls are examples, not part of the library. Each demo is one file: open its source,
+copy it into your game and restyle it. They are built from the same atoms as the library widgets:
+`SilkGraphics`, `Spring` and `damp`, signals, `trackGesture` and `RadialMenu`.
+
+## Spin button and autoplay
+
+Live demo `slot-spin` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { damp, SilkGraphics, Spring } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { type GesturePoint, trackGesture } from 'pixi-silk/ui/gesture';
+import { type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
+import { defineDemo } from './runtime';
+
+// A slot spin button built from the atoms (copy it into your game and restyle it):
+// idle breathing, press squash, hold for the autoplay picker, a stop square while spinning and the
+// autoplay count left as a shrinking ring. The picker is a half RadialMenu fanning up from the button.
+
+type Phase = 'idle' | 'spinning' | 'stopping';
+
+class SpinButton extends Container {
+    readonly phase = signal<Phase>('idle');
+    readonly autoplay = signal(0);
+    /** Spins in the current autoplay run, for the ring. */
+    autoplayTotal = 1;
+    onSpin: () => void = () => {};
+    onStop: () => void = () => {};
+    onHold: (p: GesturePoint) => void = () => {};
+
+    private readonly g = new SilkGraphics();
+    private readonly press = new Spring(0, 700, 30);
+    private readonly morph = new Spring(0, 260, 22);
+    private spinAngle = 0;
+    private ring = 0;
+    private t = 0;
+
+    constructor(private readonly radius = 44) {
+        super();
+        this.addChild(this.g);
+        this.hitArea = { contains: (x, y) => Math.hypot(x, y) <= radius + 10 };
+        trackGesture(
+            this,
+            {
+                onDown: () => (this.press.target = 1),
+                onUp: () => (this.press.target = 0),
+                onTap: () => (this.phase.value === 'idle' ? this.onSpin() : this.onStop()),
+                onHold: (p) => this.phase.value === 'idle' && this.onHold(p),
+            },
+            { holdMs: 380, flickSpeed: 0 },
+        );
+    }
+
+    update(dt: number): void {
+        const spinning = this.phase.value !== 'idle';
+        const r = this.radius;
+        const total = Math.max(1, this.autoplayTotal);
+
+        this.t += dt;
+        this.press.step(dt);
+        this.morph.target = spinning ? 1 : 0;
+        this.morph.step(dt);
+        this.spinAngle += dt * (2 + 8 * this.morph.value);
+        this.ring = damp(this.ring, this.autoplay.value > 0 ? this.autoplay.value / total : 0, 10, dt);
+
+        const breathe = spinning ? 0 : Math.sin(this.t * 2.4) * 0.025;
+
+        this.scale.set((1 + breathe) * (1 - 0.08 * this.press.value));
+        const m = Math.min(1, Math.max(0, this.morph.value));
+        const g = this.g.clear();
+
+        g.circle(0, 4, r).fill({ color: 0x000000, alpha: 0.35, blur: 10 });
+        g.circle(0, 0, r).fill(spinning ? 0xff453a : 0x30d158);
+        g.circle(0, 0, r - 5).stroke({ width: 2, color: 0xffffff, alpha: 0.25 });
+        // the arrow turns into a stop square as the reels start
+        g.save().rotateTransform(this.spinAngle * (1 - m) * 0.15);
+        if (m < 0.5) {
+            g.arcSweep(0, 0, r * 0.42, -Math.PI * 0.3, Math.PI * 1.45).stroke({
+                width: 7,
+                cap: 'round',
+                color: 0xffffff,
+                alpha: 1 - m * 2,
+            });
+            g.regularPoly(r * 0.12, -r * 0.42, 9, 3, Math.PI / 2, 2).fill({ color: 0xffffff, alpha: 1 - m * 2 });
+        } else {
+            const s = r * 0.42 * (m - 0.5) * 2;
+
+            g.roundRect(-s / 2, -s / 2, s, s, 5).fill(0xffffff);
+        }
+        g.restore();
+        if (this.ring > 0.002) {
+            g.arcSweep(0, 0, r + 8, -Math.PI / 2, Math.PI * 2 * this.ring).stroke({
+                width: 4,
+                cap: 'round',
+                color: 0xffd60a,
+            });
+        }
+    }
+}
+
+const chip = (n: string): RadialItem => ({ id: n, label: n });
+
+export default defineDemo({
+    size: [520, 320],
+    touchAction: 'none',
+    setup({ silk, stage, tick }) {
+        const spin = new SpinButton();
+        const status = new Text({
+            text: 'tap to spin, hold for autoplay',
+            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+        });
+        const picker = new RadialMenu({
+            items: ['10', '25', '50', '100', '∞'].map(chip),
+            sweep: Math.PI * 0.95,
+            direction: -Math.PI / 2,
+            innerRadius: 58,
+            hub: false,
+            outerRadius: 108,
+            ticker: silk.app.ticker,
+            theme: { segment: 0x2c2c2e, segmentHover: 0x3a3a3c, icon: 0xf2f2f7, iconHover: 0xffd60a, accent: 0xffd60a },
+            onSelect: (item) => startAutoplay(item.id === '∞' ? 999 : Number(item.id)),
+        });
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        status.anchor.set(0.5);
+        status.position.set(260, 30);
+        spin.position.set(260, 250);
+        picker.position.set(260, 250);
+        stage.addChild(status, spin, picker);
+
+        const spinOnce = () => {
+            spin.phase.set('spinning');
+            status.text = spin.autoplay.value > 0 ? `autoplay: ${spin.autoplay.value} left` : 'spinning';
+            timer = setTimeout(() => {
+                spin.phase.set('idle');
+                if (spin.autoplay.value > 0) {
+                    spin.autoplay.update((n) => n - 1);
+                    if (spin.autoplay.value > 0) timer = setTimeout(spinOnce, 250);
+                    else status.text = 'autoplay done';
+                } else status.text = 'tap to spin, hold for autoplay';
+            }, 1100);
+        };
+        const startAutoplay = (n: number) => {
+            spin.autoplayTotal = n;
+            spin.autoplay.set(n);
+            spinOnce();
+        };
+
+        spin.onSpin = spinOnce;
+        spin.onStop = () => {
+            spin.autoplay.set(0);
+            status.text = 'stopped';
+        };
+        spin.onHold = (p) => picker.openAt(260, 250, p);
+        tick((_t, dt) => spin.update(dt));
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    },
+});
+```
+
+The arrow morphs into a stop square while the reels run. The yellow ring shows the autoplay spins
+left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release picks a
+count in one gesture.
+
+## Balance, win and bet
+
+Live demo `slot-wallet` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { JogDial } from 'pixi-silk/ui/dial';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { Odometer } from 'pixi-silk/ui/odometer';
+import { defineDemo } from './runtime';
+
+// Balance and win counters plus a bet dial, built on the library's Odometer and JogDial.
+// Turn the dial to pick a bet from the ladder, press SPIN. Wins count up (tap the win to skip),
+// then roll into the balance. Copy and restyle.
+
+const LADDER = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
+const money = { decimals: 2, prefix: '$' };
+const label = (text: string, x: number, y: number) => {
+    const t = new Text({ text, style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 12 } });
+
+    t.anchor.set(0.5);
+    t.position.set(x, y);
+
+    return t;
+};
+
+export default defineDemo({
+    size: [600, 340],
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const ticker = silk.app.ticker;
+        const betIndex = signal(3);
+        const busy = signal(false);
+        const panel = new SilkGraphics();
+        const balance = new Odometer({ ticker, ...money, value: 500, fontSize: 30 });
+        const win = new Odometer({ ticker, ...money, value: 0, fontSize: 40, color: 0xffd60a });
+        // the dial turns through ladder positions: one detent per bet, a full turn covers the ladder
+        const bet = new JogDial({
+            ticker,
+            radius: 62,
+            value: betIndex.value,
+            min: 0,
+            max: LADDER.length - 1,
+            step: 1,
+            format: (i) => `$${LADDER[Math.round(i)]}`,
+            onCommit: (i) => betIndex.set(Math.round(i)),
+        });
+        const spin = new SilkGraphics();
+        const spinText = new Text({
+            text: 'SPIN',
+            style: { fill: 0xffffff, fontFamily: 'system-ui, sans-serif', fontWeight: '700', fontSize: 16 },
+        });
+
+        panel.roundRect(30, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
+        panel.roundRect(310, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
+        balance.position.set(160, 100);
+        win.position.set(440, 100);
+        bet.position.set(160, 250);
+        spin.position.set(440, 250);
+        spinText.anchor.set(0.5);
+        spinText.position.set(440, 250);
+        stage.addChild(
+            panel,
+            label('BALANCE', 160, 55),
+            label('WIN', 440, 55),
+            label('BET', 160, 330),
+            balance,
+            win,
+            bet,
+            spin,
+            spinText,
+        );
+
+        const drawSpin = () => {
+            spin.clear()
+                .circle(0, 0, 48)
+                .fill(busy.value ? 0x3a3a3c : 0x30d158);
+        };
+
+        busy.subscribe(drawSpin);
+        drawSpin();
+        spin.hitArea = { contains: (x, y) => Math.hypot(x, y) <= 56 };
+        trackGesture(spin, {
+            onTap: () => {
+                const stake = LADDER[betIndex.value];
+
+                if (busy.value || balance.state.value.value < stake) return;
+                busy.set(true);
+                balance.set(balance.state.value.value - stake);
+                setTimeout(() => {
+                    const roll = Math.random();
+                    const amount = roll < 0.45 ? 0 : roll < 0.9 ? stake * (1 + Math.random() * 4) : stake * 60;
+
+                    if (amount === 0) {
+                        busy.set(false);
+
+                        return;
+                    }
+                    win.set(0);
+                    win.skip();
+                    win.set(Math.round(amount * 100) / 100);
+                }, 600);
+            },
+        });
+        // the win rolls into the balance when it finishes counting (or is skipped)
+        win.state.counting.subscribe((counting) => {
+            if (counting || !busy.value) return;
+            const amount = win.state.value.value;
+
+            setTimeout(() => {
+                balance.set(balance.state.value.value + amount);
+                win.set(0);
+                busy.set(false);
+            }, 500);
+        });
+        win.eventMode = 'static';
+        win.hitArea = { contains: (x, y) => Math.abs(x) < 130 && Math.abs(y) < 50 };
+        win.on('pointertap', () => win.skip());
+
+        return undefined;
+    },
+});
+```
+
+Built on the library's `Odometer` and `JogDial`. The dial's detents are positions on a bet
+ladder, and its readout shows the bet at that position.
+
+## Meters, badges and pips
+
+Live demo `slot-meters` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { conic, damp, SilkGraphics, Spring } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { defineDemo } from './runtime';
+
+// Slot HUD pieces drawn with one SilkGraphics each, state in signals. Copy and restyle.
+// Win meter with tiers, multiplier badge, free-spin pips, feature path and a hold-to-buy button.
+// Press "WIN" to feed the meter, hold "BUY" to confirm.
+
+const TIERS = [
+    { at: 0.25, name: 'BIG', color: 0x30d158 },
+    { at: 0.55, name: 'MEGA', color: 0x0a84ff },
+    { at: 0.85, name: 'EPIC', color: 0xbf5af2 },
+];
+const font = { fontFamily: 'system-ui, sans-serif', fontWeight: '700' } as const;
+
+export default defineDemo({
+    size: [640, 360],
+    touchAction: 'none',
+    setup({ stage, tick }) {
+        const win = signal(0); // 0..1 of the max win
+        const mult = signal(1);
+        const spins = signal(10);
+        const used = signal(0);
+        const path = signal(0); // feature collect progress, 0..6
+
+        const g = new SilkGraphics();
+        const tierText = new Text({ text: '', style: { ...font, fill: 0xffffff, fontSize: 18 } });
+        const multText = new Text({ text: 'x1', style: { ...font, fill: 0x1c1c1e, fontSize: 22 } });
+        const winBtn = new Text({ text: 'WIN', style: { ...font, fill: 0xffffff, fontSize: 14 } });
+        const buyText = new Text({ text: 'HOLD TO BUY', style: { ...font, fill: 0xffffff, fontSize: 13 } });
+
+        // one ramp over the whole gauge, so the colour says how far the win got
+        const meterPaint = conic([0x30d158, 0x0a84ff, 0xbf5af2, 0xff375f], {
+            center: [150, 170],
+            units: 'local',
+            startAngle: Math.PI * 0.75,
+            sweep: Math.PI * 1.5,
+        });
+        let shown = 0;
+        let tierPop = 0;
+        let lastTier = -1;
+        const badge = new Spring(1, 520, 14);
+        let shake = 0;
+        let pipPop = new Array(10).fill(0);
+        let pathShown = 0;
+        let buy = 0;
+        let holding = false;
+        let bought = 0;
+        let time = 0;
+
+        for (const t of [tierText, multText, winBtn, buyText]) t.anchor.set(0.5);
+        tierText.position.set(150, 190);
+        multText.position.set(380, 112);
+        winBtn.position.set(150, 300);
+        buyText.position.set(520, 300);
+        stage.addChild(g, tierText, multText, winBtn, buyText);
+
+        mult.subscribe(() => {
+            badge.value = 1.45;
+            shake = 1;
+        });
+        used.subscribe((u) => (pipPop[u - 1] = 1));
+
+        // hit zones: a container per control keeps the example readable
+        const zone = (x: number, y: number, w: number, h: number) => {
+            const z = new SilkGraphics();
+
+            z.hitArea = { contains: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
+            stage.addChild(z);
+
+            return z;
+        };
+
+        trackGesture(zone(90, 280, 120, 40), {
+            onTap: () => {
+                win.update((v) => (v >= 1 ? 0 : Math.min(1, v + 0.12 + Math.random() * 0.1)));
+                if (Math.random() < 0.5) mult.update((m) => (m >= 10 ? 1 : m + 1));
+                if (used.value < spins.value) used.update((u) => u + 1);
+                else {
+                    used.set(0);
+                    pipPop = pipPop.map(() => 0);
+                }
+                path.update((p) => (p >= 6 ? 0 : p + 1));
+            },
+        });
+        trackGesture(
+            zone(440, 280, 160, 40),
+            {
+                onDown: () => (holding = true),
+                onUp: () => (holding = false),
+            },
+            { holdMs: 0, flickSpeed: 0 },
+        );
+
+        tick((_t, dt) => {
+            time += dt;
+            shown = damp(shown, win.value, 4, dt);
+            badge.target = 1;
+            badge.step(dt);
+            shake = damp(shake, 0, 6, dt);
+            pipPop = pipPop.map((p) => damp(p, 0, 5, dt));
+            pathShown = damp(pathShown, path.value, 6, dt);
+            buy = holding ? Math.min(1, buy + dt / 1.2) : damp(buy, 0, 10, dt);
+            if (buy >= 1 && holding) {
+                holding = false;
+                bought = 1;
+                buy = 0;
+            }
+            bought = damp(bought, 0, 2.5, dt);
+
+            const tier = TIERS.reduce((acc, t, i) => (shown >= t.at ? i : acc), -1);
+
+            if (tier !== lastTier) {
+                if (tier > lastTier) tierPop = 1;
+                lastTier = tier;
+            }
+            tierPop = damp(tierPop, 0, 5, dt);
+
+            g.clear();
+            // win meter: a 270deg gauge with tier ticks; the fill takes the colour of the tier reached
+            const cx = 150;
+            const cy = 170;
+            const start = Math.PI * 0.75;
+            const sweep = Math.PI * 1.5;
+
+            g.arcSweep(cx, cy, 90, start, sweep).stroke({ width: 16, cap: 'round', color: 0x2c2c2e });
+            if (shown > 0.003) {
+                g.arcSweep(cx, cy, 90, start, sweep * shown).stroke({
+                    width: 16,
+                    cap: 'round',
+                    gradient: meterPaint,
+                });
+            }
+            for (const t of TIERS) {
+                const a = start + sweep * t.at;
+
+                g.line(
+                    cx + Math.cos(a) * 76,
+                    cy + Math.sin(a) * 76,
+                    cx + Math.cos(a) * 104,
+                    cy + Math.sin(a) * 104,
+                ).stroke({
+                    width: 2,
+                    color: shown >= t.at ? t.color : 0x48484a,
+                });
+            }
+            if (tier >= 0) {
+                g.circle(cx, cy + 20, 34 + tierPop * 20).fill({
+                    color: TIERS[tier].color,
+                    alpha: 0.25 + tierPop * 0.4,
+                    blur: 14,
+                });
+            }
+            tierText.text = tier >= 0 ? `${TIERS[tier].name} WIN` : `${Math.round(shown * 100)}%`;
+            tierText.scale.set(1 + tierPop * 0.35);
+
+            // multiplier badge: a rounded star that pops and shakes when the value changes
+            const bx = 380 + Math.sin(time * 60) * 4 * shake;
+
+            g.star(bx, 112, 8, 46 * badge.value, 38 * badge.value, time * 0.4, 4).fill({
+                color: 0xffd60a,
+                blur: 0,
+            });
+            g.circle(bx, 112, 56 * badge.value).fill({ color: 0xffd60a, alpha: 0.18 * shake, blur: 12 });
+            multText.text = `x${mult.value}`;
+            multText.position.x = bx;
+            multText.scale.set(badge.value);
+
+            // free-spin pips: used ones fill, the newest one bursts
+            for (let i = 0; i < spins.value; i++) {
+                const x = 300 + i * 30;
+                const y = 220;
+                const on = i < used.value;
+
+                g.circle(x, y, 9 + pipPop[i] * 6).fill({ color: on ? 0xff9f0a : 0x2c2c2e });
+                if (pipPop[i] > 0.02) {
+                    g.circle(x, y, 12 + (1 - pipPop[i]) * 16).stroke({
+                        width: 2,
+                        color: 0xff9f0a,
+                        alpha: pipPop[i],
+                    });
+                }
+            }
+
+            // feature path: collect points along a wave, the trail grows to the reached point
+            const pts: number[] = [];
+
+            for (let i = 0; i <= 60; i++) {
+                const t = i / 60;
+
+                pts.push(300 + t * 300, 160 + Math.sin(t * Math.PI * 3) * 14);
+            }
+            g.polyline(pts, { smooth: 'catmull' }).stroke({ width: 6, cap: 'round', color: 0x2c2c2e });
+            const reach = Math.round((pathShown / 6) * 60);
+
+            if (reach > 0) {
+                g.polyline(pts.slice(0, (reach + 1) * 2), { smooth: 'catmull' }).stroke({
+                    width: 6,
+                    cap: 'round',
+                    color: 0x64d2ff,
+                });
+            }
+            for (let k = 0; k <= 6; k++) {
+                const i = k * 10;
+                const on = pathShown >= k - 0.01;
+
+                g.circle(pts[i * 2], pts[i * 2 + 1], on ? 8 : 6).fill(on ? 0x64d2ff : 0x48484a);
+            }
+
+            // buttons
+            g.pill(90, 280, 120, 40).fill(0x0a84ff);
+            g.pill(440, 280, 160, 40).fill(bought > 0.05 ? 0x30d158 : 0x3a3a3c);
+            if (buy > 0.002) g.pill(440, 280, Math.max(40, 160 * buy), 40).fill({ color: 0xff9f0a, alpha: 0.9 });
+            buyText.text = bought > 0.05 ? 'BOUGHT' : 'HOLD TO BUY';
+        });
+
+        return undefined;
+    },
+});
+```
+
+## A dock that steps aside
+
+Live demo `spin-dock` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
+import { defineDemo } from './runtime';
+
+const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
+const minus = (g: SilkGraphics, s: number) =>
+    g.line(-s * 0.3, 0, s * 0.3, 0).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+const plus = (g: SilkGraphics, s: number) => {
+    minus(g, s);
+    g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+};
+// a lightning bolt as two rounded triangles (closed polygons cannot be filled yet)
+const bolt = (g: SilkGraphics, s: number) => {
+    g.triangle(s * 0.12, -s * 0.5, -s * 0.3, s * 0.08, s * 0.08, s * 0.02, 1).fill(0xffffff);
+    g.triangle(-s * 0.12, s * 0.5, s * 0.3, -s * 0.08, -s * 0.08, -s * 0.02, 1).fill(0xffffff);
+};
+
+// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave, the speed
+// switch locks and the spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+const SPEED: Record<string, number> = { normal: 1.1, turbo: 0.6, quick: 0.3 };
+export default defineDemo({
+    size: [560, 340],
+    touchAction: 'none',
+    controls: {
+        enabled: { type: 'toggle', label: 'spin enabled', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const bet = signal(1);
+        const reels = new SilkGraphics();
+        const label = new Text({
+            text: '',
+            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '600' },
+        });
+        const side = { ticker, theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e } };
+        const less = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: minus,
+            onPress: () => bet.update((b) => Math.max(1, b - 1)),
+        });
+        const more = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: plus,
+            onPress: () => bet.update((b) => Math.min(10, b + 1)),
+        });
+        const speed = new SegmentedSwitch({
+            ticker,
+            value: 'normal',
+            segmentWidth: 78,
+            height: 34,
+            options: [
+                { id: 'normal', label: 'Normal' },
+                { id: 'turbo', icon: bolt },
+                { id: 'quick', label: 'Quick' },
+            ],
+        });
+        const spin = new SilkButton({
+            ticker,
+            shape: 'circle',
+            height: 76,
+            icon: play,
+            iconSize: 30,
+            holdMs: 450,
+            theme: { fill: 0x30d158, fillHover: 0x4ade80, fillPress: 0x248a3d },
+            onPress: () => run(1),
+            onHold: () => run(5),
+        });
+        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more);
+        let spinning = 0;
+        let duration = 1.1;
+        let left = 0;
+
+        bet.subscribe((b) => (label.text = `bet ${b}`));
+        label.text = `bet ${bet.value}`;
+        label.anchor.set(0.5);
+        label.position.set(90, 34);
+        speed.position.set(400, 34);
+        dock.position.set(280, 282);
+        stage.addChild(reels, label, speed, dock);
+
+        async function run(count: number) {
+            left = count;
+            spin.state.busy.set(true);
+            speed.state.enabled.set(false);
+            await Promise.all([less.hide(), more.hide()]);
+            while (left-- > 0) {
+                duration = SPEED[speed.state.value.value] ?? 1.1;
+                spinning = duration;
+                await new Promise((r) => setTimeout(r, duration * 1000));
+            }
+            spin.state.busy.set(false);
+            speed.state.enabled.set(true);
+            await dock.showAll();
+        }
+
+        tick((t, dt) => {
+            spin.state.enabled.set(params.enabled);
+            spinning = Math.max(0, spinning - dt);
+            reels.clear();
+            for (let c = 0; c < 5; c++) {
+                const x = 60 + c * 92;
+                const run = spinning > 0 && spinning < duration * (1 - c * 0.05) ? 1 : 0;
+
+                reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
+                for (let r = 0; r < 3; r++) {
+                    const y = 70 + r * 54 + (run ? ((t * 900 + c * 40) % 54) - 27 : 0);
+                    const hue = [0xff453a, 0xffd60a, 0x0a84ff, 0xbf5af2][(r + c + (run ? Math.floor(t * 20) : 0)) % 4];
+
+                    reels.roundRect(x + 12, y + 6, 56, 40, 10, 0.6).fill({ color: hue, alpha: run ? 0.55 : 0.9 });
+                }
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+---
+
 # Smooth graphics in PixiJS v8
 
 URL: https://pixi-silk.schmooky.dev/docs/smooth-graphics-pixijs/

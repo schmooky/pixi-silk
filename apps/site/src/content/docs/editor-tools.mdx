@@ -1,0 +1,111 @@
+---
+title: Editor tools
+seoTitle: 'Context halo, brush cursor and modes for PixiJS'
+description: 'Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch.'
+keywords: ['PixiJS editor UI', 'context menu', 'brush cursor', 'mode switcher', 'segmented control', 'canvas tools']
+updated: 2026-11-07
+---
+
+<Demo name="halo" height={380} caption="Click a shape to select it, then drag it. The halo follows and turns away from the edges." />
+
+Each tool has its own entry point and pulls in nothing else:
+
+```ts
+import { ContextHalo } from 'pixi-silk/ui/halo';
+import { BrushCursor } from 'pixi-silk/ui/brush';
+import { ModeSwitcher, SegmentedSwitch } from 'pixi-silk/ui/modes';
+```
+
+## Context halo
+
+Round action buttons orbit the selected object, the way 3D and design tools show context actions.
+
+```ts
+import { ContextHalo } from 'pixi-silk/ui/halo';
+
+const halo = new ContextHalo({
+    items: [
+        { id: 'copy', label: 'Duplicate', icon: drawMove },
+        { id: 'delete', label: 'Delete', icon: drawTrash },
+    ],
+    bounds: { x: 0, y: 0, width: app.screen.width, height: app.screen.height },
+    onSelect: (item) => console.log(item.id, halo.state.target.value),
+});
+
+app.stage.addChild(halo);
+halo.attach(stage.children[0]); // the selected object
+halo.state.dragging.set(true); // while the user drags the selection
+```
+
+- The buttons follow the target's bounds every frame, so drags, tweens and camera moves need no wiring.
+- Selecting another object never slides the buttons across the scene. They pop out at the old
+  object and pop back in around the new one, with a stagger. `transition: 'glide'` slides instead.
+  Input is off while they pop.
+- They sit on an arc that hugs the target's box, evenly spaced on wide and tall shapes alike.
+- Near an edge of `bounds` the arc turns to the side with room, gliding round rather than jumping.
+- While `state.dragging` is true they follow faster, or fold away with `hideWhileDragging`.
+- A label pill shows on hover. Disabled items dim and ignore taps.
+
+## Brush cursor
+
+<Demo name="brush" height={360} caption="Paint, then hold F and move to resize. Sideways is size, up and down is hardness." />
+
+```ts
+import { BrushCursor } from 'pixi-silk/ui/brush';
+
+const brush = new BrushCursor({ size: 24, hardness: 0.8, surface: stage });
+
+app.stage.addChild(brush);
+brush.state.size.subscribe((size) => console.log('brush size', size));
+```
+
+- The ring is the brush size. A dashed inner ring shows hardness, and a disc grows with pen pressure.
+- Small brushes get a crosshair, so the hot spot stays visible.
+- Hold `F` (`resizeKey`) or drag with the right button to resize. The ring stays where the resize
+  began, and a pill reads out size and hardness.
+- `[` and `]` step the size. The OS cursor is hidden over `surface`.
+
+## Mode switcher
+
+<Demo name="modes" height={360} caption="Hold Space over the canvas for the ring, or long-press. Tap Space to swap back." />
+
+```ts
+import { ModeSwitcher } from 'pixi-silk/ui/modes';
+
+const modes = new ModeSwitcher({
+    modes: [
+        { id: 'brush', label: 'BRUSH', icon: drawPointer },
+        { id: 'eraser', label: 'ERASER', icon: drawTrash },
+    ],
+    longPressTarget: app.stage,
+    onChange: (mode, previous) => console.log(previous, '->', mode),
+});
+
+app.stage.addChild(modes);
+```
+
+Hold the key and a ring of modes opens under the pointer, most recently used first, so the
+previous mode sits on top. Release over a mode to switch. A quick tap of the key swaps back to the
+previous mode without showing anything. On touch screens a long-press opens the same ring, and
+sliding the finger picks.
+
+The keyboard only acts while the pointer is over the canvas, and never while a text field has
+focus. The ring is a `RadialMenu`, styled through the `menu` option.
+
+## Segmented switch
+
+```ts
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
+
+const speed = new SegmentedSwitch({
+    options: [{ id: 'slow', label: 'Slow' }, { id: 'normal', label: 'Normal' }, { id: 'turbo', label: 'Turbo' }],
+    value: 'normal',
+});
+
+speed.state.value.subscribe((id) => console.log(id));
+```
+
+A pill of choices with a thumb that slides to the selected one. The leading edge moves first, so
+the thumb stretches on the way and settles with a little give. Tap a segment, or press and slide
+along the pill: the thumb follows the finger and the choice lands on release. Segments grow to fit
+their labels or icons.
