@@ -35,5 +35,6 @@
     "notDocumented": true
   },
   "treatValidationWarningsAsErrors": true,
-  "gitRevision": "main"
+  "gitRevision": "main",
+  "sourceLinkTemplate": "https://github.com/schmooky/pixi-silk/blob/{gitRevision}/{path}#L{line}"
 }
