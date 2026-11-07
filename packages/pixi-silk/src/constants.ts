@@ -8,8 +8,8 @@
  * literals (no enum IIFEs, no reverse mappings) and need no TypeScript-only syntax.
  */
 
-/** Floats per instance. 10 x vec4 = 160 bytes. */
-export const STRIDE = 40;
+/** Floats per instance. 11 x vec4 = 176 bytes. */
+export const STRIDE = 44;
 
 /** Attribute names in instance-buffer order (each is a vec4). */
 export const INSTANCE_ATTRIBUTES = [
@@ -23,6 +23,7 @@ export const INSTANCE_ATTRIBUTES = [
     'aGrad', // gradient geometry in local space
     'aPaint', // gradientKind, atlasRow, extendMode, 0
     'aDash', // dash, gap, offset, strokeAlign (-1 inside .. 0 center .. +1 outside)
+    'aFx', // spread, progressive blur end sigma, progressive blur angle, 0
 ] as const;
 
 /** Primitive ids, one per branch of the fragment shader. */
@@ -51,6 +52,12 @@ export const Flag = {
     EdgeRight: 128,
     GradStroke: 4096,
     Closed: 8192,
+    /** Plus-lighter: the colour adds to what is underneath (written with zero alpha). */
+    Additive: 16384,
+    /** Inner shadow of the shape. Offset in `aStroke.xy`, spread in `aFx.x`. */
+    Inner: 32768,
+    /** Blur goes from `aMeta.w` to `aFx.y` along the angle `aFx.z`. */
+    Progressive: 65536,
 } as const;
 export type Flag = (typeof Flag)[keyof typeof Flag];
 
@@ -72,6 +79,8 @@ export const GradKind = {
     Radial: 2,
     Conic: 3,
     Path: 4,
+    /** Smooth colour mesh: a 16 x 16 grid baked into one atlas row. */
+    Mesh: 5,
 } as const;
 export type GradKind = (typeof GradKind)[keyof typeof GradKind];
 

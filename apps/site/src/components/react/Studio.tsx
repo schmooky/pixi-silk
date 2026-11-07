@@ -238,7 +238,10 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                                     >
                                         {e.title}
                                         {edits[e.id] !== undefined && edits[e.id] !== original[e.id] && (
-                                            <span className="ml-1 text-silk">•</span>
+                                            <span
+                                                className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-silk align-middle"
+                                                title="Edited"
+                                            />
                                         )}
                                     </button>
                                 ))}
@@ -253,7 +256,8 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                     <div className="mr-auto min-w-0">
                         <div className="truncate text-sm font-semibold">{current.title}</div>
                         <div className="truncate font-mono text-[11px] text-muted-foreground">
-                            {fileOf(current)} ·{' '}
+                            {fileOf(current)}
+                            <span className="mx-1.5 opacity-50">/</span>
                             <a href={current.page.href} className="hover:text-foreground hover:underline">
                                 {current.page.title}
                             </a>
@@ -313,7 +317,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
 
                 <div className={`min-h-0 xl:block xl:border-r ${pane === 'code' ? 'block' : 'hidden'}`}>
                     {code === undefined ? (
-                        <div className="p-4 font-mono text-xs text-muted-foreground">Loading source…</div>
+                        <div className="p-4 font-mono text-xs text-muted-foreground">Loading source</div>
                     ) : (
                         <Editor
                             key={current.id}
@@ -323,7 +327,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                             onChange={(v) => setEdits((x) => ({ ...x, [current.id]: v ?? '' }))}
                             beforeMount={beforeMount}
                             onMount={onMount}
-                            loading={<div className="p-4 font-mono text-xs text-muted-foreground">Loading editor…</div>}
+                            loading={<div className="p-4 font-mono text-xs text-muted-foreground">Loading editor</div>}
                             options={{
                                 fontSize: 13,
                                 fontFamily: "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace",

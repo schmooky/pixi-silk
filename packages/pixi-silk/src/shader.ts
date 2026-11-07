@@ -23,6 +23,7 @@ in vec4 aStroke;
 in vec4 aGrad;
 in vec4 aPaint;
 in vec4 aDash;
+in vec4 aFx;
 
 uniform mat3 uProjectionMatrix;
 uniform mat3 uWorldTransformMatrix;
@@ -42,7 +43,9 @@ flat out vec4 vStroke;
 flat out vec4 vGrad;
 flat out vec4 vPaint;
 flat out vec4 vDash;
+flat out vec4 vFx;
 flat out vec4 vTint;
+out float vProg;
 
 void main(void)
 {
@@ -94,6 +97,18 @@ void main(void)
     vPos = pos;
     gl_Position = vec4((m * vec3(pos, 1.0)).xy, 0.0, 1.0);
 
+    // progressive blur: 0 at the shape's start edge along the angle, 1 at its far edge
+    vProg = 0.0;
+    if ((flags & 65536) != 0)
+    {
+        vec2 dir = vec2(cos(aFx.z), sin(aFx.z));
+        float ins = 3.0 * max(aMeta.w, aFx.y) + max(aFx.x, 0.0);
+        vec4 bx = vec4(aBounds.xy + ins, aBounds.zw - ins);
+        float lo = dot(bx.xy, dir) - abs(dir.x) * (bx.z - bx.x) * float(dir.x < 0.0) - abs(dir.y) * (bx.w - bx.y) * float(dir.y < 0.0);
+        float span = max(abs(dir.x) * (bx.z - bx.x) + abs(dir.y) * (bx.w - bx.y), 1e-6);
+        vProg = (dot(pos, dir) - lo) / span;
+    }
+
     vShape0 = aShape0;
     vShape1 = aShape1;
     vShape2 = aShape2;
@@ -103,6 +118,7 @@ void main(void)
     vGrad = aGrad;
     vPaint = aPaint;
     vDash = aDash;
+    vFx = aFx;
     vTint = uColor * uWorldColorAlpha;
 }
 `;
@@ -121,7 +137,9 @@ flat in vec4 vStroke;
 flat in vec4 vGrad;
 flat in vec4 vPaint;
 flat in vec4 vDash;
+flat in vec4 vFx;
 flat in vec4 vTint;
+in float vProg;
 
 uniform highp sampler2D uGradients;
 uniform vec4 uSilk; // x: dither amplitude (LSB), y: AA ramp width (device px), z: min stroke width (device px)
@@ -302,8 +320,42 @@ float dashSD(float u, float v, float L, float hw, int cap, bool closed)
     return best;
 }
 
+// Catmull-Rom weights for the four samples around fraction f
+vec4 crWeights(float f)
+{
+    float f2 = f * f;
+    float f3 = f2 * f;
+    return vec4(-0.5 * f3 + f2 - 0.5 * f, 1.5 * f3 - 2.5 * f2 + 1.0, -1.5 * f3 + 2.0 * f2 + 0.5 * f, 0.5 * f3 - 0.5 * f2);
+}
+
+// Colour mesh: a 16 x 16 premultiplied grid in one atlas row, sampled with a bicubic Catmull-Rom.
+vec4 meshColor(vec2 p)
+{
+    vec2 uv = clamp((p - vGrad.xy) / max(vGrad.zw - vGrad.xy, vec2(1e-6)), 0.0, 1.0) * 15.0;
+    vec2 i0 = floor(min(uv, vec2(14.999)));
+    vec4 wx = crWeights(uv.x - i0.x);
+    vec4 wy = crWeights(uv.y - i0.y);
+    int row = int(vPaint.y + 0.5);
+    vec4 acc = vec4(0.0);
+    for (int j = 0; j < 4; j++)
+    {
+        int y = int(clamp(i0.y + float(j - 1), 0.0, 15.0));
+        vec4 line = vec4(0.0);
+        for (int i = 0; i < 4; i++)
+        {
+            int x = int(clamp(i0.x + float(i - 1), 0.0, 15.0));
+            line += wx[i] * texelFetch(uGradients, ivec2(y * 16 + x, row), 0);
+        }
+        acc += wy[j] * line;
+    }
+    acc.a = clamp(acc.a, 0.0, 1.0);
+    acc.rgb = clamp(acc.rgb, 0.0, acc.a);
+    return acc;
+}
+
 vec4 gradientColor(vec2 p, float u, float L, int kind)
 {
+    if (kind == 5) return meshColor(p);
     float t;
     if (kind == 1)
     {
@@ -335,41 +387,22 @@ vec4 gradientColor(vec2 p, float u, float L, int kind)
     return textureLod(uGradients, vec2((t * 255.0 + 0.5) / 256.0, (vPaint.y + 0.5) / 256.0), 0.0);
 }
 
-float ign(vec2 p)
+// Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle) at p.
+// Sets gFillScale, and gU / gL (position and length along the outline, for dashes and path gradients).
+float gFillScale;
+float gU;
+float gL;
+float gHwEff;
+float gAlign;
+
+float closedSD(vec2 p, int type, float px)
 {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
-
-void main(void)
-{
-    vec2 p = vPos;
-    vec2 ddx = dFdx(p);
-    vec2 ddy = dFdy(p);
-    float px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
-    gPx = px * uSilk.y;
-    gSigma = vMeta.w;
-
-    int type = int(vMeta.x + 0.5);
-    int flags = int(vMeta.y + 0.5);
-    bool hasFill = (flags & 1) != 0;
-    bool hasStroke = (flags & 2) != 0 && vMeta.z > 0.0;
-    bool dashed = (flags & 8) != 0;
-    int cap0 = (flags >> 8) & 3;
-    int cap1 = (flags >> 10) & 3;
-
-    // hairlines: never thinner than uSilk.z device px; fade instead (energy conserving)
-    float hw = 0.5 * vMeta.z;
-    float hwEff = max(hw, 0.5 * px * uSilk.z);
-    float strokeScale = hw / max(hwEff, 1e-9);
-    float align = vDash.w;
-
-    float d = 1e6;   // closed shapes: signed distance to the fill boundary
-    float sd = 1e6;  // open paths: signed distance to the stroke
-    bool open = false;
+    float d = 1e6;
+    float fillScale = 1.0;
     float u = 0.0;
     float L = 1.0;
-    float fillScale = 1.0;
-    float areaCov = 0.0;
+    float hwEff = gHwEff;
+    float align = gAlign;
 
     if (type == 0)
     {
@@ -392,7 +425,94 @@ void main(void)
         u = mod(atan(q.y, q.x) + 0.5 * PI, TAU) * rm;
         L = TAU * rm;
     }
-    else if (type == 2 || type == 3)
+    else if (type == 3)
+    {
+        vec2 q = p - vShape0.xy;
+        float sweep = vShape1.x;
+        float h = min(abs(sweep) * 0.5, PI);
+        float mid = vShape0.w + 0.5 * sweep;
+        float cm = cos(mid);
+        float sm = sin(mid);
+        vec2 qr = vec2(sm * q.x - cm * q.y, cm * q.x + sm * q.y); // arc middle -> +y
+        float len = length(q);
+        bool full = h >= PI - 1e-4;
+        // annular sector with rounded corners
+        float r1 = vShape0.z;
+        float r0 = vShape1.y;
+        float rc = vShape1.z;
+        float dA = len - (r1 - rc);
+        if (r0 > 0.0) dA = max(dA, (r0 + rc) - len);
+        float dW = full ? -1e6 : sdWedge(qr, h) + rc;
+        vec2 w = vec2(dA, dW);
+        d = length(max(w, 0.0)) + min(max(w.x, w.y), 0.0) - rc;
+    }
+    else if (type == 6)
+    {
+        float s = vShape0.z;
+        vec2 q = p - vShape0.xy;
+        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
+        q /= s;
+        d = (sdHeart(vec2(q.x, 0.552 - q.y)) - vShape0.w) * s;
+    }
+    else if (type == 7)
+    {
+        vec2 q = rotate(p - vShape0.xy, -vShape0.w);
+        q.y = -q.y;
+        float rc = vShape1.z;
+        d = sdStar(q, vShape0.z - rc, vShape1.x, vShape1.y) - rc;
+    }
+    else if (type == 8)
+    {
+        d = sdTriangle(p, vShape0.xy, vShape0.zw, vShape1.xy) - vShape1.z;
+    }
+
+    gFillScale = fillScale;
+    gU = u;
+    gL = L;
+    return d;
+}
+
+float ign(vec2 p)
+{
+    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
+}
+
+void main(void)
+{
+    vec2 p = vPos;
+    vec2 ddx = dFdx(p);
+    vec2 ddy = dFdy(p);
+    float px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
+    gPx = px * uSilk.y;
+    gSigma = vMeta.w;
+
+    int type = int(vMeta.x + 0.5);
+    int flags = int(vMeta.y + 0.5);
+    bool inner = (flags & 32768) != 0;
+    if ((flags & 65536) != 0) gSigma = mix(vMeta.w, vFx.y, clamp(vProg, 0.0, 1.0));
+    bool hasFill = (flags & 1) != 0;
+    bool hasStroke = (flags & 2) != 0 && vMeta.z > 0.0;
+    bool dashed = (flags & 8) != 0;
+    int cap0 = (flags >> 8) & 3;
+    int cap1 = (flags >> 10) & 3;
+
+    // hairlines: never thinner than uSilk.z device px; fade instead (energy conserving)
+    float hw = 0.5 * vMeta.z;
+    float hwEff = max(hw, 0.5 * px * uSilk.z);
+    float strokeScale = hw / max(hwEff, 1e-9);
+    float align = vDash.w;
+
+    float d = 1e6;   // closed shapes: signed distance to the fill boundary
+    float sd = 1e6;  // open paths: signed distance to the stroke
+    bool open = false;
+    float u = 0.0;
+    float L = 1.0;
+    float fillScale = 1.0;
+    float areaCov = 0.0;
+
+    gHwEff = hwEff;
+    gAlign = align;
+    if (type == 2)
     {
         vec2 q = p - vShape0.xy;
         float sweep = vShape1.x;
@@ -424,18 +544,6 @@ void main(void)
                 float e = sdWedge(qr, h);
                 sd = boxEnd(cap0 == 2 ? e - hwEff : e, v, hwEff);
             }
-        }
-        else
-        {
-            // annular sector with rounded corners
-            float r1 = vShape0.z;
-            float r0 = vShape1.y;
-            float rc = vShape1.z;
-            float dA = len - (r1 - rc);
-            if (r0 > 0.0) dA = max(dA, (r0 + rc) - len);
-            float dW = full ? -1e6 : sdWedge(qr, h) + rc;
-            vec2 w = vec2(dA, dW);
-            d = length(max(w, 0.0)) + min(max(w.x, w.y), 0.0) - rc;
         }
     }
     else if (type == 4)
@@ -490,24 +598,19 @@ void main(void)
         if ((flags & 64) != 0) areaCov *= cover(a.x - p.x);
         if ((flags & 128) != 0) areaCov *= cover(p.x - b.x);
     }
-    else if (type == 6)
+    else
     {
-        float s = vShape0.z;
-        vec2 q = p - vShape0.xy;
-        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
-        q /= s;
-        d = (sdHeart(vec2(q.x, 0.552 - q.y)) - vShape0.w) * s;
+        d = closedSD(p, type, px);
+        fillScale = gFillScale;
+        u = gU;
+        L = gL;
     }
-    else if (type == 7)
+
+    // spread grows (or shrinks) the shape before it is blurred, like a Figma shadow spread
+    if (!inner)
     {
-        vec2 q = rotate(p - vShape0.xy, -vShape0.w);
-        q.y = -q.y;
-        float rc = vShape1.z;
-        d = sdStar(q, vShape0.z - rc, vShape1.x, vShape1.y) - rc;
-    }
-    else if (type == 8)
-    {
-        d = sdTriangle(p, vShape0.xy, vShape0.zw, vShape1.xy) - vShape1.z;
+        d -= vFx.x;
+        sd -= vFx.x;
     }
 
     // paints
@@ -522,7 +625,17 @@ void main(void)
     }
 
     vec4 col;
-    if (type == 5)
+    if (inner)
+    {
+        // inner shadow: the shape, minus a copy moved by the offset and shrunk by the spread, blurred
+        float blur = gSigma;
+        gSigma = 0.0;
+        float mask = cover(d) * fillScale;
+        gSigma = blur;
+        float lit = cover(closedSD(p - vStroke.xy, type, px) + vFx.x);
+        col = vFill * (mask * (1.0 - lit));
+    }
+    else if (type == 5)
     {
         col = fillCol * areaCov;
     }
@@ -554,7 +667,7 @@ void main(void)
     }
 
     col *= vTint;
-    if (col.a <= 0.0) discard;
+    if (col.a <= 0.0 && max(col.r, max(col.g, col.b)) <= 0.0) discard;
 
     if ((flags & 4) != 0)
     {
@@ -562,6 +675,8 @@ void main(void)
         float n = ign(gl_FragCoord.xy) - 0.5;
         col.rgb = clamp(col.rgb + n * (uSilk.x / 255.0), 0.0, col.a);
     }
+    // plus lighter: premultiplied colour with zero alpha adds to the framebuffer
+    if ((flags & 16384) != 0) col.a = 0.0;
     finalColor = col;
 }
 `;

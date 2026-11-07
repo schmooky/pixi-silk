@@ -1,0 +1,71 @@
+---
+title: Inner shadows, spread and mesh
+seoTitle: 'Inner shadows, glow spread and gradient mesh'
+description: 'Figma-style inner shadows, blur spread, progressive blur, plus-lighter blending and gradient meshes in PixiJS, drawn from the same distance field.'
+keywords: ['PixiJS inner shadow', 'progressive blur', 'gradient mesh', 'plus lighter', 'glow spread']
+updated: 2026-11-07
+---
+
+Every SilkGraphics shape knows its exact distance to the edge at each pixel. That makes a few
+design-tool effects cheap: they read the same distance with an offset, a grown edge or a varying
+blur. No filters, no render textures, and the object stays one draw call. The option names follow
+Figma, so a spec ports over as it is.
+
+## Inner shadows
+
+<Demo name="effects-inner-shadow" height={360} caption="The four inner shadows of the icon. Toggle them one by one." />
+
+```ts
+g.roundRect(0, 0, 200, 200, 40).fill({
+    color: 0x0a0909,
+    innerShadow: [
+        { color: 0x144ccd, y: -40, blur: 30, spread: -15 },
+        { color: 0xffffff, alpha: 0.4, y: -10, blur: 10, spread: -3, blend: 'add' },
+    ],
+});
+```
+
+A shadow moves a copy of the shape by `x` and `y`, shrinks it by `spread`, blurs it and shades
+what the copy no longer covers. Shadows draw in order on top of the fill, gradients included. A
+stroke after `fill()` lands on top of them.
+
+## Spread
+
+<Demo name="effects-spread" height={300} caption="Each step adds a wider, spread glow under the same square." />
+
+`spread` grows the shape before it is blurred, so a glow keeps its bright core instead of fading
+from the edge. Negative values shrink it. `blend: 'add'` paints plus-lighter, so stacked glows
+bloom towards white.
+
+## Progressive blur
+
+<Demo name="effects-progressive" height={380} caption="Blur that grows from the bottom edge to the top, and a plus-lighter bloom." />
+
+```ts
+g.area(points, 350, { smooth: 'monotone' }).fill({
+    color: 0x5b2ee0,
+    blur: { from: 20, to: 1, angle: Math.PI / 2 },
+});
+```
+
+`from` is the blur at the start edge and `to` at the far edge, along `angle` (top to bottom by
+default). Sizes are gaussian standard deviations in local units, about a quarter of a Figma blur.
+
+## Gradient mesh
+
+<Demo name="effects-mesh" height={340} caption="Switch between a linear ramp and a mesh, and drag the handles." />
+
+```ts
+import { mesh } from 'pixi-silk';
+
+const beam = mesh(3, 3, [
+    [0xffd9ec, 0], [0xffd9ec, 0], [0xffd9ec, 0],
+    [0xffd9ec, 0.1], [0xffd9ec, 0.4], [0xffd9ec, 0.1],
+    [0xffd9ec, 0.5], [0xffd9ec, 1], [0xffd9ec, 0.5],
+]);
+g.rect(0, 0, 380, 220).fill(beam);
+```
+
+A mesh is a grid of up to 16 by 16 control colours that blend into one smooth surface in OKLab.
+The surface passes through every control colour. Use `units: 'local'` with `from` and `to` to
+share one mesh across several shapes.

@@ -23,7 +23,40 @@ import { createSilkShader } from './shader';
 // Public style types
 // ---------------------------------------------------------------------------------------------
 
-/** How a fill is painted: a colour, a gradient, opacity and an optional gaussian blur for glows and soft shadows. */
+/**
+ * A blur that changes across the shape, like Figma's progressive layer blur. The radius goes from
+ * `from` at one edge of the shape to `to` at the opposite edge, along `angle`.
+ */
+export interface ProgressiveBlur {
+    /** Blur at the start edge (standard deviation, local units). */
+    from: number;
+    /** Blur at the end edge. */
+    to: number;
+    /** Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). */
+    angle?: number;
+}
+
+/**
+ * A shadow drawn inside the shape from its own distance field, with Figma's semantics. The shape is
+ * moved by `x` and `y`, shrunk by `spread` and blurred. What it no longer covers is shaded.
+ */
+export interface InnerShadow {
+    /** Colour, any Pixi `ColorSource`. Default black. */
+    color?: ColorSource;
+    /** Opacity from 0 to 1. Default 1. */
+    alpha?: number;
+    /** Offset, local units. Default 0. */
+    x?: number;
+    y?: number;
+    /** Blur (standard deviation, local units). Default 0. */
+    blur?: number;
+    /** Grows the shadow inwards. Negative values make it thinner. Default 0. */
+    spread?: number;
+    /** `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. */
+    blend?: 'normal' | 'add';
+}
+
+/** How a fill is painted: colour or gradient, opacity, blur with spread, blend mode and inner shadows. */
 export interface FillStyle {
     /** Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. */
     color?: ColorSource;
@@ -31,8 +64,20 @@ export interface FillStyle {
     alpha?: number;
     /** Gradient paint. `color` (if given) tints it. */
     gradient?: Gradient;
-    /** Gaussian blur radius (standard deviation, local units). Great for glows and soft shadows. */
-    blur?: number;
+    /**
+     * Gaussian blur (standard deviation, local units) for glows and soft shadows. A
+     * {@link ProgressiveBlur} changes the radius across the shape.
+     */
+    blur?: number | ProgressiveBlur;
+    /** Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. */
+    spread?: number;
+    /**
+     * `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom
+     * towards white. It stays in the same draw call. Default `normal`.
+     */
+    blend?: 'normal' | 'add';
+    /** One or more shadows inside closed shapes, drawn in order on top of the fill. */
+    innerShadow?: InnerShadow | InnerShadow[];
 }
 
 /** What `fill()` accepts: any Pixi colour, a gradient or a {@link FillStyle}. */
@@ -147,11 +192,28 @@ interface SubPath {
     closed: boolean;
 }
 
+interface Inner {
+    rgba: RGBA;
+    x: number;
+    y: number;
+    blur: number;
+    spread: number;
+    add: boolean;
+}
+
 interface Paint {
     rgba: RGBA;
     gradient: Gradient | null;
     blur: number;
+    /** Progressive blur end, or -1 for a uniform blur. */
+    blurTo: number;
+    blurAngle: number;
+    spread: number;
+    add: boolean;
+    inner: Inner[];
 }
+
+const NO_FX = { blurTo: -1, blurAngle: 0, spread: 0, add: false, inner: [] as Inner[] };
 
 interface Stroke extends Paint {
     width: number;
@@ -176,6 +238,9 @@ const FILL_KEYS = [
     'alpha',
     'gradient',
     'blur',
+    'spread',
+    'blend',
+    'innerShadow',
     'width',
     'alignment',
     'cap',
@@ -193,7 +258,15 @@ let warnedPathFill = false;
 let warnedAreaRotation = false;
 
 function scalePaint<T extends Paint>(p: T, k: number): T {
-    return k === 1 ? p : { ...p, blur: p.blur * k };
+    if (k === 1) return p;
+
+    return {
+        ...p,
+        blur: p.blur * k,
+        blurTo: p.blurTo < 0 ? -1 : p.blurTo * k,
+        spread: p.spread * k,
+        inner: p.inner.map((s) => ({ ...s, blur: s.blur * k, spread: s.spread * k })),
+    };
 }
 
 function scaleStroke(st: Stroke, k: number): Stroke {
@@ -204,6 +277,8 @@ function scaleStroke(st: Stroke, k: number): Stroke {
         width: st.width * k,
         widths: st.widths ? st.widths.map((w) => w * k) : null,
         blur: st.blur * k,
+        blurTo: st.blurTo < 0 ? -1 : st.blurTo * k,
+        spread: st.spread * k,
         dash: st.dash ? [st.dash[0] * k, st.dash[1] * k] : null,
         dashOffset: st.dashOffset * k,
     };
@@ -216,19 +291,41 @@ function isStyleObject(v: unknown): v is FillStyle & StrokeStyle {
     return FILL_KEYS.some((k) => k in v);
 }
 
-function resolvePaint(input: FillInput | StrokeInput | undefined): Paint & Omit<StrokeStyle, 'gradient' | 'blur'> {
-    if (input instanceof Gradient) return { rgba: [1, 1, 1, 1], gradient: input, blur: 0 };
-    if (input === undefined || input === null) return { rgba: [1, 1, 1, 1], gradient: null, blur: 0 };
+function resolveInner(s: InnerShadow): Inner {
+    return {
+        rgba: parseColor(s.color ?? 0x000000, s.alpha ?? 1),
+        x: s.x ?? 0,
+        y: s.y ?? 0,
+        blur: Math.max(0, s.blur ?? 0),
+        spread: s.spread ?? 0,
+        add: s.blend === 'add',
+    };
+}
+
+function resolvePaint(
+    input: FillInput | StrokeInput | undefined,
+): Paint & Omit<StrokeStyle, 'gradient' | 'blur' | 'spread' | 'blend' | 'innerShadow'> {
+    if (input instanceof Gradient) return { rgba: [1, 1, 1, 1], gradient: input, blur: 0, ...NO_FX };
+    if (input === undefined || input === null) return { rgba: [1, 1, 1, 1], gradient: null, blur: 0, ...NO_FX };
     if (isStyleObject(input)) {
+        const { blur, spread, blend, innerShadow, ...rest } = input;
+        const progressive = typeof blur === 'object' && blur !== null;
+        const shadows = innerShadow === undefined ? [] : Array.isArray(innerShadow) ? innerShadow : [innerShadow];
+
         return {
-            ...input,
+            ...rest,
             rgba: parseColor(input.color ?? 0xffffff, input.alpha ?? 1),
             gradient: input.gradient ?? null,
-            blur: Math.max(0, input.blur ?? 0),
+            blur: Math.max(0, progressive ? blur.from : (blur ?? 0)),
+            blurTo: progressive ? Math.max(0, blur.to) : -1,
+            blurAngle: progressive ? (blur.angle ?? Math.PI / 2) : 0,
+            spread: spread ?? 0,
+            add: blend === 'add',
+            inner: shadows.map(resolveInner),
         };
     }
 
-    return { rgba: parseColor(input as ColorSource), gradient: null, blur: 0 };
+    return { rgba: parseColor(input as ColorSource), gradient: null, blur: 0, ...NO_FX };
 }
 
 function resolveStroke(input: StrokeInput | undefined): Stroke {
@@ -251,6 +348,11 @@ function resolveStroke(input: StrokeInput | undefined): Stroke {
         rgba: p.rgba,
         gradient: p.gradient,
         blur: p.blur,
+        blurTo: p.blurTo,
+        blurAngle: p.blurAngle,
+        spread: p.spread,
+        add: p.add,
+        inner: [],
         width: widths ? Math.max(...widths) : Math.max(0, (p.width as number | undefined) ?? 1),
         widths,
         align: Math.max(-1, Math.min(1, align)),
@@ -1212,16 +1314,41 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         }
     }
 
+    /** Effects shared by every primitive: spread, progressive blur and plus-lighter. Returns flags to add. */
+    private _fx(o: number, paint: Paint): number {
+        this._set4(o + 40, paint.spread, Math.max(paint.blurTo, 0), paint.blurAngle, 0);
+
+        return (paint.blurTo >= 0 ? Flag.Progressive | Flag.Dither : 0) | (paint.add ? Flag.Additive : 0);
+    }
+
+    /** How far a paint reaches past the shape: three sigmas of its widest blur plus a positive spread. */
+    private static _reach(paint: Paint | null): number {
+        if (!paint) return 0;
+
+        return 3 * Math.max(paint.blur, paint.blurTo) + Math.max(paint.spread, 0);
+    }
+
     private _emitClosed(shape: Shape, fill: Paint | null, stroke: Stroke | null): void {
-        // Two gradients or two different blurs can't share one instance: split.
-        if (fill && stroke && ((fill.gradient && stroke.gradient) || fill.blur !== stroke.blur)) {
+        // Paints that differ in gradient, blur or effects can't share one instance: split.
+        // A fill with inner shadows goes first, so the stroke lands on top of its shadows.
+        if (
+            fill &&
+            stroke &&
+            ((fill.gradient && stroke.gradient) ||
+                fill.blur !== stroke.blur ||
+                fill.blurTo !== stroke.blurTo ||
+                fill.spread !== stroke.spread ||
+                fill.add !== stroke.add ||
+                fill.inner.length > 0)
+        ) {
             this._emitClosed(shape, fill, null);
             this._emitClosed(shape, null, stroke);
 
             return;
         }
-        const f = this._f;
         const o = this._alloc();
+        const f = this._f;
+        const paint = (fill ?? stroke) as Paint;
         const sigma = Math.max(fill?.blur ?? 0, stroke?.blur ?? 0);
         const frame = this._frame(shape);
         let flags = 0;
@@ -1235,7 +1362,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             align = stroke.align;
         }
         if (sigma > 0) flags |= Flag.Dither;
-        const outset = (stroke ? (sw / 2) * (1 + align) : 0) + 3 * sigma;
+        flags |= this._fx(o, paint);
+        const outset = (stroke ? (sw / 2) * (1 + align) : 0) + SilkGraphics._reach(paint);
         let type: Prim;
 
         switch (shape.kind) {
@@ -1328,6 +1456,34 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             f[o + 39] = align;
         }
         this._set4(o + 16, type, flags, sw, sigma);
+        if (fill?.inner.length) this._emitInner(o, type, fill.inner, b);
+    }
+
+    /**
+     * One instance per inner shadow: a copy of the shape at `o`, painted only inside it, from the
+     * same distance field moved by the offset and shrunk by the spread.
+     */
+    private _emitInner(o: number, type: Prim, shadows: Inner[], box: number[]): void {
+        const m = this._m;
+        const [x0, y0, x1, y1] = box;
+
+        for (const s of shadows) {
+            const q = this._alloc();
+            const f = this._f;
+
+            f.copyWithin(q, o, o + STRIDE);
+            this._set4(q, x0, y0, x1, y1);
+            this._premul(q + 20, s.rgba);
+            // the offset follows the transform, so a rotated icon keeps its light from the same side
+            this._set4(q + 24, m.a * s.x + m.c * s.y, m.b * s.x + m.d * s.y, 0, 0);
+            this._set4(q + 28, 0, 0, 0, 0);
+            this._set4(q + 32, 0, 0, 0, 0);
+            this._set4(q + 36, 0, 0, 0, 0);
+            this._set4(q + 40, s.spread, 0, 0, 0);
+            const flags = Flag.Fill | Flag.Inner | (s.blur > 0 ? Flag.Dither : 0) | (s.add ? Flag.Additive : 0);
+
+            this._set4(q + 16, type, flags, 0, s.blur);
+        }
     }
 
     private _emitArc(shape: Extract<Shape, { kind: 'arc' }>, stroke: Stroke): void {
@@ -1344,7 +1500,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         b[0] = b[1] = Infinity;
         b[2] = b[3] = -Infinity;
         arcExtent(shape.cx, shape.cy, shape.r, shape.start, shape.sweep, b);
-        const pad = hw + 3 * sigma;
+        const pad = hw + SilkGraphics._reach(stroke);
 
         this._setBounds(o, b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad);
         this._premul(o + 24, stroke.rgba);
@@ -1363,7 +1519,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             flags |= Flag.Dash;
             this._set4(o + 36, dash, gap, stroke.dashOffset, 0);
         }
-        this._set4(o + 16, Prim.Arc, flags, stroke.width, sigma);
+        this._set4(o + 16, Prim.Arc, flags | this._fx(o, stroke), stroke.width, sigma);
     }
 
     private _emitPath(raw: number[], closed: boolean, stroke: Stroke, frameOverride: ShapeFrame | null): void {
@@ -1415,7 +1571,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             } else radii[i] = hw;
         }
         const sigma = stroke.blur;
-        const pad = hw + 3 * sigma;
+        const pad = hw + SilkGraphics._reach(stroke);
         let base = Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
 
         if (sigma > 0) base |= Flag.Dither;
@@ -1471,7 +1627,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             // neighbour radii for the ownership test (aDash.w / aPaint.w are free on segments)
             this._f[o + 39] = radii[hasPrev ? ip : ia];
             this._f[o + 35] = radii[hasNext ? inx : ib];
-            this._set4(o + 16, Prim.Segment, flags, stroke.width, sigma);
+            this._set4(o + 16, Prim.Segment, flags | this._fx(o, stroke), stroke.width, sigma);
         }
     }
 
@@ -1482,7 +1638,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         if (n < 2) return;
         const frame = this._frame(shape);
         const sigma = fill.blur;
-        const pad = 3 * sigma;
+        const pad = SilkGraphics._reach(fill);
         const y0 = frame.y - pad;
         const y1 = frame.y + frame.h + pad;
         let base = Flag.Fill;
@@ -1523,7 +1679,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                 }
                 flags |= gradFlags;
             }
-            this._set4(o + 16, Prim.Area, flags, 0, sigma);
+            this._set4(o + 16, Prim.Area, flags | this._fx(o, fill), 0, sigma);
         }
     }
 }

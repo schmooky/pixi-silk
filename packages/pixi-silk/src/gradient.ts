@@ -416,3 +416,161 @@ export const conic = (stops: StopInput[], options: Omit<ConicGradientOptions, 's
 /** Gradient that follows a stroke from its first point (t = 0) to its last (t = 1). */
 export const along = (stops: StopInput[], options: Omit<GradientOptions, 'stops' | 'units'> = {}): PathGradient =>
     new PathGradient({ ...options, stops });
+
+/** A mesh control colour: any Pixi colour, or `[color, alpha]`. */
+export type MeshColorInput = ColorSource | [ColorSource, number];
+
+/** Options of {@link mesh}: where the grid sits, its units and its interpolation space. */
+export interface MeshGradientOptions {
+    /** Top-left corner of the grid. Default `[0, 0]`. */
+    from?: Vec2;
+    /** Bottom-right corner of the grid. Default `[1, 1]`. */
+    to?: Vec2;
+    /** `shape` (default): fractions of each painted shape's box. `local`: the graphics' local units. */
+    units?: GradientUnits;
+    /** Interpolation space. Default `oklab`. */
+    space?: ColorSpace;
+}
+
+const MESH_SIZE = 16;
+
+/** @internal Catmull-Rom weights for the four samples around fraction `f`. */
+export function catmullRomWeights(f: number): [number, number, number, number] {
+    const f2 = f * f;
+    const f3 = f2 * f;
+
+    return [-0.5 * f3 + f2 - 0.5 * f, 1.5 * f3 - 2.5 * f2 + 1, -1.5 * f3 + 2 * f2 + 0.5 * f, 0.5 * f3 - 0.5 * f2];
+}
+
+/**
+ * @internal Samples a `cols` x `rows` grid of 4-channel values at (`x`, `y`) in grid units (0 to
+ * cols - 1, 0 to rows - 1) with a bicubic Catmull-Rom. The surface passes through every control value.
+ */
+export function sampleMesh(values: number[][], cols: number, rows: number, x: number, y: number): number[] {
+    const ix = Math.min(Math.floor(x), Math.max(cols - 2, 0));
+    const iy = Math.min(Math.floor(y), Math.max(rows - 2, 0));
+    const wx = catmullRomWeights(cols > 1 ? x - ix : 0);
+    const wy = catmullRomWeights(rows > 1 ? y - iy : 0);
+    const out = [0, 0, 0, 0];
+
+    for (let j = 0; j < 4; j++) {
+        const r = Math.min(Math.max(iy + j - 1, 0), rows - 1);
+
+        for (let i = 0; i < 4; i++) {
+            const c = Math.min(Math.max(ix + i - 1, 0), cols - 1);
+            const w = wx[i] * wy[j];
+            const v = values[r * cols + c];
+
+            for (let k = 0; k < 4; k++) out[k] += w * v[k];
+        }
+    }
+
+    return out;
+}
+
+/**
+ * A smooth colour surface through a grid of control colours, like a gradient mesh in Illustrator.
+ * Colours blend in OKLab with a bicubic spline, so falloffs stay soft in both directions.
+ * Create it with {@link mesh}.
+ */
+export class MeshGradient extends Gradient {
+    /** @internal */
+    readonly kind: GradKind = GradKind.Mesh;
+    /** Columns of control colours. */
+    readonly cols: number;
+    /** Rows of control colours. */
+    readonly rows: number;
+    /** Top-left corner of the grid. */
+    from: Vec2;
+    /** Bottom-right corner of the grid. */
+    to: Vec2;
+    private readonly _colors: RGBA[];
+
+    constructor(cols: number, rows: number, colors: MeshColorInput[], options: MeshGradientOptions = {}) {
+        const c = Math.max(1, Math.min(MESH_SIZE, Math.round(cols)));
+        const r = Math.max(1, Math.min(MESH_SIZE, Math.round(rows)));
+        const parsed: RGBA[] = [];
+
+        for (let i = 0; i < c * r; i++) {
+            const input = colors[Math.min(i, colors.length - 1)] ?? 0xffffff;
+
+            parsed.push(Array.isArray(input) ? parseColor(input[0], input[1]) : parseColor(input));
+        }
+        super({ stops: [0xffffff], space: options.space, units: options.units });
+        this.cols = c;
+        this.rows = r;
+        this.from = options.from ?? [0, 0];
+        this.to = options.to ?? [1, 1];
+        this._colors = parsed;
+        (this as unknown as { key: string }).key =
+            `mesh|${this.space}|${c}x${r}|${parsed.map((p) => p.map((v) => v.toFixed(5)).join(',')).join(';')}`;
+    }
+
+    /** @internal */
+    resolve(frame: ShapeFrame, out: Float32Array, o: number): void {
+        const a = point(frame, this.units, this.from);
+        const b = point(frame, this.units, this.to);
+
+        out[o] = a[0];
+        out[o + 1] = a[1];
+        out[o + 2] = b[0];
+        out[o + 3] = b[1];
+    }
+
+    /** @internal Bakes a 16 x 16 grid (one atlas row) of premultiplied sRGB samples. */
+    override bake(out: Float32Array): void {
+        const values = this._colors.map((rgba) => {
+            const w = toSpace(rgba, this.space);
+            const a = rgba[3];
+
+            return [w[0] * a, w[1] * a, w[2] * a, a];
+        });
+
+        for (let j = 0; j < MESH_SIZE; j++) {
+            for (let i = 0; i < MESH_SIZE; i++) {
+                const v = sampleMesh(
+                    values,
+                    this.cols,
+                    this.rows,
+                    (i / (MESH_SIZE - 1)) * (this.cols - 1),
+                    (j / (MESH_SIZE - 1)) * (this.rows - 1),
+                );
+                const a = Math.min(1, Math.max(0, v[3]));
+                const o = (j * MESH_SIZE + i) * 4;
+
+                if (a <= 1e-7) {
+                    out[o] = out[o + 1] = out[o + 2] = out[o + 3] = 0;
+                    continue;
+                }
+                const rgb = fromSpace([v[0] / a, v[1] / a, v[2] / a], this.space);
+
+                out[o] = rgb[0] * a;
+                out[o + 1] = rgb[1] * a;
+                out[o + 2] = rgb[2] * a;
+                out[o + 3] = a;
+            }
+        }
+    }
+}
+
+/**
+ * Gradient mesh: `cols` x `rows` control colours (row by row, top-left first) spread over the
+ * painted shape's box, blended into one smooth surface.
+ *
+ * @example
+ * ```ts
+ * // a light beam that fades at the sides and towards the top
+ * const beam = mesh(3, 3, [
+ *     [0xffd6e8, 0], [0xffd6e8, 0], [0xffd6e8, 0],
+ *     [0xffd6e8, 0.2], [0xffd6e8, 0.5], [0xffd6e8, 0.2],
+ *     [0xffe6f0, 0.6], [0xffffff, 1], [0xffe6f0, 0.6],
+ * ]);
+ * g.rect(0, 0, 200, 240).fill(beam);
+ * ```
+ */
+export const mesh = (
+    cols: number,
+    rows: number,
+    colors: MeshColorInput[],
+    options: MeshGradientOptions = {},
+): MeshGradient => new MeshGradient(cols, rows, colors, options);
