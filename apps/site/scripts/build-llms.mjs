@@ -11,7 +11,7 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { FAQ } from '../src/content/faq.mjs';
 import { GLOSSARY } from '../src/content/glossary.mjs';
-import { DOCS_NAV } from '../src/content/nav.mjs';
+import { DOCS_NAV, VISIBLE_AREAS } from '../src/content/nav.mjs';
 import { LAB_SECTIONS } from '../src/lab/catalog.mjs';
 import { mdxToMarkdown } from '../src/lib/mdx-to-md.mjs';
 import { SITE_URL } from '../src/lib/site-url.mjs';
@@ -49,7 +49,7 @@ const docs = DOCS_NAV.flatMap((section) =>
     section.items.map((id) => {
         const { data, body } = splitFrontmatter(fs.readFileSync(path.join(DOCS, `${id}.mdx`), 'utf8'));
 
-        return { id, section: section.title, title: data.title, description: data.description, body };
+        return { id, area: section.id, section: section.title, title: data.title, description: data.description, body };
     }),
 );
 
@@ -139,10 +139,20 @@ const lines = [
     '',
     '## Docs',
     '',
-    ...docs.map(
-        (d) => `- [${d.title}](${url(`/docs/${d.id}/`)}): ${d.description} (Markdown: ${url(`/docs/${d.id}.md`)})`,
-    ),
+    'The docs are grouped into areas. Each area has an overview page that lists its pages in reading order.',
     '',
+    ...VISIBLE_AREAS.flatMap((a) => [
+        `### ${a.title}`,
+        '',
+        `- [${a.title} overview](${url(`/docs/${a.id}/`)}): ${a.summary}`,
+        ...docs
+            .filter((d) => d.area === a.id)
+            .map(
+                (d) =>
+                    `- [${d.title}](${url(`/docs/${d.id}/`)}): ${d.description} (Markdown: ${url(`/docs/${d.id}.md`)})`,
+            ),
+        '',
+    ]),
     '## API reference',
     '',
     `- [Overview](${url('/api/')}): every export, generated from the source JSDoc.`,

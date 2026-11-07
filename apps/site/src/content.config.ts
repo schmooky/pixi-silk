@@ -11,8 +11,6 @@ const docs = defineCollection({
         seoTitle: z.string().optional(),
         /** Lead paragraph, meta description and llms.txt summary: answer first, ideally 110-160 characters. */
         description: z.string(),
-        /** Small label above the title. */
-        eyebrow: z.string().optional(),
         /** Search phrases this page answers (JSON-LD keywords, article:tag). */
         keywords: z.array(z.string()).default([]),
         /** Last meaningful content change (sitemap lastmod, dateModified). */

@@ -40,6 +40,25 @@ pnpm lint && pnpm typecheck && pnpm --filter pixi-silk test && pnpm site:build
   deliberate sketch with ` ```ts nocheck `.
 - New visual behaviour: add or extend a demo in `apps/site/src/demos` so the docs show it live.
 
+## Where docs go
+
+The docs are grouped into areas: Get started, Drawing, Paint, UI widgets, Editor UI, Examples,
+Rendering and Reference. `apps/site/src/content/nav.mjs` lists them and is the only file that says
+where a page belongs.
+
+- Each area has an overview at `/docs/<area>/`. It holds an introduction, the pages in reading order,
+  the lab experiments that go deeper and links out. The docs sidebar shows one area at a time, with a
+  switcher above it.
+- A new page: add `<page>.mdx` to `apps/site/src/content/docs` and list its id under one area. Its URL is
+  `/docs/<page>/`, whichever area it is in, so moving a page between areas keeps its URL.
+- A new area: add an entry to `DOCS_AREAS` with an id, title, summary, intro, pages and lab slugs. The
+  overview, the docs index, the footer, the sitemap, the Open Graph card and llms.txt pick it up. An area
+  with no pages and no links stays hidden until it has some.
+- The build fails when a page is in no area or in two, or when an area lists a page or lab slug that
+  does not exist.
+- The lab (`apps/site/src/lab/catalog.mjs`) holds full-screen experiments. Link one from an area's `lab`
+  list, and the lab index links it back to that area.
+
 ## Writing style
 
 Docs, FAQ answers, UI text, JSDoc and changesets use plain, short English.

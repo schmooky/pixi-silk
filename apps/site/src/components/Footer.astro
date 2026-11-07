@@ -1,10 +1,11 @@
 ---
+import { VISIBLE_AREAS } from '@/content/nav.mjs';
 import { SITE } from '@/lib/site';
 
 const columns = [
-    { title: 'Learn', links: [['Introduction', '/docs/introduction/'], ['Quick start', '/docs/quick-start/'], ['How it works', '/docs/how-it-works/'], ['FAQ', '/faq/']] },
-    { title: 'Reference', links: [['API reference', '/api/'], ['Changelog', '/changelog/'], ['llms.txt', '/llms.txt'], ['llms-full.txt', '/llms-full.txt']] },
-    { title: 'Play', links: [['Lab', '/lab/'], ['Showcase', '/showcase/'], ['Widget viewer', '/lab/35-widget-viewer/']] },
+    { title: 'Docs', links: [['All areas', '/docs/'], ...VISIBLE_AREAS.filter((a) => a.id !== 'reference').map((a) => [a.title, `/docs/${a.id}/`])] },
+    { title: 'Reference', links: [['API reference', '/api/'], ['Glossary', '/docs/glossary/'], ['FAQ', '/faq/'], ['Changelog', '/changelog/'], ['llms.txt', '/llms.txt'], ['llms-full.txt', '/llms-full.txt']] },
+    { title: 'Examples', links: [['Showcase', '/showcase/'], ['Widget viewer', '/lab/35-widget-viewer/'], ['Lab', '/lab/']] },
     { title: 'Project', links: [['GitHub', SITE.githubRepo], ['npm', SITE.npm]] },
 ];
 ---

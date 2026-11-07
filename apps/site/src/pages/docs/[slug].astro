@@ -1,29 +1,43 @@
 ---
 import { getCollection, render } from 'astro:content';
+import AreaHub from '@/components/AreaHub.astro';
 import Callout from '@/components/Callout.astro';
 import Demo from '@/components/Demo.astro';
 import Glossary from '@/components/Glossary.astro';
 import Docs from '@/layouts/Docs.astro';
 import { apiPages } from '@/lib/api';
+import { docsAreas } from '@/lib/docs';
 
+// `/docs/<page>/` renders a guide, `/docs/<area>/` the hub that introduces an area.
+// Area ids never equal page ids (checked in lib/docs.ts).
 export async function getStaticPaths() {
     const docs = await getCollection('docs');
+    const areas = await docsAreas();
 
-    return docs.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+    return [
+        ...docs.map((entry) => ({ params: { slug: entry.id }, props: { entry, area: undefined } })),
+        ...areas.map((area) => ({ params: { slug: area.id }, props: { entry: undefined, area } })),
+    ];
 }
 
-const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
-const { title, seoTitle, description, eyebrow, api, keywords, updated } = entry.data;
+const { entry, area } = Astro.props;
 const reference = apiPages();
-const refs = api.map((name) => ({ name, href: reference.find((p) => p.title === name)?.href ?? '/api/' }));
+const page = entry ? { ...(await render(entry)), data: entry.data, id: entry.id } : null;
+const refs = (page?.data.api ?? []).map((name) => ({ name, href: reference.find((p) => p.title === name)?.href ?? '/api/' }));
 ---
 
-<Docs title={title} seoTitle={seoTitle} description={description} eyebrow={eyebrow} headings={headings} keywords={keywords} updated={updated} markdown={`/docs/${entry.id}.md`}>
-    <Content components={{ Demo, Callout, Glossary }} />
-    {refs.length > 0 && (
-        <p class="mt-10 text-sm !text-muted-foreground">
-            API reference: {refs.map((r, i) => (<>{i > 0 && ', '}<a href={r.href}><code>{r.name}</code></a></>))}
-        </p>
-    )}
-</Docs>
+{area && (
+    <Docs title={area.title} seoTitle={`${area.title}: pixi-silk docs for smooth PixiJS v8 graphics`} description={area.summary} area={area.id} markdown={`/docs/${area.id}.md`}>
+        <AreaHub area={area} />
+    </Docs>
+)}
+{page && (
+    <Docs title={page.data.title} seoTitle={page.data.seoTitle} description={page.data.description} headings={page.headings} keywords={page.data.keywords} updated={page.data.updated} markdown={`/docs/${page.id}.md`}>
+        <page.Content components={{ Demo, Callout, Glossary }} />
+        {refs.length > 0 && (
+            <p class="mt-10 text-sm !text-muted-foreground">
+                API reference: {refs.map((r, i) => (<>{i > 0 && ', '}<a href={r.href}><code>{r.name}</code></a></>))}
+            </p>
+        )}
+    </Docs>
+)}
