@@ -48,6 +48,8 @@ const IMPORTS = {
     'ui/timeline': ['*', ['RadialMenu', 'JogDial'], '/ui/timeline'],
     'ui/odometer': ['*', ['RadialMenu', '#version 300 es'], '/ui/odometer'],
     'ui/gesture': ['*', ['#version 300 es', 'RadialMenu'], '/ui/gesture'],
+    glass: ['*', ['RadialMenu'], '/glass'],
+    glow: ['*', ['RadialMenu', 'silk-glass'], '/glow'],
     'ui (everything)': ['*', [], '/ui'],
 };
 

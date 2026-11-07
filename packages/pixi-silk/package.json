@@ -87,6 +87,14 @@
       "types": "./dist/ui/pill.d.ts",
       "default": "./dist/ui/pill.js"
     },
+    "./glass": {
+      "types": "./dist/glass.d.ts",
+      "default": "./dist/glass.js"
+    },
+    "./glow": {
+      "types": "./dist/glow.d.ts",
+      "default": "./dist/glow.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

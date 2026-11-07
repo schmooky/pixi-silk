@@ -1,0 +1,98 @@
+---
+title: Glass and glow
+seoTitle: 'Frosted glass and glowing light in PixiJS'
+description: 'Frosted glass that blurs and bends what is behind it, and light that adds up to white: auroras, neon, beams and a prism, with pixi-silk/glass and pixi-silk/glow.'
+keywords: ['PixiJS glass effect', 'frosted glass', 'glassmorphism', 'PixiJS glow', 'neon glow', 'plus lighter', 'aurora gradient']
+updated: 2026-11-07
+---
+
+<Demo name="glass-playground" height={460} caption="Drag the pane. Every slider is a Glass option." />
+
+## Glass
+
+`Glass` is a pane that reads whatever is already drawn behind it. It blurs it, bends it along the
+curved rim, splits the colours where the rim is steepest, and catches light on the edge that faces
+the light. Labels and icons go in `glass.content`, on top of the glass and sharp.
+
+```ts
+import { Text } from 'pixi.js';
+import { Glass } from 'pixi-silk/glass';
+
+const card = new Glass({ width: 300, height: 190, radius: 34, blur: 18, refraction: 16, dispersion: 0.4 });
+
+card.content.addChild(new Text({ text: 'Frosted', style: { fill: 0xffffff } }));
+card.set({ lightAngle: -Math.PI / 4, grain: 0.05 });
+app.stage.addChild(card); // after the scene it frosts
+```
+
+The pane needs the canvas behind it, which WebGL keeps in a back buffer. `Glass` turns it on the
+first time it draws, so the first frame shows a plain pane. Pass `useBackBuffer: true` to
+`createSilkApp` to have glass from the first frame. On WebGPU the pane draws a frosted fill
+instead. The pane stays axis aligned: scale it freely, but do not rotate it.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `blur` | 18 | Backdrop blur radius |
+| `refraction` | 14 | How far the rim bends the backdrop (negative bends inwards) |
+| `dispersion` | 0.35 | Colour split at the rim, 0 to 1 |
+| `bevel` | 22 | Width of the curved rim |
+| `frost` | 0.06 | Milky whitening, 0 to 1 |
+| `saturation` | 1.2 | Colour boost of what shows through |
+| `tint`, `tintAmount` | white, 0.04 | Coloured glass |
+| `lightAngle`, `light` | top left, 0.8 | Where the sheen and the lit rim come from, and how bright |
+| `grain` | 0.035 | Film grain |
+| `shadow` | 0.3 | Soft shadow under the pane |
+
+<Demo name="glass-prism" height={440} caption="Drag anywhere to move the light source." />
+
+## Light that adds up
+
+Light does not cover what is under it, it adds to it. Set `blendMode = 'add'` on a graphics (Figma
+calls it Plus lighter) and overlapping glows burn towards white. Blur does the rest: every
+`SilkGraphics` fill takes a `blur`, so a soft glow is one ellipse.
+
+`Aurora` rises light from the bottom of a box in three colours and drifts slowly.
+
+```ts
+import { Aurora } from 'pixi-silk/glow';
+
+const sky = new Aurora({ width: 200, height: 330, radius: 30, colors: [0x6f1bff, 0xee36ff, 0xffffff] });
+```
+
+<Demo name="glow-aurora" height={470} caption="Three palettes. Change how high the light reaches and how fast it drifts." />
+
+<Demo name="glow-sunrise" height={440} caption="Blurred blobs on deep red, with a Glass card on top." />
+
+## Neon
+
+`Glow` draws one shape as a stack of passes: a wide bloom and a coloured glow behind, a solid core,
+a hot white highlight and a thin rim. `neon()` is that recipe. Pass your own layers for anything else.
+
+```ts
+import { Glow, neon } from 'pixi-silk/glow';
+
+const bolt = new Glow({
+    draw: (g) => g.triangle(12, -50, -32, 8, 6, 2).triangle(-12, 50, 32, -8, -6, -2),
+    layers: neon(0xffb800, { size: 100 }),
+});
+```
+
+<Demo name="glow-neon" height={400} caption="The neon recipe, alone and on a card." />
+
+<Demo name="glow-button" height={300} caption="Hover and press. The bright spot rides the border." />
+
+## Beams, waves and slices
+
+`ray()` adds a tapered beam as two triangles, `fan()` spreads several from one point and
+`spectrum()` colours them. Blurred and added, they make prisms, spotlights and hero lights.
+
+<Demo name="glow-beams" height={560} caption="A pinched beam, a chromatic wave and a bolt sliced into strips." />
+
+<Demo name="glow-icons" height={420} caption="Gradients clipped by their tile: a blurred copy bleeds out, the crisp copy keeps the edge." />
+
+## Stacked shadows
+
+Several blurred copies behind a shape read better than one big blur: a tight one for the edge, a
+wide one for the light. Each is the shape grown by its spread and blurred by half its CSS blur.
+
+<Demo name="glow-shadows" height={300} caption="Blur and spread of each stacked shadow, as in CSS." />

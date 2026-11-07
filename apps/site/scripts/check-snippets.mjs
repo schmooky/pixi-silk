@@ -111,6 +111,8 @@ writeFileSync(
                 'pixi-silk/ui/button': [join(SRC, 'ui/SilkButton.ts')],
                 'pixi-silk/ui/dock': [join(SRC, 'ui/ButtonDock.ts')],
                 'pixi-silk/ui/*': [join(SRC, 'ui/*.ts')],
+                'pixi-silk/glass': [join(SRC, 'glass.ts')],
+                'pixi-silk/glow': [join(SRC, 'glow.ts')],
             },
         },
         include: ['*.ts'],

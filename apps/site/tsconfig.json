@@ -8,6 +8,8 @@
       "@/*": ["src/*"],
       "pixi-silk": ["../../packages/pixi-silk/src/index.ts"],
       "pixi-silk/signal": ["../../packages/pixi-silk/src/signal.ts"],
+      "pixi-silk/glass": ["../../packages/pixi-silk/src/glass.ts"],
+      "pixi-silk/glow": ["../../packages/pixi-silk/src/glow.ts"],
       "pixi-silk/ui": ["../../packages/pixi-silk/src/ui/index.ts"],
       "pixi-silk/ui/radial": ["../../packages/pixi-silk/src/ui/RadialMenu.ts"],
       "pixi-silk/ui/button": ["../../packages/pixi-silk/src/ui/SilkButton.ts"],

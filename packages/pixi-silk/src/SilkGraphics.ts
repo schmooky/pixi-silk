@@ -45,8 +45,9 @@ export interface InnerShadow {
     color?: ColorSource;
     /** Opacity from 0 to 1. Default 1. */
     alpha?: number;
-    /** Offset, local units. Default 0. */
+    /** Horizontal offset, local units. Positive moves the shadow right. Default 0. */
     x?: number;
+    /** Vertical offset, local units. Positive moves the shadow down. Default 0. */
     y?: number;
     /** Blur (standard deviation, local units). Default 0. */
     blur?: number;
