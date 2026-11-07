@@ -1,4 +1,4 @@
-import Editor, { type OnMount } from '@monaco-editor/react';
+import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /** One runnable module: a docs demo or a lab experiment. */
@@ -47,6 +47,26 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
     const [run, setRun] = useState(0);
     const [auto, setAuto] = useState(true);
     const [copied, setCopied] = useState(false);
+    const [query, setQuery] = useState('');
+    const shown = useMemo(() => {
+        const q = query.trim().toLowerCase();
+
+        if (!q) return groups;
+
+        return groups
+            .map((g) => ({
+                ...g,
+                pages: g.pages
+                    .map((p) => ({
+                        ...p,
+                        entries: p.entries.filter((e) =>
+                            `${g.area} ${p.title} ${e.title} ${e.name}`.toLowerCase().includes(q),
+                        ),
+                    }))
+                    .filter((p) => p.entries.length > 0),
+            }))
+            .filter((g) => g.pages.length > 0);
+    }, [groups, query]);
     const frame = useRef<HTMLIFrameElement>(null);
     const pending = useRef<string | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -110,6 +130,28 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
         return () => clearTimeout(t);
     }, [current.id, code === undefined, edits[current.id], auto]);
 
+    const beforeMount: BeforeMount = (monaco) => {
+        // the site's own dark: the editor and the canvas read as one surface
+        monaco.editor.defineTheme('silk', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [
+                { token: 'comment', foreground: '6b6b76', fontStyle: 'italic' },
+                { token: 'keyword', foreground: 'c4a7ff' },
+                { token: 'string', foreground: '9ee6b8' },
+                { token: 'number', foreground: 'ffcf7a' },
+                { token: 'type', foreground: '7cc7ff' },
+            ],
+            colors: {
+                'editor.background': '#0b0b0d',
+                'editor.lineHighlightBackground': '#ffffff08',
+                'editorLineNumber.foreground': '#3a3a40',
+                'editorLineNumber.activeForeground': '#8e8e93',
+                'editor.selectionBackground': '#6b5cff44',
+                'editorIndentGuide.background1': '#ffffff0d',
+            },
+        });
+    };
     const onMount: OnMount = (editor, monaco) => {
         // the imports resolve at run time, not in the editor: keep it free of red squiggles
         monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -159,10 +201,21 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
             <nav
                 ref={listRef}
                 aria-label="Demos and experiments"
-                className="hidden overflow-y-auto border-r py-3 text-sm lg:block"
+                className="hidden overflow-y-auto border-r pb-3 text-sm lg:block"
             >
-                {groups.map((g) => (
-                    <div key={g.area} className="mb-4">
+                <div className="sticky top-0 z-10 border-b bg-background p-2">
+                    <input
+                        type="search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Filter"
+                        aria-label="Filter demos and experiments"
+                        className="w-full rounded-md border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                    />
+                </div>
+                {shown.length === 0 && <p className="px-4 py-3 text-xs text-muted-foreground">Nothing matches.</p>}
+                {shown.map((g) => (
+                    <div key={g.area} className="mb-4 mt-3">
                         <div className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                             {g.area}
                         </div>
@@ -249,12 +302,21 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                         <Editor
                             key={current.id}
                             language="typescript"
-                            theme="vs-dark"
+                            theme="silk"
                             value={code}
                             onChange={(v) => setEdits((x) => ({ ...x, [current.id]: v ?? '' }))}
+                            beforeMount={beforeMount}
                             onMount={onMount}
+                            loading={<div className="p-4 font-mono text-xs text-muted-foreground">Loading editor…</div>}
                             options={{
                                 fontSize: 13,
+                                fontFamily: "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace",
+                                fontLigatures: true,
+                                lineNumbersMinChars: 3,
+                                padding: { top: 12 },
+                                renderLineHighlight: 'line',
+                                smoothScrolling: true,
+                                cursorBlinking: 'smooth',
                                 minimap: { enabled: false },
                                 scrollBeyondLastLine: false,
                                 tabSize: 4,

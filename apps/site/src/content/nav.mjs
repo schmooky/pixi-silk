@@ -73,6 +73,8 @@ export const DOCS_AREAS = [
         items: [
             { page: 'gradients', lab: ['12-gradients', '13-banding'] },
             { page: 'blur-and-shadows', lab: ['14-glow'] },
+            'effects',
+            'glass-and-glow',
         ],
     },
     {
@@ -128,6 +130,7 @@ export const DOCS_AREAS = [
                     '26-dashboard',
                 ],
             },
+            'gallery',
             'slot-hud',
         ],
     },
