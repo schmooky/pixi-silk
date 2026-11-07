@@ -134,6 +134,8 @@ interface Node {
     delay: number;
     icon: Container | null;
     pillText: Text | null;
+    /** Width of the icon or label at scale 1, to fit it in its segment. */
+    iconW: number;
 }
 
 interface Press {
@@ -296,6 +298,7 @@ export class RadialMenu extends Container {
                 delay: 0,
                 icon: null,
                 pillText: null,
+                iconW: 0,
             };
             const source = item.icon ?? item.label;
 
@@ -304,6 +307,7 @@ export class RadialMenu extends Container {
 
                 node.icon = createIcon(source, item.icon ? this._o.iconSize : this._o.iconSize * 1.15, style);
                 node.icon.visible = false;
+                node.iconW = node.icon.width;
                 this._icons.addChild(node.icon);
             }
             if (item.icon && item.label) {
@@ -443,7 +447,15 @@ export class RadialMenu extends Container {
 
         if (!count) return;
         const [r0, r1] = this._ring(parent.level + 1);
-        const slot = Math.min(this._o.itemArc / ((r0 + r1) / 2), TAU / count);
+        // every sibling gets the arc of the widest one, so labels like "Intuitive" fit their segment
+        let arc = this._o.itemArc;
+
+        for (const c of parent.children) {
+            const need = c.item.icon ? this._o.iconSize + 26 : c.iconW + 22;
+
+            arc = Math.max(arc, need + this._o.gap);
+        }
+        const slot = Math.min(arc / ((r0 + r1) / 2), TAU / count);
 
         parent.children.forEach((child, i) => {
             child.angle = parent.angle + (i - (count - 1) / 2) * slot;
@@ -800,7 +812,11 @@ export class RadialMenu extends Container {
         if (n.icon) {
             n.icon.visible = true;
             n.icon.position.set(Math.cos(n.angle) * mid, Math.sin(n.angle) * mid);
-            n.icon.scale.set(0.6 + 0.4 * Math.min(v, 1.1) + n.hover * 0.06);
+            // text that still does not fit (a crowded ring) shrinks to the segment's width
+            const room = 2 * mid * Math.sin(Math.min(half, Math.PI / 2)) - 12;
+            const fit = n.item.icon || n.iconW <= 0 ? 1 : Math.min(1, room / n.iconW);
+
+            n.icon.scale.set((0.6 + 0.4 * Math.min(v, 1.1) + n.hover * 0.06) * fit);
             n.icon.tint = disabled ? t.segmentDisabled : mix(t.icon, t.iconHover, n.hover);
             n.icon.alpha = alpha * (disabled ? 0.45 : 1);
         }
@@ -808,7 +824,11 @@ export class RadialMenu extends Container {
             const p = n.pill * alpha;
 
             n.pillText.visible = p > 0.01;
-            if (p > 0.01) this._drawPill(n, rout, p);
+            // with its ring of children open, the pill goes past that ring instead of covering it
+            const childrenOpen = n.children.length > 0 && this._pathNodes.includes(n);
+            const edge = childrenOpen ? Math.max(rout, this._ring(n.level + 1)[1] + 4) : rout;
+
+            if (p > 0.01) this._drawPill(n, edge, p);
         }
     }
 
