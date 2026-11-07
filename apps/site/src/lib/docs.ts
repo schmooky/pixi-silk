@@ -1,5 +1,5 @@
 import { type CollectionEntry, getCollection } from 'astro:content';
-import { type AreaLink, DOCS_AREAS, DOCS_NAV, VISIBLE_AREAS } from '@/content/nav.mjs';
+import { type AreaLink, DOCS_AREAS, DOCS_NAV, itemLab, itemPage, VISIBLE_AREAS } from '@/content/nav.mjs';
 import { LAB_SECTIONS } from '@/lab/catalog.mjs';
 
 export interface DocLink {
@@ -11,6 +11,10 @@ export interface DocLink {
     section: string;
     /** Area id: the hub lives at `/docs/<area>/`. */
     area: string;
+    /** Lab experiments that go deeper on this page. */
+    lab: LabLink[];
+    /** The page's first live demo, shown with its pitch on the area hub. */
+    demo?: { name: string; height: number; caption?: string };
 }
 
 export interface LabLink {
@@ -18,6 +22,12 @@ export interface LabLink {
     name: string;
     description: string;
     href: string;
+    /** The docs page this experiment deepens, and its area. */
+    page: string;
+    pageTitle: string;
+    pageHref: string;
+    area: string;
+    areaTitle: string;
 }
 
 export interface Area {
@@ -27,6 +37,7 @@ export interface Area {
     intro: string[];
     href: string;
     pages: DocLink[];
+    /** Every lab experiment in the area, in page order. */
     lab: LabLink[];
     links: AreaLink[];
     aliases: string[];
@@ -52,34 +63,81 @@ export async function docsInOrder(): Promise<DocLink[]> {
                 `Listed twice: [${twice.join(', ')}]. Area id equals a page id: [${clash.join(', ')}].`,
         );
     }
-    cache = DOCS_NAV.flatMap((section) =>
-        section.items.map((id) => {
-            const { title, description } = byId.get(id)!.data;
+    const catalog = new Map(
+        LAB_SECTIONS.flatMap(([, items]) => items).map(([slug, name, description]) => [slug, { name, description }]),
+    );
+    const placed = DOCS_AREAS.flatMap((a) => a.items.flatMap(itemLab));
+    const unknownLab = placed.filter((slug) => !catalog.has(slug));
+    const labTwice = placed.filter((slug, i) => placed.indexOf(slug) !== i);
+    const homeless = [...catalog.keys()].filter((slug) => !placed.includes(slug));
 
-            return { slug: id, title, description, href: `/docs/${id}/`, section: section.title, area: section.id };
+    if (unknownLab.length || labTwice.length || homeless.length) {
+        throw new Error(
+            `src/content/nav.mjs: every lab experiment belongs to one page. Unknown: [${unknownLab.join(', ')}]. ` +
+                `Listed twice: [${labTwice.join(', ')}]. Not attached to a page: [${homeless.join(', ')}].`,
+        );
+    }
+    cache = DOCS_AREAS.filter((a) => a.items.length > 0).flatMap((area) =>
+        area.items.map((item) => {
+            const id = itemPage(item);
+            const entry = byId.get(id)!;
+            const { title, description } = entry.data;
+            const href = `/docs/${id}/`;
+            const lab = itemLab(item).map((slug) => ({
+                slug,
+                ...catalog.get(slug)!,
+                href: `/lab/${slug}/`,
+                page: id,
+                pageTitle: title,
+                pageHref: href,
+                area: area.id,
+                areaTitle: area.title,
+            }));
+
+            return {
+                slug: id,
+                title,
+                description,
+                href,
+                section: area.title,
+                area: area.id,
+                lab,
+                demo: firstDemo(entry.body ?? ''),
+            };
         }),
     );
 
     return cache;
 }
 
+/** The first `<Demo name="..." height={...} caption="..." />` in a page's MDX source. */
+function firstDemo(body: string): DocLink['demo'] {
+    const tag = body.match(/<Demo\b[^>]*\/>/)?.[0];
+    const name = tag?.match(/name="([^"]+)"/)?.[1];
+
+    if (!tag || !name) return undefined;
+
+    return {
+        name,
+        height: Number(tag.match(/height=\{(\d+)\}/)?.[1] ?? 280),
+        caption: tag.match(/caption="([^"]*)"/)?.[1],
+    };
+}
+
+/** Where each lab experiment lives: its page and area. */
+export async function labHomes(): Promise<Map<string, LabLink>> {
+    const docs = await docsInOrder();
+
+    return new Map(docs.flatMap((d) => d.lab.map((l) => [l.slug, l] as const)));
+}
+
 /** The areas the site shows, with their pages and lab experiments resolved. */
 export async function docsAreas(): Promise<Area[]> {
     if (areaCache) return areaCache;
     const docs = await docsInOrder();
-    const lab = new Map(
-        LAB_SECTIONS.flatMap(([, items]) => items).map(([slug, name, description]) => [
-            slug,
-            { slug, name, description, href: `/lab/${slug}/` },
-        ]),
-    );
 
     areaCache = VISIBLE_AREAS.map((a) => {
-        const unknownLab = (a.lab ?? []).filter((slug) => !lab.has(slug));
-
-        if (unknownLab.length) {
-            throw new Error(`src/content/nav.mjs: area "${a.id}" lists unknown lab pages [${unknownLab.join(', ')}].`);
-        }
+        const pages = docs.filter((d) => d.area === a.id);
 
         return {
             id: a.id,
@@ -87,8 +145,8 @@ export async function docsAreas(): Promise<Area[]> {
             summary: a.summary,
             intro: a.intro,
             href: `/docs/${a.id}/`,
-            pages: docs.filter((d) => d.area === a.id),
-            lab: (a.lab ?? []).map((slug) => lab.get(slug)!),
+            pages,
+            lab: pages.flatMap((p) => p.lab),
             links: a.links ?? [],
             aliases: a.aliases ?? [],
         };

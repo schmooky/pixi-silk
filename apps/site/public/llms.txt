@@ -46,38 +46,54 @@ app.stage.addChild(g);
 
 ## Docs
 
-The docs are grouped into areas. Each area has an overview page that lists its pages in reading order.
+The docs are grouped into areas. Each area overview tours its features with live demos. Every guide lists the full-screen experiments that go deeper on it.
 
 ### Get started
 
 - [Get started overview](https://pixi-silk.schmooky.dev/docs/start/): Install pixi-silk, draw a first scene and move code over from PixiJS Graphics.
 - [Introduction](https://pixi-silk.schmooky.dev/docs/introduction/): pixi-silk is a Graphics-like object for PixiJS v8. It draws shapes as exact signed distance fields, so edges stay smooth and anti-aliased at any zoom and DPR. (Markdown: https://pixi-silk.schmooky.dev/docs/introduction.md)
+  - Experiment: [Primitives](https://pixi-silk.schmooky.dev/lab/01-primitives/): All 24 shape kinds side by side: rects, squircles, circles, arcs, sectors, lines, areas, dashes, icons, blur.
 - [Installation](https://pixi-silk.schmooky.dev/docs/installation/): Install pixi-silk with npm, pnpm, yarn or bun next to pixi.js v8. It needs WebGL2 and ships tree-shakeable ESM with TypeScript types, about 15 kB gzipped. (Markdown: https://pixi-silk.schmooky.dev/docs/installation.md)
 - [Quick start](https://pixi-silk.schmooky.dev/docs/quick-start/): Create a DPR-exact PixiJS app with createSilkApp, then draw a squircle card, a gradient gauge and an area chart with SilkGraphics. (Markdown: https://pixi-silk.schmooky.dev/docs/quick-start.md)
 - [Migrating from Graphics](https://pixi-silk.schmooky.dev/docs/migrating-from-graphics/): SilkGraphics mirrors the PixiJS v8 Graphics API: shapes on a path, fill and stroke, transforms. See what is the same, what differs and what is new. (Markdown: https://pixi-silk.schmooky.dev/docs/migrating-from-graphics.md)
+  - Experiment: [v8 Graphics vs Silk](https://pixi-silk.schmooky.dev/lab/02-versus/): The same scene with Graphics (no AA), Graphics + MSAA 4x and Silk. Hover to magnify device pixels.
 
 ### Drawing
 
 - [Drawing overview](https://pixi-silk.schmooky.dev/docs/drawing/): Shapes, arcs, lines and paths, fills and strokes, dashes and transforms.
 - [Shapes](https://pixi-silk.schmooky.dev/docs/shapes/): Rects, squircles with per-corner radii, pills, circles, ellipses, hearts, stars, polygons and rounded triangles, each an exact anti-aliased distance field. (Markdown: https://pixi-silk.schmooky.dev/docs/shapes.md)
+  - Experiment: [Rounded rects & squircles](https://pixi-silk.schmooky.dev/lab/07-rounded-rects/): Per-corner radii and continuous-curvature corners with a live smoothing slider.
+  - Experiment: [Icons](https://pixi-silk.schmooky.dev/lab/11-icons/): Sixteen glyphs built from primitives, crisp at 16, 28 and 56 px. Uses save / translateTransform.
 - [Arcs, sectors & rings](https://pixi-silk.schmooky.dev/docs/arcs-and-rings/): Arcs with round, butt or square caps, pie and donut sectors with rounded corners, and activity rings whose conic gradients follow the arc. (Markdown: https://pixi-silk.schmooky.dev/docs/arcs-and-rings.md)
+  - Experiment: [Activity rings](https://pixi-silk.schmooky.dev/lab/08-activity-rings/): Conic gradients that follow each arc, >100% overlap with a soft tip shadow, springs.
 - [Lines & paths](https://pixi-silk.schmooky.dev/docs/lines-and-paths/): Anti-aliased lines and polylines with monotone or Catmull-Rom smoothing, Bezier paths, tapered strokes and translucent joints without double blending. (Markdown: https://pixi-silk.schmooky.dev/docs/lines-and-paths.md)
+  - Experiment: [Lines](https://pixi-silk.schmooky.dev/lab/09-lines/): Widths from 0.1 to 8 px, translucent joints without double blending, caps, gradients along strokes.
 - [Fills & strokes](https://pixi-silk.schmooky.dev/docs/fills-and-strokes/): Paint styles, stroke alignment (inside, center or outside), fill and stroke without a seam, and hairlines that fade instead of breaking up. (Markdown: https://pixi-silk.schmooky.dev/docs/fills-and-strokes.md)
 - [Dashes & dots](https://pixi-silk.schmooky.dev/docs/dashes/): Dash patterns computed in the shader, with caps on every dash, dots from zero-length dashes, closed outlines without a seam, and marching ants. (Markdown: https://pixi-silk.schmooky.dev/docs/dashes.md)
+  - Experiment: [Dashes & dots](https://pixi-silk.schmooky.dev/lab/10-dashes/): Dash patterns drawn in the shader: caps, closed outlines without a seam, marching ants, spinners.
 - [Transforms](https://pixi-silk.schmooky.dev/docs/transforms/): Save, restore, translate, rotate and scale the drawing. Rotated and scaled primitives stay exact, and stroke widths scale with them. (Markdown: https://pixi-silk.schmooky.dev/docs/transforms.md)
 
 ### Paint
 
 - [Paint overview](https://pixi-silk.schmooky.dev/docs/paint/): Gradients in OKLab without banding, glows, soft shadows and motion blur.
 - [Gradients](https://pixi-silk.schmooky.dev/docs/gradients/): Linear, radial, conic and along-the-path gradients in OKLab, with smooth easing. Half-float ramps and dithering keep dark gradients free of banding. (Markdown: https://pixi-silk.schmooky.dev/docs/gradients.md)
+  - Experiment: [Gradients](https://pixi-silk.schmooky.dev/lab/12-gradients/): Linear, radial, conic and along-the-path gradients, extend modes, sRGB vs linear vs OKLab, premultiplied alpha.
+  - Experiment: [Banding](https://pixi-silk.schmooky.dev/lab/13-banding/): Half-float ramps with ±0.5 LSB dither. Toggle dither and "reveal x8" to watch the contour lines disappear.
 - [Blur, glows & shadows](https://pixi-silk.schmooky.dev/docs/blur-and-shadows/): A gaussian blur applied to each shape's distance field gives neon glows, soft drop shadows and motion blur without filters or extra passes. (Markdown: https://pixi-silk.schmooky.dev/docs/blur-and-shadows.md)
+  - Experiment: [Glows & soft shadows](https://pixi-silk.schmooky.dev/lab/14-glow/): Analytic gaussian blur on the distance field: neon glows, elevation shadows, bokeh. No extra passes.
 
 ### UI widgets
 
 - [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
 - [Charts](https://pixi-silk.schmooky.dev/docs/charts/): Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots. (Markdown: https://pixi-silk.schmooky.dev/docs/charts.md)
+  - Experiment: [Area chart](https://pixi-silk.schmooky.dev/lab/15-area-chart/): Smoothed series, gradient fill, dotted guides, dashed forecast, NOW marker, eased updates.
+  - Experiment: [Bar charts](https://pixi-silk.schmooky.dev/lab/16-bar-charts/): Slim bars with a past/future split and chunky stepped bars that grow in.
+  - Experiment: [Ranges & levels](https://pixi-silk.schmooky.dev/lab/18-ranges/): Progress bars with markers, range segments and signal bars, all anti-aliased at any size and pixel ratio.
+  - Experiment: [Gauges](https://pixi-silk.schmooky.dev/lab/20-gauges/): ISS flyover, car battery, heading dial with ticks, barometer, UV week, dimmer.
+  - Experiment: [Sparklines](https://pixi-silk.schmooky.dev/lab/21-sparklines/): Value-coloured strokes, gradient markers, threshold stops, interactive crosshair.
 - [Hit testing & events](https://pixi-silk.schmooky.dev/docs/hit-testing/): Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded. (Markdown: https://pixi-silk.schmooky.dev/docs/hit-testing.md)
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
+  - Experiment: [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.
 - [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
 
 ### Editor UI
@@ -91,6 +107,19 @@ The docs are grouped into areas. Each area has an overview page that lists its p
 ### Examples
 
 - [Examples overview](https://pixi-silk.schmooky.dev/docs/examples/): Whole screens built with pixi-silk, from reference sheets rebuilt 1:1 to a live dashboard.
+- [Showcase](https://pixi-silk.schmooky.dev/docs/showcase/): Five design sheets, from Health cards to Live Activities, rebuilt pixel for pixel with smooth, anti-aliased pixi-silk graphics. 81 live widgets. (Markdown: https://pixi-silk.schmooky.dev/docs/showcase.md)
+  - Experiment: [Health cards (sheet 1)](https://pixi-silk.schmooky.dev/lab/30-sheet-health/): Ten Health cards over the first reference: area, bar, candle and range charts. Compare slider included.
+  - Experiment: [Complications (sheet 2)](https://pixi-silk.schmooky.dev/lab/31-sheet-complications/): Twenty watch complications from the second reference, laid out in its exact pixels.
+  - Experiment: [Fitness & home (sheet 3)](https://pixi-silk.schmooky.dev/lab/32-sheet-fitness/): Twenty more: calendar week, hike map, sound levels, elevation, water, wind, boarding pass.
+  - Experiment: [Live Activities (sheet 4)](https://pixi-silk.schmooky.dev/lab/33-sheet-live-activities/): Black cards with continuous corners and measured soft shadows on the light sheet, edges cropped like the reference.
+  - Experiment: [Watch widgets (sheet 5)](https://pixi-silk.schmooky.dev/lab/34-sheet-watch/): Cycling, 2FA, now playing, crosshair, garage, AirPods compass, barometer, moon phases.
+  - Experiment: [Widget viewer](https://pixi-silk.schmooky.dev/lab/35-widget-viewer/): Pick any of the 81 widgets and see it large next to its crop of the reference, or overlaid on it.
+  - Experiment: [Pills & waveforms](https://pixi-silk.schmooky.dev/lab/17-pills-waves/): Heart-rate pills and a live pressure waveform sharing one gradient.
+  - Experiment: [Health cards](https://pixi-silk.schmooky.dev/lab/19-health-cards/): Ten Apple Health style cards with area, bar, candle and range charts, drawn as smooth distance fields.
+  - Experiment: [Sleep](https://pixi-silk.schmooky.dev/lab/22-sleep/): Stage blocks with transitions, night strip, marching dotted arc.
+  - Experiment: [Journeys](https://pixi-silk.schmooky.dev/lab/24-journeys/): Flight progress, train stations, delivery route, ride pickup, race track.
+  - Experiment: [Sky](https://pixi-silk.schmooky.dev/lab/25-sky/): Sunset pills with a glowing sun and stars, golden-hour curve, daylight bar.
+  - Experiment: [Dashboard](https://pixi-silk.schmooky.dev/lab/26-dashboard/): Thirty live widgets in a masonry layout with smooth, frame-rate independent scrolling.
 - [Slot HUD examples](https://pixi-silk.schmooky.dev/docs/slot-hud/): Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy. (Markdown: https://pixi-silk.schmooky.dev/docs/slot-hud.md)
 
 ### Rendering
@@ -98,9 +127,14 @@ The docs are grouped into areas. Each area has an overview page that lists its p
 - [Rendering overview](https://pixi-silk.schmooky.dev/docs/rendering/): How the anti-aliasing works, crisp canvases on any screen and what it costs.
 - [Smooth graphics in PixiJS v8](https://pixi-silk.schmooky.dev/docs/smooth-graphics-pixijs/): Find the cause and fix for jagged edges, faceted circles, flickering thin lines, blurry retina canvases, blurry filters and banded gradients in PixiJS v8. (Markdown: https://pixi-silk.schmooky.dev/docs/smooth-graphics-pixijs.md)
 - [Anti-aliasing in PixiJS v8](https://pixi-silk.schmooky.dev/docs/antialiasing-in-pixijs/): Compare six ways to get smooth graphics in PixiJS v8: MSAA, higher resolution, curve smoothness, supersampling, FXAA and analytic SDF anti-aliasing. (Markdown: https://pixi-silk.schmooky.dev/docs/antialiasing-in-pixijs.md)
+  - Experiment: [Infinite zoom](https://pixi-silk.schmooky.dev/lab/03-zoom/): Five nested levels, 3000x apart. Curves stay exact, hairlines fade instead of aliasing.
+  - Experiment: [Sub-pixel motion](https://pixi-silk.schmooky.dev/lab/04-subpixel/): Objects drifting at 2 px/s: tessellation crawls between samples, distance fields glide.
 - [@pixi/graphics-smooth and PixiJS v8](https://pixi-silk.schmooky.dev/docs/graphics-smooth-v8/): @pixi/graphics-smooth, the anti-aliased Graphics plugin, targets PixiJS v7. For smooth, anti-aliased lines and shapes on PixiJS v8, use SilkGraphics. (Markdown: https://pixi-silk.schmooky.dev/docs/graphics-smooth-v8.md)
 - [Resolution & DPR](https://pixi-silk.schmooky.dev/docs/resolution/): createSilkApp maps the canvas 1:1 to device pixels, even at fractional DPRs, follows DPR changes and renders filters at screen resolution. (Markdown: https://pixi-silk.schmooky.dev/docs/resolution.md)
+  - Experiment: [Resolution & device pixels](https://pixi-silk.schmooky.dev/lab/05-resolution/): Siemens star, 1-device-pixel grating, live 1x / 1.5x / 2x / 3x switching and 1:1 mapping check.
+  - Experiment: [Filters & render textures](https://pixi-silk.schmooky.dev/lab/06-render-texture/): Why Graphics goes jaggy and blurry behind a filter, and why Silk does not.
 - [Performance](https://pixi-silk.schmooky.dev/docs/performance/): One instanced draw call per SilkGraphics and about 12 ms of CPU to rebuild 50,000 primitives, plus tips for static layers, gradients and fill rate. (Markdown: https://pixi-silk.schmooky.dev/docs/performance.md)
+  - Experiment: [Stress test](https://pixi-silk.schmooky.dev/lab/27-stress/): Up to 100k primitives in one draw call, rebuilt every frame or static.
 - [How it works](https://pixi-silk.schmooky.dev/docs/how-it-works/): One instanced quad per primitive, exact signed distance functions per pixel, analytic coverage from screen-space derivatives and dithered OKLab ramps. (Markdown: https://pixi-silk.schmooky.dev/docs/how-it-works.md)
 
 ### Reference
@@ -159,43 +193,6 @@ The docs are grouped into areas. Each area has an overview page that lists its p
 - [Vec2](https://pixi-silk.schmooky.dev/api/types/Vec2/): Type. A point [x, y]. In shape units, x and y are fractions of the painted shape's box.
 - [ease](https://pixi-silk.schmooky.dev/api/variables/ease/): Variable. Easing curves for tweens (t from 0 to 1): inOutCubic, outCubic, inOutSine, outExpo.
 
-## Lab and showcase
-
-- [Showcase](https://pixi-silk.schmooky.dev/showcase/): five design reference sheets rebuilt 1:1 (81 widgets).
-- [Primitives](https://pixi-silk.schmooky.dev/lab/01-primitives/): All 24 shape kinds side by side: rects, squircles, circles, arcs, sectors, lines, areas, dashes, icons, blur.
-- [v8 Graphics vs Silk](https://pixi-silk.schmooky.dev/lab/02-versus/): The same scene with Graphics (no AA), Graphics + MSAA 4x and Silk. Hover to magnify device pixels.
-- [Infinite zoom](https://pixi-silk.schmooky.dev/lab/03-zoom/): Five nested levels, 3000x apart. Curves stay exact, hairlines fade instead of aliasing.
-- [Sub-pixel motion](https://pixi-silk.schmooky.dev/lab/04-subpixel/): Objects drifting at 2 px/s: tessellation crawls between samples, distance fields glide.
-- [Resolution & device pixels](https://pixi-silk.schmooky.dev/lab/05-resolution/): Siemens star, 1-device-pixel grating, live 1x / 1.5x / 2x / 3x switching and 1:1 mapping check.
-- [Filters & render textures](https://pixi-silk.schmooky.dev/lab/06-render-texture/): Why Graphics goes jaggy and blurry behind a filter, and why Silk does not.
-- [Rounded rects & squircles](https://pixi-silk.schmooky.dev/lab/07-rounded-rects/): Per-corner radii and continuous-curvature corners with a live smoothing slider.
-- [Activity rings](https://pixi-silk.schmooky.dev/lab/08-activity-rings/): Conic gradients that follow each arc, >100% overlap with a soft tip shadow, springs.
-- [Lines](https://pixi-silk.schmooky.dev/lab/09-lines/): Widths from 0.1 to 8 px, translucent joints without double blending, caps, gradients along strokes.
-- [Dashes & dots](https://pixi-silk.schmooky.dev/lab/10-dashes/): Dash patterns drawn in the shader: caps, closed outlines without a seam, marching ants, spinners.
-- [Icons](https://pixi-silk.schmooky.dev/lab/11-icons/): Sixteen glyphs built from primitives, crisp at 16, 28 and 56 px. Uses save / translateTransform.
-- [Gradients](https://pixi-silk.schmooky.dev/lab/12-gradients/): Linear, radial, conic and along-the-path gradients, extend modes, sRGB vs linear vs OKLab, premultiplied alpha.
-- [Banding](https://pixi-silk.schmooky.dev/lab/13-banding/): Half-float ramps with ±0.5 LSB dither. Toggle dither and "reveal x8" to watch the contour lines disappear.
-- [Glows & soft shadows](https://pixi-silk.schmooky.dev/lab/14-glow/): Analytic gaussian blur on the distance field: neon glows, elevation shadows, bokeh. No extra passes.
-- [Area chart](https://pixi-silk.schmooky.dev/lab/15-area-chart/): Smoothed series, gradient fill, dotted guides, dashed forecast, NOW marker, eased updates.
-- [Bar charts](https://pixi-silk.schmooky.dev/lab/16-bar-charts/): Slim bars with a past/future split and chunky stepped bars that grow in.
-- [Pills & waveforms](https://pixi-silk.schmooky.dev/lab/17-pills-waves/): Heart-rate pills and a live pressure waveform sharing one gradient.
-- [Ranges & levels](https://pixi-silk.schmooky.dev/lab/18-ranges/): Progress bars with markers, range segments and signal bars, all anti-aliased at any size and pixel ratio.
-- [Health cards](https://pixi-silk.schmooky.dev/lab/19-health-cards/): Ten Apple Health style cards with area, bar, candle and range charts, drawn as smooth distance fields.
-- [Gauges](https://pixi-silk.schmooky.dev/lab/20-gauges/): ISS flyover, car battery, heading dial with ticks, barometer, UV week, dimmer.
-- [Sparklines](https://pixi-silk.schmooky.dev/lab/21-sparklines/): Value-coloured strokes, gradient markers, threshold stops, interactive crosshair.
-- [Sleep](https://pixi-silk.schmooky.dev/lab/22-sleep/): Stage blocks with transitions, night strip, marching dotted arc.
-- [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.
-- [Journeys](https://pixi-silk.schmooky.dev/lab/24-journeys/): Flight progress, train stations, delivery route, ride pickup, race track.
-- [Sky](https://pixi-silk.schmooky.dev/lab/25-sky/): Sunset pills with a glowing sun and stars, golden-hour curve, daylight bar.
-- [Health cards (sheet 1)](https://pixi-silk.schmooky.dev/lab/30-sheet-health/): Ten Health cards over the first reference: area, bar, candle and range charts. Compare slider included.
-- [Complications (sheet 2)](https://pixi-silk.schmooky.dev/lab/31-sheet-complications/): Twenty watch complications from the second reference, laid out in its exact pixels.
-- [Fitness & home (sheet 3)](https://pixi-silk.schmooky.dev/lab/32-sheet-fitness/): Twenty more: calendar week, hike map, sound levels, elevation, water, wind, boarding pass.
-- [Live Activities (sheet 4)](https://pixi-silk.schmooky.dev/lab/33-sheet-live-activities/): Black cards with continuous corners and measured soft shadows on the light sheet, edges cropped like the reference.
-- [Watch widgets (sheet 5)](https://pixi-silk.schmooky.dev/lab/34-sheet-watch/): Cycling, 2FA, now playing, crosshair, garage, AirPods compass, barometer, moon phases.
-- [Widget viewer](https://pixi-silk.schmooky.dev/lab/35-widget-viewer/): Pick any of the 81 widgets and see it large next to its crop of the reference, or overlaid on it.
-- [Dashboard](https://pixi-silk.schmooky.dev/lab/26-dashboard/): Thirty live widgets in a masonry layout with smooth, frame-rate independent scrolling.
-- [Stress test](https://pixi-silk.schmooky.dev/lab/27-stress/): Up to 100k primitives in one draw call, rebuilt every frame or static.
-
 ## FAQ
 
 - [How do I enable anti-aliasing in PixiJS v8?](https://pixi-silk.schmooky.dev/faq/#how-do-i-enable-anti-aliasing-in-pixijs-v8)
@@ -218,6 +215,9 @@ The docs are grouped into areas. Each area has an overview page that lists its p
 - [Do pointer events work on SilkGraphics?](https://pixi-silk.schmooky.dev/faq/#do-pointer-events-work-on-silkgraphics)
 - [How do I draw charts with PixiJS?](https://pixi-silk.schmooky.dev/faq/#how-do-i-draw-charts-with-pixijs)
 - [What license is pixi-silk under?](https://pixi-silk.schmooky.dev/faq/#what-license-is-pixi-silk-under)
+- [Does pixi-silk come with UI widgets?](https://pixi-silk.schmooky.dev/faq/#does-pixi-silk-come-with-ui-widgets)
+- [Can I build an editor or design tool with pixi-silk?](https://pixi-silk.schmooky.dev/faq/#can-i-build-an-editor-or-design-tool-with-pixi-silk)
+- [Are the slot game HUD controls part of pixi-silk?](https://pixi-silk.schmooky.dev/faq/#are-the-slot-game-hud-controls-part-of-pixi-silk)
 
 ## Optional
 

@@ -12,6 +12,11 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = resolve(here, '../..');
 
 export default defineConfig({
+    // old shelves now live inside the docs areas
+    redirects: {
+        '/lab/': '/docs/',
+        '/showcase/': '/docs/showcase/',
+    },
     site: SITE_URL,
     trailingSlash: 'always',
     prefetch: { defaultStrategy: 'hover', prefetchAll: false },

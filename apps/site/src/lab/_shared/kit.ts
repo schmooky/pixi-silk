@@ -1,7 +1,7 @@
 import { type Application, Container, UPDATE_PRIORITY } from 'pixi.js';
 import { createSilkApp, type SilkApp } from 'pixi-silk';
 import './proto.css';
-import { LAB_HOME } from './paths';
+import { LAB_HOME, LAB_HOME_LABEL } from './paths';
 
 export interface ProtoOptions {
     title: string;
@@ -47,7 +47,7 @@ export async function boot(options: ProtoOptions): Promise<Proto> {
     const chrome = document.createElement('div');
 
     chrome.className = 'chrome';
-    chrome.innerHTML = `<a class="back" href="${LAB_HOME}">Back to lab</a><div class="titles"><h1></h1><p></p></div>`;
+    chrome.innerHTML = `<a class="back" href="${LAB_HOME}">${LAB_HOME_LABEL}</a><div class="titles"><h1></h1><p></p></div>`;
     chrome.querySelector('h1')!.textContent = options.title;
     chrome.querySelector('p')!.textContent = options.subtitle ?? '';
     document.body.appendChild(chrome);

@@ -3,9 +3,9 @@ import { VISIBLE_AREAS } from '@/content/nav.mjs';
 import { SITE } from '@/lib/site';
 
 const columns = [
-    { title: 'Docs', links: [['All areas', '/docs/'], ...VISIBLE_AREAS.filter((a) => a.id !== 'reference').map((a) => [a.title, `/docs/${a.id}/`])] },
+    { title: 'Docs', links: [['All areas', '/docs/'], ...VISIBLE_AREAS.filter((a) => a.id !== 'reference' && a.id !== 'examples').map((a) => [a.title, `/docs/${a.id}/`])] },
+    { title: 'Examples', links: [['Examples area', '/docs/examples/'], ['Showcase', '/docs/showcase/'], ['Slot HUD', '/docs/slot-hud/'], ['Widget viewer', '/lab/35-widget-viewer/']] },
     { title: 'Reference', links: [['API reference', '/api/'], ['Glossary', '/docs/glossary/'], ['FAQ', '/faq/'], ['Changelog', '/changelog/'], ['llms.txt', '/llms.txt'], ['llms-full.txt', '/llms-full.txt']] },
-    { title: 'Examples', links: [['Showcase', '/showcase/'], ['Widget viewer', '/lab/35-widget-viewer/'], ['Lab', '/lab/']] },
     { title: 'Project', links: [['GitHub', SITE.githubRepo], ['npm', SITE.npm]] },
 ];
 ---

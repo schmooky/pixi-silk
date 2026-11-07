@@ -54,6 +54,12 @@ for (const file of html) {
         .replace(/index\.html$/, '')}`;
     const page = rel;
     const doc = fs.readFileSync(file, 'utf8');
+
+    // redirect stubs for moved URLs (astro.config.mjs `redirects`) are not pages
+    if (/<meta http-equiv="refresh"/i.test(doc)) {
+        noindexed.add(rel);
+        continue;
+    }
     const isLab = /^\/lab\/\d/.test(rel);
     const robots = doc.match(/<meta name="robots" content="([^"]*)"/)?.[1] ?? '';
     const indexable = !/noindex/.test(robots) && rel !== '/404.html';

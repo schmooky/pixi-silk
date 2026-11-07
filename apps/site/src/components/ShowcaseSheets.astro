@@ -1,0 +1,19 @@
+---
+import { Picture } from 'astro:assets';
+import { SHEETS } from '@/lib/showcase';
+---
+
+<div class="not-prose mt-8 space-y-14">
+    {SHEETS.map((s, i) => (
+        <section id={s.slug}>
+            <div class="flex flex-wrap items-baseline justify-between gap-3">
+                <h2 class="text-2xl font-semibold tracking-tight">Sheet {s.n}: {s.title}</h2>
+                <a href={`/lab/${s.slug}/`} class="text-sm text-muted-foreground hover:text-foreground">Open the live sheet</a>
+            </div>
+            <p class="mt-2 text-sm text-muted-foreground">{s.body}</p>
+            <a href={`/lab/${s.slug}/`} class="mt-5 block overflow-hidden rounded-xl border">
+                <Picture src={s.image} alt={s.alt} formats={['avif', 'webp']} widths={[800, 1200, 1600]} sizes="(min-width: 1240px) 768px, 100vw" loading={i === 0 ? 'eager' : 'lazy'} class="h-auto w-full" />
+            </a>
+        </section>
+    ))}
+</div>

@@ -1,11 +1,18 @@
 import { getCollection } from 'astro:content';
-import { DOCS_NAV, VISIBLE_AREAS } from '@/content/nav.mjs';
+import { DOCS_AREAS, DOCS_NAV, itemLab, itemPage, VISIBLE_AREAS } from '@/content/nav.mjs';
 import { LAB_SECTIONS } from '@/lab/catalog.mjs';
 import type { OgTarget } from './render';
 
 /** One card per route family; ids match `ogUrlForPath()` in src/lib/seo.ts. */
 export async function ogTargets(): Promise<OgTarget[]> {
     const docs = await getCollection('docs');
+    // each experiment's card names the area and page it belongs to
+    const titles = new Map(docs.map((d) => [d.id, d.data.title]));
+    const labArea = new Map(
+        DOCS_AREAS.flatMap((a) =>
+            a.items.flatMap((item) => itemLab(item).map((slug) => [slug, `${a.title}: ${titles.get(itemPage(item))}`])),
+        ),
+    );
     const home = {
         eyebrow: 'PixiJS v8, WebGL2',
         title: 'Vector graphics, smooth as silk',
@@ -27,18 +34,6 @@ export async function ogTargets(): Promise<OgTarget[]> {
             eyebrow: 'API reference',
             title: 'Every export, from the source',
             subtitle: 'SilkGraphics, createSilkApp, gradients, curves and motion helpers.',
-        },
-        {
-            id: 'section/lab',
-            eyebrow: 'Lab',
-            title: 'Full-screen experiments',
-            subtitle: '35 pages: Graphics vs Silk, infinite zoom, widgets, stress test and reference sheets.',
-        },
-        {
-            id: 'section/showcase',
-            eyebrow: 'Showcase',
-            title: 'Rebuilt pixel for pixel',
-            subtitle: 'Five design reference sheets, 81 widgets, measured against the originals.',
         },
         {
             id: 'section/faq',
@@ -65,10 +60,10 @@ export async function ogTargets(): Promise<OgTarget[]> {
             title: a.title,
             subtitle: a.summary,
         })),
-        ...LAB_SECTIONS.flatMap(([section, items]) =>
+        ...LAB_SECTIONS.flatMap(([, items]) =>
             items.map(([slug, name, description]) => ({
                 id: `lab/${slug}`,
-                eyebrow: `Lab: ${section}`,
+                eyebrow: labArea.get(slug) ?? 'Docs',
                 title: name,
                 subtitle: description,
             })),

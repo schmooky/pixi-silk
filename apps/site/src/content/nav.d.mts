@@ -3,16 +3,18 @@ export interface AreaLink {
     href: string;
     description: string;
 }
+export type AreaItem = string | { page: string; lab: string[] };
 export interface DocsArea {
     id: string;
     title: string;
     summary: string;
     intro: string[];
-    items: string[];
-    lab?: string[];
+    items: AreaItem[];
     links?: AreaLink[];
     aliases?: string[];
 }
+export declare const itemPage: (item: AreaItem) => string;
+export declare const itemLab: (item: AreaItem) => string[];
 export declare const DOCS_AREAS: DocsArea[];
 export declare const VISIBLE_AREAS: DocsArea[];
 export declare const DOCS_NAV: { id: string; title: string; items: string[] }[];

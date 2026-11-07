@@ -1,7 +1,7 @@
 import { Container } from 'pixi.js';
 import { createSilkApp, SilkGraphics } from 'pixi-silk';
 import './_shared/proto.css';
-import { LAB_HOME, REFS } from './_shared/paths';
+import { LAB_HOME, LAB_HOME_LABEL, REFS } from './_shared/paths';
 import { Cx, type SheetWidget } from './_sheets/cx';
 import { SHEETS, type SheetDef } from './_sheets/registry';
 
@@ -27,7 +27,7 @@ let index = Math.max(
 document.body.insertAdjacentHTML(
     'beforeend',
     `
-<div class="chrome"><a class="back" href="${LAB_HOME}">Back to lab</a><div class="titles"><h1>Widget viewer</h1>
+<div class="chrome"><a class="back" href="${LAB_HOME}">${LAB_HOME_LABEL}</a><div class="titles"><h1>Widget viewer</h1>
 <p>Every widget from the reference sheets, rendered live with Silk next to its crop of the reference. Use the arrow keys to step through them. Overlay the reference to check the alignment.</p></div></div>
 <div class="viewer">
   <div class="vbar controls-inline">

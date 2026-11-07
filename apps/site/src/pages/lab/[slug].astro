@@ -1,13 +1,18 @@
 ---
 import { LAB_SECTIONS } from '@/lab/catalog.mjs';
 import Lab from '@/layouts/Lab.astro';
+import { labHomes } from '@/lib/docs';
 
-export function getStaticPaths() {
-    return LAB_SECTIONS.flatMap(([section, items]) => items.map(([slug, name, description]) => ({ params: { slug }, props: { name, description, section } })));
+export async function getStaticPaths() {
+    const homes = await labHomes();
+
+    return LAB_SECTIONS.flatMap(([, items]) =>
+        items.map(([slug, name, description]) => ({ params: { slug }, props: { name, description, home: homes.get(slug)! } })),
+    );
 }
 
 const { slug } = Astro.params;
-const { name, description, section } = Astro.props;
+const { name, description, home } = Astro.props;
 ---
 
-<Lab slug={slug} name={name} description={description} section={section} />
+<Lab slug={slug} name={name} description={description} home={home} />
