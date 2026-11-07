@@ -11,6 +11,82 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./signal": {
+      "types": "./dist/signal.d.ts",
+      "default": "./dist/signal.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "default": "./dist/ui/index.js"
+    },
+    "./ui/radial": {
+      "types": "./dist/ui/RadialMenu.d.ts",
+      "default": "./dist/ui/RadialMenu.js"
+    },
+    "./ui/button": {
+      "types": "./dist/ui/SilkButton.d.ts",
+      "default": "./dist/ui/SilkButton.js"
+    },
+    "./ui/dock": {
+      "types": "./dist/ui/ButtonDock.d.ts",
+      "default": "./dist/ui/ButtonDock.js"
+    },
+    "./ui/gizmo": {
+      "types": "./dist/ui/gizmo.d.ts",
+      "default": "./dist/ui/gizmo.js"
+    },
+    "./ui/outline": {
+      "types": "./dist/ui/outline.d.ts",
+      "default": "./dist/ui/outline.js"
+    },
+    "./ui/snap": {
+      "types": "./dist/ui/snap.d.ts",
+      "default": "./dist/ui/snap.js"
+    },
+    "./ui/color": {
+      "types": "./dist/ui/color.d.ts",
+      "default": "./dist/ui/color.js"
+    },
+    "./ui/halo": {
+      "types": "./dist/ui/halo.d.ts",
+      "default": "./dist/ui/halo.js"
+    },
+    "./ui/brush": {
+      "types": "./dist/ui/brush.d.ts",
+      "default": "./dist/ui/brush.js"
+    },
+    "./ui/modes": {
+      "types": "./dist/ui/modes.d.ts",
+      "default": "./dist/ui/modes.js"
+    },
+    "./ui/dial": {
+      "types": "./dist/ui/dial.d.ts",
+      "default": "./dist/ui/dial.js"
+    },
+    "./ui/timeline": {
+      "types": "./dist/ui/timeline.d.ts",
+      "default": "./dist/ui/timeline.js"
+    },
+    "./ui/odometer": {
+      "types": "./dist/ui/odometer.d.ts",
+      "default": "./dist/ui/odometer.js"
+    },
+    "./ui/gesture": {
+      "types": "./dist/ui/gesture.d.ts",
+      "default": "./dist/ui/gesture.js"
+    },
+    "./ui/arc": {
+      "types": "./dist/ui/arc.d.ts",
+      "default": "./dist/ui/arc.js"
+    },
+    "./ui/keys": {
+      "types": "./dist/ui/keys.d.ts",
+      "default": "./dist/ui/keys.js"
+    },
+    "./ui/pill": {
+      "types": "./dist/ui/pill.d.ts",
+      "default": "./dist/ui/pill.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

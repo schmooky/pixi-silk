@@ -1,0 +1,35 @@
+---
+title: Slot HUD examples
+eyebrow: Examples
+seoTitle: 'Slot game HUD controls for PixiJS: spin, autoplay, meters'
+description: 'Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy.'
+keywords: ['slot HUD PixiJS', 'spin button', 'autoplay', 'win meter', 'casino game UI']
+updated: 2026-11-07
+---
+
+These controls are examples, not part of the library. Each demo is one file: open its source,
+copy it into your game and restyle it. They are built from the same atoms as the library widgets:
+`SilkGraphics`, `Spring` and `damp`, signals, `trackGesture` and `RadialMenu`.
+
+## Spin button and autoplay
+
+<Demo name="slot-spin" height={320} caption="Tap to spin, tap again to stop. Hold for the autoplay picker and drag to a count." />
+
+The arrow morphs into a stop square while the reels run. The yellow ring shows the autoplay spins
+left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release picks a
+count in one gesture.
+
+## Balance, win and bet
+
+<Demo name="slot-wallet" height={340} caption="Turn the dial to pick a bet, press SPIN. Tap a counting win to skip it." />
+
+Built on the library's `Odometer` and `JogDial`. The dial's detents are positions on a bet
+ladder, and its readout shows the bet at that position.
+
+## Meters, badges and pips
+
+<Demo name="slot-meters" height={360} caption="Press WIN to feed the meters. Hold BUY until the bar fills." />
+
+## A dock that steps aside
+
+<Demo name="spin-dock" height={340} caption="Pick a speed, then spin. Side buttons leave and the speed switch locks while the reels run." />

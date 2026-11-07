@@ -2,7 +2,28 @@ import { defineConfig } from 'tsdown';
 import { glsl } from './build/glsl.ts';
 
 export default defineConfig({
-    entry: ['src/index.ts'],
+    entry: [
+        'src/index.ts',
+        'src/signal.ts',
+        'src/ui/index.ts',
+        'src/ui/RadialMenu.ts',
+        'src/ui/SilkButton.ts',
+        'src/ui/ButtonDock.ts',
+        'src/ui/gizmo.ts',
+        'src/ui/outline.ts',
+        'src/ui/snap.ts',
+        'src/ui/color.ts',
+        'src/ui/halo.ts',
+        'src/ui/brush.ts',
+        'src/ui/modes.ts',
+        'src/ui/dial.ts',
+        'src/ui/timeline.ts',
+        'src/ui/odometer.ts',
+        'src/ui/gesture.ts',
+        'src/ui/arc.ts',
+        'src/ui/keys.ts',
+        'src/ui/pill.ts',
+    ],
     // ESM only, one output file per source module: with `sideEffects: false` an app's bundler
     // drops every module it does not use (motion helpers never pull in the shader)
     format: 'esm',

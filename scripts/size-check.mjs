@@ -20,7 +20,7 @@ const baselinePath = join(root, 'ci/size-baseline.json');
 const work = join(root, 'node_modules/.cache/size-check');
 const TOLERANCE = 0.1;
 
-/** name: [what the app imports, markers that must NOT end up in that bundle] */
+/** name: [what the app imports, markers that must NOT end up in that bundle, subpath (default the root)] */
 const IMPORTS = {
     everything: ['*', []],
     SilkGraphics: ['SilkGraphics', []],
@@ -32,6 +32,23 @@ const IMPORTS = {
         ['#version 300 es', 'silk-gradient-atlas', 'oklab'],
     ],
     parseColor: ['parseColor', ['#version 300 es', 'silk-gradient-atlas']],
+    'signal (signal, computed, batch)': ['signal, computed, batch', ['#version 300 es', 'RadialMenu'], '/signal'],
+    'ui/radial (RadialMenu)': ['RadialMenu, bindRadialTrigger', ['SilkButton', 'ButtonDock'], '/ui/radial'],
+    'ui/button (SilkButton)': ['SilkButton', ['RadialMenu', 'ButtonDock'], '/ui/button'],
+    'ui/dock (ButtonDock)': ['ButtonDock', ['RadialMenu', '#version 300 es'], '/ui/dock'],
+    'ui/gizmo': ['*', ['RadialMenu', 'ColorModel'], '/ui/gizmo'],
+    'ui/outline': ['*', ['RadialMenu', 'TransformGizmo'], '/ui/outline'],
+    'ui/snap': ['*', ['RadialMenu'], '/ui/snap'],
+    'ui/snap (SnapEngine only)': ['SnapEngine', ['#version 300 es', 'RadialMenu'], '/ui/snap'],
+    'ui/color': ['*', ['RadialMenu', 'TransformGizmo'], '/ui/color'],
+    'ui/halo': ['*', ['ColorModel', 'TransformGizmo'], '/ui/halo'],
+    'ui/brush': ['*', ['RadialMenu', 'ColorModel'], '/ui/brush'],
+    'ui/modes': ['*', ['ColorModel', 'TransformGizmo'], '/ui/modes'],
+    'ui/dial': ['*', ['RadialMenu', 'MiniTimeline'], '/ui/dial'],
+    'ui/timeline': ['*', ['RadialMenu', 'JogDial'], '/ui/timeline'],
+    'ui/odometer': ['*', ['RadialMenu', '#version 300 es'], '/ui/odometer'],
+    'ui/gesture': ['*', ['#version 300 es', 'RadialMenu'], '/ui/gesture'],
+    'ui (everything)': ['*', [], '/ui'],
 };
 
 // a scratch project that depends on the built package, so resolution goes through its package.json
@@ -43,12 +60,14 @@ const kb = (n) => `${(n / 1024).toFixed(2)} kB`;
 const results = {};
 const failures = [];
 
-for (const [name, [specifiers, forbidden]] of Object.entries(IMPORTS)) {
+for (const [name, [specifiers, forbidden, subpath = '']] of Object.entries(IMPORTS)) {
     const entry = join(work, `${Object.keys(results).length}.js`);
 
     writeFileSync(
         entry,
-        specifiers === '*' ? `export * from 'pixi-silk';\n` : `export { ${specifiers} } from 'pixi-silk';\n`,
+        specifiers === '*'
+            ? `export * from 'pixi-silk${subpath}';\n`
+            : `export { ${specifiers} } from 'pixi-silk${subpath}';\n`,
     );
     const bundle = await rolldown({ input: entry, external: [/^pixi\.js/], logLevel: 'silent' });
     const { output } = await bundle.generate({ format: 'esm', minify: true });
