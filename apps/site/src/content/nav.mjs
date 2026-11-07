@@ -13,7 +13,7 @@ export const DOCS_NAV = [
     },
     { title: 'Drawing', items: ['shapes', 'arcs-and-rings', 'lines-and-paths', 'fills-and-strokes', 'dashes'] },
     { title: 'Paint', items: ['gradients', 'blur-and-shadows'] },
-    { title: 'Building UI', items: ['charts', 'transforms', 'hit-testing', 'animation'] },
+    { title: 'Building UI', items: ['charts', 'transforms', 'hit-testing', 'animation', 'radial-menus-and-buttons'] },
     { title: 'Rendering', items: ['resolution', 'performance', 'how-it-works'] },
 ];
 

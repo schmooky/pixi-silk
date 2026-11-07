@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 const DOCS = resolve('src/content/docs');
 const OUT = resolve('node_modules/.cache/snippets');
 const LIB = resolve('../../packages/pixi-silk/src/index.ts');
+const SRC = resolve('../../packages/pixi-silk/src');
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
@@ -79,6 +80,13 @@ declare global {
     const el: HTMLElement;
     const pointerGlobal: Pixi.PointData;
     function draw(value?: number): void;
+
+    // UI samples: icon drawers, a trigger and the actions buttons call
+    const drawPointer: (g: Silk.SilkGraphics, size: number) => void;
+    const drawMove: typeof drawPointer, drawTrash: typeof drawPointer, drawPlay: typeof drawPointer;
+    const toolButton: Pixi.Container;
+    function spinOnce(): void;
+    function autoplay(): void;
 }
 `,
 );
@@ -95,7 +103,14 @@ writeFileSync(
             noEmit: true,
             skipLibCheck: true,
             allowUnusedLabels: false,
-            paths: { 'pixi-silk': [LIB] },
+            paths: {
+                'pixi-silk': [LIB],
+                'pixi-silk/signal': [join(SRC, 'signal.ts')],
+                'pixi-silk/ui': [join(SRC, 'ui/index.ts')],
+                'pixi-silk/ui/radial': [join(SRC, 'ui/RadialMenu.ts')],
+                'pixi-silk/ui/button': [join(SRC, 'ui/SilkButton.ts')],
+                'pixi-silk/ui/dock': [join(SRC, 'ui/ButtonDock.ts')],
+            },
         },
         include: ['*.ts'],
     }),

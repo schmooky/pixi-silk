@@ -11,6 +11,26 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./signal": {
+      "types": "./dist/signal.d.ts",
+      "default": "./dist/signal.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "default": "./dist/ui/index.js"
+    },
+    "./ui/radial": {
+      "types": "./dist/ui/RadialMenu.d.ts",
+      "default": "./dist/ui/RadialMenu.js"
+    },
+    "./ui/button": {
+      "types": "./dist/ui/SilkButton.d.ts",
+      "default": "./dist/ui/SilkButton.js"
+    },
+    "./ui/dock": {
+      "types": "./dist/ui/ButtonDock.d.ts",
+      "default": "./dist/ui/ButtonDock.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

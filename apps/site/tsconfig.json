@@ -6,7 +6,12 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "pixi-silk": ["../../packages/pixi-silk/src/index.ts"]
+      "pixi-silk": ["../../packages/pixi-silk/src/index.ts"],
+      "pixi-silk/signal": ["../../packages/pixi-silk/src/signal.ts"],
+      "pixi-silk/ui": ["../../packages/pixi-silk/src/ui/index.ts"],
+      "pixi-silk/ui/radial": ["../../packages/pixi-silk/src/ui/RadialMenu.ts"],
+      "pixi-silk/ui/button": ["../../packages/pixi-silk/src/ui/SilkButton.ts"],
+      "pixi-silk/ui/dock": ["../../packages/pixi-silk/src/ui/ButtonDock.ts"]
     },
     "noUnusedLocals": true,
     "noUnusedParameters": true

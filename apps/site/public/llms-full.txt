@@ -1949,6 +1949,363 @@ compares Silk with tessellated graphics.
 
 ---
 
+# Radial menus and buttons
+
+URL: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/
+Section: Building UI
+
+> Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and refuse input while they move. Tree-shakeable, with tiny signal stores.
+
+Live demo `radial-menu` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import type { SilkGraphics } from 'pixi-silk';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { bindRadialTrigger, type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
+import { defineDemo } from './runtime';
+
+// Vector icons: drawn once in white around (0, 0); the menu tints them.
+type Icon = (g: SilkGraphics, s: number) => void;
+const pointer: Icon = (g, s) => {
+    g.triangle(-s * 0.3, -s * 0.42, s * 0.34, s * 0.06, -s * 0.06, s * 0.16, 2).fill(0xffffff);
+    g.line(-s * 0.02, s * 0.12, s * 0.16, s * 0.42).stroke({ width: s * 0.12, cap: 'round', color: 0xffffff });
+};
+const move: Icon = (g, s) => {
+    const r = s * 0.42;
+
+    g.line(-r, 0, r, 0).stroke({ width: s * 0.09, cap: 'round', color: 0xffffff });
+    g.line(0, -r, 0, r).stroke({ width: s * 0.09, cap: 'round', color: 0xffffff });
+    for (let i = 0; i < 4; i++) {
+        const a = (i * Math.PI) / 2;
+
+        g.regularPoly(Math.cos(a) * r, Math.sin(a) * r, s * 0.14, 3, a + Math.PI / 2, 1).fill(0xffffff);
+    }
+};
+const rotate: Icon = (g, s) => {
+    g.arcSweep(0, 0, s * 0.32, -Math.PI * 0.35, Math.PI * 1.6).stroke({
+        width: s * 0.1,
+        cap: 'round',
+        color: 0xffffff,
+    });
+    g.regularPoly(s * 0.18, -s * 0.3, s * 0.14, 3, Math.PI / 2, 1).fill(0xffffff);
+};
+const scale: Icon = (g, s) => {
+    g.roundRect(-s * 0.4, -s * 0.1, s * 0.5, s * 0.5, 3).stroke({ width: s * 0.08, color: 0xffffff });
+    g.roundRect(-s * 0.1, -s * 0.42, s * 0.52, s * 0.52, 3).fill(0xffffff);
+};
+const gear: Icon = (g, s) => {
+    g.circle(0, 0, s * 0.33).stroke({ width: s * 0.16, dash: [s * 0.13, s * 0.13], color: 0xffffff });
+    g.circle(0, 0, s * 0.22).stroke({ width: s * 0.1, color: 0xffffff });
+};
+const more: Icon = (g, s) => {
+    for (const x of [-1, 0, 1]) g.circle(x * s * 0.28, 0, s * 0.09).fill(0xffffff);
+};
+const heart: Icon = (g, s) => g.heart(0, 0, s * 0.8, 0.1).fill(0xffffff);
+const star: Icon = (g, s) => g.star(0, 0, 5, s * 0.45, undefined, 0, 1.5).fill(0xffffff);
+const plus: Icon = (g, s) => {
+    g.line(-s * 0.35, 0, s * 0.35, 0).stroke({ width: s * 0.13, cap: 'round', color: 0xffffff });
+    g.line(0, -s * 0.35, 0, s * 0.35).stroke({ width: s * 0.13, cap: 'round', color: 0xffffff });
+};
+
+const tools: RadialItem[] = [
+    { id: 'select', label: 'SELECT', icon: pointer },
+    {
+        id: 'move',
+        label: 'MOVE',
+        icon: move,
+        children: [
+            { id: 'intuitive', label: 'Intuitive' },
+            { id: 'axis', label: 'Axis' },
+            { id: 'free', label: 'Free' },
+        ],
+    },
+    {
+        id: 'rotate',
+        label: 'ROTATE',
+        icon: rotate,
+        children: [
+            { id: 'uniform', label: 'Uniform' },
+            { id: 'axis', label: 'Axis' },
+            { id: 'free', label: 'Free' },
+        ],
+    },
+    { id: 'scale', label: 'SCALE', icon: scale },
+    { id: 'settings', label: 'SETTINGS', icon: gear, disabled: true },
+    { id: 'more', label: 'MORE', icon: more },
+];
+
+// Press anywhere (or the round button) and drag to an item, or tap to keep the menu open.
+// The `+` button opens a half ring that turns away from the edge it sits on.
+export default defineDemo({
+    size: [640, 400],
+    touchAction: 'none',
+    controls: {
+        closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const surface = new Container();
+        const status = new Text({
+            text: 'press, drag, release, or tap',
+            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+        });
+        const bounds = { x: 0, y: 0, width: 640, height: 400 };
+        const report = (_item: RadialItem, path: readonly RadialItem[]) => {
+            status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
+        };
+        const menu = new RadialMenu({ items: tools, bounds, ticker, onSelect: report });
+        const quick = new RadialMenu({
+            items: [
+                { id: 'heart', label: 'LIKE', icon: heart },
+                { id: 'star', label: 'FAVOURITE', icon: star },
+                { id: 'plus', label: 'ADD', icon: plus },
+                { id: 'more', label: 'MORE', icon: more },
+            ],
+            sweep: Math.PI * 0.9,
+            innerRadius: 34,
+            outerRadius: 92,
+            bounds,
+            ticker,
+            onSelect: report,
+        });
+        const hub = new SilkButton({ shape: 'circle', height: 64, icon: gear, iconSize: 28, ticker });
+        const add = new SilkButton({ shape: 'circle', height: 52, icon: plus, iconSize: 22, ticker });
+
+        surface.eventMode = 'static';
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 640 && y <= 400 };
+        status.position.set(20, 18);
+        hub.position.set(200, 210);
+        add.position.set(586, 346);
+        stage.addChild(surface, status, hub, add, menu, quick);
+
+        bindRadialTrigger(surface, menu, { at: 'pointer' });
+        bindRadialTrigger(hub, menu);
+        bindRadialTrigger(add, quick);
+        menu.state.hover.subscribe((item) => {
+            if (item) status.text = `${menu.state.kind.value}: ${item.id}${item.disabled ? ' (disabled)' : ''}`;
+        });
+
+        tick(() => {
+            menu.closeOnLeave = quick.closeOnLeave = params.closeOnLeave;
+        });
+
+        return undefined;
+    },
+});
+```
+
+## Import only what you use
+
+Each widget has its own entry point. Nothing else comes along: the menu does not pull in the button,
+and `pixi-silk/signal` has no Pixi code at all.
+
+```ts
+import { RadialMenu, bindRadialTrigger } from 'pixi-silk/ui/radial';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { signal, computed, batch } from 'pixi-silk/signal';
+```
+
+## Radial menus
+
+```ts
+const menu = new RadialMenu({
+    items: [
+        { id: 'select', label: 'SELECT', icon: drawPointer },
+        { id: 'move', label: 'MOVE', icon: drawMove, children: [{ id: 'axis', label: 'Axis' }, { id: 'free', label: 'Free' }] },
+        { id: 'delete', label: 'DELETE', icon: drawTrash, disabled: true },
+    ],
+    sweep: Math.PI * 2, // Math.PI for a half ring
+    bounds: { x: 0, y: 0, width: app.screen.width, height: app.screen.height },
+    onSelect: (item, path) => console.log(path.map((i) => i.id).join(' > ')),
+});
+
+app.stage.addChild(menu);
+bindRadialTrigger(toolButton, menu); // or menu.openAt(x, y, event)
+```
+
+How it behaves:
+
+- **Marking.** Press, drag towards an item, release: picked in one gesture. A tap opens the menu
+  and leaves it up for a second tap.
+- **Angle, not hit boxes.** Past the dead zone the whole wedge counts, out to the falloff
+  distance. A fast flick lands on its item even when the pointer overshoots the ring.
+- **Hysteresis.** The current item holds until the pointer is clearly past its edge, so a shaky
+  finger on a boundary does not flicker between two items.
+- **It stays.** Moving away does not close the menu. Set `closeOnLeave` to close it after the
+  pointer stays outside the falloff area for a grace delay.
+- **Nested rings.** Items with `children` open the next ring around themselves, to any depth.
+- **Edges.** Full rings slide inside `bounds`. Partial rings turn to face the inside instead.
+- **Per device.** Dead zone, falloff, size, tap time and hysteresis come from an input profile per
+  pointer kind. Touch gets bigger targets and more forgiveness. Override any of it with `profiles`.
+
+Icons are a string, a texture, a container or a function that draws with `SilkGraphics` in white.
+The menu tints them, so hover colours cost no redraw.
+
+## Buttons that know when to stay still
+
+Live demo `spin-dock` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { defineDemo } from './runtime';
+
+const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
+const minus = (g: SilkGraphics, s: number) =>
+    g.line(-s * 0.3, 0, s * 0.3, 0).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+const plus = (g: SilkGraphics, s: number) => {
+    minus(g, s);
+    g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+};
+const bolt = (g: SilkGraphics, s: number) =>
+    g
+        .poly([
+            s * 0.08,
+            -s * 0.48,
+            -s * 0.3,
+            s * 0.06,
+            -s * 0.02,
+            s * 0.06,
+            -s * 0.1,
+            s * 0.48,
+            s * 0.3,
+            -s * 0.08,
+            0,
+            -s * 0.08,
+        ])
+        .fill(0xffffff);
+
+// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave and the
+// spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+export default defineDemo({
+    size: [560, 340],
+    touchAction: 'none',
+    controls: {
+        enabled: { type: 'toggle', label: 'spin enabled', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const bet = signal(1);
+        const reels = new SilkGraphics();
+        const label = new Text({
+            text: '',
+            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '600' },
+        });
+        const side = { ticker, theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e } };
+        const less = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: minus,
+            onPress: () => bet.update((b) => Math.max(1, b - 1)),
+        });
+        const more = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: plus,
+            onPress: () => bet.update((b) => Math.min(10, b + 1)),
+        });
+        const turbo = new SilkButton({ ...side, width: 92, height: 48, icon: bolt, label: 'Turbo' });
+        const spin = new SilkButton({
+            ticker,
+            shape: 'circle',
+            height: 76,
+            icon: play,
+            iconSize: 30,
+            holdMs: 450,
+            theme: { fill: 0x30d158, fillHover: 0x4ade80, fillPress: 0x248a3d },
+            onPress: () => run(1),
+            onHold: () => run(5),
+        });
+        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more, turbo);
+        let spinning = 0;
+        let left = 0;
+
+        bet.subscribe((b) => (label.text = `bet ${b}`));
+        label.text = `bet ${bet.value}`;
+        label.anchor.set(0.5);
+        label.position.set(280, 34);
+        dock.position.set(280, 282);
+        stage.addChild(reels, label, dock);
+
+        async function run(count: number) {
+            left = count;
+            spin.state.busy.set(true);
+            await Promise.all([less.hide(), more.hide(), turbo.hide()]);
+            while (left-- > 0) {
+                spinning = 1.1;
+                await new Promise((r) => setTimeout(r, 1100));
+            }
+            spin.state.busy.set(false);
+            await dock.showAll();
+        }
+
+        tick((t, dt) => {
+            spin.state.enabled.set(params.enabled);
+            spinning = Math.max(0, spinning - dt);
+            reels.clear();
+            for (let c = 0; c < 5; c++) {
+                const x = 60 + c * 92;
+                const run = spinning > 0 && spinning < 1.1 - c * 0.05 ? 1 : 0;
+
+                reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
+                for (let r = 0; r < 3; r++) {
+                    const y = 70 + r * 54 + (run ? ((t * 900 + c * 40) % 54) - 27 : 0);
+                    const hue = [0xff453a, 0xffd60a, 0x0a84ff, 0xbf5af2][(r + c + (run ? Math.floor(t * 20) : 0)) % 4];
+
+                    reels.roundRect(x + 12, y + 6, 56, 40, 10, 0.6).fill({ color: hue, alpha: run ? 0.55 : 0.9 });
+                }
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+const spin = new SilkButton({ shape: 'circle', height: 76, icon: drawPlay, holdMs: 450, onPress: spinOnce, onHold: autoplay });
+
+await bet.hide();          // resolves when the animation ends
+spin.state.busy.set(true); // spinner, input off
+spin.state.active.subscribe((on) => console.log('accepts input', on));
+```
+
+A button only accepts input when it is shown, settled, enabled and not busy. `show()` and `hide()`
+return promises that resolve `false` if the animation was reversed half way. A press that slides a
+little off the button still counts on release.
+
+`ButtonDock` lines buttons up and closes the gap when one hides. Slot sizes follow each button's
+animated appearance, so the reflow and the fade move together.
+
+## State in signals
+
+Every widget keeps its state in `state`: small signals you can read, write and subscribe to. A
+signal is a value with `subscribe`. There is no tracking magic, so it plugs into React, MobX or
+plain callbacks.
+
+```ts
+const bet = signal(1);
+const label = computed([bet], () => `bet ${bet.value}`);
+
+bet.subscribe((now, before) => console.log(before, '->', now));
+batch(() => {
+    bet.set(2);
+    bet.set(3);
+}); // one notification
+```
+
+Widgets animate on `Ticker.shared` and leave the ticker once nothing moves. Pass `ticker` to use
+your application's ticker, or `null` to step them yourself with `tick(dt)`.
+
+---
+
 # Resolution & DPR
 
 URL: https://pixi-silk.schmooky.dev/docs/resolution/

@@ -19,5 +19,20 @@
   },
   "parseColor": {
     "gzip": 290
+  },
+  "signal (signal, computed, batch)": {
+    "gzip": 371
+  },
+  "ui/radial (RadialMenu)": {
+    "gzip": 20326
+  },
+  "ui/button (SilkButton)": {
+    "gzip": 18166
+  },
+  "ui/dock (ButtonDock)": {
+    "gzip": 1033
+  },
+  "ui (everything)": {
+    "gzip": 22901
   }
 }
