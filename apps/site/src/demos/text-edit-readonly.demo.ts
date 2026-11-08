@@ -5,8 +5,8 @@ import { defineDemo } from './runtime';
 // A read-only paragraph: select with the mouse or a long press, cmd or ctrl + C copies.
 // There is no caret and typing does nothing.
 export default defineDemo({
+    title: 'Read-only text selection',
     size: [520, 260],
-    background: 0x0b0b0d,
     setup({ silk, stage }) {
         const font = 'Inter, system-ui, sans-serif';
         const paragraph = new TextEditor({

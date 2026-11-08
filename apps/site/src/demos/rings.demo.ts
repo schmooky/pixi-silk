@@ -8,6 +8,7 @@ const RINGS = [
 ].map((ring) => ({ ...ring, gradient: conic(ring.colors) }));
 
 export default defineDemo({
+    title: 'Arcs and rings',
     size: [260, 200],
     controls: {
         progress: { type: 'range', label: 'progress', min: 0, max: 1.6, step: 0.01, value: 0.8 },

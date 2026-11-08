@@ -4,6 +4,7 @@ import { defineDemo } from './runtime';
 
 // Left: Pixi v8 Graphics (tessellated, no MSAA). Right: SilkGraphics (distance fields).
 export default defineDemo({
+    title: 'Graphics and SilkGraphics',
     size: [480, 240],
     controls: {
         zoom: { type: 'range', label: 'zoom', min: 1, max: 6, step: 0.01, value: 1 },

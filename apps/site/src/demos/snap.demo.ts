@@ -9,6 +9,7 @@ import { defineDemo } from './runtime';
 // Drag a card: edges and centres line up with the others, and equal gaps show their size.
 // Hold Ctrl or Cmd to move without guides.
 export default defineDemo({
+    title: 'Snapping',
     size: [640, 380],
     touchAction: 'none',
     controls: {

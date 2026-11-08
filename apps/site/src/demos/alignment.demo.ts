@@ -5,6 +5,7 @@ import { defineDemo } from './runtime';
 const MODES = ['inside', 'center', 'outside'] as const;
 
 export default defineDemo({
+    title: 'Stroke alignment',
     size: [480, 200],
     controls: {
         width: { type: 'range', label: 'stroke width', min: 1, max: 24, step: 1, value: 12, unit: 'px' },

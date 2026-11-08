@@ -8,8 +8,8 @@ import { defineDemo } from './runtime';
 // Single-line fields drawn on the canvas. Tab moves to the next field, Enter in the last one sends
 // the form. Japanese or Chinese input, dead keys and the emoji picker type into them as usual.
 export default defineDemo({
+    title: 'Text form',
     size: [520, 330],
-    background: 0x0f0f11,
     setup({ silk, stage }) {
         const font = 'Inter, system-ui, sans-serif';
         const fields: TextEditor[] = [];

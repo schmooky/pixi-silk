@@ -14,8 +14,8 @@ const COLORS = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2, 0x64d2ff];
 // Tint recolours the selection through signals, recorded without writing a command.
 // Every step lands in the list on the right. Cmd or ctrl + Z undoes, Shift + cmd + Z redoes.
 export default defineDemo({
+    title: 'Selection and history',
     size: [760, 420],
-    background: 0x151517,
     touchAction: 'none',
     setup({ stage, silk }) {
         const ticker = silk.app.ticker;

@@ -45,6 +45,7 @@ function border(u0: number, gap: number): number[] {
 }
 
 export default defineDemo({
+    title: 'Glow button',
     size: [620, 360],
     background: 0x05061a,
     touchAction: 'none',

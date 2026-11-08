@@ -2,6 +2,7 @@ import { SilkGraphics, type StrokeStyle } from 'pixi-silk';
 import { defineDemo } from './runtime';
 
 export default defineDemo({
+    title: 'Dashes',
     size: [480, 220],
     controls: {
         dash: { type: 'range', label: 'dash', min: 0, max: 30, step: 1, value: 10 },

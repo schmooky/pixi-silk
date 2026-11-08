@@ -3,6 +3,7 @@ import { defineDemo } from './runtime';
 
 // A Siemens star is the hardest test for anti-aliasing: every wedge narrows below a pixel.
 export default defineDemo({
+    title: 'Resolution',
     size: [480, 240],
     controls: {
         resolution: { type: 'select', label: 'resolution', options: ['device', '1x', '2x', '3x'], value: 'device' },

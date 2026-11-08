@@ -3,6 +3,7 @@ import { defineDemo } from './runtime';
 
 // save / translateTransform / rotateTransform / scaleTransform / restore, like Pixi's GraphicsContext.
 export default defineDemo({
+    title: 'Transform stack',
     size: [420, 220],
     controls: {
         speed: { type: 'range', label: 'speed', min: 0, max: 3, step: 0.05, value: 1 },

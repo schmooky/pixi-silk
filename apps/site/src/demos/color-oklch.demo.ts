@@ -5,6 +5,7 @@ import { defineDemo } from './runtime';
 // Lightness against chroma for one OKLCH hue. The grey area is outside sRGB; dragging into it
 // slides along the edge. The sliders edit the same colour in the chosen space.
 export default defineDemo({
+    title: 'OKLCH picker',
     size: [600, 260],
     touchAction: 'none',
     controls: {

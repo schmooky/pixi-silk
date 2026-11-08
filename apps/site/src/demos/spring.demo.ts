@@ -4,6 +4,7 @@ import { defineDemo } from './runtime';
 
 // Frame-rate independent motion: the knob glides the same at 60, 120 or 144 Hz.
 export default defineDemo({
+    title: 'Spring',
     size: [480, 200],
     touchAction: 'none',
     controls: {

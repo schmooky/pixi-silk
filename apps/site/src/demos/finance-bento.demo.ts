@@ -76,6 +76,7 @@ function place(child: Container, x: number, y: number, ax = 0, ay = 0) {
 }
 
 export default defineDemo({
+    title: 'Finance bento',
     size: [W, H],
     setup({ silk, stage, tick }) {
         const ticker = silk.app.ticker;
