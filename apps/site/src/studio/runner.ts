@@ -73,7 +73,7 @@ async function runDemo(code: string) {
     const mounted = await mountDemo(demo, host, values);
 
     // SDF shapes stay sharp at any zoom, so the preview can pan and zoom without limit
-    attachCamera(mounted.silk.app.stage, host);
+    if (!demo.ownsCamera) attachCamera(mounted.silk.app.stage, host);
     const entries = Object.entries(demo.controls ?? {});
 
     for (const [key, control] of entries) {

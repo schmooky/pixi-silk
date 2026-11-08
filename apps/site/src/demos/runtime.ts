@@ -55,6 +55,8 @@ export interface Demo<C extends Controls = Controls> {
     size: [number, number];
     background?: number;
     controls?: C;
+    /** The demo pans and zooms itself, so Studio leaves its own camera off. */
+    ownsCamera?: boolean;
     /** CSS touch-action of the canvas: `none` for demos that handle drags themselves. */
     touchAction?: string;
     /** Builds the scene; may return a cleanup function. */

@@ -39,6 +39,14 @@
       "types": "./dist/ui/outline.d.ts",
       "default": "./dist/ui/outline.js"
     },
+    "./ui/camera": {
+      "types": "./dist/ui/camera.d.ts",
+      "default": "./dist/ui/camera.js"
+    },
+    "./ui/measure": {
+      "types": "./dist/ui/measure.d.ts",
+      "default": "./dist/ui/measure.js"
+    },
     "./ui/snap": {
       "types": "./dist/ui/snap.d.ts",
       "default": "./dist/ui/snap.js"

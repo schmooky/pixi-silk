@@ -97,12 +97,13 @@ export const DOCS_AREAS = [
     {
         id: 'editor-ui',
         title: 'Editor UI',
-        summary: 'Transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.',
+        summary:
+            'An infinite canvas, measurements, transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with transform gizmos for selecting and moving things. Colour pickers, editor tools and dials add the controls around them.',
+            'Start with the camera and measurements, then transform gizmos for selecting and moving things. Colour pickers, editor tools and dials add the controls around them.',
         ],
-        items: ['transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
+        items: ['canvas-and-measurements', 'transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
     },
     {
         id: 'examples',

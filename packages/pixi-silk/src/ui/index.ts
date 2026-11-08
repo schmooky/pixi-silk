@@ -4,6 +4,15 @@ export { AngleAccumulator, angleDelta, clamp, rubberBand, snapTo, TAU, wrapAngle
 export { ButtonDock, type ButtonDockOptions } from './ButtonDock';
 export { BrushCursor, type BrushCursorOptions, type BrushState } from './brush';
 export {
+    Camera,
+    type CameraOptions,
+    type CameraState,
+    type WorldRect,
+    ZoomControl,
+    type ZoomControlOptions,
+    zoomLabel,
+} from './camera';
+export {
     angleToHue,
     ChannelSliders,
     type ChannelSlidersOptions,
@@ -89,6 +98,7 @@ export {
 export type { IconSource } from './icon';
 export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, modDown, onKey, shiftDown } from './keys';
+export { Measure, type MeasureOptions, type MeasureRect, type MeasureTarget, type Redline, redlines } from './measure';
 export {
     ModeSwitcher,
     type ModeSwitcherOptions,

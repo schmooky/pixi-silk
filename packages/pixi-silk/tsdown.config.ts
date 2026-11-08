@@ -13,6 +13,8 @@ export default defineConfig({
         'src/ui/ButtonDock.ts',
         'src/ui/gizmo.ts',
         'src/ui/outline.ts',
+        'src/ui/camera.ts',
+        'src/ui/measure.ts',
         'src/ui/snap.ts',
         'src/ui/color.ts',
         'src/ui/halo.ts',

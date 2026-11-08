@@ -41,6 +41,15 @@
   "ui/snap": {
     "gzip": 19869
   },
+  "ui/camera": {
+    "gzip": 20689
+  },
+  "ui/camera (Camera only)": {
+    "gzip": 3020
+  },
+  "ui/measure": {
+    "gzip": 19545
+  },
   "ui/snap (SnapEngine only)": {
     "gzip": 1303
   },
@@ -75,6 +84,6 @@
     "gzip": 19587
   },
   "ui (everything)": {
-    "gzip": 54545
+    "gzip": 59335
   }
 }
