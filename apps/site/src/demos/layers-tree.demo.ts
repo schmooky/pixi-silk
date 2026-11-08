@@ -4,7 +4,7 @@ import { watch } from 'pixi-silk/signal';
 import { SilkText } from 'pixi-silk/text';
 import { type LayerIcon, LayerTree, type TreeAdapter } from 'pixi-silk/ui/layers';
 import { PANEL_THEME, Panel } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { defineDemo, INK } from './runtime';
 
 /** The app's own model: plain objects, no Pixi in them. */
 interface Item {
@@ -28,8 +28,8 @@ const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
 // click and cmd or ctrl + click select. Drag rows to reorder them, or drop them on a group to move
 // them inside. Double click a name to rename it. Arrow keys move the selection.
 export default defineDemo({
-    size: [640, 460],
-    background: 0x141416,
+    title: 'Layer tree',
+    size: [720, 460],
     touchAction: 'none',
     setup({ silk, stage }) {
         const canvas = silk.app.canvas;
@@ -82,9 +82,9 @@ export default defineDemo({
             fontFamily: PANEL_THEME.fontFamily,
             fontSize: 13,
             lineHeight: 20,
-            fill: 0x8e8e96,
+            fill: INK.muted,
             wordWrap: true,
-            wordWrapWidth: 260,
+            wordWrapWidth: 340,
         });
         const onKey = (e: KeyboardEvent) => {
             const mod = e.metaKey || e.ctrlKey;
@@ -98,7 +98,7 @@ export default defineDemo({
         addEventListener('keydown', onKey);
         tree.expand(root.children[0], true);
         panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
-        info.position.set(356, 40);
+        info.position.set(352, 40);
         stage.addChild(panel, info);
         const show = () => {
             const picked = selection.items.map((n) => n.name);

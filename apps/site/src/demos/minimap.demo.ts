@@ -3,13 +3,13 @@ import { SilkGraphics } from 'pixi-silk';
 import { Camera } from 'pixi-silk/ui/camera';
 import { Minimap } from 'pixi-silk/ui/minimap';
 import { panelHitTest } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { defineDemo, SERIES } from './runtime';
 
 // Scroll to pan and pinch or ctrl + scroll to zoom. The minimap follows the view. Drag its frame
 // to pan, click anywhere on it to jump there, and scroll over it to zoom.
 export default defineDemo({
-    size: [760, 460],
-    background: 0x101012,
+    title: 'Minimap',
+    size: [720, 460],
     touchAction: 'none',
     ownsCamera: true,
     controls: {
@@ -23,7 +23,7 @@ export default defineDemo({
 
         app.stage.addChild(world);
         // a board of cards in rows, some wide, some tall
-        const colours = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff];
+        const colours = SERIES;
 
         for (let i = 0; i < 60; i++) {
             const w = 120 + ((i * 53) % 140);
@@ -38,7 +38,10 @@ export default defineDemo({
             map?.position.set(app.screen.width - map.mapWidth - 16, app.screen.height - map.mapHeight - 16);
         const build = (mode: 'bounds' | 'texture') => {
             map?.destroy();
-            map = new Minimap({ camera, width: 230, height: 150, mode, renderer: app.renderer });
+            // a third of a narrow canvas at most, so the board stays in view on a phone
+            const width = Math.min(200, Math.round(app.screen.width * 0.34));
+
+            map = new Minimap({ camera, width, height: Math.round(width * 0.62), mode, renderer: app.renderer });
             maps[0] = map;
             app.stage.addChild(map);
             place();
