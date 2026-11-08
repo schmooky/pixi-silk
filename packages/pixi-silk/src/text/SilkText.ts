@@ -241,6 +241,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
 
         super({ geometry, shader, label: opts.label ?? 'SilkText' });
         this.atlas = atlas;
+        // the atlas moves to a new texture when it grows and repoints the shader
+        atlas.track(shader);
         this._f = geometry.instanceBuffer.data as Float32Array;
         this._uniforms = shader.resources.textUniforms as UniformGroup;
         const { text, anchor } = opts;
@@ -569,6 +571,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
 
         super.destroy(options);
         geometry.destroy(true);
+        if (shader) this.atlas.untrack(shader);
         shader?.destroy();
     }
 

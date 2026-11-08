@@ -1,6 +1,6 @@
 {
   "everything": {
-    "gzip": 30274
+    "gzip": 30387
   },
   "SilkGraphics": {
     "gzip": 26359
@@ -9,7 +9,7 @@
     "gzip": 26809
   },
   "createSilkApp": {
-    "gzip": 932
+    "gzip": 1047
   },
   "webgpu (enableWebGPU)": {
     "gzip": 8537
@@ -57,10 +57,10 @@
     "gzip": 29093
   },
   "ui/camera": {
-    "gzip": 30258
+    "gzip": 30318
   },
   "ui/camera (Camera only)": {
-    "gzip": 3346
+    "gzip": 3404
   },
   "ui/measure": {
     "gzip": 28743
@@ -120,31 +120,31 @@
     "gzip": 28793
   },
   "text": {
-    "gzip": 11900
+    "gzip": 12011
   },
   "text (SilkText)": {
-    "gzip": 11083
+    "gzip": 11193
   },
   "text (layoutText, sdfFromAlpha)": {
     "gzip": 1795
   },
   "ui/textedit (TextEditor)": {
-    "gzip": 43025
+    "gzip": 43143
   },
   "ui/pill (ValuePill)": {
     "gzip": 27007
   },
   "ui/panel (Panel)": {
-    "gzip": 45957
+    "gzip": 46066
   },
   "ui/layers (LayerTree)": {
-    "gzip": 57622
+    "gzip": 57734
   },
   "ui/layers (tree math)": {
     "gzip": 890
   },
   "ui/inspector (Inspector)": {
-    "gzip": 58358
+    "gzip": 58474
   },
   "ui/minimap (Minimap)": {
     "gzip": 29301
@@ -162,6 +162,6 @@
     "gzip": 10080
   },
   "ui (everything)": {
-    "gzip": 131437
+    "gzip": 131622
   }
 }

@@ -1,4 +1,4 @@
-import { BufferImageSource, DOMAdapter } from 'pixi.js';
+import { BufferImageSource, DOMAdapter, type Shader } from 'pixi.js';
 import { sdfFromAlpha } from './edt';
 
 /** The font of a glyph: CSS family list, weight and style. Size does not matter, glyphs are baked at one size. */
@@ -154,12 +154,12 @@ export class SdfAtlas {
     readonly cutoff: number;
     /** Empty space around each glyph's ink, in texels. */
     readonly pad: number;
-    /** The R8 texture with every glyph. */
-    readonly source: BufferImageSource;
     /** Grows by one each time the atlas starts over. Texts compare it to know their glyphs moved. */
     version = 0;
 
     private _data: Uint8Array;
+    private _source: BufferImageSource;
+    private readonly _shaders = new Set<Shader>();
     private _height: number;
     private readonly _width: number;
     private readonly _maxHeight: number;
@@ -180,18 +180,30 @@ export class SdfAtlas {
         this._maxHeight = Math.max(this._height, options.maxHeight ?? 4096);
         this._data = new Uint8Array(this._width * this._height);
         this._ctx = options.context ?? null;
-        this.source = new BufferImageSource({
-            resource: this._data,
-            width: this._width,
-            height: this._height,
-            format: 'r8unorm',
-            // one channel of plain data: nothing to premultiply
-            alphaMode: 'premultiplied-alpha',
-            scaleMode: 'linear',
-            addressMode: 'clamp-to-edge',
-            autoGenerateMipmaps: false,
-            label: 'silk-text-atlas',
-        });
+        this._source = this._createSource();
+    }
+
+    /**
+     * The R8 texture with every glyph. When the atlas grows it moves to a new, taller texture, and
+     * the shaders it tracks follow. Read it again after {@link SdfAtlas.flush} rather than keeping it.
+     */
+    get source(): BufferImageSource {
+        return this._source;
+    }
+
+    /**
+     * @internal Points a shader's `uAtlas` at this atlas, now and whenever the texture is replaced.
+     * {@link SilkText} calls it. Call {@link SdfAtlas.untrack} when the shader is destroyed.
+     */
+    track(shader: Shader): void {
+        this._shaders.add(shader);
+        shader.resources.uAtlas = this._source;
+        shader.resources.uAtlasSampler = this._source.style;
+    }
+
+    /** @internal Stops updating a shader passed to {@link SdfAtlas.track}. */
+    untrack(shader: Shader): void {
+        this._shaders.delete(shader);
     }
 
     /** Texture size in texels. */
@@ -255,13 +267,22 @@ export class SdfAtlas {
     flush(): void {
         if (!this._dirty) return;
         this._dirty = false;
-        const src = this.source;
+        if (this._source.resource !== this._data) {
+            // Resizing the texture would free its GPU copy at once, but texts drawn earlier in this
+            // frame may still use it: WebGPU then fails the submit. Move to a new texture and free
+            // the old one after the current task, when every renderer has submitted its frame.
+            const old = this._source;
 
-        if (src.resource !== this._data) {
-            src.resource = this._data;
-            src.resize(this._width, this._height);
+            this._source = this._createSource();
+            for (const shader of this._shaders) {
+                shader.resources.uAtlas = this._source;
+                shader.resources.uAtlasSampler = this._source.style;
+            }
+            setTimeout(() => old.destroy(), 0);
+
+            return;
         }
-        src.update();
+        this._source.update();
     }
 
     /** Forgets every glyph and starts over. Texts rebake what they need on their next frame. */
@@ -277,11 +298,27 @@ export class SdfAtlas {
     /** Frees the texture. */
     destroy(): void {
         this._fonts.clear();
-        this.source.destroy();
+        this._shaders.clear();
+        this._source.destroy();
         if (SdfAtlas._shared === this) SdfAtlas._shared = null;
     }
 
     // ------------------------------------------------------------------------------ internals
+
+    private _createSource(): BufferImageSource {
+        return new BufferImageSource({
+            resource: this._data,
+            width: this._width,
+            height: this._height,
+            format: 'r8unorm',
+            // one channel of plain data: nothing to premultiply
+            alphaMode: 'premultiplied-alpha',
+            scaleMode: 'linear',
+            addressMode: 'clamp-to-edge',
+            autoGenerateMipmaps: false,
+            label: 'silk-text-atlas',
+        });
+    }
 
     private _context(css: string): GlyphContext {
         if (!this._ctx) {

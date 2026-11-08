@@ -335,6 +335,25 @@ describe('SdfAtlas', () => {
 
         expect(z.y + z.h).toBeLessThanOrEqual(128);
     });
+
+    it('grows into a new texture and frees the old one after the frame', async () => {
+        const atlas = new SdfAtlas({ context: fakeContext(), width: 256, height: 64, maxHeight: 1024 });
+        const text = new SilkText({ text: 'A', fontFamily: 'Test', atlas });
+
+        text.updateText();
+        const first = atlas.source;
+
+        // a text later in the same frame needs more room: draws before it still use the old texture
+        text.text = 'ABCDEFGHIJKLMNOP';
+        text.updateText();
+        expect(atlas.source).not.toBe(first);
+        expect(atlas.source.pixelHeight).toBe(atlas.dimensions[1]);
+        expect(text.shader?.resources.uAtlas).toBe(atlas.source);
+        expect(first.destroyed).toBe(false);
+        await new Promise((done) => setTimeout(done, 0));
+        expect(first.destroyed).toBe(true);
+        text.destroy();
+    });
 });
 
 // ----------------------------------------------------------------------------------- SilkText

@@ -1225,6 +1225,9 @@ canvas pixel is one device pixel even at fractional DPRs such as 1.25 or 2.625. 
 changes from browser zoom or a move to another display. Coordinates are not rounded, so motion
 stays sub-pixel smooth. Any other Pixi option you pass overrides these defaults.
 
+It also listens for `pointercancel` on `window`. Pixi ignores that event, so a touch the page
+takes over for a scroll would leave a drag running. The app ends it with `pointerupoutside`.
+
 ### Parameters
 
 | Parameter | Type |
@@ -6280,7 +6283,7 @@ What [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/
 destroy(): void;
 ```
 
-Stops observers, destroys the stage and renderer and removes the canvas. Safe with several apps on a page.
+Stops observers and listeners, destroys the stage and renderer and removes the canvas. Safe with several apps on a page.
 
 ##### Returns
 

@@ -138,6 +138,50 @@ describe('camera', () => {
         camera.destroy();
         expect(reached).toBe(0);
     });
+
+    it('takes touch gestures from the browser while it lives', () => {
+        const world = new Container();
+        const element = fakeElement();
+
+        element.style.touchAction = 'pan-y pinch-zoom';
+        const camera = new Camera({ world, element, ticker: null });
+
+        // with pinch-zoom left to the browser, it zooms the page and cancels the camera's pointers
+        expect(element.style.touchAction).toBe('none');
+        camera.destroy();
+        expect(element.style.touchAction).toBe('pan-y pinch-zoom');
+    });
+
+    it('flings a two-finger pan at the speed of the fingers', () => {
+        const { camera, element } = make();
+        let now = 1000;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const touch = (type: string, id: number, x: number, y: number) =>
+            event(type, { pointerId: id, pointerType: 'touch', button: 0, clientX: x, clientY: y, target: element });
+
+        window.dispatchEvent(touch('pointerdown', 1, 300, 300));
+        window.dispatchEvent(touch('pointerdown', 2, 400, 300));
+        // a browser sends both fingers' moves in the same frame: 5 px every 16 ms is 312 px/s
+        for (let i = 1; i <= 10; i++) {
+            now += 16;
+            window.dispatchEvent(touch('pointermove', 1, 300, 300 + 5 * i));
+            window.dispatchEvent(touch('pointermove', 2, 400, 300 + 5 * i));
+        }
+        expect(camera.state.y.value).toBeCloseTo(50, 6);
+        window.dispatchEvent(touch('pointerup', 1, 300, 350));
+        window.dispatchEvent(touch('pointerup', 2, 400, 350));
+        for (let i = 0; i < 600; i++) {
+            now += 1000 / 60;
+            if (!camera.tick(1 / 60)) break;
+        }
+        // the glide of a fling at v px/s with decay exp(-5t) is v / 5: about 62 px here
+        const glide = camera.state.y.value - 50;
+
+        expect(glide).toBeGreaterThan(40);
+        expect(glide).toBeLessThan(80);
+        clock.mockRestore();
+        camera.destroy();
+    });
 });
 
 describe('redlines', () => {

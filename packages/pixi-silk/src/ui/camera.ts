@@ -107,8 +107,9 @@ const isTyping = (t: EventTarget | null): boolean => {
  * two-finger touch drags pan, and a fling keeps gliding. Pans never reach the scene, so the
  * scene keeps its own clicks and drags.
  *
- * The constructor adds listeners to the element and to `window`. Call {@link Camera.destroy} to
- * remove them. Overlays drawn beside the world, not inside it, keep a constant size on screen.
+ * The constructor adds listeners to the element and to `window`. It also sets the element's CSS
+ * `touch-action` to `none`: pinches and one-finger drags then reach the camera and the scene
+ * instead of zooming or scrolling the page. Call {@link Camera.destroy} to remove both. Overlays drawn beside the world, not inside it, keep a constant size on screen.
  * There is no rotation.
  *
  * Experimental: the API may change in a minor release.
@@ -439,6 +440,13 @@ export class Camera {
     private _listen(): void {
         const el = this._el;
         const o = this._opts;
+        // browsers cancel the pointers of any gesture touch-action leaves to them
+        const touchAction = el.style.touchAction;
+
+        el.style.touchAction = 'none';
+        this._off.push(() => {
+            el.style.touchAction = touchAction;
+        });
         const on = <K extends keyof WindowEventMap>(
             target: Window | HTMLElement,
             type: K,
@@ -606,18 +614,29 @@ export class Camera {
         this._off.push(() => ro.disconnect());
     }
 
-    /** Tracks drag speed for the fling, smoothed over the last few moves. */
+    /**
+     * Tracks drag speed for the fling, smoothed over the last few moves. Moves less than 8 ms
+     * apart add up into one sample. A two-finger pan gets one move per finger in the same frame,
+     * and the second would otherwise count as a jump in no time.
+     */
     private _fling(dx: number, dy: number): void {
         const now = performance.now();
         const last = this._lastMove || now - 16;
-        const dt = Math.max(1, now - last) / 1000;
+
+        this._moveX += dx;
+        this._moveY += dy;
+        if (now - last < 8) return;
+        const dt = (now - last) / 1000;
 
         this._lastMove = now;
-        this._vx = this._vx * 0.6 + (dx / dt) * 0.4;
-        this._vy = this._vy * 0.6 + (dy / dt) * 0.4;
+        this._vx = this._vx * 0.6 + (this._moveX / dt) * 0.4;
+        this._vy = this._vy * 0.6 + (this._moveY / dt) * 0.4;
+        this._moveX = this._moveY = 0;
     }
 
     private _lastMove = 0;
+    private _moveX = 0;
+    private _moveY = 0;
     /** The pointer clicked the canvas and has not left it since: plain scrolls pan. */
     private _engaged = false;
 
@@ -636,6 +655,7 @@ export class Camera {
         const stale = performance.now() - this._lastMove > 60;
 
         this._lastMove = 0;
+        this._moveX = this._moveY = 0;
         if (!(this._opts.inertia ?? true) || stale) this._vx = this._vy = 0;
         else {
             this._free = false;
