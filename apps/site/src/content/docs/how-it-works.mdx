@@ -3,7 +3,7 @@ title: How it works
 seoTitle: 'How SDF anti-aliasing works in pixi-silk'
 description: 'One instanced quad per primitive, exact signed distance functions per pixel, analytic coverage from screen-space derivatives and dithered OKLab ramps.'
 keywords: ['SDF rendering', 'signed distance field anti-aliasing', 'analytic anti-aliasing', 'fwidth antialiasing', 'shader anti-aliasing']
-updated: 2026-09-26
+updated: 2026-11-08
 ---
 
 ## One instance per primitive
@@ -38,10 +38,19 @@ stroke", so no anti-aliased fill edge shows through an inner stroke.
 
 ## Polylines
 
-Each polyline segment is an instance with its neighbours' geometry attached. A segment shades a
-fragment only if it is the nearest one, so joints are round and translucent lines never
-double-blend. A tiny antisymmetric bias breaks ties. Tapered strokes use the exact distance to an
-uneven capsule.
+A stroked path is one instance. Its segments sit in a float texture, and the shader takes the
+nearest of their butt rectangles, caps and joins, as Canvas 2D defines a stroke. Every pixel is
+shaded once, so translucent lines never double-blend. A join polygon reaches a little way back
+along both segments, so no seam shows where two rectangles meet.
+
+Long subpaths are split into chunks of 32 segments. Each chunk also looks at the segment on either
+side and leaves a pixel to its neighbour when that segment is nearer. Tapered strokes keep one
+instance per segment, with the exact distance to an uneven capsule.
+
+## Unions
+
+`union: true` on a fill or stroke stores every shape of the path as a record in the same texture.
+The shader takes the nearest of their distances, so overlapping shapes paint as one.
 
 ## Areas
 

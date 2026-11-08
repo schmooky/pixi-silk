@@ -1,4 +1,4 @@
-import { GlProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
+import { BufferImageSource, GlProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
 import { GradientAtlas } from './atlas';
 
 /*
@@ -32,6 +32,8 @@ uniform vec2 uResolution;
 uniform mat3 uTransformMatrix;
 uniform vec4 uColor;
 uniform vec4 uSilk;
+// batched draws: 3 texels per object (a, b, c, d), (tx, ty, path texel base, 0), premultiplied tint
+uniform highp sampler2D uBatch;
 
 out vec2 vPos;
 flat out vec4 vShape0;
@@ -45,11 +47,28 @@ flat out vec4 vPaint;
 flat out vec4 vDash;
 flat out vec4 vFx;
 flat out vec4 vTint;
+flat out float vBase;
+flat out vec4 vInv; // inverse of the local -> clip map: 2x2 part
+flat out vec2 vInvT; // and its translation
 out float vProg;
 
 void main(void)
 {
-    mat3 m = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
+    mat3 obj = uTransformMatrix;
+    vec4 tint = uColor;
+    vBase = 0.0;
+    int idx = int(aFx.w + 0.5) - 1;
+    if (idx >= 0)
+    {
+        int bw = textureSize(uBatch, 0).x;
+        int t = idx * 3;
+        vec4 r0 = texelFetch(uBatch, ivec2(t % bw, t / bw), 0);
+        vec4 r1 = texelFetch(uBatch, ivec2((t + 1) % bw, (t + 1) / bw), 0);
+        tint = texelFetch(uBatch, ivec2((t + 2) % bw, (t + 2) / bw), 0);
+        obj = mat3(r0.x, r0.y, 0.0, r0.z, r0.w, 0.0, r1.x, r1.y, 1.0);
+        vBase = r1.z;
+    }
+    mat3 m = uProjectionMatrix * uWorldTransformMatrix * obj;
 
     // Jacobian local -> device pixels; its smallest singular value tells how many
     // local units one device pixel spans in the worst direction.
@@ -81,6 +100,8 @@ void main(void)
     }
     else
     {
+        // stroked paths: hairlines are drawn wider than their bounds say
+        if (type == 10) pad += 0.5 * lpx * uSilk.z;
         float pl = pad;
         float pr = pad;
 
@@ -95,6 +116,12 @@ void main(void)
     }
 
     vPos = pos;
+    // Every instance of an object computes the same inverse, so the local position rebuilt from
+    // gl_FragCoord is bit-identical across instances (an interpolated vPos is not).
+    float idet = 1.0 / (m[0].x * m[1].y - m[1].x * m[0].y);
+    mat2 ai = mat2(m[1].y, -m[0].y, -m[1].x, m[0].x) * idet;
+    vInv = vec4(ai[0], ai[1]);
+    vInvT = -(ai * m[2].xy);
     gl_Position = vec4((m * vec3(pos, 1.0)).xy, 0.0, 1.0);
 
     // progressive blur: 0 at the shape's start edge along the angle, 1 at its far edge
@@ -119,7 +146,7 @@ void main(void)
     vPaint = aPaint;
     vDash = aDash;
     vFx = aFx;
-    vTint = uColor * uWorldColorAlpha;
+    vTint = tint * uWorldColorAlpha;
 }
 `;
 
@@ -139,10 +166,14 @@ flat in vec4 vPaint;
 flat in vec4 vDash;
 flat in vec4 vFx;
 flat in vec4 vTint;
+flat in float vBase;
+flat in vec4 vInv;
+flat in vec2 vInvT;
 in float vProg;
 
 uniform highp sampler2D uGradients;
 uniform highp sampler2D uPolys;
+uniform vec2 uResolution;
 uniform vec4 uSilk; // x: dither amplitude (LSB), y: AA ramp width (device px), z: min stroke width (device px)
 
 out vec4 finalColor;
@@ -152,6 +183,14 @@ const float TAU = 6.28318530717959;
 
 float gPx;
 float gSigma;
+int gBase; // first path texel of this object in uPolys (non-zero in batched draws)
+
+vec4 polyTexel(int i)
+{
+    int w = textureSize(uPolys, 0).x;
+    i += gBase;
+    return texelFetch(uPolys, ivec2(i % w, i / w), 0);
+}
 
 float erfApprox(float x)
 {
@@ -266,13 +305,11 @@ float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2)
 // Edges are texels (ax, ay, bx, by) of uPolys, starting at texel 'start'.
 float sdPoly(vec2 p, int start, int n)
 {
-    int w = textureSize(uPolys, 0).x;
     float dd = 1e20;
     bool inside = false;
     for (int i = 0; i < n; i++)
     {
-        int t = start + i;
-        vec4 e = texelFetch(uPolys, ivec2(t % w, t / w), 0);
+        vec4 e = polyTexel(start + i);
         vec2 a = e.xy;
         vec2 ab = e.zw - a;
         vec2 ap = p - a;
@@ -342,6 +379,256 @@ float dashSD(float u, float v, float L, float hw, int cap, bool closed)
     return best;
 }
 
+// Position along the outline and its length, for dashes and path gradients.
+float gU;
+float gL;
+
+// Signed distance to a simple polygon of up to 6 points (any winding).
+float sdPolygon6(vec2 p, vec2 v[6], int n)
+{
+    float d = dot(p - v[0], p - v[0]);
+    float s = 1.0;
+    for (int i = 0; i < 6; i++)
+    {
+        if (i >= n) break;
+        int j = i == 0 ? n - 1 : i - 1;
+        vec2 e = v[j] - v[i];
+        vec2 w = p - v[i];
+        vec2 b = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+        d = min(d, dot(b, b));
+        bvec3 c = bvec3(p.y >= v[i].y, p.y < v[j].y, e.x * w.y > e.y * w.x);
+        if (all(c) || all(not(c))) s = -s;
+    }
+    return s * sqrt(d);
+}
+
+// One straight stroke piece in its own frame (q.x along, q.y across) covering [s0, s1].
+// End kinds: 0 butt, 1 round, 2 square, and at the start 3: the round join of an inner vertex.
+// That disc is cut to the stroke: at most 'back' before s0 and no further than the piece's end.
+// Only the piece after a vertex owns its disc, so two chunks never see the same shape twice.
+float pieceSD(vec2 q, float s0, float s1, int k0, int k1, float hw, float back)
+{
+    float lo = s0 - (k0 == 2 ? hw : 0.0);
+    float hi = s1 + (k1 == 2 ? hw : 0.0);
+    vec2 b = vec2(abs(q.x - 0.5 * (lo + hi)) - 0.5 * (hi - lo), abs(q.y) - hw);
+    float d = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0);
+    float disc = length(vec2(q.x - s0, q.y)) - hw;
+    if (k0 == 1) d = min(d, disc);
+    if (k0 == 3) d = min(d, max(disc, max(s0 - back - q.x, q.x - hi)));
+    if (k1 == 1) d = min(d, length(vec2(q.x - s1, q.y)) - hw);
+    return d;
+}
+
+// How two pieces meet at a vertex: 0 butt ends only (the path folds back), 1 round ends (round
+// joins, and miters or bevels that differ from round by under a tenth of a pixel), 2 miter, 3 bevel.
+int joinKind(vec2 d0, vec2 d1, float hw, int join, float limit, float px)
+{
+    if (join == 0) return 1;
+    float ch = sqrt(max(0.5 * (1.0 + dot(d0, d1)), 0.0)); // cos of half the turn
+    if (ch < 1e-4) return 0;
+    bool miter = join == 1 && 1.0 / ch <= limit;
+    float diff = miter ? hw * (1.0 / ch - 1.0) : hw * (1.0 - ch);
+    if (diff < 0.1 * px) return 1;
+    return miter ? 2 : 3;
+}
+
+// Miter (kind 2) or bevel (kind 3) at v between directions d0 and d1. The polygon also reaches e
+// back along both butt pieces, so it overlaps them and no seam shows where they meet. Its inner
+// side runs through the inner corners of the two butt ends, which keeps it inside the stroke.
+float joinSD(vec2 p, vec2 v, vec2 d0, vec2 d1, float hw, float e, int kind)
+{
+    float cr = d0.x * d1.y - d0.y * d1.x;
+    float sg = cr > 0.0 ? -1.0 : 1.0;
+    vec2 n0 = sg * vec2(-d0.y, d0.x);
+    vec2 n1 = sg * vec2(-d1.y, d1.x);
+    vec2 m = normalize(n0 + n1);
+    float ch = dot(n0, m);
+    float th = dot(d0, m) / max(ch, 1e-6); // tan of half the turn
+    e = min(e, hw / max(th, 1e-6));
+    float inner = e * th - hw;
+    vec2 P[6];
+    P[0] = v - d0 * e + n0 * hw;
+    int k = 1;
+    if (kind == 2)
+    {
+        P[1] = v + m * (hw / ch);
+        k = 2;
+    }
+    else
+    {
+        P[1] = v + n0 * hw;
+        P[2] = v + n1 * hw;
+        k = 3;
+    }
+    P[k] = v + d1 * e + n1 * hw;
+    P[k + 1] = v + d1 * e + n1 * inner;
+    P[k + 2] = v - d0 * e + n0 * inner;
+    return sdPolygon6(p, P, k + 3);
+}
+
+// Segment i of a subpath with n segments starting at texel 'first'. ok = false past an open end.
+vec4 segFetch(int first, int n, bool closed, int i, out bool ok)
+{
+    ok = true;
+    if (i < 0 || i >= n)
+    {
+        if (!closed)
+        {
+            ok = false;
+            return vec4(0.0);
+        }
+        i = (i % n + n) % n;
+    }
+    return polyTexel(first + i);
+}
+
+vec2 segDir(vec4 e)
+{
+    vec2 ab = e.zw - e.xy;
+    float len = length(ab);
+    return len > 1e-9 ? ab / len : vec2(1.0, 0.0);
+}
+
+// Stroke of a path (Prim 10): butt pieces, caps at open ends, a join at every inner vertex.
+// A chunk of a long subpath also evaluates the segment on each side of it: a pixel nearer to a
+// neighbour belongs to the neighbour's instance and is discarded here, so it is shaded once.
+float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
+{
+    int hdr = int(vShape0.x + 0.5);
+    int nSub = int(vShape0.y + 0.5);
+    bool whole = vShape0.w < 0.0;
+    int join = int(vShape1.x + 0.5);
+    float limit = vShape1.y;
+    float dash = vDash.x;
+    float period = max(vDash.x + vDash.y, 1e-5);
+    float own = 1e20;
+    float prevNb = 1e20;
+    float nextNb = 1e20;
+    float best = 1e20;
+    // the vertices a chunk shares with its neighbours, and the bisectors there
+    vec2 v0 = vec2(0.0);
+    vec2 b0 = vec2(0.0);
+    vec2 v1 = vec2(0.0);
+    vec2 b1 = vec2(0.0);
+    gU = 0.0;
+    gL = 1.0;
+    for (int sp = 0; sp < nSub; sp++)
+    {
+        vec4 h = polyTexel(hdr);
+        int n = int(h.x + 0.5);
+        bool closed = h.y > 0.5;
+        float L = h.z;
+        int first = hdr + 1;
+        hdr += 1 + n;
+        int a = whole ? 0 : int(vShape0.z + 0.5);
+        int m = whole ? n : int(vShape0.w + 0.5);
+        // A chunk also evaluates its neighbours' segments up to 'reach' along the path on each
+        // side: caps, discs and joins of short segments reach that far across the boundary.
+        float reach = 3.0 * hw + 2.0 * px;
+        int spare = closed ? n - m : 1 << 20; // never wrap round into the chunk's own segments
+        int kb = 0;
+        float c = whole ? 0.0 : vShape1.z;
+        if (!whole)
+        {
+            float acc = 0.0;
+            for (int j = 1; j <= 16; j++)
+            {
+                bool ok;
+                vec4 e = segFetch(first, n, closed, a - j, ok);
+                if (!ok || j > spare / 2) break;
+                kb = j;
+                acc += length(e.zw - e.xy);
+                if (acc >= reach) break;
+            }
+            c -= acc;
+        }
+        int maxNext = whole ? 0 : min(16, spare - kb);
+        int k0 = -kb;
+        bool hp;
+        bool hc;
+        bool hn;
+        vec4 ep = segFetch(first, n, closed, a + k0 - 1, hp);
+        vec4 ec = segFetch(first, n, closed, a + k0, hc);
+        float accNext = 0.0;
+        for (int k = k0; k < m + 16; k++)
+        {
+            if (k >= m && (k - m >= maxNext || accNext >= reach || !hc)) break;
+            vec4 en = segFetch(first, n, closed, a + k + 1, hn);
+            if (hc)
+            {
+                vec2 sa = ec.xy;
+                float len = length(ec.zw - sa);
+                vec2 dir = segDir(ec);
+                vec2 dp = segDir(ep);
+                int js = hp ? joinKind(dp, dir, hw, join, limit, px) : -1;
+                int je = hn ? joinKind(dir, segDir(en), hw, join, limit, px) : -1;
+                int ks = js < 0 ? cap0 : (js == 1 ? 3 : 0);
+                int ke = je < 0 ? cap1 : 0;
+                // how far the stroke reaches back before this segment
+                float back = closed ? 1e20 : c + (cap0 != 0 ? hw : 0.0);
+                float ej = min(hw, min(len, length(ep.zw - ep.xy)));
+                vec2 w = p - sa;
+                vec2 q = vec2(dot(w, dir), dir.x * w.y - dir.y * w.x);
+                float d = 1e20;
+                if (!dashed)
+                {
+                    d = pieceSD(q, 0.0, len, ks, ke, hw, back);
+                    if (js >= 2) d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
+                }
+                else
+                {
+                    float kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
+                    for (int j = -1; j <= 1; j++)
+                    {
+                        float t0 = (kk + float(j)) * period - vDash.z;
+                        float t1 = t0 + dash;
+                        float lo = max(t0, c);
+                        float hi = min(t1, c + len);
+                        if (hi < lo || (hi == lo && dash > 0.0)) continue;
+                        // a dash cut by a vertex goes on along the next segment: the vertex decides that end
+                        d = min(d, pieceSD(q, lo - c, hi - c, t0 < c ? ks : cap0, t1 > c + len ? ke : cap1, hw, min(back, c - t0)));
+                    }
+                    // a dash that runs through the vertex (not one that starts or ends on it) gets the join
+                    float ph = mod(c + vDash.z, period);
+                    float inDash = min(ph, dash - ph);
+                    if (js >= 2 && inDash > 1e-4 * period) d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
+                }
+                if (d < best)
+                {
+                    best = d;
+                    gU = c + clamp(q.x, 0.0, len);
+                    gL = L;
+                }
+                if (k < 0) prevNb = min(prevNb, d);
+                else if (k >= m) nextNb = min(nextNb, d);
+                else own = min(own, d);
+                if (k == 0 && hp)
+                {
+                    v0 = sa;
+                    b0 = dp + dir;
+                }
+                if (k == m && hp)
+                {
+                    v1 = sa;
+                    b1 = dp + dir;
+                }
+                c += len;
+                if (k >= m) accNext += len;
+            }
+            ep = ec;
+            hp = hc;
+            ec = en;
+            hc = hn;
+        }
+    }
+    // A pixel nearer to a neighbour's segment is the neighbour's. Near-ties (the same formula can
+    // round differently in two chunks) go by the side of the bisector at the shared vertex.
+    float tol = 1e-3 * px;
+    if (prevNb < own - tol || (prevNb <= own + tol && dot(p - v0, b0) < 0.0)) discard;
+    if (nextNb < own - tol || (nextNb <= own + tol && dot(p - v1, b1) >= 0.0)) discard;
+    return min(own, min(prevNb, nextNb));
+}
+
 // Catmull-Rom weights for the four samples around fraction f
 vec4 crWeights(float f)
 {
@@ -409,15 +696,14 @@ vec4 gradientColor(vec2 p, float u, float L, int kind)
     return textureLod(uGradients, vec2((t * 255.0 + 0.5) / 256.0, (vPaint.y + 0.5) / 256.0), 0.0);
 }
 
-// Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle) at p.
-// Sets gFillScale, and gU / gL (position and length along the outline, for dashes and path gradients).
+// Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle, path fill) at p,
+// with its parameters in s0, s1, s2. Sets gFillScale, and gU / gL (position and length along the
+// outline, for dashes and path gradients).
 float gFillScale;
-float gU;
-float gL;
 float gHwEff;
 float gAlign;
 
-float closedSD(vec2 p, int type, float px)
+float shapeSD(vec2 p, int type, vec4 s0, vec4 s1, vec4 s2, float px)
 {
     float d = 1e6;
     float fillScale = 1.0;
@@ -428,20 +714,20 @@ float closedSD(vec2 p, int type, float px)
 
     if (type == 0)
     {
-        vec2 b = vShape0.zw;
+        vec2 b = s0.zw;
         vec2 bi = max(b, vec2(0.5 * px));
         fillScale = (b.x / bi.x) * (b.y / bi.y);
-        vec2 q = p - vShape0.xy;
-        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
-        d = sdRoundBox(q, bi, vShape1, vShape2.x);
+        vec2 q = p - s0.xy;
+        if (s2.w != 0.0) q = rotate(q, -s2.w);
+        d = sdRoundBox(q, bi, s1, s2.x);
     }
     else if (type == 1)
     {
-        vec2 ab = vShape0.zw;
+        vec2 ab = s0.zw;
         vec2 abi = max(ab, vec2(0.5 * px));
         fillScale = (ab.x / abi.x) * (ab.y / abi.y);
-        vec2 q = p - vShape0.xy;
-        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
+        vec2 q = p - s0.xy;
+        if (s2.w != 0.0) q = rotate(q, -s2.w);
         d = abs(abi.x - abi.y) <= 1e-4 * max(abi.x, abi.y) ? length(q) - abi.x : sdEllipse(q, abi);
         float rm = 0.5 * (abi.x + abi.y) + align * hwEff;
         u = mod(atan(q.y, q.x) + 0.5 * PI, TAU) * rm;
@@ -449,19 +735,19 @@ float closedSD(vec2 p, int type, float px)
     }
     else if (type == 3)
     {
-        vec2 q = p - vShape0.xy;
-        float sweep = vShape1.x;
+        vec2 q = p - s0.xy;
+        float sweep = s1.x;
         float h = min(abs(sweep) * 0.5, PI);
-        float mid = vShape0.w + 0.5 * sweep;
+        float mid = s0.w + 0.5 * sweep;
         float cm = cos(mid);
         float sm = sin(mid);
         vec2 qr = vec2(sm * q.x - cm * q.y, cm * q.x + sm * q.y); // arc middle -> +y
         float len = length(q);
         bool full = h >= PI - 1e-4;
         // annular sector with rounded corners
-        float r1 = vShape0.z;
-        float r0 = vShape1.y;
-        float rc = vShape1.z;
+        float r1 = s0.z;
+        float r0 = s1.y;
+        float rc = s1.z;
         float dA = len - (r1 - rc);
         if (r0 > 0.0) dA = max(dA, (r0 + rc) - len);
         float dW = full ? -1e6 : sdWedge(qr, h) + rc;
@@ -470,32 +756,54 @@ float closedSD(vec2 p, int type, float px)
     }
     else if (type == 6)
     {
-        float s = vShape0.z;
-        vec2 q = p - vShape0.xy;
-        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
+        float s = s0.z;
+        vec2 q = p - s0.xy;
+        if (s2.w != 0.0) q = rotate(q, -s2.w);
         q /= s;
-        d = (sdHeart(vec2(q.x, 0.552 - q.y)) - vShape0.w) * s;
+        d = (sdHeart(vec2(q.x, 0.552 - q.y)) - s0.w) * s;
     }
     else if (type == 7)
     {
-        vec2 q = rotate(p - vShape0.xy, -vShape0.w);
+        vec2 q = rotate(p - s0.xy, -s0.w);
         q.y = -q.y;
-        float rc = vShape1.z;
-        d = sdStar(q, vShape0.z - rc, vShape1.x, vShape1.y) - rc;
+        float rc = s1.z;
+        d = sdStar(q, s0.z - rc, s1.x, s1.y) - rc;
     }
     else if (type == 8)
     {
-        d = sdTriangle(p, vShape0.xy, vShape0.zw, vShape1.xy) - vShape1.z;
+        d = sdTriangle(p, s0.xy, s0.zw, s1.xy) - s1.z;
     }
     else if (type == 9)
     {
-        d = sdPoly(p, int(vShape0.x + 0.5), int(vShape0.y + 0.5)) - vShape0.z;
+        d = sdPoly(p, int(s0.x + 0.5), int(s0.y + 0.5)) - s0.z;
     }
 
     gFillScale = fillScale;
     gU = u;
     gL = L;
     return d;
+}
+
+// Closed shape of this instance. A union (Prim 11) is the nearest of its member shapes, whose
+// parameters are records of 4 texels (type, s0, s1, s2) in uPolys: one shape, painted once.
+float closedSD(vec2 p, int type, float px)
+{
+    if (type == 11)
+    {
+        int start = int(vShape0.x + 0.5);
+        int n = int(vShape0.y + 0.5);
+        float d = 1e6;
+        for (int i = 0; i < n; i++)
+        {
+            int t = start + i * 4;
+            d = min(d, shapeSD(p, int(polyTexel(t).x + 0.5), polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px));
+        }
+        gFillScale = 1.0;
+        gU = 0.0;
+        gL = 1.0;
+        return d;
+    }
+    return shapeSD(p, type, vShape0, vShape1, vShape2, px);
 }
 
 float ign(vec2 p)
@@ -511,8 +819,23 @@ void main(void)
     float px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
+    gBase = int(vBase + 0.5);
 
     int type = int(vMeta.x + 0.5);
+    if (type == 10)
+    {
+        // chunks of one path decide who shades a pixel by comparing distances: they must all see
+        // exactly the same position (kept only when it matches vPos, in case of an odd viewport)
+        vec2 hres = 0.5 * abs(uResolution);
+        vec2 q = mat2(vInv.xy, vInv.zw) * (gl_FragCoord.xy / hres - 1.0) + vInvT;
+        if (length(q - p) < 0.25 * px)
+        {
+            p = q;
+            // the pixel size too: joins switch to round below a tenth of a pixel
+            px = max(sqrt(abs(vInv.x * vInv.w - vInv.y * vInv.z) / (hres.x * hres.y)), 1e-7);
+            gPx = px * uSilk.y;
+        }
+    }
     int flags = int(vMeta.y + 0.5);
     bool inner = (flags & 32768) != 0;
     if ((flags & 65536) != 0) gSigma = mix(vMeta.w, vFx.y, clamp(vProg, 0.0, 1.0));
@@ -611,6 +934,13 @@ void main(void)
             else if (!nearStart && (flags & 32) == 0 && cap1 != 1) sd = boxEnd(us - ls - (cap1 == 2 ? rb : 0.0), v, rb);
             else sd = dSelf;
         }
+    }
+    else if (type == 10)
+    {
+        open = true;
+        sd = pathSD(p, hwEff, cap0, cap1, dashed, px);
+        u = gU;
+        L = gL;
     }
     else if (type == 5)
     {
@@ -718,7 +1048,33 @@ export interface SilkShaderSettings {
     minStrokePx: number;
 }
 
-export function createSilkShader(settings: SilkShaderSettings, polys: TextureSource): Shader {
+let noBatch: BufferImageSource | null = null;
+
+/** @internal A 1x1 object table for draws that are not batched (they never read it). */
+export function emptyBatchTable(): BufferImageSource {
+    noBatch ??= new BufferImageSource({
+        resource: new Float32Array(4),
+        width: 1,
+        height: 1,
+        format: 'rgba32float',
+        alphaMode: 'premultiplied-alpha',
+        scaleMode: 'nearest',
+        autoGenerateMipmaps: false,
+        label: 'silk-batch-empty',
+    });
+
+    return noBatch;
+}
+
+/**
+ * @internal The uber shader. `polys` holds the path and union texels. `batch` is the object table of a
+ * batched draw: 3 texels per object (matrix a b c d, then tx ty and path texel base, then tint).
+ */
+export function createSilkShader(
+    settings: SilkShaderSettings,
+    polys: TextureSource,
+    batch: TextureSource = emptyBatchTable(),
+): Shader {
     program ??= GlProgram.from({
         vertex,
         fragment,
@@ -732,6 +1088,7 @@ export function createSilkShader(settings: SilkShaderSettings, polys: TextureSou
         resources: {
             uGradients: GradientAtlas.shared.source,
             uPolys: polys,
+            uBatch: batch,
             silkUniforms: new UniformGroup({
                 uSilk: {
                     value: new Float32Array([settings.dither, settings.aaWidth, settings.minStrokePx, 0]),

@@ -3,7 +3,7 @@ title: Migrating from Graphics
 seoTitle: 'Migrate from PixiJS Graphics to SilkGraphics'
 description: 'SilkGraphics mirrors the PixiJS v8 Graphics API: shapes on a path, fill and stroke, transforms. See what is the same, what differs and what is new.'
 keywords: ['PixiJS Graphics migration', 'Graphics vs SilkGraphics', 'PixiJS v8 Graphics API', 'drop-in Graphics replacement']
-updated: 2026-09-26
+updated: 2026-11-08
 api: [SilkGraphics]
 ---
 
@@ -36,10 +36,10 @@ Most `Graphics` code works after renaming the class:
 | `Graphics` | `SilkGraphics` |
 |---|---|
 | `fill()` on any polygon or path | the same, even-odd, with blur, spread and inner shadows on any outline |
-| miter, bevel and round joins | always round (`join` is accepted and ignored) |
+| miter, bevel and round joins | the same, with `miterLimit`, on paths, polygons and sharp rects |
 | `texture` fills | not supported (use gradients) |
 | `svg()` | not supported |
-| batched with other graphics | one draw call per `SilkGraphics`, not batched across objects |
+| batched with other graphics | one draw call per `SilkGraphics`, or one per run of them after `enableSilkBatching()` |
 
 ## New things you can use
 

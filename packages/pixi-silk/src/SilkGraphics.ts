@@ -7,8 +7,11 @@ import {
     type ColorSource,
     type DestroyOptions,
     Geometry,
+    type InstructionSet,
     Mesh,
     type PointData,
+    type Renderer,
+    type RenderLayer,
     type Shader,
     type UniformGroup,
 } from 'pixi.js';
@@ -21,6 +24,8 @@ import {
     Extend,
     Flag,
     INSTANCE_ATTRIBUTES,
+    Join,
+    PATH_CHUNK,
     POLY_WIDTH,
     Prim,
     STRIDE,
@@ -30,6 +35,7 @@ import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput
 import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { createSilkShader } from './shader';
+import { joinPolygon } from './stroke';
 
 // ---------------------------------------------------------------------------------------------
 // Public style types
@@ -91,6 +97,14 @@ export interface FillStyle {
     blend?: 'normal' | 'add';
     /** One or more shadows inside closed shapes, drawn in order on top of the fill. */
     innerShadow?: InnerShadow | InnerShadow[];
+    /**
+     * Paints every closed shape of the active path as one shape: their distance fields merge, so
+     * overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet.
+     * Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`,
+     * the stroke follows the outline of the union, and open paths merge into one stroke.
+     * Default false.
+     */
+    union?: boolean;
 }
 
 /** What `fill()` accepts: any Pixi colour, a gradient or a {@link FillStyle}. */
@@ -116,11 +130,21 @@ export interface StrokeStyle extends FillStyle {
     dashOffset?: number;
     /** On closed outlines stretch the pattern so it tiles without a seam. Default true. */
     dashFit?: boolean;
-    /** Accepted for Pixi compatibility. Joins are always round, the smoothest choice. */
-    join?: 'round' | 'miter' | 'bevel';
-    /** Accepted for Pixi compatibility and ignored. */
+    /**
+     * How segments meet at the corners of paths, polygons and sharp rects, triangles and stars.
+     * `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it.
+     * Default `miter`, as in Canvas 2D, SVG and Pixi.
+     */
+    join?: LineJoin;
+    /**
+     * A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG.
+     * Default 10.
+     */
     miterLimit?: number;
 }
+
+/** Shape of the corners where two segments of a stroke meet. */
+export type LineJoin = 'miter' | 'bevel' | 'round';
 
 /** What `stroke()` accepts: any Pixi colour, a gradient or a {@link StrokeStyle}. */
 export type StrokeInput = ColorSource | Gradient | StrokeStyle;
@@ -153,6 +177,11 @@ export interface SilkGraphicsOptions {
     minStrokePx?: number;
     /** Pixi label of the object, for debugging. Default `SilkGraphics`. */
     label?: string;
+    /**
+     * Set false to keep this object out of batches: it gets a draw call of its own. Only matters
+     * after `enableSilkBatching()`. Default true.
+     */
+    batch?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -224,9 +253,10 @@ interface Paint {
     spread: number;
     add: boolean;
     inner: Inner[];
+    union: boolean;
 }
 
-const NO_FX = { blurTo: -1, blurAngle: 0, spread: 0, add: false, inner: [] as Inner[] };
+const NO_FX = { blurTo: -1, blurAngle: 0, spread: 0, add: false, inner: [] as Inner[], union: false };
 
 interface Stroke extends Paint {
     width: number;
@@ -237,12 +267,26 @@ interface Stroke extends Paint {
     dash: [number, number] | null;
     dashOffset: number;
     dashFit: boolean;
+    join: Join;
+    miterLimit: number;
 }
 
 interface LastEmit {
     shapes: Shape[];
     start: number;
     fill: Paint;
+    /** Path texels before the fill, so a merged stroke can rewind them too. */
+    polyStart: number;
+    /** Instances the fill emitted. */
+    count: number;
+}
+
+/** Gradient row shared by the instances of one stroked path. */
+interface StrokeCtx {
+    stroke: Stroke;
+    frame: ShapeFrame;
+    row: number;
+    gradFlags: number;
 }
 
 const CLOSED_KINDS = new Set(['rect', 'ellipse', 'sector', 'heart', 'star', 'triangle']);
@@ -261,8 +305,11 @@ const FILL_KEYS = [
     'dashOffset',
     'dashFit',
     'join',
+    'miterLimit',
+    'union',
 ];
 const CAPS: Record<LineCap, Cap> = { butt: Cap.Butt, round: Cap.Round, square: Cap.Square };
+const JOINS: Record<LineJoin, Join> = { miter: Join.Miter, bevel: Join.Bevel, round: Join.Round };
 const EXTEND: Record<string, Extend> = { pad: Extend.Pad, repeat: Extend.Repeat, reflect: Extend.Reflect };
 const HEART_W = 1.2071; // width of the unit heart (height 1.1036)
 const HEART_H = 1.1036;
@@ -316,11 +363,11 @@ function resolveInner(s: InnerShadow): Inner {
 
 function resolvePaint(
     input: FillInput | StrokeInput | undefined,
-): Paint & Omit<StrokeStyle, 'gradient' | 'blur' | 'spread' | 'blend' | 'innerShadow'> {
+): Paint & Omit<StrokeStyle, 'gradient' | 'blur' | 'spread' | 'blend' | 'innerShadow' | 'union'> {
     if (input instanceof Gradient) return { rgba: [1, 1, 1, 1], gradient: input, blur: 0, ...NO_FX };
     if (input === undefined || input === null) return { rgba: [1, 1, 1, 1], gradient: null, blur: 0, ...NO_FX };
     if (isStyleObject(input)) {
-        const { blur, spread, blend, innerShadow, ...rest } = input;
+        const { blur, spread, blend, innerShadow, union, ...rest } = input;
         const progressive = typeof blur === 'object' && blur !== null;
         const shadows = innerShadow === undefined ? [] : Array.isArray(innerShadow) ? innerShadow : [innerShadow];
 
@@ -334,6 +381,7 @@ function resolvePaint(
             spread: spread ?? 0,
             add: blend === 'add',
             inner: shadows.map(resolveInner),
+            union: union === true,
         };
     }
 
@@ -365,6 +413,7 @@ function resolveStroke(input: StrokeInput | undefined): Stroke {
         spread: p.spread,
         add: p.add,
         inner: [],
+        union: p.union,
         width: widths ? Math.max(...widths) : Math.max(0, (p.width as number | undefined) ?? 1),
         widths,
         align: Math.max(-1, Math.min(1, align)),
@@ -372,6 +421,8 @@ function resolveStroke(input: StrokeInput | undefined): Stroke {
         dash,
         dashOffset: p.dashOffset ?? 0,
         dashFit: p.dashFit ?? true,
+        join: JOINS[p.join ?? 'miter'] ?? Join.Miter,
+        miterLimit: Math.max(1, p.miterLimit ?? 10),
     };
 }
 
@@ -520,7 +571,16 @@ export class SilkGeometry extends Geometry {
  */
 export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     /** Settings for new objects. Change them before you create any SilkGraphics. */
-    static defaults: Required<Omit<SilkGraphicsOptions, 'label'>> = { dither: 1, aaWidth: 1, minStrokePx: 1 };
+    static defaults: Required<Omit<SilkGraphicsOptions, 'label' | 'batch'>> = { dither: 1, aaWidth: 1, minStrokePx: 1 };
+
+    /** @internal Render pipe of new objects: `silk` once batching is on (see `enableSilkBatching`). */
+    static _pipeId = 'mesh';
+
+    /** @internal Adds the batching pipe to a renderer that lacks it (set by `enableSilkBatching`). */
+    static _installPipe: ((renderer: Renderer) => void) | null = null;
+
+    /** @internal Bumped on every change a batch has to copy again. */
+    _version = 0;
 
     private _f: Float32Array;
     private _count = 0;
@@ -558,6 +618,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const shader = createSilkShader(settings, polys);
 
         super({ geometry, shader, label: options.label ?? 'SilkGraphics' });
+        (this as { renderPipeId: string }).renderPipeId = options.batch === false ? 'mesh' : SilkGraphics._pipeId;
         this._polySource = polys;
         this._f = geometry.instanceBuffer.data as Float32Array;
         this._uniforms = shader.resources.silkUniforms as UniformGroup;
@@ -599,9 +660,22 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._setting(2, v);
     }
 
+    /** @internal Dither, AA width and hairline settings, as the shader reads them. */
+    get _settings(): Float32Array {
+        return this._silk;
+    }
+
+    /** @internal What a batch copies: instances and path texels. */
+    get _batchSource(): { f: Float32Array; count: number; poly: Float32Array; polyCount: number } {
+        return { f: this._f, count: this._count, poly: this._poly, polyCount: this._polyCount };
+    }
+
     private _setting(i: number, v: number): void {
         this._silk[i] = v;
+        this._version++;
         this._uniforms.update();
+        // batches group objects by settings: regroup
+        if (this.parentRenderGroup) this.parentRenderGroup.structureDidChange = true;
     }
 
     // -------------------------------------------------------------------------------- transform
@@ -1097,13 +1171,16 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         if (!shapes.length) return this;
         const paint = resolvePaint(style);
         const start = this._count;
+        const polyStart = this._polyCount;
 
+        if (paint.union) this._emitUnion(shapes, scalePaint(paint, shapes[0].k), null);
         for (const shape of shapes) {
             if (shape.kind === 'area') this._emitArea(shape, scalePaint(paint, shape.k));
+            else if (paint.union) continue;
             else if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, scalePaint(paint, shape.k), null);
             else if (shape.kind === 'path') this._emitClosed(shape, scalePaint(paint, shape.k), null);
         }
-        this._last = { shapes, start, fill: paint };
+        this._last = { shapes, start, fill: paint, polyStart, count: this._count - start };
         this._consumed = true;
         this._commit();
 
@@ -1122,26 +1199,41 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._consumed = true;
         if (stroke.width <= 0) return this;
 
+        const unionFill = last?.fill.union === true && shapes.every((sh) => sh.kind !== 'area');
         const merge =
             last &&
             last.shapes === shapes &&
-            last.start + shapes.length === this._count &&
-            shapes.every((sh) => CLOSED_KINDS.has(sh.kind));
+            last.start + last.count === this._count &&
+            (unionFill || (last.count === shapes.length && shapes.every((sh) => CLOSED_KINDS.has(sh.kind))));
 
-        if (merge) {
+        if (merge && unionFill) {
+            // a union fill and its stroke: one instance, the stroke follows the union's outline
+            this._rewind(last);
+            this._emitUnion(shapes, scalePaint(last.fill, shapes[0].k), scaleStroke(stroke, shapes[0].k));
+        } else if (merge) {
             // rewind the fill-only instances and re-emit them with both paints
             this._rewind(last);
             for (const shape of shapes)
                 this._emitClosed(shape, scalePaint(last.fill, shape.k), scaleStroke(stroke, shape.k));
+        } else if (stroke.union) {
+            const st = scaleStroke(stroke, shapes[0].k);
+            const closed = shapes.filter((sh) => CLOSED_KINDS.has(sh.kind));
+            const paths = shapes.flatMap((sh) => (sh.kind === 'path' ? sh.subpaths : []));
+
+            if (closed.length) this._emitUnion(closed, null, st);
+            if (paths.length) this._strokeSubpaths(paths, st);
+            for (const shape of shapes) {
+                if (shape.kind === 'arc') this._emitArc(shape, scaleStroke(stroke, shape.k));
+                else if (shape.kind === 'area') this._strokeSubpaths([{ pts: shape.top, closed: false }], st);
+            }
         } else {
             for (const shape of shapes) {
                 const st = scaleStroke(stroke, shape.k);
 
                 if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, null, st);
                 else if (shape.kind === 'arc') this._emitArc(shape, st);
-                else if (shape.kind === 'path')
-                    for (const sp of shape.subpaths) this._emitPath(sp.pts, sp.closed, st, null);
-                else if (shape.kind === 'area') this._emitPath(shape.top, false, st, null);
+                else if (shape.kind === 'path') this._strokeSubpaths(shape.subpaths, st);
+                else if (shape.kind === 'area') this._strokeSubpaths([{ pts: shape.top, closed: false }], st);
             }
         }
         this._commit();
@@ -1164,6 +1256,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._commit();
 
         return this;
+    }
+
+    /** @internal Gives a renderer the batching pipe the first time it meets a batched object. */
+    override collectRenderablesSimple(set: InstructionSet, renderer: Renderer, layer: RenderLayer): void {
+        if (!(this.renderPipeId in renderer.renderPipes)) SilkGraphics._installPipe?.(renderer);
+        super.collectRenderablesSimple(set, renderer, layer);
     }
 
     /**
@@ -1202,6 +1300,13 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     private _rewind(last: LastEmit): void {
         this._count = last.start;
+        this._polyCount = last.polyStart;
+    }
+
+    /** Tapered strokes keep one capsule per segment. Every other stroke is one field per path. */
+    private _strokeSubpaths(subpaths: SubPath[], stroke: Stroke): void {
+        if (stroke.widths) for (const sp of subpaths) this._emitPath(sp.pts, sp.closed, stroke, null);
+        else this._emitStroke(subpaths, stroke, null);
     }
 
     private _releaseRamps(): void {
@@ -1232,6 +1337,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     private _commit(): void {
         const geometry = this.geometry;
 
+        this._version++;
+
         geometry.instanceCount = this._count;
         geometry.instanceBuffer.update(Math.max(this._count, 1) * STRIDE * 4);
         if (this._polyDirty) {
@@ -1249,24 +1356,17 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     /** Appends the edges of every subpath of a filled path (each closed). Returns the first texel. */
     private _pushEdges(subpaths: SubPath[]): [start: number, count: number] {
-        const start = this._polyCount;
+        let total = 0;
+
+        for (const { pts } of subpaths) if (pts.length >= 6) total += pts.length >> 1;
+        const start = this._reserve(total);
+        const e = this._poly;
         let n = start;
 
         for (const { pts } of subpaths) {
             const m = pts.length >> 1;
 
             if (m < 3) continue;
-            const need = (n + m) * 4;
-
-            if (need > this._poly.length) {
-                const rows = Math.ceil((n + m) / POLY_WIDTH);
-                const bigger = new Float32Array(Math.max(this._poly.length * 2, rows * POLY_WIDTH * 4));
-
-                bigger.set(this._poly);
-                this._poly = bigger;
-            }
-            const e = this._poly;
-
             for (let i = 0; i < m; i++) {
                 const j = (i + 1) % m;
                 const q = n * 4;
@@ -1278,10 +1378,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                 n++;
             }
         }
-        this._polyCount = n;
-        this._polyDirty = true;
 
-        return [start, n - start];
+        return [start, total];
     }
 
     private _setBounds(o: number, minX: number, minY: number, maxX: number, maxY: number): void {
@@ -1422,88 +1520,26 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
             return;
         }
+        // sharp corners with a miter or bevel join: the stroke is a closed path around the outline
+        const outline = stroke && stroke.join !== Join.Round ? sharpOutline(shape) : null;
+
+        if (stroke && outline) {
+            if (fill) this._emitClosed(shape, fill, null);
+            const pts = stroke.align === 0 ? outline : offsetPolygon(outline, (stroke.align * stroke.width) / 2);
+
+            this._emitStroke([{ pts, closed: true }], stroke, this._frame(shape));
+
+            return;
+        }
         const o = this._alloc();
-        const f = this._f;
-        const paint = (fill ?? stroke) as Paint;
-        const sigma = Math.max(fill?.blur ?? 0, stroke?.blur ?? 0);
+        const type = this._shapeParams(shape, o + 4);
+
+        if (type === -1) {
+            this._count--;
+
+            return;
+        }
         const frame = this._frame(shape);
-        let flags = 0;
-        let sw = 0;
-        let align = 0;
-
-        if (fill) flags |= Flag.Fill;
-        if (stroke) {
-            flags |= Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
-            sw = stroke.width;
-            align = stroke.align;
-        }
-        if (sigma > 0) flags |= Flag.Dither;
-        flags |= this._fx(o, paint);
-        const outset = (stroke ? (sw / 2) * (1 + align) : 0) + SilkGraphics._reach(paint);
-        let type: Prim;
-
-        switch (shape.kind) {
-            case 'rect': {
-                const grow = 1 + shape.smoothing;
-                const lim = Math.min(shape.hw, shape.hh);
-                const [tl, tr, br, bl] = shape.r.map((r) => Math.min(r * grow, lim));
-
-                type = Prim.Rect;
-                this._set4(o + 4, shape.cx, shape.cy, shape.hw, shape.hh);
-                this._set4(o + 8, br, tr, bl, tl);
-                this._set4(o + 12, squircleExponent(shape.smoothing), 0, 0, shape.rot);
-                break;
-            }
-            case 'ellipse':
-                type = Prim.Ellipse;
-                this._set4(o + 4, shape.cx, shape.cy, shape.rx, shape.ry);
-                f[o + 15] = shape.rot;
-                break;
-            case 'sector':
-                type = Prim.Sector;
-                this._set4(o + 4, shape.cx, shape.cy, shape.r1, shape.start);
-                this._set4(o + 8, shape.sweep, shape.r0, shape.corner, 0);
-                break;
-            case 'heart': {
-                const s = shape.size / (HEART_W + 2 * shape.round);
-
-                type = Prim.Heart;
-                this._set4(o + 4, shape.cx, shape.cy, s, shape.round);
-                f[o + 15] = shape.rot;
-                break;
-            }
-            case 'star':
-                type = Prim.Star;
-                this._set4(o + 4, shape.cx, shape.cy, shape.r, shape.rot);
-                this._set4(o + 8, shape.n, shape.en, Math.min(shape.corner, shape.ri * 0.9), 0);
-                break;
-            case 'triangle': {
-                const p = insetTriangle(shape.pts, shape.corner);
-
-                type = Prim.Triangle;
-                this._set4(o + 4, p[0], p[1], p[2], p[3]);
-                this._set4(o + 8, p[4], p[5], p[6], 0);
-                break;
-            }
-            case 'path': {
-                const [start, n] = this._pushEdges(shape.subpaths);
-
-                if (n === 0) {
-                    this._count--;
-
-                    return;
-                }
-                type = Prim.Poly;
-                this._set4(o + 4, start, n, 0, 0);
-                break;
-            }
-            default:
-                this._count--;
-
-                return;
-        }
-
-        // tight bounds
         const b = this._box;
 
         if (shape.kind === 'sector') {
@@ -1518,7 +1554,98 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             b[2] = frame.x + frame.w;
             b[3] = frame.y + frame.h;
         }
-        this._setBounds(o, b[0] - outset, b[1] - outset, b[2] + outset, b[3] + outset);
+        this._paintClosed(o, type, frame, b, fill, stroke, shape.kind === 'ellipse' ? shape : null);
+    }
+
+    /**
+     * Writes the parameters of a closed shape (the instance's `aShape0..2`, 12 floats) at `at` and
+     * returns its primitive id, or -1 when there is nothing to draw. Path fills push their edges.
+     */
+    private _shapeParams(shape: Shape, at: number): Prim | -1 {
+        const f = this._f;
+        const set = (i: number, a: number, b: number, c: number, d: number) => this._set4(at + i, a, b, c, d);
+
+        switch (shape.kind) {
+            case 'rect': {
+                const grow = 1 + shape.smoothing;
+                const lim = Math.min(shape.hw, shape.hh);
+                const [tl, tr, br, bl] = shape.r.map((r) => Math.min(r * grow, lim));
+
+                set(0, shape.cx, shape.cy, shape.hw, shape.hh);
+                set(4, br, tr, bl, tl);
+                set(8, squircleExponent(shape.smoothing), 0, 0, shape.rot);
+
+                return Prim.Rect;
+            }
+            case 'ellipse':
+                set(0, shape.cx, shape.cy, shape.rx, shape.ry);
+                f[at + 11] = shape.rot;
+
+                return Prim.Ellipse;
+            case 'sector':
+                set(0, shape.cx, shape.cy, shape.r1, shape.start);
+                set(4, shape.sweep, shape.r0, shape.corner, 0);
+
+                return Prim.Sector;
+            case 'heart':
+                set(0, shape.cx, shape.cy, shape.size / (HEART_W + 2 * shape.round), shape.round);
+                f[at + 11] = shape.rot;
+
+                return Prim.Heart;
+            case 'star':
+                set(0, shape.cx, shape.cy, shape.r, shape.rot);
+                set(4, shape.n, shape.en, Math.min(shape.corner, shape.ri * 0.9), 0);
+
+                return Prim.Star;
+            case 'triangle': {
+                const p = insetTriangle(shape.pts, shape.corner);
+
+                set(0, p[0], p[1], p[2], p[3]);
+                set(4, p[4], p[5], p[6], 0);
+
+                return Prim.Triangle;
+            }
+            case 'path': {
+                const [start, n] = this._pushEdges(shape.subpaths);
+
+                if (n === 0) return -1;
+                set(0, start, n, 0, 0);
+
+                return Prim.Poly;
+            }
+            default:
+                return -1;
+        }
+    }
+
+    /** Flags, bounds, colours, gradient, dashes and inner shadows of a closed-shape instance at `o`. */
+    private _paintClosed(
+        o: number,
+        type: Prim,
+        frame: ShapeFrame,
+        box: number[],
+        fill: Paint | null,
+        stroke: Stroke | null,
+        ellipse: Extract<Shape, { kind: 'ellipse' }> | null,
+    ): void {
+        const f = this._f;
+        const paint = (fill ?? stroke) as Paint;
+        const sigma = Math.max(fill?.blur ?? 0, stroke?.blur ?? 0);
+        let flags = 0;
+        let sw = 0;
+        let align = 0;
+
+        if (fill) flags |= Flag.Fill;
+        if (stroke) {
+            flags |= Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
+            sw = stroke.width;
+            align = stroke.align;
+        }
+        if (sigma > 0) flags |= Flag.Dither;
+        flags |= this._fx(o, paint);
+        const outset = (stroke ? (sw / 2) * (1 + align) : 0) + SilkGraphics._reach(paint);
+
+        this._setBounds(o, box[0] - outset, box[1] - outset, box[2] + outset, box[3] + outset);
 
         const gradient = fill?.gradient ?? stroke?.gradient ?? null;
 
@@ -1526,11 +1653,11 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         if (stroke) this._premul(o + 24, stroke.rgba);
         if (gradient) flags |= this._gradient(o, gradient, frame, !fill?.gradient);
 
-        if (stroke?.dash && shape.kind === 'ellipse') {
+        if (stroke?.dash && ellipse) {
             let [dash, gap] = stroke.dash;
 
             if (stroke.dashFit) {
-                const rm = (shape.rx + shape.ry) / 2 + (align * sw) / 2;
+                const rm = (ellipse.rx + ellipse.ry) / 2 + (align * sw) / 2;
                 const L = TAU * rm;
                 const n = Math.max(1, Math.round(L / (dash + gap)));
                 const s = L / (n * (dash + gap));
@@ -1544,7 +1671,66 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             f[o + 39] = align;
         }
         this._set4(o + 16, type, flags, sw, sigma);
-        if (fill?.inner.length) this._emitInner(o, type, fill.inner, b);
+        if (fill?.inner.length) this._emitInner(o, type, fill.inner, [box[0], box[1], box[2], box[3]]);
+    }
+
+    /**
+     * One instance for every closed shape of `shapes`: a union of their distance fields, so the
+     * overlaps are painted once. Polygons join in one record per subpath. Other shapes are skipped.
+     */
+    private _emitUnion(shapes: Shape[], fill: Paint | null, stroke: Stroke | null): void {
+        if (
+            fill &&
+            stroke &&
+            ((fill.gradient && stroke.gradient) ||
+                fill.blur !== stroke.blur ||
+                fill.blurTo !== stroke.blurTo ||
+                fill.spread !== stroke.spread ||
+                fill.add !== stroke.add ||
+                fill.inner.length > 0)
+        ) {
+            this._emitUnion(shapes, fill, null);
+            this._emitUnion(shapes, null, stroke);
+
+            return;
+        }
+        const records: number[] = [];
+        const b = [Infinity, Infinity, -Infinity, -Infinity];
+        const o = this._alloc();
+        const at = o + 4;
+
+        for (const shape of shapes) {
+            if (shape.kind === 'path') {
+                for (const sp of shape.subpaths) {
+                    if (sp.pts.length < 6) continue;
+                    const [start, n] = this._pushEdges([sp]);
+
+                    if (n === 0) continue;
+                    records.push(Prim.Poly, 0, 0, 0, start, n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    pointsBox(sp.pts, b);
+                }
+                continue;
+            }
+            if (!CLOSED_KINDS.has(shape.kind)) continue;
+            // the record is written where the instance's own shape would go, then copied out
+            const type = this._shapeParams(shape, at);
+
+            if (type === -1) continue;
+            records.push(type, 0, 0, 0, ...this._f.subarray(at, at + 12));
+            const fr = this._frame(shape);
+
+            pointsBox([fr.x, fr.y, fr.x + fr.w, fr.y + fr.h], b);
+        }
+        if (!records.length) {
+            this._count--;
+
+            return;
+        }
+        const start = this._pushTexels(records);
+
+        this._f.fill(0, at, at + 12);
+        this._set4(at, start, records.length / 16, 0, 0);
+        this._paintClosed(o, Prim.Union, { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] }, b, fill, stroke, null);
     }
 
     /**
@@ -1719,6 +1905,196 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         }
     }
 
+    /** Makes room for `n` more texels in the path texture and returns the first one. */
+    private _reserve(n: number): number {
+        const start = this._polyCount;
+        const need = (start + n) * 4;
+
+        if (need > this._poly.length) {
+            const rows = Math.ceil((start + n) / POLY_WIDTH);
+            const bigger = new Float32Array(Math.max(this._poly.length * 2, rows * POLY_WIDTH * 4));
+
+            bigger.set(this._poly);
+            this._poly = bigger;
+        }
+        this._polyCount = start + n;
+        this._polyDirty = true;
+
+        return start;
+    }
+
+    /** Appends raw texels (4 floats each) to the path texture. Returns the first texel. */
+    private _pushTexels(data: ArrayLike<number>): number {
+        const start = this._reserve(data.length / 4);
+
+        this._poly.set(data, start * 4);
+
+        return start;
+    }
+
+    /**
+     * Strokes paths as one distance field each (Prim.Path): segments go to the path texture, behind
+     * a header per subpath. Subpaths share an instance up to PATH_CHUNK segments in all, and longer
+     * subpaths are split into chunks that own PATH_CHUNK segments each.
+     */
+    private _emitStroke(subpaths: SubPath[], stroke: Stroke, frameOverride: ShapeFrame | null): void {
+        const subs: { pts: number[]; closed: boolean; segs: number; hdr: number; cum: number[] }[] = [];
+        const b = this._box;
+
+        b[0] = b[1] = Infinity;
+        b[2] = b[3] = -Infinity;
+        for (const sp of subpaths) {
+            const { pts } = cleanPoints(sp.pts, sp.closed);
+            const n = pts.length / 2;
+
+            if (n === 0) continue;
+            const closed = sp.closed && n >= 3;
+            const segs = n === 1 ? 1 : closed ? n : n - 1;
+            const hdr = this._reserve(1 + segs);
+            const e = this._poly;
+            const cum = [0];
+
+            for (let i = 0; i < segs; i++) {
+                const ia = i * 2;
+                const ib = n === 1 ? 0 : ((i + 1) % n) * 2;
+                const q = (hdr + 1 + i) * 4;
+
+                e[q] = pts[ia];
+                e[q + 1] = pts[ia + 1];
+                e[q + 2] = pts[ib];
+                e[q + 3] = pts[ib + 1];
+                cum.push(cum[i] + Math.hypot(pts[ib] - pts[ia], pts[ib + 1] - pts[ia + 1]));
+            }
+            this._set4Poly(hdr, segs, closed ? 1 : 0, cum[segs], 0);
+            pointsBox(pts, b);
+            subs.push({ pts, closed, segs, hdr, cum });
+        }
+        if (!subs.length) return;
+        const frame = frameOverride ?? { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] };
+        const ctx: StrokeCtx = { stroke, frame, row: -1, gradFlags: 0 };
+        // runs of short subpaths share an instance, unless closed dashes must fit each loop alone
+        let run: typeof subs = [];
+        let runSegs = 0;
+        const flush = () => {
+            if (!run.length) return;
+            this._pathInstance(run[0].hdr, run.length, 0, -1, 0, run, ctx);
+            run = [];
+            runSegs = 0;
+        };
+
+        for (const sp of subs) {
+            const alone = stroke.dash !== null && sp.closed && stroke.dashFit;
+
+            if (sp.segs > PATH_CHUNK || alone) {
+                flush();
+                if (sp.segs <= PATH_CHUNK) this._pathInstance(sp.hdr, 1, 0, -1, 0, [sp], ctx);
+                else
+                    for (let s = 0; s < sp.segs; s += PATH_CHUNK) {
+                        this._pathInstance(sp.hdr, 1, s, Math.min(PATH_CHUNK, sp.segs - s), sp.cum[s], [sp], ctx);
+                    }
+                continue;
+            }
+            if (runSegs + sp.segs > PATH_CHUNK) flush();
+            run.push(sp);
+            runSegs += sp.segs;
+        }
+        flush();
+    }
+
+    private _set4Poly(t: number, a: number, b: number, c: number, d: number): void {
+        const e = this._poly;
+
+        e[t * 4] = a;
+        e[t * 4 + 1] = b;
+        e[t * 4 + 2] = c;
+        e[t * 4 + 3] = d;
+    }
+
+    /** One Prim.Path instance: subpaths from `hdr`, or segments `first .. first + count` of one subpath. */
+    private _pathInstance(
+        hdr: number,
+        nSub: number,
+        first: number,
+        count: number,
+        before: number,
+        subs: { pts: number[]; closed: boolean; segs: number; cum: number[] }[],
+        ctx: StrokeCtx,
+    ): void {
+        const { stroke, frame } = ctx;
+        const hdr0 = hdr;
+        const o = this._alloc();
+        const hw = stroke.width / 2;
+        const ext = hw * (stroke.cap === Cap.Square ? Math.SQRT2 : 1);
+        const b = [Infinity, Infinity, -Infinity, -Infinity];
+        const e = this._poly;
+
+        for (const sp of subs) {
+            const s0 = count < 0 ? 0 : first;
+            const s1 = count < 0 ? sp.segs : first + count;
+            const tex = hdr + 1;
+
+            for (let i = s0; i < s1; i++) {
+                const q = (tex + i) * 4;
+
+                pointsBox([e[q], e[q + 1], e[q + 2], e[q + 3]], b);
+                // miter tips reach past the points
+                if (stroke.join === Join.Miter && (sp.closed || i > 0)) {
+                    const p = (tex + ((i - 1 + sp.segs) % sp.segs)) * 4;
+                    const l0 = Math.hypot(e[p + 2] - e[p], e[p + 3] - e[p + 1]) || 1;
+                    const l1 = Math.hypot(e[q + 2] - e[q], e[q + 3] - e[q + 1]) || 1;
+                    const poly = joinPolygon(
+                        e[q],
+                        e[q + 1],
+                        (e[p + 2] - e[p]) / l0,
+                        (e[p + 3] - e[p + 1]) / l0,
+                        (e[q + 2] - e[q]) / l1,
+                        (e[q + 3] - e[q + 1]) / l1,
+                        hw,
+                        stroke.join,
+                        stroke.miterLimit,
+                    );
+
+                    if (poly) pointsBox(poly, b);
+                }
+            }
+            hdr += 1 + sp.segs;
+        }
+        const pad = ext + SilkGraphics._reach(stroke);
+        let flags = Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
+
+        if (stroke.blur > 0) flags |= Flag.Dither;
+        this._setBounds(o, b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad);
+        this._set4(o + 4, hdr0, nSub, first, count);
+        this._set4(o + 8, stroke.join, stroke.miterLimit, before, 0);
+        this._premul(o + 24, stroke.rgba);
+        if (stroke.gradient) {
+            if (ctx.row < 0) {
+                ctx.gradFlags = this._gradient(o, stroke.gradient, frame, true);
+                ctx.row = this._f[o + 33];
+            } else {
+                stroke.gradient.resolve(frame, this._f, o + 28);
+                this._set4(o + 32, stroke.gradient.kind, ctx.row, EXTEND[stroke.gradient.extend] ?? Extend.Pad, 0);
+            }
+            flags |= ctx.gradFlags;
+        }
+        if (stroke.dash) {
+            let [dash, gap] = stroke.dash;
+            const sp = subs[0];
+
+            if (sp.closed && stroke.dashFit && nSub === 1) {
+                const total = sp.cum[sp.segs];
+                const k = Math.max(1, Math.round(total / (dash + gap)));
+                const s = total / (k * (dash + gap));
+
+                dash *= s;
+                gap *= s;
+            }
+            flags |= Flag.Dash;
+            this._set4(o + 36, dash, gap, stroke.dashOffset, 0);
+        }
+        this._set4(o + 16, Prim.Path, flags | this._fx(o, stroke), stroke.width, stroke.blur);
+    }
+
     private _emitArea(shape: Extract<Shape, { kind: 'area' }>, fill: Paint): void {
         const { top, bottom } = shape;
         const n = top.length / 2;
@@ -1806,4 +2182,78 @@ function insetTriangle(p: number[], r: number): number[] {
         iy + (y2 - iy) * k,
         rr,
     ];
+}
+
+/**
+ * Corner points of a shape whose corners are sharp (a rect without radius, a triangle or star
+ * without corner rounding), for strokes with miter or bevel joins. Null for every other shape.
+ */
+function sharpOutline(shape: Shape): number[] | null {
+    if (shape.kind === 'rect') {
+        if (shape.r.some((r) => r > 0)) return null;
+        const c = Math.cos(shape.rot);
+        const s = Math.sin(shape.rot);
+        const out: number[] = [];
+
+        for (const [x, y] of [
+            [-shape.hw, -shape.hh],
+            [shape.hw, -shape.hh],
+            [shape.hw, shape.hh],
+            [-shape.hw, shape.hh],
+        ]) {
+            out.push(shape.cx + c * x - s * y, shape.cy + s * x + c * y);
+        }
+
+        return out;
+    }
+    if (shape.kind === 'triangle') return shape.corner > 0 ? null : [...shape.pts];
+    if (shape.kind === 'star') {
+        if (shape.corner > 0) return null;
+        const an = Math.PI / shape.n;
+        // a regular polygon is a star whose inner points sit on its edges
+        const regular = Math.abs(shape.ri - shape.r * Math.cos(an)) < 1e-6 * shape.r;
+        const out: number[] = [];
+
+        for (let i = 0; i < shape.n; i++) {
+            const a = shape.rot + i * 2 * an;
+
+            out.push(shape.cx + shape.r * Math.sin(a), shape.cy - shape.r * Math.cos(a));
+            if (!regular) out.push(shape.cx + shape.ri * Math.sin(a + an), shape.cy - shape.ri * Math.cos(a + an));
+        }
+
+        return out;
+    }
+
+    return null;
+}
+
+/** Moves every edge of a closed polygon outwards by `d` (inwards when negative), keeping sharp corners. */
+function offsetPolygon(pts: number[], d: number): number[] {
+    const n = pts.length >> 1;
+    let area = 0;
+
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+
+        area += pts[i * 2] * pts[j * 2 + 1] - pts[j * 2] * pts[i * 2 + 1];
+    }
+    const sg = area > 0 ? 1 : -1;
+    const normal = (i: number, j: number): [number, number] => {
+        const tx = pts[j * 2] - pts[i * 2];
+        const ty = pts[j * 2 + 1] - pts[i * 2 + 1];
+        const len = Math.hypot(tx, ty) || 1;
+
+        return [(sg * ty) / len, (-sg * tx) / len];
+    };
+    const out: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+        const [ax, ay] = normal((i - 1 + n) % n, i);
+        const [bx, by] = normal(i, (i + 1) % n);
+        const k = d / Math.max(1 + ax * bx + ay * by, 1e-6);
+
+        out.push(pts[i * 2] + (ax + bx) * k, pts[i * 2 + 1] + (ay + by) * k);
+    }
+
+    return out;
 }

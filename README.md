@@ -44,7 +44,7 @@ stay aliased unless you opt each one in. Filters render at resolution 1, and 8-b
 | Thin lines | break up below 1 px | keep 1 px and fade |
 | Inside filters / render textures | aliased unless each target opts into MSAA | same quality everywhere |
 | Gradients | sRGB, 8-bit | OKLab, half-float ramps, dithered |
-| Draw calls | batched geometry | one instanced draw call per object |
+| Draw calls | batched geometry | one instanced draw call per object, or per run with batching on |
 
 ## Features
 
@@ -64,11 +64,12 @@ stay aliased unless you opt each one in. Filters render at resolution 1, and 8-b
 - **`createSilkApp`.** Maps canvas pixels 1:1 to device pixels, even at fractional ratios, and follows
   DPR changes. No MSAA, filters at screen resolution, and pages still scroll on touch screens.
 - **Motion.** Frame-rate independent `damp`, `dampAngle`, `Spring` and `ease`.
-- **Performance.** 40 floats per primitive and one draw call per object. Rebuilding 50,000 primitives
+- **Performance.** 44 floats per primitive and one draw call per object, or per run of objects
+  after `enableSilkBatching()`. Rebuilding 50,000 primitives
   takes about 12 ms of CPU per frame.
 
 Requirements: `pixi.js` ^8.6 (peer dependency) and WebGL2. WebGPU is not supported yet.
-Free-form paths are stroke-only, and joins are always round.
+Strokes support miter, bevel and round joins with `miterLimit`, as in Canvas 2D.
 
 ## Documentation
 

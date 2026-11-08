@@ -84,10 +84,14 @@ describe('filled paths', () => {
         expect(shape0(g, 0).slice(0, 2)).toEqual([0, 3]);
     });
 
-    it('still strokes paths segment by segment', () => {
+    it('strokes a path as one outline, and a tapered one segment by segment', () => {
         const g = new SilkGraphics();
 
         g.poly([0, 0, 100, 0, 50, 80]).stroke({ width: 2, color: 0xffffff });
+        expect(meta(g, 0)[0]).toBe(Prim.Path);
+        g.clear()
+            .poly([0, 0, 100, 0, 50, 80])
+            .stroke({ width: [1, 4], color: 0xffffff });
         expect(meta(g, 0)[0]).toBe(Prim.Segment);
     });
 });
