@@ -1,0 +1,182 @@
+---
+title: Grid, rulers and selection
+seoTitle: 'Canvas grid, rulers, guides and marquee for PixiJS'
+description: 'Add a zoom-aware grid, rulers, draggable guides, rubber-band selection, group transforms and Figma-style smart spacing to a PixiJS canvas.'
+keywords: ['PixiJS grid', 'rulers', 'guides', 'marquee selection', 'multi-select', 'smart spacing', 'design tool']
+updated: 2026-11-08
+---
+
+<Demo name="canvas-tools" height={520} caption="Drag on empty canvas to select. Drag layers to move them. Drag guides out of the rulers." />
+
+These are the pieces around a design tool's canvas. Each one is its own entry point and works with
+the [camera](/docs/canvas-and-measurements/). They draw in screen space, so lines stay one pixel
+wide at any zoom. Every one works with a mouse, a pen and touch.
+
+None of them holds a selection. They take plain arrays of containers and report back through
+callbacks, so any selection store can drive them.
+
+## Grid
+
+`CanvasGrid` draws an infinite grid behind the world. Levels nest, 1, 10 and 100 world units by
+default, and each one fades in as its lines spread apart on screen. Zooming never pops a level in
+or out.
+
+```ts
+import { Container } from 'pixi.js';
+import { Camera } from 'pixi-silk/ui/camera';
+import { CanvasGrid } from 'pixi-silk/ui/grid';
+
+const world = new Container();
+const camera = new Camera({ world, element: app.canvas });
+const grid = new CanvasGrid({ camera, style: 'dots', axes: true });
+
+app.stage.addChild(grid, world);
+```
+
+All vertical lines of a level are one dashed stroke, and so are the horizontal ones. A level costs
+two silk shapes, whatever the size of the view. Dots take one shape per row. `state.style`,
+`state.axes` and `state.visible` are signals, and changes crossfade.
+
+`ratio` sets how much each level grows, `unit` the finest step and `fade` the screen spacing where
+a level starts and finishes fading in. `gridLevels()` returns the levels for a zoom, for your own
+drawing.
+
+<Demo name="canvas-grid" height={420} caption="Zoom in and out: grid levels fade, ruler labels step in 1, 2, 5." />
+
+## Rulers
+
+`Ruler` draws a top and a left ruler. Labels step in 1, 2 and 5 times a power of ten, and the ones
+a new step shares with the old one stay put while the rest fade. A marker follows the pointer.
+
+```ts
+import type { Container } from 'pixi.js';
+import type { Camera } from 'pixi-silk/ui/camera';
+import { Ruler } from 'pixi-silk/ui/ruler';
+
+declare const camera: Camera, overlay: Container, selected: Container[];
+
+const ruler = new Ruler({ camera, format: (v) => `${Math.round(v)}` });
+
+overlay.addChild(ruler);
+ruler.highlight(selected);
+```
+
+`highlight()` takes objects or a world rectangle. The ruler bands their extent and labels its
+edges in the accent colour, following the objects every frame. `format` turns world values into
+labels, for units such as `pt` or `mm`.
+
+## Guides
+
+`Guides` adds guide lines you drag out of a ruler. The top ruler gives a horizontal guide, the
+left ruler a vertical one. Drag a guide to move it, or drop it back on the ruler to remove it. A
+pill shows its position while you drag.
+
+```ts
+import type { Container } from 'pixi.js';
+import type { Camera } from 'pixi-silk/ui/camera';
+import { Guides } from 'pixi-silk/ui/guides';
+import type { Ruler } from 'pixi-silk/ui/ruler';
+import { SnapEngine } from 'pixi-silk/ui/snap';
+
+declare const camera: Camera, overlay: Container, ruler: Ruler;
+
+const engine = new SnapEngine();
+const guides = new Guides({ camera, ruler, snap: engine });
+
+overlay.addChild(guides, ruler);
+guides.bindSnap(engine);
+guides.state.guides.subscribe((list) => console.log(list));
+```
+
+While you drag, a guide snaps to the edges and centres of the engine's targets. `bindSnap()` feeds
+the guides back into the engine, so objects snap to them too. Ctrl or Cmd turns snapping off for
+a drag. `add()`, `move()`, `remove()` and `clear()` edit the guides from code.
+
+## Marquee
+
+`Marquee` draws a rubber-band rectangle when a left drag starts on empty canvas. Shift adds to the
+selection, Alt takes away and Escape cancels. The camera keeps middle, right, Space and
+two-finger drags, and a pan that starts mid-drag cancels the marquee.
+
+```ts
+import type { Container } from 'pixi.js';
+import type { Camera } from 'pixi-silk/ui/camera';
+import { Marquee } from 'pixi-silk/ui/marquee';
+
+declare const camera: Camera, overlay: Container, layers: Container[];
+let selected: readonly Container[] = [];
+
+app.stage.eventMode = 'static';
+app.stage.hitArea = app.screen;
+const marquee = new Marquee({
+    camera,
+    surface: app.stage,
+    candidates: () => layers,
+    selection: () => selected,
+    onChange: (next) => {
+        selected = next;
+    },
+});
+
+overlay.addChild(marquee);
+```
+
+`mode: 'intersect'` picks what the rectangle touches, rotated objects included. `mode: 'contain'`
+picks what is fully inside. For a spatial index or custom shapes, pass `hit: (rect) => targets`
+instead of `candidates`. Near the edge of the view the camera pans.
+
+## Multi-select
+
+`SelectionGroup` lets the `TransformGizmo` move, resize and rotate several objects at once. It is
+an invisible box around them, and every change of the box applies to each object about the common
+pivot.
+
+```ts
+import type { Container } from 'pixi.js';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { SelectionGroup } from 'pixi-silk/ui/group';
+
+declare const world: Container, overlay: Container, selected: Container[];
+
+const group = new SelectionGroup();
+const gizmo = new TransformGizmo({ mode: 'box', ...group.hooks() });
+
+world.addChild(group);
+overlay.addChild(gizmo);
+group.set(selected);
+gizmo.attach(group.target);
+```
+
+`group.target` is the object itself when one is selected, so it keeps its own turned frame. For
+several it is the group. Objects can have different parents. After objects move on their own,
+call `refit()`.
+
+## Smart spacing
+
+`findSpacing()` looks at a box you drag among others, the way Figma does. When the gap to a
+neighbour equals another gap in the same row or column, it returns every one of those gaps. It
+also returns edges and centres that line up. `SpacingMarkers` draws them as pink segments with
+value pills and thin alignment lines.
+
+```ts
+import type { Container } from 'pixi.js';
+import { SnapEngine, type SnapRect } from 'pixi-silk/ui/snap';
+import { findSpacing, SpacingMarkers } from 'pixi-silk/ui/spacing';
+
+declare const world: Container, overlay: Container, moving: SnapRect, others: SnapRect[];
+
+const engine = new SnapEngine({ targets: others });
+const markers = new SpacingMarkers({ space: world });
+
+overlay.addChild(markers);
+const snap = engine.snap(moving);
+const snapped = { ...moving, x: moving.x + snap.dx, y: moving.y + snap.dy };
+
+markers.show(findSpacing(snapped, others));
+```
+
+Snap with the `SnapEngine` first, then report on the snapped box. `gapsBetween()` reads the gaps of
+a row or a column, so an auto-layout container can show its spacing with the same markers.
+`spacingFromSnap()` draws a snap result's own guides.
+
+<Demo name="smart-spacing" height={380} caption="Drag a card to see equal gaps. Hover the stack to see its spacing." />
