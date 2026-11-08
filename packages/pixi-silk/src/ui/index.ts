@@ -192,6 +192,18 @@ export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, isTypingTarget, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
 export {
+    type FitMode,
+    fitScale,
+    type Insets,
+    type MediaRule,
+    type ReferenceResolution,
+    SmartContainer,
+    type SmartContainerOptions,
+    type SmartLayout,
+    type SmartStyle,
+    wrapText,
+} from './layout';
+export {
     combineSelection,
     Marquee,
     type MarqueeMode,

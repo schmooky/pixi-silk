@@ -72,6 +72,13 @@ const IMPORTS = {
     'text (SilkText)': ['SilkText', ['RadialMenu', 'silk-sdf', 'silk-paths'], '/text'],
     'text (layoutText, sdfFromAlpha)': ['layoutText, sdfFromAlpha', ['#version 300 es', 'silk-text-atlas'], '/text'],
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
+    // the headless engine has no Pixi in it: no shader, no display objects
+    layout: ['*', ['#version 300 es', 'silk-gradient-atlas', 'pixi.js', 'SmartContainer'], '/layout'],
+    'ui/layout (SmartContainer)': [
+        'SmartContainer',
+        ['#version 300 es', 'silk-gradient-atlas', 'RadialMenu'],
+        '/ui/layout',
+    ],
     'ui (everything)': ['*', [], '/ui'],
 };
 

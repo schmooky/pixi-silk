@@ -118,6 +118,7 @@ writeFileSync(
                 'pixi-silk/path': [join(SRC, 'path.ts')],
                 'pixi-silk/webgpu': [join(SRC, 'webgpu.ts')],
                 'pixi-silk/text': [join(SRC, 'text.ts')],
+                'pixi-silk/layout': [join(SRC, 'layout.ts')],
             },
         },
         include: ['*.ts'],

@@ -12,6 +12,7 @@ export default defineConfig({
         'src/glow.ts',
         'src/webgpu.ts',
         'src/text.ts',
+        'src/layout.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',
         'src/ui/SilkButton.ts',
@@ -39,6 +40,7 @@ export default defineConfig({
         'src/ui/arc.ts',
         'src/ui/keys.ts',
         'src/ui/pill.ts',
+        'src/ui/layout.ts',
     ],
     // ESM only, one output file per source module: with `sideEffects: false` an app's bundler
     // drops every module it does not use (motion helpers never pull in the shader)

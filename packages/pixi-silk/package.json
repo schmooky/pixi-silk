@@ -151,6 +151,14 @@
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"
     },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "default": "./dist/layout.js"
+    },
+    "./ui/layout": {
+      "types": "./dist/ui/layout.d.ts",
+      "default": "./dist/ui/layout.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
