@@ -1,44 +1,51 @@
 ---
 title: Shapes
-seoTitle: 'Smooth shapes and squircles in PixiJS v8'
-description: 'Rects, squircles with per-corner radii, pills, circles, ellipses, hearts, stars, polygons and rounded triangles, each an exact anti-aliased distance field.'
-keywords: ['PixiJS shapes', 'PixiJS squircle', 'rounded rectangle PixiJS', 'smooth circle WebGL', 'superellipse corners']
+seoTitle: 'Shapes, squircles, arcs and rings in PixiJS v8'
+description: 'Rects and squircles with per-corner radii, circles, ellipses, polygons, stars, arcs, rings and sectors, plus the transform stack that rotates them.'
+keywords: ['PixiJS shapes', 'PixiJS squircle', 'rounded rectangle PixiJS', 'PixiJS arc', 'progress ring PixiJS', 'pie chart PixiJS']
 updated: 2026-11-08
-api: [SilkGraphics]
+api: [SilkGraphics, conic]
 ---
 
-Every shape method adds a primitive to the **active path**. Nothing is drawn until you call
-`fill()` or `stroke()`, which paint everything on the path. Pixi's `Graphics` works the same way.
+A shape method adds a primitive to the active path, and `fill()` or `stroke()` paints it. Pixi's
+`Graphics` works the same way, so `g.rect(...).circle(...).fill(0x0a84ff)` fills both shapes.
 
-<Demo name="shapes" height={270} />
+<Demo name="shapes" height={270} caption="Turn on outline or rotate." />
 
-## Rectangles and squircles
+```ts
+g.roundRect(0, 0, 200, 80, 20, 0.6).fill(0x1c1c1e).stroke({ width: 2, color: 0x3a3a3c });
+```
+
+That draws a card with squircle corners and a border. A `stroke()` right after `fill()` lands in
+the same primitive, so the two paints meet without a seam. Stroke options are on
+[Strokes & dashes](/docs/strokes-and-dashes/).
+
+## Rectangles, squircles and pills
+
+<Demo name="squircle" height={240} caption="Drag smoothing. Pink is a circular corner of the same radius." />
 
 ```ts
 g.rect(x, y, width, height);
-g.roundRect(x, y, width, height, radius);                 // circular corners
-g.roundRect(x, y, width, height, radius, 0.6);            // squircle: continuous curvature
-g.roundRect(x, y, width, height, [24, 24, 8, 8]);         // per corner: tl, tr, br, bl
-g.pill(x, y, width, height);                               // fully round ends
+g.roundRect(x, y, width, height, radius);              // circular corners
+g.roundRect(x, y, width, height, radius, 0.6);         // squircle corners
+g.roundRect(x, y, width, height, [24, 24, 8, 8]);      // per corner: tl, tr, br, bl
+g.pill(x, y, width, height);                            // fully round ends
 ```
 
-The `smoothing` argument (0 to 1) turns corners into superellipse arcs whose curvature grows
-gradually. App icons and cards on iOS have these corners. iOS uses about `0.6`. A circular corner
-meets the straight side with a jump in curvature, which the eye reads as a slight kink. At the 45°
-point, a smoothed corner is exactly as deep as a circular corner of the same `radius`. So switching
-is a drop-in change.
-
-<Demo name="squircle" height={240} caption="Pink is a circular corner of the same radius. Blue is the squircle." />
+The sixth argument, `smoothing`, runs from 0 to 1. Above 0 the corner becomes a superellipse arc
+whose curvature grows gradually, the corner of iOS app icons. iOS uses about `0.6`. A smoothed
+corner is as deep as a circular one of the same `radius` at its midpoint, so switching keeps the
+layout.
 
 ## Circles, ellipses and hearts
 
 ```ts
 g.circle(cx, cy, radius);
-g.ellipse(cx, cy, radiusX, radiusY);          // exact ellipse distance (Newton solve, no approximation)
-g.heart(cx, cy, width, rounding);             // rounding 0..0.3 puffs it up
+g.ellipse(cx, cy, radiusX, radiusY);
+g.heart(cx, cy, width, rounding);      // rounding 0 to 0.3 puffs it up
 ```
 
-## Polygons
+## Polygons, stars and triangles
 
 ```ts
 g.regularPoly(cx, cy, radius, sides, rotation, cornerRadius);   // first vertex points up
@@ -46,13 +53,59 @@ g.star(cx, cy, points, radius, innerRadius, rotation, cornerRadius);
 g.triangle(x0, y0, x1, y1, x2, y2, cornerRadius);
 ```
 
-Rounded corners on polygons, stars and triangles are exact, not approximations.
+`cornerRadius` rounds every corner with a true circular arc. Leave it at 0 for sharp corners,
+which then take the stroke's `join`. For free outlines, use `poly()`, `moveTo()` or `svgPath()` on
+[Lines & paths](/docs/lines-and-paths/).
 
-## Unions
+## Arcs and rings
 
-Add `union: true` to paint every shape of the path as one. Overlaps are painted once, and blur,
-anti-aliasing and opacity show no seam where the shapes meet. A shaft and its arrowhead, or a
-handle and its line, become one shape.
+<Demo name="rings" height={240} caption="Drag progress past 1 and switch the cap." />
+
+```ts
+g.arcSweep(100, 100, 60, -Math.PI / 2, Math.PI * 2 * progress)
+    .stroke({ width: 14, cap: 'round', color: 0x30d158 });
+```
+
+`arcSweep(cx, cy, radius, startAngle, sweep)` takes a signed sweep that turns clockwise on screen.
+`arc(cx, cy, radius, startAngle, endAngle, anticlockwise)` has the Canvas signature. Angles are in
+radians with y pointing down, so `-Math.PI / 2` is 12 o'clock. A sweep of a full turn or more
+draws a closed ring.
+
+Arcs are open curves, so you stroke them. `cap` defaults to `'butt'`, as in Pixi. Each arc starts a
+subpath of its own. Unlike `Graphics.arc`, it does not draw a line from the previous point.
+
+A `conic()` gradient on an arc spans that arc. Its start and sweep default to the arc's own, so the
+ramp runs from cap to cap however long the arc is.
+
+```ts
+const RING = conic([0xfa114f, 0xff5e8a]);
+
+g.arcSweep(100, 100, 60, -Math.PI / 2, sweep).stroke({ width: 16, cap: 'round', gradient: RING });
+```
+
+## Sectors and donut segments
+
+```ts
+const slices = [0.4, 0.25, 0.2, 0.15];
+const COLORS = [0x0a84ff, 0x30d158, 0xffd60a, 0xff375f];
+let a = -Math.PI / 2;
+
+for (const [i, share] of slices.entries()) {
+    const sweep = share * Math.PI * 2;
+
+    g.sector(120, 120, 90, a + 0.02, a + sweep - 0.02, 50, 6).fill(COLORS[i]);
+    a += sweep;
+}
+```
+
+`sector(cx, cy, radius, startAngle, endAngle, innerRadius, cornerRadius)` is a closed shape. An
+`innerRadius` above 0 turns the pie slice into a donut segment, and `cornerRadius` rounds its four
+corners. The loop above draws a donut chart with small gaps between the slices.
+
+## One shape from several
+
+Add `union: true` to paint every shape of the path as one. Overlaps are painted once, so a
+translucent arrow made of a shaft and a head shows no darker joint.
 
 ```ts
 g.rect(0, -2, 40, 4)
@@ -61,28 +114,36 @@ g.rect(0, -2, 40, 4)
 ```
 
 Let the shapes overlap a little. A `stroke()` right after a union fill follows the outline of the
-union. With `stroke({ union: true })`, separate lines and paths become one stroke.
+union. To cut, intersect or nest shapes, see [Shape operations](/docs/shape-operations/).
 
-To subtract, intersect or exclude shapes, or to nest operations, see
-[Shape operations](/docs/shape-operations/).
+## Rotate and scale with the transform stack
 
-## Rotated shapes
-
-Shapes drawn inside a rotated transform stay exact, because the rotation is part of the primitive.
-See [Transforms](/docs/transforms/).
+<Demo name="transforms" height={240} caption="Change the speed." />
 
 ```ts
-g.save().translateTransform(100, 100).rotateTransform(Math.PI / 6);
-g.roundRect(-40, -20, 80, 40, 12, 0.6).fill(0x5e5ce6);
+g.save()
+    .translateTransform(210, 110)
+    .rotateTransform(Math.PI / 4)
+    .scaleTransform(1.5);
+g.roundRect(-20, -10, 40, 20, 8).fill(0xff9f0a);
 g.restore();
 ```
 
-## Fill and stroke together
+The rect is drawn in the transformed space: moved to (210, 110), turned 45 degrees and scaled by
+1.5. `SilkGraphics` has the transform stack of Pixi's `GraphicsContext`.
 
-```ts
-g.roundRect(0, 0, 200, 80, 20, 0.6).fill(0x1c1c1e).stroke({ width: 2, color: 0x3a3a3c });
-```
+| Method | What it does |
+| --- | --- |
+| `save()`, `restore()` | Push and pop the current transform |
+| `translateTransform(x, y = x)` | Move |
+| `rotateTransform(angle)` | Rotate, in radians |
+| `scaleTransform(x, y = x)` | Scale |
+| `setTransform(a, b, c, d, tx, ty)` | Replace the transform with a matrix |
+| `resetTransform()` | Go back to the identity |
 
-Calling `stroke()` right after `fill()` merges both into one primitive. The shader splits each
-pixel's coverage exactly between the fill and the stroke band. So there is never a seam or a halo
-between them. See [Fills & strokes](/docs/fills-and-strokes/).
+Shapes are stored already transformed, and rotated rects, ellipses and polygons keep their exact
+outline. Stroke widths, dash lengths and blur radii scale with the uniform part of the scale.
+
+The transform stack suits icons and repeated parts that you redraw. For an object that moves as a
+whole, such as a card sliding in, give it its own `SilkGraphics` and animate its `position`,
+`rotation` or `scale`. That changes one matrix and rebuilds nothing.

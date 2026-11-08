@@ -1,0 +1,110 @@
+---
+title: Strokes & dashes
+seoTitle: 'Strokes, hairlines and dashed lines in PixiJS'
+description: 'Paint styles for fill() and stroke(), inside or outside stroke alignment, hairlines that fade instead of breaking up, and dashes and dots with caps.'
+keywords: ['PixiJS stroke alignment', 'hairline rendering', 'PixiJS dashed line', 'dotted line WebGL', 'marching ants']
+updated: 2026-11-08
+api: [SilkGraphics, FillStyle, StrokeStyle]
+---
+
+`fill()` and `stroke()` take a colour, a gradient or a style object. This page covers the stroke
+side: width, alignment, hairlines and dashes.
+
+<Demo name="dashes" height={240} caption="Drag dash and gap. Set dash to 0 with round caps for dots." />
+
+```ts
+g.circle(90, 90, 60).stroke({ width: 4, color: 0x64d2ff, dash: [10, 6] });
+```
+
+That draws a dashed ring: 10 units of dash, 6 of gap. The pattern is computed in the shader along
+the path length, and every dash gets its own caps.
+
+## Paint styles
+
+```ts
+g.circle(0, 0, 20).fill(0xff375f);                                   // any Pixi ColorSource
+g.circle(0, 0, 20).fill('rgba(255, 55, 95, 0.5)');
+g.circle(0, 0, 20).fill(linear([0x0a84ff, 0xbf5af2]));               // a gradient
+g.circle(0, 0, 20).fill({ color: 0xff375f, alpha: 0.5, blur: 6 });   // a FillStyle
+g.circle(0, 0, 20).stroke({ width: 4, color: 0xffffff, alignment: 'inside' });
+```
+
+`FillStyle` holds `color`, `alpha`, `gradient` and the effects on
+[Shadows & effects](/docs/shadows-and-effects/). With a gradient, `color` tints it.
+`StrokeStyle` adds these:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `width` | 1 | Stroke width in local units. An array tapers it ([Lines & paths](/docs/lines-and-paths/#taper-a-stroke)). |
+| `alignment` | `'center'` | `'inside'`, `'center'` or `'outside'` the edge, or Pixi's numbers (1, 0.5, 0) |
+| `cap` | `'butt'` | Ends of open paths and of every dash: `'butt'`, `'round'` or `'square'` |
+| `join` | `'miter'` | Corners: `'miter'`, `'bevel'` or `'round'` |
+| `miterLimit` | 10 | A longer miter, in half widths, becomes a bevel |
+| `dash` | none | `[dash, gap]`, or one number for equal dash and gap |
+| `dashOffset` | 0 | Shifts the pattern along the path, in local units |
+| `dashFit` | `true` | Stretches the pattern on closed outlines so it tiles without a short dash |
+
+## Align a stroke inside or outside
+
+<Demo name="alignment" height={220} caption="Drag the stroke width. The white hairline is the geometric edge." />
+
+Strokes on closed shapes sit inside the edge, centred on it or outside it. Strokes on open shapes,
+such as lines and arcs, are always centred.
+
+When `stroke()` follows `fill()` directly, both paints go into one primitive. The shader splits
+each pixel's coverage between the fill and the stroke band. An inside stroke drawn this way has no
+halo of fill colour along its outer edge, which a stroke drawn on top of a separate fill shows.
+
+## Hairlines
+
+<Demo name="hairlines" height={240} caption="Drag the width scale below 1." />
+
+A screen cannot show a stroke thinner than one device pixel. Silk keeps such a stroke one pixel
+wide and scales its alpha by its width. A 0.25 px line is drawn 1 px wide at 25% alpha, so the ink
+stays in proportion. Lines never break into dots, and a zoomed-out drawing keeps every line.
+
+The threshold is `minStrokePx`, a per-object setting:
+
+```ts
+const lines = new SilkGraphics({ minStrokePx: 1, aaWidth: 1, dither: 1 });
+
+lines.aaWidth = 1.5;   // softer edges
+```
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `minStrokePx` | 1 | Strokes thinner than this many device pixels keep this width and fade |
+| `aaWidth` | 1 | Width of the anti-aliasing ramp, in device pixels |
+| `dither` | 1 | Dither of gradients and blurs, in 8-bit steps. 0 turns it off |
+
+`SilkGraphics.defaults` holds the defaults for new objects.
+
+## Dots
+
+```ts
+g.line(0, 20, 300, 20).stroke({ width: 8, cap: 'round', dash: [0, 16], color: 0x30d158 });
+```
+
+A dash of length 0 draws a dot with `cap: 'round'` and a square with `cap: 'square'`. The pattern
+repeats every `dash + gap` units, so `[0, 16]` places a dot every 16 units.
+
+## Marching ants
+
+```ts
+app.ticker.add(() => {
+    g.clear().circle(80, 80, 56).stroke({ width: 3, color: 0xffffff, dash: [6, 6], dashOffset: t * 30 });
+});
+```
+
+Animate `dashOffset` to move the pattern along the path. A selection outline or a loading
+spinner is a dashed stroke with a growing offset.
+
+## Where dashes work
+
+Dashes work on lines, polylines, paths, arcs, circles and ellipses. Sharp rects, triangles and
+polygons dash too with a miter or bevel join, because their strokes then run as paths. Rounded rects, rounded polygons, sectors
+and hearts draw a solid stroke. For a dashed card border, stroke a path through the corners, or
+`svgPath()` with arcs.
+
+On closed outlines, `dashFit` stretches the pattern a little so it tiles the perimeter. Without
+it, a short dash appears where the outline starts. Set `dashFit: false` to keep the exact lengths.
