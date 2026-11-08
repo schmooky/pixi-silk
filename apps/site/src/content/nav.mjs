@@ -87,6 +87,7 @@ export const DOCS_AREAS = [
             'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera.',
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
             'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
+            'Layout places them: a flex engine with no Pixi in it, and a smart container for responsive game screens.',
         ],
         items: [
             { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
@@ -94,6 +95,7 @@ export const DOCS_AREAS = [
             'hit-testing',
             { page: 'animation', lab: ['23-timers'] },
             'radial-menus-and-buttons',
+            'layout',
         ],
         aliases: ['building-ui'],
     },
