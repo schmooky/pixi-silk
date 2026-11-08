@@ -42,7 +42,7 @@ export interface SilkApp {
     readonly resolution: number;
     /** Forces a resolution, for example to compare 1x and 2x, and resizes at once. `null` returns to devicePixelRatio. */
     setResolution(resolution: number | null): void;
-    /** Stops observers, destroys the stage and renderer and removes the canvas. Safe with several apps on a page. */
+    /** Stops observers and listeners, destroys the stage and renderer and removes the canvas. Safe with several apps on a page. */
     destroy(): void;
 }
 
@@ -54,6 +54,9 @@ export interface SilkApp {
  * canvas pixel is one device pixel even at fractional DPRs such as 1.25 or 2.625. It follows DPR
  * changes from browser zoom or a move to another display. Coordinates are not rounded, so motion
  * stays sub-pixel smooth. Any other Pixi option you pass overrides these defaults.
+ *
+ * It also listens for `pointercancel` on `window`. Pixi ignores that event, so a touch the page
+ * takes over for a scroll would leave a drag running. The app ends it with `pointerupoutside`.
  *
  * @example
  * ```ts
@@ -162,6 +165,18 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
 
     watchDpr();
 
+    // Pixi does not listen for pointercancel. When the page takes a touch over (a scroll or a
+    // pinch that touch-action leaves to it), drags on the canvas would never end: end them with
+    // the pointerup outside the canvas Pixi would have sent.
+    const events = app.renderer.events as unknown as { _onPointerUp?: (e: PointerEvent) => void };
+    // a pointercancel has button -1: Pixi finds the press by its button, so send 0
+    const onCancel = ({ pointerId, pointerType, isPrimary, clientX, clientY }: PointerEvent) =>
+        events._onPointerUp?.(
+            new PointerEvent('pointerup', { pointerId, pointerType, isPrimary, clientX, clientY, button: 0 }),
+        );
+
+    globalThis.addEventListener('pointercancel', onCancel, true);
+
     return {
         app,
         get width() {
@@ -180,6 +195,7 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
         destroy() {
             ro.disconnect();
             mq?.removeEventListener('change', onDprChange);
+            globalThis.removeEventListener('pointercancel', onCancel, true);
             // `{ removeView: true }`, not `true`: `true` also releases Pixi's process-global pools
             // (batchers, hashes), which breaks every other live application on the page
             app.destroy({ removeView: true }, { children: true });
