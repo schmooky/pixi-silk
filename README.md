@@ -68,7 +68,9 @@ stay aliased unless you opt each one in. Filters render at resolution 1, and 8-b
   after `enableSilkBatching()`. Rebuilding 50,000 primitives
   takes about 12 ms of CPU per frame.
 
-Requirements: `pixi.js` ^8.6 (peer dependency) and WebGL2. WebGPU is not supported yet.
+Requirements: `pixi.js` ^8.6 (peer dependency) and WebGL2 or WebGPU. `createSilkApp` uses WebGL2 by
+default. Pass `preference: 'webgpu'` for WebGPU, which loads the WGSL shader on demand
+(`enableWebGPU()` from `pixi-silk/webgpu` for your own Pixi app).
 Strokes support miter, bevel and round joins with `miterLimit`, as in Canvas 2D.
 
 ## Documentation

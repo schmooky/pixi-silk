@@ -7,6 +7,7 @@ export default defineConfig({
         'src/signal.ts',
         'src/glass.ts',
         'src/glow.ts',
+        'src/webgpu.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',
         'src/ui/SilkButton.ts',

@@ -31,6 +31,9 @@ pnpm lint && pnpm typecheck && pnpm --filter pixi-silk test && pnpm site:build
   typical imports of it to check what an app pays and that unused modules tree-shake away.
 - Rendering changes: check Safari too. `node scripts/check-pages.mjs http://127.0.0.1:5178 1280 800 --webkit`
   loads every page in WebKit and reports WebGL and console errors.
+- Shader changes: the GLSL program in `shader.ts` has a WGSL twin in `shader-wgsl.ts` (and the glass
+  filter one in `glass/glass-wgsl.ts`). Change both. `pnpm build && pnpm check:wgsl` compiles the
+  WGSL on a real WebGPU device. Add `?renderer=webgpu` to a docs URL to run its demos on WebGPU.
 - Library changes need a changeset: `pnpm changeset` (patch = fix, minor = feature, major = breaking).
 - Commit messages follow Conventional Commits, for example `feat(gradient): add stop easing` or
   `fix(shader): clamp coverage`. commitlint checks them.

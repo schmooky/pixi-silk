@@ -19,6 +19,7 @@
     "lint:prose": "node scripts/check-prose.mjs",
     "check:publish-contents": "node scripts/check-publish-contents.mjs",
     "check:pages": "node scripts/check-pages.mjs",
+    "check:wgsl": "node scripts/check-wgsl.mjs",
     "site:dev": "pnpm --filter @pixi-silk/site dev",
     "site:build": "pnpm --filter @pixi-silk/site build",
     "site:preview": "pnpm --filter @pixi-silk/site preview",

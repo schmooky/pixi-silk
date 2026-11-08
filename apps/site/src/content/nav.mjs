@@ -141,13 +141,14 @@ export const DOCS_AREAS = [
         summary: 'How the anti-aliasing works, crisp canvases on any screen and what it costs.',
         intro: [
             'The ideas under the API. The first three pages compare pixi-silk with the other ways to smooth PixiJS graphics.',
-            'Resolution and performance cover canvas setup and cost. How it works walks through the shader.',
+            'Resolution, renderers and performance cover canvas setup and cost. How it works walks through the shader.',
         ],
         items: [
             'smooth-graphics-pixijs',
             { page: 'antialiasing-in-pixijs', lab: ['03-zoom', '04-subpixel'] },
             'graphics-smooth-v8',
             { page: 'resolution', lab: ['05-resolution', '06-render-texture'] },
+            'webgpu',
             { page: 'performance', lab: ['27-stress'] },
             'how-it-works',
         ],
