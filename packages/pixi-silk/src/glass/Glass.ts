@@ -17,7 +17,8 @@ export interface GlassOptions extends GlassStyle {
  *
  * Put labels and icons in {@link Glass.content}. They sit on top of the glass, unblurred. The pane's
  * top-left corner is at (0, 0). It only sees what was drawn before it in the same frame, so add it
- * after its backdrop.
+ * after its backdrop. You can rotate and scale it. The light stays fixed on screen, and under an uneven
+ * scale the corners keep the radius of the smaller scale. Skew is not supported.
  *
  * On WebGL the pane reads the canvas through the renderer's back buffer. It sets
  * `renderer.backBuffer.useBackBuffer = true` the first time it draws and shows no glass on that one
@@ -146,11 +147,15 @@ export class Glass extends Container {
         // texture fails with GL_INVALID_OPERATION. Skip the filter for that frame.
         filter.enabled = !(backBuffer && renderer.renderTarget.rootRenderTarget?.isRoot);
         const m = this._body.worldTransform;
-        const k = Math.hypot(m.a, m.b);
+        // scale along the pane's own axes, so an uneven scale sizes each side by its own factor
+        const kx = Math.hypot(m.a, m.b);
+        const ky = Math.hypot(m.c, m.d);
+        const k = Math.min(kx, ky);
         const r = this._r;
         const [lx, ly] = lightVector(r.lightAngle);
 
-        filter.setShape((this._w * k) / 2, (this._h * k) / 2, r.radius * k, r.smoothing);
+        filter.setShape((this._w * kx) / 2, (this._h * ky) / 2, r.radius * k, r.smoothing);
+        filter.setRotation(Math.atan2(m.b, m.a));
         filter.setOptics(r.blur * k, r.refraction * k, r.dispersion, r.bevel * k);
         filter.setTint(r.tint[0], r.tint[1], r.tint[2], r.tintAmount);
         filter.setLight(lx, ly, r.light, r.grain);
