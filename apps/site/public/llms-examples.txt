@@ -1,0 +1,1648 @@
+# pixi-silk: examples
+
+> Smooth vector graphics for PixiJS v8. Every shape is an exact signed distance field, anti-aliased per pixel in the shader, so edges stay smooth at any zoom, rotation and device pixel ratio without MSAA.
+
+pixi-silk 0.1.0 is an MIT-licensed TypeScript library. It needs pixi.js ^8.6 as a peer dependency, and a browser with WebGL2 or WebGPU.
+
+Site: https://pixi-silk.schmooky.dev
+Repository: https://github.com/schmooky/pixi-silk
+Package: https://www.npmjs.com/package/pixi-silk
+
+This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs harness: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.
+
+- [llms-full.txt](https://pixi-silk.schmooky.dev/llms-full.txt): core, paint and rendering: guides and API, SilkGraphics first.
+- [llms-ui.txt](https://pixi-silk.schmooky.dev/llms-ui.txt): text, layout, UI widgets and the editor kit: guides and API.
+
+---
+
+# Showcase
+
+URL: https://pixi-silk.schmooky.dev/docs/showcase/
+Area: Examples
+
+> Five design sheets, from Health cards to Live Activities, rebuilt pixel for pixel with smooth, anti-aliased pixi-silk graphics. 81 live widgets.
+
+Each pair shows the reference image and a still frame of the live render. Open a sheet to drag a
+compare slider over it. The widget viewer and the single-widget experiments listed with this page
+open any widget full screen.
+
+The five sheets open full screen from the experiments listed with this page.
+
+---
+
+# Gallery
+
+URL: https://pixi-silk.schmooky.dev/docs/gallery/
+Area: Examples
+
+> Whole screens rebuilt with pixi-silk: a monochrome weather dashboard, a finance bento board and a sci-fi spectra HUD. Open any of them in Studio.
+
+### Weather, in two tones
+
+Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `weather-mono` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight } from 'pixi.js';
+import { damp, SilkGraphics } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+// A monochrome weather dashboard. Static shapes redraw only while the theme fades, the needle,
+// compass and sunrise arrow move on their own layer every frame.
+
+const W = 390;
+const H = 900;
+const MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+
+interface Palette {
+    bg: number;
+    card: number;
+    disc: number;
+    onDisc: number;
+    ink: number;
+    faint: number;
+}
+
+const LIGHT: Palette = {
+    bg: 0xdcdedb,
+    card: 0xebecea,
+    disc: 0x1d1d1d,
+    onDisc: 0xf2f2f2,
+    ink: 0x1d1d1d,
+    faint: 0x9a9c99,
+};
+const DARK: Palette = {
+    bg: 0x000000,
+    card: 0x1e1f21,
+    disc: 0xe9eaea,
+    onDisc: 0x111111,
+    ink: 0xf2f2f2,
+    faint: 0x6a6b6d,
+};
+
+const mix = (a: number, b: number, t: number) => {
+    const ch = (s: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * t) << s;
+
+    return ch(16) | ch(8) | ch(0);
+};
+const blend = (t: number): Palette => ({
+    bg: mix(LIGHT.bg, DARK.bg, t),
+    card: mix(LIGHT.card, DARK.card, t),
+    disc: mix(LIGHT.disc, DARK.disc, t),
+    onDisc: mix(LIGHT.onDisc, DARK.onDisc, t),
+    ink: mix(LIGHT.ink, DARK.ink, t),
+    faint: mix(LIGHT.faint, DARK.faint, t),
+});
+
+// layout: two columns of cards under the hero row
+const COL = [20, 205];
+const CARD_W = 165;
+const CARD_H = 165;
+const ROW = [330, 515, 700];
+const hair = (color: number, alpha = 1) => ({ width: 1.25, color, alpha });
+
+type Role = 'ink' | 'onDisc' | 'faint';
+
+export default defineDemo({
+    size: [W, H],
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['light', 'dark'], value: 'dark' },
+    },
+    setup({ stage, params, tick }) {
+        const base = new SilkGraphics();
+        const live = new SilkGraphics();
+        const texts = new Container();
+        const labels: [Text, Role][] = [];
+        let fade = params.theme === 'dark' ? 1 : 0;
+        let drawnFade = -1;
+
+        stage.addChild(base, live, texts);
+
+        const text = (
+            value: string,
+            x: number,
+            y: number,
+            size: number,
+            role: Role,
+            anchor = 0,
+            weight: TextStyleFontWeight = '400',
+        ) => {
+            const t = new Text({
+                text: value,
+                style: {
+                    fill: 0xffffff,
+                    fontFamily: MONO,
+                    fontSize: size,
+                    fontWeight: weight,
+                    letterSpacing: size * 0.08,
+                },
+            });
+
+            t.anchor.set(anchor, 0.5);
+            t.position.set(x, y);
+            texts.addChild(t);
+            labels.push([t, role]);
+        };
+
+        // header
+        text('BROADGATE', W / 2, 92, 17, 'ink', 0.5);
+        // hero
+        text('12°', 115, 204, 66, 'onDisc', 0.5, '300');
+        text('H:14° L:9°', 115, 254, 13, 'onDisc', 0.5);
+        text('AIR QUALITY  21', 228, 162, 13, 'ink');
+        text('Fair', 228, 184, 13, 'ink');
+        text('UV INDEX 02', 228, 254, 13, 'ink');
+        text('Low', 228, 276, 13, 'ink');
+        // card titles and values
+        const card = (col: number, row: number, title: string, sub: string, value: string, unit = '') => {
+            const x = COL[col] + 16;
+            const y = ROW[row];
+
+            text(title, x, y + 22, 11, 'ink');
+            if (sub) text(sub, x, y + 38, 11, 'ink', 0, '700');
+            text(value, x, y + CARD_H - 26, 26, 'ink', 0, '300');
+            if (unit) text(unit, x + value.length * 17 + 4, y + CARD_H - 22, 10, 'ink');
+        };
+
+        card(0, 0, 'AIR QUALITY', 'Fair', '21');
+        card(1, 0, 'HUMIDITY', '', '79%');
+        card(0, 1, 'WIND SPEED', '', '7', 'MPH');
+        card(1, 1, 'UV INDEX', 'Low', '02');
+        card(0, 2, 'SUNRISE', '', '06:11');
+        text('N', COL[0] + CARD_W / 2, ROW[1] + 56, 9, 'ink', 0.5, '700');
+        text('FEELS LIKE', COL[1] + CARD_W / 2, ROW[2] + 60, 12, 'onDisc', 0.5);
+        text('11°', COL[1] + CARD_W / 2, ROW[2] + 100, 46, 'onDisc', 0.5, '300');
+
+        const drawBase = (p: Palette) => {
+            const g = base.clear();
+
+            g.rect(0, 0, W, H).fill(p.bg);
+            menuIcon(g, 28, 92, p.ink);
+            gearIcon(g, W - 38, 92, p);
+            g.circle(115, 218, 90).fill(p.disc);
+            g.pill(212, 130, 160, 74).fill(p.card);
+            g.pill(212, 222, 160, 74).fill(p.card);
+            g.line(20, 318, W - 20, 318).stroke(hair(p.ink));
+            for (const [col, row] of [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [1, 1],
+                [0, 2],
+            ]) {
+                g.roundRect(COL[col], ROW[row], CARD_W, CARD_H, 14).fill(p.card);
+            }
+            gaugeFace(g, COL[0] + CARD_W / 2, ROW[0] + 108, p);
+            g.circle(COL[1] + CARD_W / 2, ROW[0] + 82, 46).stroke(hair(p.ink, 0.6));
+            g.circle(COL[1] + CARD_W / 2, ROW[0] + 82, 37).fill(p.disc);
+            compassFace(g, COL[0] + CARD_W / 2, ROW[1] + 92, p);
+            uvStack(g, COL[1] + CARD_W / 2, ROW[1] + 120, p);
+            sunriseFace(g, COL[0] + CARD_W / 2, ROW[2] + 92, p);
+            g.circle(COL[1] + CARD_W / 2, ROW[2] + CARD_H / 2, 82).fill(p.disc);
+        };
+
+        tick((t, dt) => {
+            fade = damp(fade, params.theme === 'dark' ? 1 : 0, 6, dt);
+            const p = blend(fade);
+
+            if (Math.abs(fade - drawnFade) > 0.001) {
+                drawBase(p);
+                drawnFade = fade;
+                for (const [label, role] of labels) label.tint = p[role];
+            }
+            const g = live.clear();
+
+            gaugeNeedle(g, COL[0] + CARD_W / 2, ROW[0] + 108, 0.28 + Math.sin(t * 0.7) * 0.04, p.ink);
+            compassNeedle(g, COL[0] + CARD_W / 2, ROW[1] + 92, 0.45 + Math.sin(t * 0.9) * 0.08, p.onDisc);
+            sunriseArrow(g, COL[0] + CARD_W / 2, ROW[2] + 92, Math.sin(t * 1.6) * 2.5, p.ink);
+        });
+
+        return undefined;
+    },
+});
+
+function menuIcon(g: SilkGraphics, x: number, y: number, color: number) {
+    for (let i = -1; i <= 1; i++) {
+        g.circle(x, y + i * 7, 1.5).fill(color);
+        g.line(x + 6, y + i * 7, x + 24, y + i * 7).stroke({ width: 1.5, color, cap: 'round' });
+    }
+}
+
+function gearIcon(g: SilkGraphics, x: number, y: number, p: Palette) {
+    g.star(x, y, 8, 13, 10.5, 0, 1.2).fill(p.ink);
+    g.circle(x, y, 8.5).fill(p.bg);
+    g.circle(x, y, 4).fill(p.ink);
+    g.circle(x, y, 2.6).fill(p.bg);
+}
+
+function gaugeFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    const r = 50;
+
+    g.line(cx - 72, cy, cx + 72, cy).stroke(hair(p.ink));
+    g.arc(cx, cy, r, Math.PI, Math.PI * 2).stroke(hair(p.ink));
+    for (let i = 0; i <= 16; i++) {
+        const a = Math.PI + (i / 16) * Math.PI;
+        const inner = i % 4 === 0 ? r - 9 : r - 5;
+
+        g.line(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner, cx + Math.cos(a) * r, cy + Math.sin(a) * r).stroke(
+            hair(p.ink),
+        );
+    }
+}
+
+function gaugeNeedle(g: SilkGraphics, cx: number, cy: number, value: number, color: number) {
+    const a = Math.PI + value * Math.PI;
+    const tipX = cx + Math.cos(a) * 44;
+    const tipY = cy + Math.sin(a) * 44;
+    const head = 7;
+
+    g.line(cx, cy, tipX, tipY).stroke({ width: 1.5, color, cap: 'round' });
+    for (const side of [-0.45, 0.45]) {
+        g.line(tipX, tipY, tipX - Math.cos(a + side) * head, tipY - Math.sin(a + side) * head).stroke({
+            width: 1.5,
+            color,
+            cap: 'round',
+        });
+    }
+}
+
+function compassFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    g.circle(cx, cy, 44).stroke(hair(p.ink));
+    g.circle(cx, cy, 30).fill(p.disc);
+    g.regularPoly(cx, cy - 47, 3.5, 3, 0, 0.5).fill(p.ink);
+}
+
+function compassNeedle(g: SilkGraphics, cx: number, cy: number, angle: number, color: number) {
+    const dx = Math.sin(angle) * 24;
+    const dy = -Math.cos(angle) * 24;
+
+    g.line(cx + dx, cy + dy, cx - dx, cy - dy).stroke({ width: 1.4, color, cap: 'round' });
+    const back = Math.atan2(-dy, -dx);
+
+    for (const side of [-0.5, 0.5]) {
+        g.line(cx - dx, cy - dy, cx - dx - Math.cos(back + side) * 6, cy - dy - Math.sin(back + side) * 6).stroke({
+            width: 1.4,
+            color,
+            cap: 'round',
+        });
+    }
+}
+
+function uvStack(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    // `cy` is the shared base line: each ellipse sits on it, the tallest faintest
+    for (let i = 0; i < 5; i++) {
+        const ry = 36 - i * 6.5;
+
+        g.ellipse(cx, cy - ry, 46, ry).stroke(hair(p.ink, 0.22 + i * 0.13));
+    }
+    g.ellipse(cx, cy, 46, 4.5).stroke({ width: 1.8, color: p.ink });
+}
+
+function sunriseFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    g.line(cx - 72, cy, cx + 72, cy).stroke(hair(p.ink));
+    g.arc(cx, cy, 52, Math.PI, Math.PI * 2).stroke(hair(p.ink, 0.45));
+    g.arc(cx, cy, 40, Math.PI, Math.PI * 2).stroke({ width: 1.6, color: p.ink });
+    g.line(cx - 52, cy + 10, cx + 52, cy + 10).stroke(hair(p.ink, 0.7));
+    g.line(cx - 34, cy + 18, cx + 34, cy + 18).stroke(hair(p.ink, 0.7));
+    g.line(cx - 12, cy + 26, cx + 12, cy + 26).stroke(hair(p.ink, 0.7));
+}
+
+function sunriseArrow(g: SilkGraphics, cx: number, cy: number, lift: number, color: number) {
+    const top = cy - 26 - lift;
+
+    g.line(cx, cy - 8, cx, top).stroke({ width: 1.4, color, cap: 'round' });
+    g.line(cx, top, cx - 5, top + 6).stroke({ width: 1.4, color, cap: 'round' });
+    g.line(cx, top, cx + 5, top + 6).stroke({ width: 1.4, color, cap: 'round' });
+}
+```
+
+Hairlines, discs and one monospace face. The needle, compass and sunrise arrow drift on their own layer.
+
+### Finance bento
+
+Live demo `finance-bento` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight, type TextStyleOptions } from 'pixi.js';
+import { damp, ease, SilkGraphics } from 'pixi-silk';
+import { Odometer } from 'pixi-silk/ui/odometer';
+import { defineDemo } from './runtime';
+
+// A finance bento board. Every tile is its own container: it slides in on load, lifts on hover,
+// and animates its numbers and bars once it has landed.
+
+const W = 720;
+const H = 900;
+const GAP = 19;
+const COL_W = (W - GAP * 4) / 3;
+const col = (i: number) => GAP + i * (COL_W + GAP);
+const SANS = 'Inter, "Helvetica Neue", system-ui, sans-serif';
+
+const C = {
+    page: 0x2a2a2a,
+    orange: 0xf28a2e,
+    orangeDeep: 0xd9762a,
+    ink: 0x111111,
+    stone: 0x8f8f8b,
+    mist: 0xd9d9d6,
+    paper: 0xf2f2f0,
+    olive: 0x7f8b6c,
+    oliveDeep: 0x5e6950,
+    slate: 0x5a5a5a,
+    arrow: 0xc4c4c4,
+    clay: 0x7d5546,
+    taupe: 0x857a5c,
+    sand: 0xc8b88d,
+    donut: 0x4a4a4a,
+};
+
+interface Tile {
+    view: Container;
+    /** 0..1 entrance progress, starts after `delay`. */
+    enter: number;
+    delay: number;
+    lift: number;
+    hover: boolean;
+    /** Redraws the animated parts with the eased entrance value. */
+    update?: (p: number, t: number) => void;
+}
+
+const label = (
+    text: string,
+    size: number,
+    color: number,
+    weight: TextStyleFontWeight = '500',
+    extra: TextStyleOptions = {},
+) => new Text({ text, style: { fill: color, fontFamily: SANS, fontSize: size, fontWeight: weight, ...extra } });
+
+function tile(x: number, y: number, w: number, h: number, fill: number, delay: number, radius = 10): Tile {
+    const view = new Container();
+    const bg = new SilkGraphics();
+
+    bg.roundRect(0, 0, w, h, radius).fill(fill);
+    view.addChild(bg);
+    view.position.set(x, y);
+    view.eventMode = 'static';
+    view.hitArea = { contains: (px, py) => px >= 0 && py >= 0 && px <= w && py <= h };
+
+    const t: Tile = { view, enter: 0, delay, lift: 0, hover: false };
+
+    view.on('pointerover', () => (t.hover = true));
+    view.on('pointerout', () => (t.hover = false));
+
+    return t;
+}
+
+function place(child: Container, x: number, y: number, ax = 0, ay = 0) {
+    if ('anchor' in child) (child as Text).anchor.set(ax, ay);
+    child.position.set(x, y);
+
+    return child;
+}
+
+export default defineDemo({
+    size: [W, H],
+    setup({ silk, stage, tick }) {
+        const ticker = silk.app.ticker;
+        const tiles: Tile[] = [];
+        const bg = new SilkGraphics().rect(0, 0, W, H).fill(C.page);
+        const add = (t: Tile) => {
+            tiles.push(t);
+            stage.addChild(t.view);
+
+            return t;
+        };
+
+        stage.addChild(bg);
+
+        // the 78% card: orange, with a progress bar
+        {
+            const t = add(tile(col(0), 20, COL_W, 240, C.orange, 0));
+            const value = new Odometer({
+                ticker,
+                prefix: '\u2248', // almost equal
+                suffix: '%',
+                fontSize: 52,
+                color: C.ink,
+                textStyle: { fontFamily: SANS },
+            });
+            const bar = new SilkGraphics();
+
+            t.view.addChild(
+                value,
+                place(label('●  Winning\nInvestors', 22, C.ink, '700', { lineHeight: 24 }), 14, 100),
+                place(label('2024 May', 22, 0xb5611d, '700'), 14, 150),
+                bar,
+            );
+            value.position.set(COL_W - 14, 52);
+            t.update = (p) => {
+                if (p > 0.2 && value.state.value.value === 0) value.set(78);
+                value.x = COL_W - 14 - value.width / 2;
+                bar.clear()
+                    .roundRect(10, 186, COL_W - 20, 44, 4)
+                    .fill(C.orangeDeep);
+                bar.roundRect(10, 186, (COL_W - 20) * 0.7 * p, 44, 4).fill(C.ink);
+            };
+        }
+
+        // up arrow tile
+        {
+            const t = add(tile(col(0), 280, COL_W, 250, C.slate, 0.08));
+            const g = new SilkGraphics();
+            const cx = COL_W / 2;
+
+            g.rect(cx - 9, 70, 18, 140).fill(C.arrow);
+            g.beginPath()
+                .moveTo(cx, 60)
+                .bezierCurveTo(cx - 8, 90, cx - 40, 110, cx - 72, 110)
+                .stroke({ width: 18, color: C.arrow });
+            g.beginPath()
+                .moveTo(cx, 60)
+                .bezierCurveTo(cx + 8, 90, cx + 40, 110, cx + 72, 110)
+                .stroke({ width: 18, color: C.arrow });
+            t.view.addChild(g);
+            t.update = (p, time) => {
+                g.y = (1 - p) * 30 + Math.sin(time * 1.4) * 3 * p;
+            };
+        }
+
+        // 24h trading volume
+        {
+            const t = add(tile(col(0), 550, COL_W, 330, C.clay, 0.16));
+            const rows: [boolean, string, string][] = [
+                [true, 'Bitcoin', '$67,258.69'],
+                [false, 'Ethereum', '$2,631.39'],
+                [true, 'Tether', '$0.9992'],
+                [false, 'Solana', '$167.92'],
+                [true, 'Cardano', '$0.362'],
+                [false, 'Toncoin', '$5.25'],
+            ];
+            const lines = new SilkGraphics();
+
+            t.view.addChild(place(label('24h Trading\nVolume', 22, C.ink, '700', { lineHeight: 24 }), 16, 20), lines);
+            rows.forEach(([up, name, price], i) => {
+                const y = 330 - (rows.length - i) * 37 + 12;
+
+                lines.rect(0, y - 18, COL_W, 1).fill({ color: C.ink, alpha: 0.25 });
+                t.view.addChild(
+                    place(label(up ? '▲' : '▼', 10, C.ink), 16, y, 0, 0.5),
+                    place(label(name, 13, C.ink, '600'), 34, y, 0, 0.5),
+                    place(label(price, 13, C.ink, '600'), COL_W - 14, y, 1, 0.5),
+                );
+            });
+        }
+
+        // send / receive
+        {
+            const t = add(tile(col(1), 20, COL_W, 170, C.stone, 0.04));
+            const inner = new SilkGraphics();
+            const send = new Odometer({
+                ticker,
+                fontSize: 38,
+                color: C.ink,
+                textStyle: { fontFamily: SANS, fontWeight: '400' },
+            });
+
+            inner.roundRect(8, 8, COL_W - 16, 72, 7).fill(0xadada9);
+            inner.roundRect(8, 88, COL_W - 16, 74, 7).fill(C.mist);
+            t.view.addChild(
+                inner,
+                place(label('Send', 16, 0x3b3b3b, '400'), 22, 30, 0, 0.5),
+                place(label('USD', 11, 0x555555, '400'), 22, 64, 0, 0.5),
+                send,
+                place(label('Receive', 16, 0x3b3b3b, '400'), 22, 110, 0, 0.5),
+                place(label('BTC', 11, 0x555555, '400'), 22, 146, 0, 0.5),
+                place(label('0,0018', 38, C.ink, '400'), COL_W - 22, 136, 1, 0.5),
+            );
+            send.y = 54;
+            t.update = (p) => {
+                if (p > 0.2 && send.state.value.value === 0) send.set(134);
+                send.x = COL_W - 22 - send.width / 2;
+            };
+        }
+
+        // research card: a price, then three plan cards stacked on its lower half
+        {
+            const t = add(tile(col(1), 205, COL_W, 470, 0xbdbdba, 0.12));
+            const g = new SilkGraphics();
+            const plans: [string, string, number, number][] = [
+                ['Key\nBenefits', 'AI tools', 2, 0xdcdcda],
+                ['Pricing\nPlans', 'Premium', 15, C.paper],
+                ['Trusted\nInvestors', 'Trust', 54, C.taupe],
+            ];
+            const top = [214, 278, 342];
+            const bottom = 462;
+            const counters: Odometer[] = [];
+            const trust = new SilkGraphics();
+            const price = label('$23,485', 32, C.ink, '400');
+            const cents = label('.95', 32, 0x8c8c8a, '400');
+
+            t.view.addChild(
+                g,
+                place(label('Best Crypto\nResearch', 22, C.ink, '700', { lineHeight: 24 }), 16, 16),
+                place(price, 16, 186, 0, 0.5),
+                place(cents, 16 + price.width, 186, 0, 0.5),
+            );
+            plans.forEach(([name, sub, , fill], i) => {
+                const y = top[i];
+
+                g.roundRect(6, y, COL_W - 12, bottom - y, 8).fill(fill);
+                const counter = new Odometer({
+                    ticker,
+                    fontSize: 40,
+                    color: C.ink,
+                    textStyle: { fontFamily: SANS, fontWeight: '400' },
+                });
+
+                counter.y = y + 38;
+                counters.push(counter);
+                t.view.addChild(
+                    place(label(name, 11, C.ink, '700', { lineHeight: 12 }), 16, y + 10),
+                    place(label(sub, 9, 0x5d5d5b, '400'), 16, y + 52, 0, 0.5),
+                    counter,
+                );
+            });
+            t.view.addChild(
+                place(label('%', 18, 0x3b3b3b, '400'), COL_W - 80, top[2] + 44, 1, 0.5),
+                place(label('Do not trust', 9, 0x4a4535, '400'), COL_W - 16, top[2] + 74, 1, 0.5),
+                trust,
+            );
+            t.update = (p) => {
+                counters.forEach((c, i) => {
+                    if (p > 0.3 && c.state.value.value === 0) c.set(plans[i][2]);
+                    c.x = COL_W - 18 - c.width / 2;
+                });
+                const barY = top[2] + 84;
+
+                trust
+                    .clear()
+                    .roundRect(10, barY + 8, COL_W - 20, bottom - barY - 12, 6)
+                    .fill(0x6c6450);
+                trust.roundRect(10, barY, (COL_W - 20) * 0.54 * p, bottom - barY - 4, 6).fill(C.sand);
+            };
+        }
+
+        // currency tiles
+        {
+            const t = add(tile(col(1), 690, COL_W, 190, 0xbdbdba, 0.2));
+            const g = new SilkGraphics();
+            const half = (COL_W - 24) / 2;
+
+            t.view.addChild(g);
+            ['₿', '$', '€', '¥'].forEach((sign, i) => {
+                const x = 8 + (i % 2) * (half + 8);
+                const y = 8 + Math.floor(i / 2) * 91;
+
+                g.roundRect(x, y, half, 83, 7).fill(C.paper);
+                t.view.addChild(place(label(sign, 38, C.ink, '400'), x + half / 2, y + 42, 0.5, 0.5));
+            });
+        }
+
+        // weekly bars
+        {
+            const t = add(tile(col(2), 20, COL_W, 375, C.olive, 0.08));
+            const bars = new SilkGraphics();
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const totals = [0.86, 0.75, 0.6, 0.68, 0.84, 0.67, 0.78];
+            const filled = [0.3, 0.55, 0.18, 0.37, 0.75, 0.42, 0.28];
+            const total = new Odometer({
+                ticker,
+                decimals: 2,
+                prefix: '$',
+                fontSize: 22,
+                color: C.ink,
+                textStyle: { fontFamily: SANS, fontWeight: '400' },
+            });
+            const slot = (COL_W - 24) / 7;
+
+            t.view.addChild(
+                place(label('You Shop\nData Insights', 20, C.ink, '700', { lineHeight: 22 }), 14, 14),
+                bars,
+                place(label('All Time:', 12, 0x2f3527, '400'), 14, 350, 0, 0.5),
+                total,
+            );
+            days.forEach((d, i) =>
+                t.view.addChild(place(label(d, 10, 0x3a4130, '400'), 12 + slot * (i + 0.5), 316, 0.5, 0.5)),
+            );
+            total.y = 350;
+            t.update = (p) => {
+                if (p > 0.4 && total.state.value.value === 0) total.set(637.55);
+                total.x = COL_W - 14 - total.width / 2;
+                bars.clear();
+                totals.forEach((v, i) => {
+                    const x = 12 + slot * i + 3;
+                    const w = slot - 6;
+                    const grow = ease.outCubic(Math.min(1, Math.max(0, p * 1.4 - i * 0.06)));
+                    const full = 220 * v * grow;
+                    const fill = 220 * filled[i] * grow;
+
+                    if (full > 1) bars.roundRect(x, 300 - full, w, full, 6).fill(C.oliveDeep);
+                    if (fill > 1) bars.roundRect(x, 300 - fill, w, fill, 6).fill(C.ink);
+                });
+            };
+        }
+
+        // one quarter donut
+        {
+            const t = add(tile(col(2), 415, COL_W, 200, C.page, 0.16));
+            const g = new SilkGraphics();
+            const cx = COL_W / 2;
+
+            t.view.addChild(g, place(label('¼', 40, C.paper, '500'), cx, 100, 0.5, 0.5));
+            t.update = (p) => {
+                g.clear().circle(cx, 100, 100).fill(C.donut);
+                g.sector(cx, 100, 100, -Math.PI / 2, -Math.PI / 2 + (Math.PI / 2) * p, 0).fill(C.mist);
+                g.circle(cx, 100, 46).fill(0x262626);
+            };
+        }
+
+        // clock dial with rotated numbers
+        {
+            const t = add(tile(col(2), 630, COL_W, 250, C.page, 0.24));
+            const face = new SilkGraphics();
+            const numbers = new Container();
+            const cx = COL_W / 2;
+            const cy = 125;
+
+            face.circle(cx, cy, 122).fill(C.mist);
+            face.regularPoly(cx + 20, cy + 40, 8, 3, -Math.PI / 6, 1).fill(C.ink);
+            numbers.position.set(cx, cy);
+            for (let h = 1; h <= 12; h++) {
+                const a = (h / 12) * Math.PI * 2;
+                const n = place(label(String(h), 30, C.ink, '400'), Math.sin(a) * 96, -Math.cos(a) * 96, 0.5, 0.5);
+
+                n.rotation = a;
+                numbers.addChild(n);
+            }
+            t.view.addChild(face, numbers);
+            t.update = (p, time) => {
+                numbers.rotation = (1 - p) * -1.2 + Math.sin(time * 0.3) * 0.04;
+            };
+        }
+
+        tick((time, dt) => {
+            for (const t of tiles) {
+                const target = time > t.delay ? 1 : 0;
+
+                t.enter = damp(t.enter, target, 5, dt);
+                t.lift = damp(t.lift, t.hover ? 1 : 0, 14, dt);
+                const p = ease.outCubic(Math.min(1, t.enter));
+
+                t.view.alpha = p;
+                t.view.pivot.y = (1 - p) * -24 + t.lift * 4;
+                t.update?.(p, time);
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+Every tile is a small container with its own drawing, so you can lift any one of them into your app.
+
+### Spectra HUD
+
+Live demo `spectra-hud` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+// A sci-fi spectrum readout. The frame, labels and gauges are drawn once, the heatmap cells and the
+// orientation square redraw every frame.
+
+const W = 1280;
+const H = 720;
+const CX = 640;
+const CY = 360;
+const MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+const WHITE = 0xf2f2f2;
+const DIM = 0x8a8a8a;
+const RED = 0xff2b2b;
+
+// heatmap grid: cells inside a circle around the centre
+const CELL = 11;
+const RADIUS = 150;
+const GRID = Math.ceil((RADIUS * 2) / CELL);
+
+const hair = (alpha = 1) => ({ width: 1, color: WHITE, alpha });
+
+/** Blue to red to white, the palette of the hot spot. */
+function hot(v: number): number {
+    const stops = [0x1a2cff, 0xff1e1e, 0xffffff];
+    const x = Math.min(1, Math.max(0, v)) * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(x));
+    const t = x - i;
+    const ch = (s: number) => Math.round(((stops[i] >> s) & 255) * (1 - t) + ((stops[i + 1] >> s) & 255) * t) << s;
+
+    return ch(16) | ch(8) | ch(0);
+}
+
+const grey = (v: number) => {
+    const c = Math.round(30 + v * 170);
+
+    return (c << 16) | (c << 8) | c;
+};
+
+export default defineDemo({
+    size: [W, H],
+    background: 0x050505,
+    setup({ stage, tick }) {
+        const frame = new SilkGraphics();
+        const cells = new SilkGraphics();
+        const live = new SilkGraphics();
+        const texts = new Container();
+        let frameCount = 0;
+
+        stage.addChild(cells, frame, live, texts);
+
+        const text = (
+            value: string,
+            x: number,
+            y: number,
+            size = 8,
+            color = DIM,
+            anchor = 0,
+            weight: TextStyleFontWeight = '400',
+        ) => {
+            const t = new Text({
+                text: value,
+                style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.6 },
+            });
+
+            t.anchor.set(anchor, 0.5);
+            t.position.set(x, y);
+            texts.addChild(t);
+
+            return t;
+        };
+
+        drawTabs(text);
+        drawWarning(frame, text);
+        drawTitle(text);
+        drawPlot(frame, text);
+        drawTimeline(frame, text);
+        drawCompassFace(frame, text);
+        drawEdges(frame);
+        drawControls(frame, text);
+        drawFooter(frame, text);
+
+        tick((t) => {
+            // the heatmap redraws at half the frame rate: plenty for a slow drift
+            if (frameCount++ % 2 === 0) drawCells(cells, t);
+            live.clear();
+            const a = t * 0.35;
+
+            live.save().translateTransform(1165, 98).rotateTransform(a);
+            live.rect(-11, -11, 22, 22).stroke({ width: 1, color: 0xffb020 });
+            live.restore();
+            live.line(1165, 98, 1165 + Math.cos(a - 1.2) * 46, 98 + Math.sin(a - 1.2) * 46).stroke(hair(0.5));
+            const blink = Math.sin(t * 4) > 0 ? 1 : 0.35;
+
+            live.circle(30, 680, 2.5).fill({ color: 0xffb020, alpha: blink });
+        });
+
+        return undefined;
+    },
+});
+
+type TextFn = (
+    value: string,
+    x: number,
+    y: number,
+    size?: number,
+    color?: number,
+    anchor?: number,
+    weight?: TextStyleFontWeight,
+) => Text;
+
+function drawCells(g: SilkGraphics, t: number) {
+    g.clear();
+    const hotX = 0.22 + Math.sin(t * 0.4) * 0.05;
+    const hotY = -0.18 + Math.cos(t * 0.33) * 0.04;
+
+    for (let j = 0; j < GRID; j++) {
+        for (let i = 0; i < GRID; i++) {
+            const x = CX - RADIUS + i * CELL;
+            const y = CY - RADIUS + j * CELL;
+            const u = (x + CELL / 2 - CX) / RADIUS;
+            const v = (y + CELL / 2 - CY) / RADIUS;
+
+            if (u * u + v * v > 1) continue;
+            // a soft grey body, brighter towards its lower right, with a slow ripple
+            const body =
+                Math.max(0, 1 - Math.hypot((u - 0.05) / 0.9, (v - 0.15) / 0.75)) *
+                (0.6 + 0.4 * Math.sin(u * 6 + t * 0.7));
+            // the hot spot: a squashed blob that drifts inside the selection box
+            const heat =
+                Math.max(0, 1 - Math.hypot((u - hotX) / 0.42, (v - hotY) / 0.28)) * 1.25 +
+                Math.max(0, 0.6 - Math.hypot(u - 0.2, v + 0.55) * 1.6);
+
+            if (heat > 0.18) g.rect(x, y, CELL - 1, CELL - 1).fill(hot(heat - 0.18));
+            else if (body > 0.04) g.rect(x, y, CELL - 1, CELL - 1).fill({ color: grey(body), alpha: 0.85 });
+        }
+    }
+}
+
+function drawTabs(text: TextFn) {
+    const tabs = [
+        'SPATIAL PREPROCESSING',
+        'SPECTRAL PREPROCESSING',
+        'UNIVARIATE IMAGING',
+        'MULTIVARIATE IMAGING',
+        'IMAGE PROCESSING',
+    ];
+    let x = 30;
+
+    for (const [i, tab] of tabs.entries()) {
+        const label = text(tab, x, 22, 7, i === 1 ? WHITE : DIM);
+
+        x += label.width + 26;
+    }
+}
+
+function drawWarning(g: SilkGraphics, text: TextFn) {
+    text('IRP WARNING THRESHOLD  84%', 1205, 22, 7, WHITE, 1);
+    g.roundRect(1215, 16, 36, 12, 2).fill(RED);
+    text('HIGH', 1233, 22, 6, WHITE, 0.5, '700');
+}
+
+function drawTitle(text: TextFn) {
+    text('06F', 40, 82, 30, WHITE, 0, '700');
+    text('Neptune Spectra  /  Logged', 40, 112, 13, WHITE, 0, '600');
+    text('APHELION', 40, 140, 6);
+    text('30.33 AU (4.54 BILLION KM)', 40, 150, 7, WHITE);
+    text('PERIHELION', 40, 168, 6);
+    text('29.81 AU (4.46 BILLION KM)', 40, 178, 7, WHITE);
+    text('C Time  19:28:24', 40, 486, 7);
+    text('P Time  17:06:47', 40, 498, 7);
+}
+
+function drawPlot(g: SilkGraphics, text: TextFn) {
+    g.circle(CX, CY, RADIUS + 18).stroke(hair(0.35));
+    g.rect(CX - 125, CY - 105, 250, 250).stroke(hair(0.9));
+    g.rect(CX - 20, CY - 195, 230, 230).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
+    g.roundRect(CX + 165, CY - 182, 34, 20, 2).fill(WHITE);
+    text('06F', CX + 182, CY - 172, 8, 0x050505, 0.5, '700');
+    for (const [i, exp] of ['10⁻⁰²', '10⁻⁰⁴', '10⁻⁰⁶', '10⁻¹⁴'].entries()) {
+        text(exp, CX - 150, CY - 92 + i * 75, 9, WHITE, 1);
+    }
+    for (const [i, tick] of ['0.1', '1.0', '10.0'].entries()) text(tick, CX - 110 + i * 110, CY + 225, 10, WHITE, 0.5);
+    text('ENERGY  [keV]', CX, CY + 250, 6, DIM, 0.5);
+    const axis = text('FLUX  [1 / C M² S]', CX - 196, CY, 6, DIM, 0.5);
+
+    axis.rotation = -Math.PI / 2;
+    g.circle(CX - 6, CY + 2, 1.5).fill(WHITE);
+}
+
+function drawTimeline(g: SilkGraphics, text: TextFn) {
+    const x0 = 560;
+    const y = 74;
+
+    text('TIMELINE', x0 - 14, y, 6, DIM, 1);
+    for (let i = 0; i <= 40; i++) g.rect(x0 + i * 4, y - 2, 1, 4).fill({ color: WHITE, alpha: 0.35 });
+    g.rect(x0 + 30, y - 6, 6, 12).fill(WHITE);
+    for (const [i, m] of ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'].entries()) {
+        text(m, x0 + 20 + i * 30, y - 12, 6, i === 1 ? WHITE : DIM, 0.5);
+    }
+    g.rect(CX - 3, 34, 6, 14).fill(WHITE);
+    g.rect(CX - 3, H - 48, 6, 14).fill(WHITE);
+}
+
+function drawCompassFace(g: SilkGraphics, text: TextFn) {
+    const cx = 1165;
+    const cy = 98;
+
+    g.circle(cx, cy, 46).stroke(hair(0.6));
+    for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const r0 = i % 9 === 0 ? 40 : 43;
+
+        g.line(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * 46, cy + Math.sin(a) * 46).stroke(
+            hair(0.6),
+        );
+    }
+    text('0°', cx, cy - 56, 7, WHITE, 0.5);
+    text('90°', cx + 58, cy, 7, WHITE, 0);
+    text('180°', cx, cy + 56, 7, WHITE, 0.5);
+    text('-90°', cx - 58, cy, 7, WHITE, 1);
+    text('ROT  -17°', 1140, 168, 6);
+    text('SEQ  1.42', 1140, 180, 6);
+}
+
+function drawEdges(g: SilkGraphics) {
+    g.line(20, CY, 200, CY).stroke(hair(0.3));
+    g.line(W - 200, CY, W - 20, CY).stroke(hair(0.3));
+    g.line(CX - RADIUS - 40, CY, CX - RADIUS - 18, CY).stroke(hair(0.6));
+    g.line(CX + RADIUS + 18, CY, CX + RADIUS + 40, CY).stroke(hair(0.6));
+    for (const x of [24, W - 24]) {
+        g.circle(x, CY, 2).fill(WHITE);
+        g.line(x, CY - 5, x, CY + 5).stroke(hair(0.8));
+    }
+    for (const x of [CX - 270, CX + 270]) g.circle(x, CY, 2).fill(WHITE);
+}
+
+function drawControls(g: SilkGraphics, text: TextFn) {
+    text('R', 1214, 548, 11, WHITE, 0.5, '700');
+    for (const [i, flip] of [false, true].entries()) {
+        const y = 584 + i * 34;
+
+        g.rect(1200, y - 12, 28, 24).stroke(hair(0.8));
+        const s = flip ? -1 : 1;
+
+        g.triangle(1214 - 5 * s, y - 6, 1214 - 5 * s, y + 6, 1214 + 6 * s, y).fill(WHITE);
+    }
+}
+
+function drawFooter(g: SilkGraphics, text: TextFn) {
+    text('SPECTRA / 06F', 46, 452, 7, 0x050505, 0, '700');
+    g.rect(34, 444, 80, 16).fill(WHITE);
+    text('FLUX  [1 / C M² S]', 42, 680, 6);
+    text('ENERGY  [keV]', 42, 694, 6);
+    g.rect(27, 691, 6, 6).fill(DIM);
+    text('Selection  LDK 06F', 80, 700, 10, WHITE);
+    text('Form A', 560, 700, 10, WHITE);
+    text('1039 / 3972  E', 620, 700, 10, WHITE);
+    text('Show Log', W - 30, 700, 7, WHITE, 1);
+}
+```
+
+About 700 heatmap cells redraw at half the frame rate into one `SilkGraphics`, which is one draw call.
+
+---
+
+# Slot HUD examples
+
+URL: https://pixi-silk.schmooky.dev/docs/slot-hud/
+Area: Examples
+
+> Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy.
+
+These controls are examples, not part of the library. Each demo is one file: open its source,
+copy it into your game and restyle it. They are built from the same atoms as the library widgets:
+`SilkGraphics`, `Spring` and `damp`, signals, `trackGesture` and `RadialMenu`.
+
+### Spin button and autoplay
+
+Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `slot-spin` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { damp, SilkGraphics, Spring } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { type GesturePoint, trackGesture } from 'pixi-silk/ui/gesture';
+import { type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
+import { defineDemo } from './runtime';
+
+// A slot spin button built from the atoms (copy it into your game and restyle it):
+// idle breathing, press squash, hold for the autoplay picker, a stop square while spinning and the
+// autoplay count left as a shrinking ring. The picker is a half RadialMenu fanning up from the button.
+
+type Phase = 'idle' | 'spinning' | 'stopping';
+
+class SpinButton extends Container {
+    readonly phase = signal<Phase>('idle');
+    readonly autoplay = signal(0);
+    /** Spins in the current autoplay run, for the ring. */
+    autoplayTotal = 1;
+    onSpin: () => void = () => {};
+    onStop: () => void = () => {};
+    onHold: (p: GesturePoint) => void = () => {};
+
+    private readonly g = new SilkGraphics();
+    private readonly press = new Spring(0, 700, 30);
+    private readonly morph = new Spring(0, 260, 22);
+    private spinAngle = 0;
+    private ring = 0;
+    private t = 0;
+
+    constructor(private readonly radius = 44) {
+        super();
+        this.addChild(this.g);
+        this.hitArea = { contains: (x, y) => Math.hypot(x, y) <= radius + 10 };
+        trackGesture(
+            this,
+            {
+                onDown: () => (this.press.target = 1),
+                onUp: () => (this.press.target = 0),
+                onTap: () => (this.phase.value === 'idle' ? this.onSpin() : this.onStop()),
+                onHold: (p) => this.phase.value === 'idle' && this.onHold(p),
+            },
+            { holdMs: 380, flickSpeed: 0 },
+        );
+    }
+
+    update(dt: number): void {
+        const spinning = this.phase.value !== 'idle';
+        const r = this.radius;
+        const total = Math.max(1, this.autoplayTotal);
+
+        this.t += dt;
+        this.press.step(dt);
+        this.morph.target = spinning ? 1 : 0;
+        this.morph.step(dt);
+        this.spinAngle += dt * (2 + 8 * this.morph.value);
+        this.ring = damp(this.ring, this.autoplay.value > 0 ? this.autoplay.value / total : 0, 10, dt);
+
+        const breathe = spinning ? 0 : Math.sin(this.t * 2.4) * 0.025;
+
+        this.scale.set((1 + breathe) * (1 - 0.08 * this.press.value));
+        const m = Math.min(1, Math.max(0, this.morph.value));
+        const g = this.g.clear();
+
+        g.circle(0, 4, r).fill({ color: 0x000000, alpha: 0.35, blur: 10 });
+        g.circle(0, 0, r).fill(spinning ? 0xff453a : 0x30d158);
+        g.circle(0, 0, r - 5).stroke({ width: 2, color: 0xffffff, alpha: 0.25 });
+        // the arrow turns into a stop square as the reels start
+        g.save().rotateTransform(this.spinAngle * (1 - m) * 0.15);
+        if (m < 0.5) {
+            g.arcSweep(0, 0, r * 0.42, -Math.PI * 0.3, Math.PI * 1.45).stroke({
+                width: 7,
+                cap: 'round',
+                color: 0xffffff,
+                alpha: 1 - m * 2,
+            });
+            g.regularPoly(r * 0.12, -r * 0.42, 9, 3, Math.PI / 2, 2).fill({ color: 0xffffff, alpha: 1 - m * 2 });
+        } else {
+            const s = r * 0.42 * (m - 0.5) * 2;
+
+            g.roundRect(-s / 2, -s / 2, s, s, 5).fill(0xffffff);
+        }
+        g.restore();
+        if (this.ring > 0.002) {
+            g.arcSweep(0, 0, r + 8, -Math.PI / 2, Math.PI * 2 * this.ring).stroke({
+                width: 4,
+                cap: 'round',
+                color: 0xffd60a,
+            });
+        }
+    }
+}
+
+const chip = (n: string): RadialItem => ({ id: n, label: n });
+
+export default defineDemo({
+    size: [520, 320],
+    touchAction: 'none',
+    setup({ silk, stage, tick }) {
+        const spin = new SpinButton();
+        const status = new Text({
+            text: 'tap to spin, hold for autoplay',
+            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+        });
+        const picker = new RadialMenu({
+            items: ['10', '25', '50', '100', '∞'].map(chip),
+            sweep: Math.PI * 0.95,
+            direction: -Math.PI / 2,
+            innerRadius: 58,
+            hub: false,
+            outerRadius: 108,
+            ticker: silk.app.ticker,
+            theme: { segment: 0x2c2c2e, segmentHover: 0x3a3a3c, icon: 0xf2f2f7, iconHover: 0xffd60a, accent: 0xffd60a },
+            onSelect: (item) => startAutoplay(item.id === '∞' ? 999 : Number(item.id)),
+        });
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        status.anchor.set(0.5);
+        status.position.set(260, 30);
+        spin.position.set(260, 250);
+        picker.position.set(260, 250);
+        stage.addChild(status, spin, picker);
+
+        const spinOnce = () => {
+            spin.phase.set('spinning');
+            status.text = spin.autoplay.value > 0 ? `autoplay: ${spin.autoplay.value} left` : 'spinning';
+            timer = setTimeout(() => {
+                spin.phase.set('idle');
+                if (spin.autoplay.value > 0) {
+                    spin.autoplay.update((n) => n - 1);
+                    if (spin.autoplay.value > 0) timer = setTimeout(spinOnce, 250);
+                    else status.text = 'autoplay done';
+                } else status.text = 'tap to spin, hold for autoplay';
+            }, 1100);
+        };
+        const startAutoplay = (n: number) => {
+            spin.autoplayTotal = n;
+            spin.autoplay.set(n);
+            spinOnce();
+        };
+
+        spin.onSpin = spinOnce;
+        spin.onStop = () => {
+            spin.autoplay.set(0);
+            status.text = 'stopped';
+        };
+        spin.onHold = (p) => picker.openAt(260, 250, p);
+        tick((_t, dt) => spin.update(dt));
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
+    },
+});
+```
+
+The arrow morphs into a stop square while the reels run. The yellow ring shows the autoplay spins
+left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release picks a
+count in one gesture.
+
+### Balance, win and bet
+
+Live demo `slot-wallet` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { JogDial } from 'pixi-silk/ui/dial';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { Odometer } from 'pixi-silk/ui/odometer';
+import { defineDemo } from './runtime';
+
+// Balance and win counters plus a bet dial, built on the library's Odometer and JogDial.
+// Turn the dial to pick a bet from the ladder, press SPIN. Wins count up (tap the win to skip),
+// then roll into the balance. Copy and restyle.
+
+const LADDER = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
+const money = { decimals: 2, prefix: '$' };
+const label = (text: string, x: number, y: number) => {
+    const t = new Text({ text, style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 12 } });
+
+    t.anchor.set(0.5);
+    t.position.set(x, y);
+
+    return t;
+};
+
+export default defineDemo({
+    size: [600, 340],
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const ticker = silk.app.ticker;
+        const betIndex = signal(3);
+        const busy = signal(false);
+        const panel = new SilkGraphics();
+        const balance = new Odometer({ ticker, ...money, value: 500, fontSize: 30 });
+        const win = new Odometer({ ticker, ...money, value: 0, fontSize: 40, color: 0xffd60a });
+        // the dial turns through ladder positions: one detent per bet, a full turn covers the ladder
+        const bet = new JogDial({
+            ticker,
+            radius: 62,
+            value: betIndex.value,
+            min: 0,
+            max: LADDER.length - 1,
+            step: 1,
+            format: (i) => `$${LADDER[Math.round(i)]}`,
+            onCommit: (i) => betIndex.set(Math.round(i)),
+        });
+        const spin = new SilkGraphics();
+        const spinText = new Text({
+            text: 'SPIN',
+            style: { fill: 0xffffff, fontFamily: 'system-ui, sans-serif', fontWeight: '700', fontSize: 16 },
+        });
+
+        panel.roundRect(30, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
+        panel.roundRect(310, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
+        balance.position.set(160, 100);
+        win.position.set(440, 100);
+        bet.position.set(160, 250);
+        spin.position.set(440, 250);
+        spinText.anchor.set(0.5);
+        spinText.position.set(440, 250);
+        stage.addChild(
+            panel,
+            label('BALANCE', 160, 55),
+            label('WIN', 440, 55),
+            label('BET', 160, 330),
+            balance,
+            win,
+            bet,
+            spin,
+            spinText,
+        );
+
+        const drawSpin = () => {
+            spin.clear()
+                .circle(0, 0, 48)
+                .fill(busy.value ? 0x3a3a3c : 0x30d158);
+        };
+
+        busy.subscribe(drawSpin);
+        drawSpin();
+        spin.hitArea = { contains: (x, y) => Math.hypot(x, y) <= 56 };
+        trackGesture(spin, {
+            onTap: () => {
+                const stake = LADDER[betIndex.value];
+
+                if (busy.value || balance.state.value.value < stake) return;
+                busy.set(true);
+                balance.set(balance.state.value.value - stake);
+                setTimeout(() => {
+                    const roll = Math.random();
+                    const amount = roll < 0.45 ? 0 : roll < 0.9 ? stake * (1 + Math.random() * 4) : stake * 60;
+
+                    if (amount === 0) {
+                        busy.set(false);
+
+                        return;
+                    }
+                    win.set(0);
+                    win.skip();
+                    win.set(Math.round(amount * 100) / 100);
+                }, 600);
+            },
+        });
+        // the win rolls into the balance when it finishes counting (or is skipped)
+        win.state.counting.subscribe((counting) => {
+            if (counting || !busy.value) return;
+            const amount = win.state.value.value;
+
+            setTimeout(() => {
+                balance.set(balance.state.value.value + amount);
+                win.set(0);
+                busy.set(false);
+            }, 500);
+        });
+        win.eventMode = 'static';
+        win.hitArea = { contains: (x, y) => Math.abs(x) < 130 && Math.abs(y) < 50 };
+        win.on('pointertap', () => win.skip());
+
+        return undefined;
+    },
+});
+```
+
+Built on the library's `Odometer` and `JogDial`. The dial's detents are positions on a bet
+ladder, and its readout shows the bet at that position.
+
+### Meters, badges and pips
+
+Live demo `slot-meters` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { conic, damp, SilkGraphics, Spring } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { defineDemo } from './runtime';
+
+// Slot HUD pieces drawn with one SilkGraphics each, state in signals. Copy and restyle.
+// Win meter with tiers, multiplier badge, free-spin pips, feature path and a hold-to-buy button.
+// Press "WIN" to feed the meter, hold "BUY" to confirm.
+
+const TIERS = [
+    { at: 0.25, name: 'BIG', color: 0x30d158 },
+    { at: 0.55, name: 'MEGA', color: 0x0a84ff },
+    { at: 0.85, name: 'EPIC', color: 0xbf5af2 },
+];
+const font = { fontFamily: 'system-ui, sans-serif', fontWeight: '700' } as const;
+
+export default defineDemo({
+    size: [640, 360],
+    touchAction: 'none',
+    setup({ stage, tick }) {
+        const win = signal(0); // 0..1 of the max win
+        const mult = signal(1);
+        const spins = signal(10);
+        const used = signal(0);
+        const path = signal(0); // feature collect progress, 0..6
+
+        const g = new SilkGraphics();
+        const tierText = new Text({ text: '', style: { ...font, fill: 0xffffff, fontSize: 18 } });
+        const multText = new Text({ text: 'x1', style: { ...font, fill: 0x1c1c1e, fontSize: 22 } });
+        const winBtn = new Text({ text: 'WIN', style: { ...font, fill: 0xffffff, fontSize: 14 } });
+        const buyText = new Text({ text: 'HOLD TO BUY', style: { ...font, fill: 0xffffff, fontSize: 13 } });
+
+        // one ramp over the whole gauge, so the colour says how far the win got
+        const meterPaint = conic([0x30d158, 0x0a84ff, 0xbf5af2, 0xff375f], {
+            center: [150, 170],
+            units: 'local',
+            startAngle: Math.PI * 0.75,
+            sweep: Math.PI * 1.5,
+        });
+        let shown = 0;
+        let tierPop = 0;
+        let lastTier = -1;
+        const badge = new Spring(1, 520, 14);
+        let shake = 0;
+        let pipPop = new Array(10).fill(0);
+        let pathShown = 0;
+        let buy = 0;
+        let holding = false;
+        let bought = 0;
+        let time = 0;
+
+        for (const t of [tierText, multText, winBtn, buyText]) t.anchor.set(0.5);
+        tierText.position.set(150, 190);
+        multText.position.set(380, 112);
+        winBtn.position.set(150, 300);
+        buyText.position.set(520, 300);
+        stage.addChild(g, tierText, multText, winBtn, buyText);
+
+        mult.subscribe(() => {
+            badge.value = 1.45;
+            shake = 1;
+        });
+        used.subscribe((u) => (pipPop[u - 1] = 1));
+
+        // hit zones: a container per control keeps the example readable
+        const zone = (x: number, y: number, w: number, h: number) => {
+            const z = new SilkGraphics();
+
+            z.hitArea = { contains: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
+            stage.addChild(z);
+
+            return z;
+        };
+
+        trackGesture(zone(90, 280, 120, 40), {
+            onTap: () => {
+                win.update((v) => (v >= 1 ? 0 : Math.min(1, v + 0.12 + Math.random() * 0.1)));
+                if (Math.random() < 0.5) mult.update((m) => (m >= 10 ? 1 : m + 1));
+                if (used.value < spins.value) used.update((u) => u + 1);
+                else {
+                    used.set(0);
+                    pipPop = pipPop.map(() => 0);
+                }
+                path.update((p) => (p >= 6 ? 0 : p + 1));
+            },
+        });
+        trackGesture(
+            zone(440, 280, 160, 40),
+            {
+                onDown: () => (holding = true),
+                onUp: () => (holding = false),
+            },
+            { holdMs: 0, flickSpeed: 0 },
+        );
+
+        tick((_t, dt) => {
+            time += dt;
+            shown = damp(shown, win.value, 4, dt);
+            badge.target = 1;
+            badge.step(dt);
+            shake = damp(shake, 0, 6, dt);
+            pipPop = pipPop.map((p) => damp(p, 0, 5, dt));
+            pathShown = damp(pathShown, path.value, 6, dt);
+            buy = holding ? Math.min(1, buy + dt / 1.2) : damp(buy, 0, 10, dt);
+            if (buy >= 1 && holding) {
+                holding = false;
+                bought = 1;
+                buy = 0;
+            }
+            bought = damp(bought, 0, 2.5, dt);
+
+            const tier = TIERS.reduce((acc, t, i) => (shown >= t.at ? i : acc), -1);
+
+            if (tier !== lastTier) {
+                if (tier > lastTier) tierPop = 1;
+                lastTier = tier;
+            }
+            tierPop = damp(tierPop, 0, 5, dt);
+
+            g.clear();
+            // win meter: a 270deg gauge with tier ticks; the fill takes the colour of the tier reached
+            const cx = 150;
+            const cy = 170;
+            const start = Math.PI * 0.75;
+            const sweep = Math.PI * 1.5;
+
+            g.arcSweep(cx, cy, 90, start, sweep).stroke({ width: 16, cap: 'round', color: 0x2c2c2e });
+            if (shown > 0.003) {
+                g.arcSweep(cx, cy, 90, start, sweep * shown).stroke({
+                    width: 16,
+                    cap: 'round',
+                    gradient: meterPaint,
+                });
+            }
+            for (const t of TIERS) {
+                const a = start + sweep * t.at;
+
+                g.line(
+                    cx + Math.cos(a) * 76,
+                    cy + Math.sin(a) * 76,
+                    cx + Math.cos(a) * 104,
+                    cy + Math.sin(a) * 104,
+                ).stroke({
+                    width: 2,
+                    color: shown >= t.at ? t.color : 0x48484a,
+                });
+            }
+            if (tier >= 0) {
+                g.circle(cx, cy + 20, 34 + tierPop * 20).fill({
+                    color: TIERS[tier].color,
+                    alpha: 0.25 + tierPop * 0.4,
+                    blur: 14,
+                });
+            }
+            tierText.text = tier >= 0 ? `${TIERS[tier].name} WIN` : `${Math.round(shown * 100)}%`;
+            tierText.scale.set(1 + tierPop * 0.35);
+
+            // multiplier badge: a rounded star that pops and shakes when the value changes
+            const bx = 380 + Math.sin(time * 60) * 4 * shake;
+
+            g.star(bx, 112, 8, 46 * badge.value, 38 * badge.value, time * 0.4, 4).fill({
+                color: 0xffd60a,
+                blur: 0,
+            });
+            g.circle(bx, 112, 56 * badge.value).fill({ color: 0xffd60a, alpha: 0.18 * shake, blur: 12 });
+            multText.text = `x${mult.value}`;
+            multText.position.x = bx;
+            multText.scale.set(badge.value);
+
+            // free-spin pips: used ones fill, the newest one bursts
+            for (let i = 0; i < spins.value; i++) {
+                const x = 300 + i * 30;
+                const y = 220;
+                const on = i < used.value;
+
+                g.circle(x, y, 9 + pipPop[i] * 6).fill({ color: on ? 0xff9f0a : 0x2c2c2e });
+                if (pipPop[i] > 0.02) {
+                    g.circle(x, y, 12 + (1 - pipPop[i]) * 16).stroke({
+                        width: 2,
+                        color: 0xff9f0a,
+                        alpha: pipPop[i],
+                    });
+                }
+            }
+
+            // feature path: collect points along a wave, the trail grows to the reached point
+            const pts: number[] = [];
+
+            for (let i = 0; i <= 60; i++) {
+                const t = i / 60;
+
+                pts.push(300 + t * 300, 160 + Math.sin(t * Math.PI * 3) * 14);
+            }
+            g.polyline(pts, { smooth: 'catmull' }).stroke({ width: 6, cap: 'round', color: 0x2c2c2e });
+            const reach = Math.round((pathShown / 6) * 60);
+
+            if (reach > 0) {
+                g.polyline(pts.slice(0, (reach + 1) * 2), { smooth: 'catmull' }).stroke({
+                    width: 6,
+                    cap: 'round',
+                    color: 0x64d2ff,
+                });
+            }
+            for (let k = 0; k <= 6; k++) {
+                const i = k * 10;
+                const on = pathShown >= k - 0.01;
+
+                g.circle(pts[i * 2], pts[i * 2 + 1], on ? 8 : 6).fill(on ? 0x64d2ff : 0x48484a);
+            }
+
+            // buttons
+            g.pill(90, 280, 120, 40).fill(0x0a84ff);
+            g.pill(440, 280, 160, 40).fill(bought > 0.05 ? 0x30d158 : 0x3a3a3c);
+            if (buy > 0.002) g.pill(440, 280, Math.max(40, 160 * buy), 40).fill({ color: 0xff9f0a, alpha: 0.9 });
+            buyText.text = bought > 0.05 ? 'BOUGHT' : 'HOLD TO BUY';
+        });
+
+        return undefined;
+    },
+});
+```
+
+### A dock that steps aside
+
+Live demo `spin-dock` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { SilkButton } from 'pixi-silk/ui/button';
+import { ButtonDock } from 'pixi-silk/ui/dock';
+import { SegmentedSwitch } from 'pixi-silk/ui/modes';
+import { defineDemo } from './runtime';
+
+const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
+const minus = (g: SilkGraphics, s: number) =>
+    g.line(-s * 0.3, 0, s * 0.3, 0).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+const plus = (g: SilkGraphics, s: number) => {
+    minus(g, s);
+    g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
+};
+// a lightning bolt as two rounded triangles (closed polygons cannot be filled yet)
+const bolt = (g: SilkGraphics, s: number) => {
+    g.triangle(s * 0.12, -s * 0.5, -s * 0.3, s * 0.08, s * 0.08, s * 0.02, 1).fill(0xffffff);
+    g.triangle(-s * 0.12, s * 0.5, s * 0.3, -s * 0.08, -s * 0.08, -s * 0.02, 1).fill(0xffffff);
+};
+
+// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave, the speed
+// switch locks and the spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
+const SPEED: Record<string, number> = { normal: 1.1, turbo: 0.6, quick: 0.3 };
+export default defineDemo({
+    size: [560, 340],
+    touchAction: 'none',
+    controls: {
+        enabled: { type: 'toggle', label: 'spin enabled', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const bet = signal(1);
+        const reels = new SilkGraphics();
+        const label = new Text({
+            text: '',
+            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '600' },
+        });
+        const side = { ticker, theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e } };
+        const less = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: minus,
+            onPress: () => bet.update((b) => Math.max(1, b - 1)),
+        });
+        const more = new SilkButton({
+            ...side,
+            shape: 'circle',
+            height: 48,
+            icon: plus,
+            onPress: () => bet.update((b) => Math.min(10, b + 1)),
+        });
+        const speed = new SegmentedSwitch({
+            ticker,
+            value: 'normal',
+            segmentWidth: 78,
+            height: 34,
+            options: [
+                { id: 'normal', label: 'Normal' },
+                { id: 'turbo', icon: bolt },
+                { id: 'quick', label: 'Quick' },
+            ],
+        });
+        const spin = new SilkButton({
+            ticker,
+            shape: 'circle',
+            height: 76,
+            icon: play,
+            iconSize: 30,
+            holdMs: 450,
+            theme: { fill: 0x30d158, fillHover: 0x4ade80, fillPress: 0x248a3d },
+            onPress: () => run(1),
+            onHold: () => run(5),
+        });
+        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more);
+        let spinning = 0;
+        let duration = 1.1;
+        let left = 0;
+
+        bet.subscribe((b) => (label.text = `bet ${b}`));
+        label.text = `bet ${bet.value}`;
+        label.anchor.set(0.5);
+        label.position.set(90, 34);
+        speed.position.set(400, 34);
+        dock.position.set(280, 282);
+        stage.addChild(reels, label, speed, dock);
+
+        async function run(count: number) {
+            left = count;
+            spin.state.busy.set(true);
+            speed.state.enabled.set(false);
+            await Promise.all([less.hide(), more.hide()]);
+            while (left-- > 0) {
+                duration = SPEED[speed.state.value.value] ?? 1.1;
+                spinning = duration;
+                await new Promise((r) => setTimeout(r, duration * 1000));
+            }
+            spin.state.busy.set(false);
+            speed.state.enabled.set(true);
+            await dock.showAll();
+        }
+
+        tick((t, dt) => {
+            spin.state.enabled.set(params.enabled);
+            spinning = Math.max(0, spinning - dt);
+            reels.clear();
+            for (let c = 0; c < 5; c++) {
+                const x = 60 + c * 92;
+                const run = spinning > 0 && spinning < duration * (1 - c * 0.05) ? 1 : 0;
+
+                reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
+                for (let r = 0; r < 3; r++) {
+                    const y = 70 + r * 54 + (run ? ((t * 900 + c * 40) % 54) - 27 : 0);
+                    const hue = [0xff453a, 0xffd60a, 0x0a84ff, 0xbf5af2][(r + c + (run ? Math.floor(t * 20) : 0)) % 4];
+
+                    reels.roundRect(x + 12, y + 6, 56, 40, 10, 0.6).fill({ color: hue, alpha: run ? 0.55 : 0.9 });
+                }
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+---
+
+# FAQ
+
+## Are the slot game HUD controls part of pixi-silk?
+
+No. The spin button, autoplay picker, meters and wallet on the slot HUD page are examples. Each is one demo file built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the file into your game and restyle it.
