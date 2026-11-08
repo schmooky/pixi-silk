@@ -115,12 +115,14 @@ import { defineDemo, INK } from './runtime';
 export default defineDemo({
     title: 'Editor canvas',
     size: [720, 480],
+    // phones: a taller frame and a tighter fit, so the artboard starts near 85%
+    phone: { size: [360, 600] },
     touchAction: 'none',
     ownsCamera: true,
     controls: {
         redlines: { type: 'select', label: 'redlines', options: ['on hover', 'with Alt'], value: 'on hover' },
     },
-    setup({ silk, params }) {
+    setup({ silk, params, phone }) {
         const app = silk.app;
         const world = new Container();
         const overlay = new Container();
@@ -217,7 +219,7 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        camera.fit(board, 40, false);
+        camera.fit(board, phone ? 16 : 40, false);
 
         // Alt shows the redlines without moving the pointer
         const onKey = (e: KeyboardEvent) => {
@@ -358,19 +360,25 @@ import { defineDemo, FONT, INK, label, PALETTE, readout } from './runtime';
 export default defineDemo({
     title: 'Text and SilkText under zoom',
     size: [720, 320],
+    // phones: the two sides stack, each with its own title row
+    phone: { size: [360, 440] },
     controls: {
         zoom: { type: 'range', label: 'zoom (log)', min: 0, max: 2, step: 0.01, value: 0, unit: '' },
         auto: { type: 'toggle', label: 'animate', value: true },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height, phone }) {
         const half = 360;
         const top = 48;
+        // each side's box: its title row on top, the zooming text below
+        const box = (i: number) =>
+            phone ? { x: 0, y: i * 220, w: width, h: 220 } : { x: i * half, y: 0, w: half, h: height };
         const sides: Container[] = [];
         const style = { fontFamily: FONT, fontWeight: '600' as const };
 
         for (let i = 0; i < 2; i++) {
             const side = new Container();
-            const mask = new Graphics().rect(i * half, top, half, 320 - top).fill(0xffffff);
+            const b = box(i);
+            const mask = new Graphics().rect(b.x, b.y + top, b.w, b.h - top).fill(0xffffff);
             const make = (text: string, size: number, color: number) =>
                 i === 0
                     ? new Text({ text, style: { ...style, fontSize: size, fill: color } })
@@ -387,12 +395,13 @@ export default defineDemo({
             sides.push(side);
             stage.addChild(side, mask);
             stage.addChild(
-                label(i ? 'SilkText (distance field)' : 'Text (bitmap)', i * half + 24, 16, { fontSize: 13 }),
+                label(i ? 'SilkText (distance field)' : 'Text (bitmap)', b.x + 24, b.y + 16, { fontSize: 13 }),
             );
+            stage.addChild(new Graphics().rect(b.x, b.y + top - 0.5, b.w, 1).fill(INK.line));
         }
-        stage.addChild(new Graphics().rect(half - 0.5, 0, 1, 320).fill(INK.line));
-        stage.addChild(new Graphics().rect(0, top - 0.5, 720, 1).fill(INK.line));
-        const zoom = readout('', 696, 16, { fontSize: 13 }, 1);
+        if (phone) stage.addChild(new Graphics().rect(0, 219.5, width, 1).fill(INK.line));
+        else stage.addChild(new Graphics().rect(half - 0.5, 0, 1, height).fill(INK.line));
+        const zoom = readout('', width - 24, 16, { fontSize: 13 }, 1);
 
         stage.addChild(zoom);
 
@@ -415,10 +424,12 @@ export default defineDemo({
 
             // at 1x the block sits in the middle of its half, zoomed in the focus point does
             sides.forEach((side, i) => {
+                const b = box(i);
+
                 side.pivot.set(focus.x, focus.y);
                 side.position.set(
-                    i * half + half / 2 - (block.x - focus.x) / k,
-                    top + (320 - top) / 2 - (block.y - focus.y) / k,
+                    b.x + b.w / 2 - (block.x - focus.x) / k,
+                    b.y + top + (b.h - top) / 2 - (block.y - focus.y) / k,
                 );
                 side.scale.set(k);
             });
@@ -465,17 +476,25 @@ import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
 export default defineDemo({
     title: 'SilkText styles',
     size: [720, 380],
+    // phones: the styles, the small sizes and the numbers in one column
+    phone: { size: [360, 640] },
     controls: {
         outline: { type: 'range', label: 'outline', min: 0, max: 6, step: 0.5, value: 3, unit: 'px' },
         glow: { type: 'range', label: 'glow', min: 0, max: 12, step: 0.5, value: 8, unit: 'px' },
         dilate: { type: 'range', label: 'weight', min: -1.5, max: 1.5, step: 0.1, value: 0, unit: 'px' },
     },
-    setup({ stage, params, tick }) {
-        const card = new SilkGraphics()
-            .roundRect(24, 196, 440, 160, 20, 0.6)
-            .fill(INK.surface)
-            .roundRect(484, 196, 212, 160, 20, 0.6)
-            .fill(INK.surface);
+    setup({ stage, params, tick, phone }) {
+        const card = phone
+            ? new SilkGraphics()
+                  .roundRect(16, 216, 328, 224, 20, 0.6)
+                  .fill(INK.surface)
+                  .roundRect(16, 456, 328, 168, 20, 0.6)
+                  .fill(INK.surface)
+            : new SilkGraphics()
+                  .roundRect(24, 196, 440, 160, 20, 0.6)
+                  .fill(INK.surface)
+                  .roundRect(484, 196, 212, 160, 20, 0.6)
+                  .fill(INK.surface);
         const outlined = new SilkText({
             text: 'OUTLINE',
             fontFamily: FONT,
@@ -517,26 +536,39 @@ export default defineDemo({
             fill: PALETTE.pink,
         });
 
-        outlined.position.set(36, 28);
-        neon.position.set(684, 32);
-        gradient.position.set(36, 116);
-        value.position.set(672, 240);
-        unit.position.set(508, 316);
+        if (phone) {
+            outlined.position.set(24, 20);
+            neon.position.set(336, 90);
+            gradient.position.set(24, 156);
+            value.position.set(320, 500);
+            unit.position.set(36, 584);
+        } else {
+            outlined.position.set(36, 28);
+            neon.position.set(684, 32);
+            gradient.position.set(36, 116);
+            value.position.set(672, 240);
+            unit.position.set(508, 316);
+        }
         stage.addChild(card, outlined, neon, gradient, value, unit);
-        stage.addChild(label('Tabular numbers', 508, 214));
+        stage.addChild(phone ? label('Tabular numbers', 36, 474) : label('Tabular numbers', 508, 214));
 
-        // small sizes at 1x: PixiJS Text in the left column, SilkText in the right one
+        // small sizes at 1x: PixiJS Text in the left column, SilkText in the right one.
+        // Phones put the SilkText rows under the Text rows.
         const sample = 'Hamburgefonstiv 0123';
+        const column = (i: number) => (phone ? { x: 80, y: 232 + i * 104 } : { x: [92, 280][i], y: 212 });
 
-        stage.addChild(label('Text', 92, 212), label('SilkText', 280, 212));
+        stage.addChild(label('Text', column(0).x, column(0).y), label('SilkText', column(1).x, column(1).y));
         [11, 12, 13].forEach((size, i) => {
-            const y = 248 + i * 34;
+            const row = (c: number) => column(c).y + (phone ? 28 + i * 24 : 36 + i * 34);
             const pixi = new Text({ text: sample, style: { fontFamily: FONT, fontSize: size, fill: INK.text } });
             const silk = new SilkText({ text: sample, fontFamily: FONT, fontSize: size, fill: INK.text });
 
-            pixi.position.set(92, y);
-            silk.position.set(280, y);
-            stage.addChild(pixi, silk, label(`${size}px`, 44, y + 1, { fontSize: 11, fill: INK.faint }));
+            pixi.position.set(column(0).x, row(0));
+            silk.position.set(column(1).x, row(1));
+            stage.addChild(pixi, silk);
+            for (let c = 0; c < (phone ? 2 : 1); c++) {
+                stage.addChild(label(`${size}px`, phone ? 32 : 44, row(c) + 1, { fontSize: 11, fill: INK.faint }));
+            }
         });
 
         tick((t) => {
@@ -667,9 +699,13 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Text editing on the canvas',
     size: [760, 440],
+    // phones: a narrower frame, so the camera starts near 100%
+    phone: { size: [360, 460] },
     touchAction: 'none',
     ownsCamera: true,
-    setup({ silk }) {
+    setup({ silk, phone }) {
+        // the card size, narrower on phones
+        const [cw, ch] = phone ? [300, 330] : [420, 260];
         const app = silk.app;
         const world = new Container();
         const camera = new Camera({ world, element: app.canvas });
@@ -681,9 +717,9 @@ export default defineDemo({
         app.stage.addChild(world, zoom);
 
         const card = new SilkGraphics()
-            .roundRect(0, 0, 420, 260, 28, 0.6)
+            .roundRect(0, 0, cw, ch, 28, 0.6)
             .fill(linear([0x2c2c30, 0x1c1c1f], { from: [0, 0], to: [0, 1] }))
-            .roundRect(0.5, 0.5, 419, 259, 28, 0.6)
+            .roundRect(0.5, 0.5, cw - 1, ch - 1, 28, 0.6)
             .stroke({ color: 0xffffff, alpha: 0.08, width: 1 });
         const caption = new SilkText({ text: 'Frame 1', fontFamily: font, fontSize: 11, fill: 0x8e8e93 });
 
@@ -706,7 +742,7 @@ export default defineDemo({
             fontSize: 15,
             lineHeight: 22,
             fill: 0xc7c7cc,
-            width: 356,
+            width: cw - 64,
             placeholder: 'Write something',
             history,
             element: app.canvas,
@@ -719,7 +755,7 @@ export default defineDemo({
         // a tiny caption follows the title as you type
         const count = new SilkText({ fontFamily: font, fontSize: 11, fill: 0x636366, tabularNumbers: true });
 
-        count.position.set(32, 230);
+        count.position.set(32, ch - 30);
         world.addChild(count);
         const update = () => {
             const words = body.value.split(/\s+/).filter(Boolean).length;
@@ -734,7 +770,8 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        camera.fit({ x: -20, y: -40, width: 460, height: 320 }, 24, false);
+        // phones keep room under the card for the zoom control
+        camera.fit({ x: -20, y: -40, width: cw + 40, height: ch + (phone ? 110 : 60) }, phone ? 8 : 24, false);
 
         return () => {
             for (const stop of stops) stop();
@@ -802,7 +839,9 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Text form',
     size: [520, 330],
-    setup({ silk, stage }) {
+    // phones: the button and the result go under the fields
+    phone: { size: [360, 350] },
+    setup({ silk, stage, phone }) {
         const font = 'Inter, system-ui, sans-serif';
         const fields: TextEditor[] = [];
         const stops: (() => void)[] = [];
@@ -829,7 +868,7 @@ export default defineDemo({
                 editor.focus();
             });
             row.addChild(name, box, editor);
-            row.position.set(40, y);
+            row.position.set(phone ? 30 : 40, y);
             // the box lights up while its field has focus
             stops.push(
                 watch(editor.state.focused, (on) => {
@@ -862,10 +901,10 @@ export default defineDemo({
 
         label.position.set(70, 20);
         button.addChild(pill, label);
-        button.position.set(360, 228);
+        button.position.set(phone ? 30 : 360, phone ? 268 : 228);
         button.eventMode = 'static';
         button.cursor = 'pointer';
-        result.position.set(360, 52);
+        result.position.set(phone ? 190 : 360, phone ? 264 : 52);
         stage.addChild(button, result);
         const send = () => {
             const values = [name.value || 'no name', email.value || 'no email', code.value || 'no code'];
@@ -934,7 +973,9 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Read-only text selection',
     size: [520, 260],
-    setup({ silk, stage }) {
+    // phones: a narrower column, so the paragraph keeps its 15 px
+    phone: { size: [360, 300] },
+    setup({ silk, stage, phone }) {
         const font = 'Inter, system-ui, sans-serif';
         const paragraph = new TextEditor({
             text: 'Release notes. Text layers now edit on the canvas. Selection, the clipboard and input methods go through a hidden text field, so they behave the way the platform does. Double click a word to select it.',
@@ -942,15 +983,15 @@ export default defineDemo({
             fontSize: 15,
             lineHeight: 23,
             fill: 0xd1d1d6,
-            width: 440,
+            width: phone ? 300 : 440,
             readOnly: true,
             element: silk.app.canvas,
             theme: { selection: 0xffd60a, selectionAlpha: 0.28 },
         });
         const readout = new SilkText({ fontFamily: font, fontSize: 12, fill: 0x8e8e93 });
 
-        paragraph.position.set(40, 36);
-        readout.position.set(40, 214);
+        paragraph.position.set(phone ? 30 : 40, phone ? 24 : 36);
+        readout.position.set(phone ? 30 : 40, phone ? 254 : 214);
         stage.addChild(paragraph, readout);
         const stop = paragraph.state.selection.subscribe(() => {
             const n = paragraph.selectedText.length;
@@ -1115,18 +1156,20 @@ const tools: RadialItem[] = [
 export default defineDemo({
     title: 'Radial menu',
     size: [720, 400],
+    // phones: the artboard goes under the round button
+    phone: { size: [360, 600] },
     touchAction: 'none',
     controls: {
         closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, height, phone }) {
         const ticker = silk.app.ticker;
         const surface = new Container();
         const status = new Text({
             text: 'press, drag, release, or tap',
             style: { fill: INK.muted, fontFamily: FONT, fontSize: 13 },
         });
-        const bounds = { x: 0, y: 0, width: 720, height: 400 };
+        const bounds = { x: 0, y: 0, width, height };
         const report = (_item: RadialItem, path: readonly RadialItem[]) => {
             status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
         };
@@ -1163,16 +1206,22 @@ export default defineDemo({
             .fill(PALETTE.green);
 
         surface.eventMode = 'static';
-        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 720 && y <= 400 };
-        status.position.set(24, 20);
-        hub.position.set(170, 200);
-        add.position.set(670, 350);
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+        // phones: the hub on top, the board drawn at (330, 70) moved under it
+        const hubAt = phone ? [180, 170] : [170, 200];
+        const addAt = phone ? [312, 556] : [670, 350];
+        const boardAt = phone ? [30, 300] : [330, 70];
+
+        board.position.set(boardAt[0] - 330, boardAt[1] - 70);
+        status.position.set(phone ? 16 : 24, 20);
+        hub.position.set(hubAt[0], hubAt[1]);
+        add.position.set(addAt[0], addAt[1]);
         stage.addChild(
             surface,
             board,
-            label('Artboard', 330, 46),
-            label('tools', 170, 244, {}, 0.5),
-            label('quick add', 634, 342, {}, 1),
+            label('Artboard', boardAt[0], boardAt[1] - 24),
+            label('tools', hubAt[0], hubAt[1] + 44, {}, 0.5),
+            label('quick add', addAt[0] - 36, addAt[1] - 8, {}, 1),
             status,
             hub,
             add,
@@ -1365,19 +1414,19 @@ function pill(label: string, value: string, color: number): { box: FlexContainer
         inset: 0,
         onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 30, 0.6).fill(0x1c1c1e),
     });
-    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 34, fill: 0xa1a1aa }));
+    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 38, fill: 0xa1a1aa }));
     box.add(v, { fit: 'scale-down', minScale: 0.55 });
 
     return { box, value: v };
 }
 
-/** A round button with a label on it. */
-function button(radius: number, color: number, text: string): Container {
+/** A round button with a label on it, `size` design units tall. */
+function button(radius: number, color: number, text: string, size: number): Container {
     const c = new Container();
 
     c.addChild(
         new SilkGraphics().circle(0, 0, radius).fill(color),
-        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: radius * 0.36, fill: 0xffffff, anchor: 0.5 }),
+        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: size, fill: 0xffffff, anchor: 0.5 }),
     );
     c.eventMode = 'static';
     c.cursor = 'pointer';
@@ -1391,14 +1440,16 @@ const LENGTH = 238;
 export default defineDemo({
     title: 'Responsive player HUD',
     size: [920, 520],
+    // phones: a tall area, so a portrait device shows at about 0.85 of its real size
+    phone: { size: [360, 700] },
     controls: {
         device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
         notch: { type: 'toggle', label: 'notch', value: false },
         debug: { type: 'toggle', label: 'debug', value: false },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, height }) {
         // a device window previewed inside the page. Every SmartContainer follows it.
-        const sim = simulateViewport({ area: { x: 0, y: 0, width: 920, height: 520 }, device: 'desktop' });
+        const sim = simulateViewport({ area: { x: 0, y: 0, width, height }, device: 'desktop' });
         const debug = layoutDebug(silk.app, { key: 'KeyL' });
         const all: SmartContainer[] = [];
         const make = (label: string, options: SmartContainerOptions) => {
@@ -1444,7 +1495,7 @@ export default defineDemo({
             layout: { justifyContent: 'center', alignItems: 'center' },
             portraitData: { align: 'right', valign: 'top', width: 140, height: 140 },
             landscapeData: { align: 'right', valign: 'top', width: 140, height: 140 },
-        }).add(button(40, 0x2c2c2e, 'MENU'));
+        }).add(button(60, 0x2c2c2e, 'MENU', 34));
 
         // the bar: along the bottom and as wide as the window, with a flex row inside
         const bar = make('bar', {
@@ -1460,7 +1511,7 @@ export default defineDemo({
         });
         const time = pill('TIME', `0:00 / ${clock(LENGTH)}`, 0xffffff);
         const volume = pill('VOLUME', '72%', 0x64d2ff);
-        const play = button(76, 0x30d158, 'PLAY');
+        const play = button(76, 0x30d158, 'PLAY', 36);
         const playLabel = play.children[1] as SilkText;
         let playing = false;
         let position = 0;
@@ -1789,24 +1840,35 @@ function artwork(): Container {
 export default defineDemo({
     title: 'Fit modes',
     size: [720, 360],
+    // phones: three rows of two boxes, and labels one step larger
+    phone: { size: [440, 520] },
     controls: {
         width: { type: 'range', label: 'box width', min: 60, max: 200, step: 1, value: 170, unit: 'px' },
         height: { type: 'range', label: 'box height', min: 50, max: 120, step: 1, value: 100, unit: 'px' },
         align: { type: 'select', label: 'fitAlign', options: ['center', 'start', 'end'], value: 'center' },
     },
-    setup({ silk, stage, params, tick }) {
-        // two rows of three boxes
+    setup({ silk, stage, params, tick, width, height, phone }) {
+        // two rows of three boxes, or three rows of two on phones
+        const perRow = phone ? 2 : 3;
         const grid = new FlexContainer({
             ticker: silk.app.ticker,
-            layout: { direction: 'column', gap: 18, padding: 24, alignItems: 'center' },
+            layout: {
+                direction: 'column',
+                gap: 18,
+                padding: phone ? 16 : 24,
+                alignItems: 'center',
+                ...(phone ? { justifyContent: 'center' as const } : {}),
+            },
         });
-        const rows = [0, 1].map(() =>
-            grid.add(new FlexContainer({ layout: { gap: 24, justifyContent: 'center', alignItems: 'start' } })),
+        const rows = Array.from({ length: 6 / perRow }, () =>
+            grid.add(
+                new FlexContainer({ layout: { gap: phone ? 16 : 24, justifyContent: 'center', alignItems: 'start' } }),
+            ),
         );
         const boxes: { box: FlexContainer; art: Container }[] = [];
-        const label = (text: string) => new SilkText({ text, fontSize: 13, fill: INK.muted });
+        const label = (text: string) => new SilkText({ text, fontSize: phone ? 14 : 13, fill: INK.muted });
         const makeBox = (title: string) => {
-            const column = rows[boxes.length < 3 ? 0 : 1].add(
+            const column = rows[Math.floor(boxes.length / perRow)].add(
                 new FlexContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
             );
             const box = column.add(new FlexContainer());
@@ -1847,7 +1909,7 @@ export default defineDemo({
         );
 
         stage.addChild(grid);
-        grid.resize(720, 360);
+        grid.resize(width, height);
 
         let last = '';
 
@@ -2768,8 +2830,10 @@ const COLORS = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2, 0x64d2ff];
 export default defineDemo({
     title: 'Selection and history',
     size: [760, 420],
+    // phones: the history list goes under the shapes
+    phone: { size: [360, 650] },
     touchAction: 'none',
-    setup({ stage, silk }) {
+    setup({ stage, silk, width, height, phone }) {
         const ticker = silk.app.ticker;
         const scene = new Container();
         const overlay = new Container();
@@ -2783,7 +2847,7 @@ export default defineDemo({
         overlay.addChild(hover, outline, gizmo);
         stage.addChild(scene, overlay);
         stage.eventMode = 'static';
-        stage.hitArea = { contains: (x: number, y: number) => x >= 0 && y >= 0 && x <= 760 && y <= 420 };
+        stage.hitArea = { contains: (x: number, y: number) => x >= 0 && y >= 0 && x <= width && y <= height };
         // a press on the background (not on a button or a shape) clears the selection
         stage.on('pointerdown', (e) => e.target === stage && !e.shiftKey && selection.clear());
 
@@ -2814,14 +2878,11 @@ export default defineDemo({
 
             return item;
         };
-        const items = [
-            shape('circle', 110, 150, 0),
-            shape('square', 240, 150, 1),
-            shape('circle', 370, 150, 2),
-            shape('square', 110, 290, 3),
-            shape('circle', 240, 290, 4),
-            shape('square', 370, 290, 5),
-        ];
+        // two rows of three, 130 px apart (110 on phones, under the Studio link)
+        const [x0, dx, y0, dy] = phone ? [70, 110, 176, 120] : [110, 130, 150, 140];
+        const items = [0, 1, 2, 3, 4, 5].map((i) =>
+            shape(i % 2 ? 'square' : 'circle', x0 + (i % 3) * dx, y0 + Math.floor(i / 3) * dy, i),
+        );
         const stops = [
             bindOutline(selection, outline, hover),
             bindGizmo(selection, gizmo),
@@ -2835,23 +2896,26 @@ export default defineDemo({
         const dark = { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e, fillDisabled: 0x232325 };
         let tint = 0;
         const button = (label: string, x: number, onPress: () => void) => {
-            const b = new SilkButton({ ticker, label, width: 84, height: 32, theme: dark, onPress });
+            const b = new SilkButton({ ticker, label, width: phone ? 76 : 84, height: 32, theme: dark, onPress });
 
-            b.position.set(x, 40);
+            b.position.set(x, phone ? 76 : 40);
             overlay.addChild(b);
 
             return b;
         };
 
-        button('Circles', 66, () => selection.selectWhere(items, (s) => s.label === 'circle'));
-        button('Tint', 160, () => {
+        // button centres: 94 px apart, 82 on phones
+        const bx = (i: number) => (phone ? 57 + i * 82 : 66 + i * 94);
+
+        button('Circles', bx(0), () => selection.selectWhere(items, (s) => s.label === 'circle'));
+        button('Tint', bx(1), () => {
             tint++;
             // one handler, one step: every colour set here undoes together
             for (const item of selection.items)
                 colors.get(item)?.set(COLORS[(COLORS.indexOf(colors.get(item)?.value ?? 0) + tint) % COLORS.length]);
         });
-        const undo = button('Undo', 254, () => history.undo());
-        const redo = button('Redo', 348, () => history.redo());
+        const undo = button('Undo', bx(2), () => history.undo());
+        const redo = button('Redo', bx(3), () => history.redo());
 
         stops.push(
             watch(history.state.canUndo, (v) => undo.state.enabled.set(v)),
@@ -2862,7 +2926,9 @@ export default defineDemo({
         const panel = new SilkGraphics();
         const list = new Container();
 
-        panel.roundRect(470, 24, 266, 372, 18, 0.6).fill(0x1c1c1e);
+        const [px, py] = phone ? [16, 384] : [470, 24];
+
+        panel.roundRect(px, py, phone ? 328 : 266, phone ? 250 : 372, 18, 0.6).fill(0x1c1c1e);
         stage.addChildAt(panel, 0);
         stage.addChild(list);
         const style = (fill: number) => ({ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fill });
@@ -2871,18 +2937,18 @@ export default defineDemo({
                 c.destroy();
             });
             const rows = [
-                ...history.past.slice(-8).map((s) => ({ label: s.label, done: true })),
-                ...history.future.slice(0, 4).map((s) => ({ label: s.label, done: false })),
+                ...history.past.slice(phone ? -5 : -8).map((s) => ({ label: s.label, done: true })),
+                ...history.future.slice(0, phone ? 2 : 4).map((s) => ({ label: s.label, done: false })),
             ];
             const title = new Text({ text: 'History', style: style(0x8e8e93), resolution: 4 });
 
-            title.position.set(494, 42);
+            title.position.set(px + 24, py + 18);
             list.addChild(title);
             if (!rows.length) rows.push({ label: 'Nothing yet', done: false });
             rows.forEach((row, i) => {
                 const t = new Text({ text: row.label, style: style(row.done ? 0xf2f2f7 : 0x636366), resolution: 4 });
 
-                t.position.set(494, 74 + i * 26);
+                t.position.set(px + 24, py + 50 + i * 26);
                 list.addChild(t);
             });
         };
@@ -3254,20 +3320,30 @@ export default defineDemo({
     title: 'Colour rings',
     size: [740, 330],
     touchAction: 'none',
-    setup({ silk, stage, tick }) {
+    // phones: triangle and square side by side under the Studio link, the wheel under them
+    phone: { size: [360, 490] },
+    setup({ silk, stage, tick, phone }) {
         const ticker = silk.app.ticker;
         const model = new ColorModel({ color: 0x30d158 });
-        const triangle = new HueTrianglePicker({ model, size: 220, ticker });
-        const square = new HueSquarePicker({ model, size: 220, ticker });
-        const wheel = new ColorWheel({ model, size: 196, ticker });
-        const recent = new SwatchPalette({ model, columns: 12, size: 26, gap: 8, ticker });
+        const triangle = new HueTrianglePicker({ model, size: phone ? 160 : 220, ticker });
+        const square = new HueSquarePicker({ model, size: phone ? 160 : 220, ticker });
+        const wheel = new ColorWheel({ model, size: phone ? 200 : 196, ticker });
+        const recent = new SwatchPalette({ model, columns: phone ? 8 : 12, size: 26, gap: 8, ticker });
         const chip = new SilkGraphics();
 
-        triangle.position.set(20, 16);
-        square.position.set(262, 16);
-        wheel.position.set(506, 28);
-        recent.position.set(64, 278);
-        chip.position.set(20, 278);
+        if (phone) {
+            triangle.position.set(14, 40);
+            square.position.set(186, 40);
+            wheel.position.set(80, 218);
+            recent.position.set(60, 442);
+            chip.position.set(16, 442);
+        } else {
+            triangle.position.set(20, 16);
+            square.position.set(262, 16);
+            wheel.position.set(506, 28);
+            recent.position.set(64, 278);
+            chip.position.set(20, 278);
+        }
         stage.addChild(triangle, square, wheel, recent, chip);
         for (const c of [0xff453a, 0xffd60a, 0x0a84ff]) {
             model.setHex(c);
@@ -3347,32 +3423,42 @@ export default defineDemo({
     title: 'OKLCH picker',
     size: [600, 260],
     touchAction: 'none',
+    // phones: the plane above the sliders
+    phone: { size: [360, 430] },
     controls: {
         sliders: { type: 'select', label: 'sliders', options: ['oklch', 'hsv', 'rgb'], value: 'oklch' },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, phone }) {
         const ticker = silk.app.ticker;
         const model = new ColorModel({ color: 0xbf5af2 });
-        const plane = new OklchPicker({ model, width: 260, height: 180, ticker });
+        const plane = new OklchPicker({ model, width: phone ? 320 : 260, height: phone ? 170 : 180, ticker });
+        // top left corner of the sliders, and how far below them the preview sits
+        const side: [number, number] = phone ? [20, 244] : [330, 24];
+        const below = phone ? 130 : 172;
         const preview = new SilkGraphics();
         let mode = '';
         let sliders: ChannelSliders | null = null;
 
         plane.position.set(20, 20);
-        preview.position.set(330, 196);
+        preview.position.set(side[0], side[1] + below);
         stage.addChild(plane, preview);
 
         tick(() => {
             if (params.sliders !== mode) {
                 mode = params.sliders;
                 sliders?.destroy();
-                sliders = new ChannelSliders({ model, mode: params.sliders as 'oklch', width: 220, ticker });
-                sliders.position.set(330, 24);
+                sliders = new ChannelSliders({
+                    model,
+                    mode: params.sliders as 'oklch',
+                    width: phone ? 298 : 220,
+                    ticker,
+                });
+                sliders.position.set(side[0], side[1]);
                 stage.addChild(sliders);
             }
             preview.clear();
-            checker(preview, 22, 0, 220, 36, 10, 9);
-            preview.roundRect(22, 0, 220, 36, 10).fill({ color: model.hex, alpha: model.alpha });
+            checker(preview, 22, 0, phone ? 296 : 220, 36, 10, 9);
+            preview.roundRect(22, 0, phone ? 296 : 220, 36, 10).fill({ color: model.hex, alpha: model.alpha });
         });
 
         return undefined;
@@ -3408,9 +3494,10 @@ import { defineDemo } from './runtime';
 // it open. The pipette samples the artwork (the app supplies the sampler, here plain maths).
 const W = 600;
 const H = 260;
-const ART = { x: 20, y: 20, w: 420, h: 220 };
+/** The artwork rectangle in design space. */
+type Rect = { x: number; y: number; w: number; h: number };
 /** Colour of the artwork at a design-space point: hue across, value down. */
-const artColor = (x: number, y: number): number | null => {
+const artColor = (ART: Rect, x: number, y: number): number | null => {
     const u = (x - ART.x) / ART.w;
     const v = (y - ART.y) / ART.h;
 
@@ -3425,7 +3512,10 @@ export default defineDemo({
     title: 'Colour popup',
     size: [W, H],
     touchAction: 'none',
-    setup({ silk, stage }) {
+    // phones: the artwork under the Studio link, the colour, pipette and recent row under it
+    phone: { size: [360, 350] },
+    setup({ silk, stage, phone }) {
+        const ART: Rect = phone ? { x: 20, y: 48, w: 320, h: 214 } : { x: 20, y: 20, w: 420, h: 220 };
         const ticker = silk.app.ticker;
         const model = new ColorModel({ color: 0xff9f0a });
         const art = new SilkGraphics();
@@ -3444,7 +3534,7 @@ export default defineDemo({
             sample: (gx, gy) => {
                 const p = stage.toLocal({ x: gx, y: gy });
 
-                return artColor(p.x, p.y);
+                return artColor(ART, p.x, p.y);
             },
         });
         const button = new SilkButton({
@@ -3478,9 +3568,15 @@ export default defineDemo({
 
             popup.openAt(p.x, p.y, e);
         });
-        button.position.set(482, 42);
-        chip.position.set(520, 20);
-        recent.position.set(462, 96);
+        if (phone) {
+            chip.position.set(20, 282);
+            button.position.set(112, 304);
+            recent.position.set(152, 291);
+        } else {
+            button.position.set(482, 42);
+            chip.position.set(520, 20);
+            recent.position.set(462, 96);
+        }
         stage.addChild(art, surface, chip, recent, button, popup, dropper);
         model.value.subscribe(() => chip.clear().roundRect(0, 0, 60, 44, 12).fill(model.hex));
         chip.roundRect(0, 0, 60, 44, 12).fill(model.hex);
@@ -3823,6 +3919,8 @@ const pick: Icon = (g, s) => {
 export default defineDemo({
     title: 'Mode ring',
     size: [640, 360],
+    // the layout is centred on the width, so phones only need a narrower design size
+    phone: { size: [360, 360] },
     touchAction: 'none',
     setup({ silk, stage, width, height }) {
         const ticker = silk.app.ticker;
@@ -3958,8 +4056,10 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Dials and number fields',
     size: [600, 300],
+    // phones: the fields go in a column under the dials
+    phone: { size: [360, 440] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const ticker = silk.app.ticker;
         const endless = new JogDial({ ticker, radius: 62, turn: 360, format: (v) => `${Math.round(v)}°` });
         const stepped = new JogDial({
@@ -3992,11 +4092,19 @@ export default defineDemo({
             format: (v) => `${v.toFixed(1)}°`,
         });
 
-        endless.position.set(110, 130);
-        stepped.position.set(290, 130);
-        size.position.set(420, 70);
-        opacity.position.set(420, 125);
-        angle.position.set(420, 180);
+        if (phone) {
+            endless.position.set(95, 124);
+            stepped.position.set(265, 124);
+            size.position.set(105, 254);
+            opacity.position.set(105, 309);
+            angle.position.set(105, 364);
+        } else {
+            endless.position.set(110, 130);
+            stepped.position.set(290, 130);
+            size.position.set(420, 70);
+            opacity.position.set(420, 125);
+            angle.position.set(420, 180);
+        }
         // the endless dial drives the angle field
         endless.state.value.subscribe((v) => angle.state.value.set(Math.round(v * 10) / 10));
         stage.addChild(endless, stepped, size, opacity, angle);
@@ -4075,13 +4183,17 @@ import { defineDemo, PALETTE } from './runtime';
 export default defineDemo({
     title: 'Timeline and jog dial',
     size: [540, 184],
+    // phones: the dial under the timeline, and 11 px ruler labels as the scene is not scaled up
+    phone: { size: [360, 290] },
     touchAction: 'none',
-    setup({ silk, stage, tick }) {
+    setup({ silk, stage, tick, phone }) {
+        const span = phone ? 312 : 380;
         const ticker = silk.app.ticker;
         const timeline = new MiniTimeline({
             ticker,
-            width: 380,
+            width: span,
             height: 70,
+            textStyle: phone ? { fontSize: 11 } : undefined,
             duration: 120,
             loop: [24, 96],
             keys: [0, 12, 30, 44, 60, 72, 90, 108].map((time, i) => ({ id: `k${i}`, time })),
@@ -4091,7 +4203,8 @@ export default defineDemo({
         let last = 0;
 
         timeline.position.set(24, 104);
-        jog.position.set(472, 139);
+        if (phone) jog.position.set(180, 236);
+        else jog.position.set(472, 139);
         // the dial scrubs the playhead, a tap on it plays or pauses
         jog.state.value.subscribe((v) => {
             timeline.state.time.set(Math.max(0, Math.min(120, timeline.state.time.value + v - last)));
@@ -4109,7 +4222,7 @@ export default defineDemo({
             const b = keys[i] ?? 120;
             const u = b > a ? (time - a) / (b - a) : 0;
             const y = 80 - Math.sin(Math.PI * u) * 44;
-            const x = 24 + (time / 120) * 380;
+            const x = 24 + (time / 120) * span;
 
             ball.clear();
             ball.circle(x, 92, 12).fill({ color: 0x000000, alpha: 0.4, blur: 6 });
@@ -4534,11 +4647,13 @@ import { BG, defineDemo } from './runtime';
 export default defineDemo({
     title: 'Docking panels',
     size: [720, 460],
+    // phones: the notes dock to the bottom, under the floating list
+    phone: { size: [360, 540] },
     touchAction: 'none',
     controls: {
         theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
     },
-    setup({ silk, stage, width, height, params, tick }) {
+    setup({ silk, stage, width, height, params, tick, phone }) {
         const viewport = { width, height };
         const canvas = silk.app.canvas;
         // the panels scroll with the wheel: keep the page still while the pointer is over the demo
@@ -4557,8 +4672,12 @@ export default defineDemo({
                 .clear()
                 .rect(0, 0, width, height)
                 .fill(light ? 0xe6e6eb : BG);
-            const colours = new Panel({ title: 'Colours', x: 200, y: 60, width: 240, height: 320, viewport, theme });
-            const notes = new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
+            const colours = phone
+                ? new Panel({ title: 'Colours', x: 16, y: 16, width: 240, height: 300, viewport, theme })
+                : new Panel({ title: 'Colours', x: 200, y: 60, width: 240, height: 320, viewport, theme });
+            const notes = phone
+                ? new Panel({ title: 'Notes', dock: 'bottom', height: 170, viewport, theme })
+                : new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
 
             // forty swatch rows, laid out by the panel's flex column and clipped by its body
             for (let i = 0; i < 40; i++) {
@@ -4592,7 +4711,7 @@ export default defineDemo({
                 lineHeight: 18,
                 fill: theme.textDim,
                 wordWrap: true,
-                wordWrapWidth: 190,
+                wordWrapWidth: phone ? 320 : 190,
             });
 
             notes.content.add(text);
@@ -4688,8 +4807,10 @@ const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
 export default defineDemo({
     title: 'Layer tree',
     size: [720, 460],
+    // phones: the readout goes under the panel
+    phone: { size: [360, 600] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -4734,7 +4855,9 @@ export default defineDemo({
         };
         const selection = new Selection<Item>();
         const history = new History();
-        const panel = new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
+        const panel = phone
+            ? new Panel({ title: 'Layers', x: 16, y: 16, width: 328, height: 420, scroll: false })
+            : new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
         const tree = new LayerTree({ adapter, root, selection, history, element: canvas });
         const info = new SilkText({
             fontFamily: PANEL_THEME.fontFamily,
@@ -4742,7 +4865,7 @@ export default defineDemo({
             lineHeight: 20,
             fill: INK.muted,
             wordWrap: true,
-            wordWrapWidth: 340,
+            wordWrapWidth: phone ? 328 : 340,
         });
         const onKey = (e: KeyboardEvent) => {
             const mod = e.metaKey || e.ctrlKey;
@@ -4756,7 +4879,8 @@ export default defineDemo({
         addEventListener('keydown', onKey);
         tree.expand(root.children[0], true);
         panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
-        info.position.set(352, 40);
+        if (phone) info.position.set(16, 452);
+        else info.position.set(352, 40);
         stage.addChild(panel, info);
         const show = () => {
             const picked = selection.items.map((n) => n.name);
@@ -4925,8 +5049,10 @@ const schema: InspectorField[] = [
 export default defineDemo({
     title: 'Inspector from a schema',
     size: [720, 480],
+    // phones: the cards above the panel
+    phone: { size: [360, 730] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -4935,12 +5061,16 @@ export default defineDemo({
         const history = new History();
         const scene = new Container();
         const outline = new SelectionOutline({ ticker: silk.app.ticker });
-        const panel = new Panel({ title: 'Inspector', x: 412, y: 24, width: 284, height: 432 });
+        const panel = phone
+            ? new Panel({ title: 'Inspector', x: 16, y: 324, width: 328, height: 390 })
+            : new Panel({ title: 'Inspector', x: 412, y: 24, width: 284, height: 432 });
         const inspector = new Inspector({ schema, history, element: canvas, popoverLayer: stage });
         const cards = [new Card('Blue', PALETTE.blue), new Card('Pink', PALETTE.pink), new Card('Mint', PALETTE.green)];
 
         cards.forEach((card, i) => {
-            card.position.set(48 + (i % 2) * 180, 56 + Math.floor(i / 2) * 210 + (i % 2) * 40);
+            // phones: two cards side by side and the third under them
+            if (phone) card.position.set(i === 2 ? 120 : 40 + i * 160, i === 2 ? 184 : 44);
+            else card.position.set(48 + (i % 2) * 180, 56 + Math.floor(i / 2) * 210 + (i % 2) * 40);
             card.eventMode = 'static';
             card.cursor = 'pointer';
             card.on('pointerdown', (e) => {

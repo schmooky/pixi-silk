@@ -10,13 +10,17 @@ import { defineDemo, PALETTE } from './runtime';
 export default defineDemo({
     title: 'Timeline and jog dial',
     size: [540, 184],
+    // phones: the dial under the timeline, and 11 px ruler labels as the scene is not scaled up
+    phone: { size: [360, 290] },
     touchAction: 'none',
-    setup({ silk, stage, tick }) {
+    setup({ silk, stage, tick, phone }) {
+        const span = phone ? 312 : 380;
         const ticker = silk.app.ticker;
         const timeline = new MiniTimeline({
             ticker,
-            width: 380,
+            width: span,
             height: 70,
+            textStyle: phone ? { fontSize: 11 } : undefined,
             duration: 120,
             loop: [24, 96],
             keys: [0, 12, 30, 44, 60, 72, 90, 108].map((time, i) => ({ id: `k${i}`, time })),
@@ -26,7 +30,8 @@ export default defineDemo({
         let last = 0;
 
         timeline.position.set(24, 104);
-        jog.position.set(472, 139);
+        if (phone) jog.position.set(180, 236);
+        else jog.position.set(472, 139);
         // the dial scrubs the playhead, a tap on it plays or pauses
         jog.state.value.subscribe((v) => {
             timeline.state.time.set(Math.max(0, Math.min(120, timeline.state.time.value + v - last)));
@@ -44,7 +49,7 @@ export default defineDemo({
             const b = keys[i] ?? 120;
             const u = b > a ? (time - a) / (b - a) : 0;
             const y = 80 - Math.sin(Math.PI * u) * 44;
-            const x = 24 + (time / 120) * 380;
+            const x = 24 + (time / 120) * span;
 
             ball.clear();
             ball.circle(x, 92, 12).fill({ color: 0x000000, alpha: 0.4, blur: 6 });

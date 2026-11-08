@@ -6,25 +6,29 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Graphics and SilkGraphics',
     size: [480, 240],
+    // phones: each half is 180 wide and shows the drawing at 0.75
+    phone: { size: [360, 210] },
     controls: {
         zoom: { type: 'range', label: 'zoom', min: 1, max: 6, step: 0.01, value: 1 },
         rotate: { type: 'toggle', label: 'rotate', value: true },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height, phone }) {
         const sides = [new Container(), new Container()];
         const pixi = new Graphics();
         const silk = new SilkGraphics();
+        const half = width / 2;
+        const fit = phone ? 0.75 : 1;
 
         sides[0].addChild(pixi);
         sides[1].addChild(silk);
         sides.forEach((side, i) => {
-            const mask = new Graphics().rect(i * 240, 0, 240, 240).fill(0xffffff);
+            const mask = new Graphics().rect(i * half, 0, half, height).fill(0xffffff);
             const label = new Text({
                 text: i ? 'SilkGraphics' : 'Graphics',
                 style: { fill: 0x8e8e93, fontSize: 12, fontFamily: 'system-ui' },
             });
 
-            label.position.set(i * 240 + 12, 10);
+            label.position.set(i * half + 12, 10);
             side.mask = mask;
             stage.addChild(side, mask, label);
         });
@@ -34,8 +38,8 @@ export default defineDemo({
             if (params.rotate) angle += dt * 0.15;
             for (const [i, side] of sides.entries()) {
                 side.pivot.set(120, 130);
-                side.position.set(i * 240 + 120, 130);
-                side.scale.set(params.zoom);
+                side.position.set(i * half + half / 2, phone ? 115 : 130);
+                side.scale.set(params.zoom * fit);
                 side.rotation = angle;
             }
             for (const g of [pixi, silk]) {

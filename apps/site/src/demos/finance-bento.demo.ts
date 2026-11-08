@@ -42,13 +42,42 @@ interface Tile {
     update?: (p: number, t: number) => void;
 }
 
-const label = (
+type Label = (
     text: string,
     size: number,
     color: number,
-    weight: TextStyleFontWeight = '500',
-    extra: TextStyleOptions = {},
-) => new Text({ text, style: { fill: color, fontFamily: SANS, fontSize: size, fontWeight: weight, ...extra } });
+    weight?: TextStyleFontWeight,
+    extra?: TextStyleOptions,
+) => Text;
+
+/** Text in the board's font. Sizes under `floor` grow to it, and so does their line height. */
+const labelWithFloor =
+    (floor: number): Label =>
+    (text, size, color, weight = '500', extra = {}) => {
+        const k = Math.max(1, floor / size);
+        const lineHeight = extra.lineHeight === undefined ? undefined : extra.lineHeight * k;
+
+        return new Text({
+            text,
+            style: { fill: color, fontFamily: SANS, fontSize: size * k, fontWeight: weight, ...extra, lineHeight },
+        });
+    };
+
+// phones: two columns instead of three, shown at about 0.73, so labels grow to 15 to stay readable
+const PHONE_W = 2 * COL_W + 3 * GAP;
+const PHONE_H = 1396;
+/** Tile positions on phones: column and top. */
+const PHONE: Record<string, [number, number]> = {
+    orange: [0, 20],
+    volume: [0, 279],
+    bars: [0, 628],
+    clock: [0, 1022],
+    send: [1, 20],
+    research: [1, 209],
+    currency: [1, 698],
+    arrow: [1, 907],
+    donut: [1, 1176],
+};
 
 function tile(x: number, y: number, w: number, h: number, fill: number, delay: number, radius = 10): Tile {
     const view = new Container();
@@ -78,10 +107,15 @@ function place(child: Container, x: number, y: number, ax = 0, ay = 0) {
 export default defineDemo({
     title: 'Finance bento',
     size: [W, H],
-    setup({ silk, stage, tick }) {
+    phone: { size: [PHONE_W, PHONE_H] },
+    setup({ silk, stage, tick, width, height, phone }) {
         const ticker = silk.app.ticker;
         const tiles: Tile[] = [];
-        const bg = new SilkGraphics().rect(0, 0, W, H).fill(C.page);
+        const bg = new SilkGraphics().rect(0, 0, width, height).fill(C.page);
+        const label = labelWithFloor(phone ? 15 : 0);
+        /** A tile's place: its wide column and top, or its phone place. */
+        const at = (name: string, column: number, y: number): [number, number] =>
+            phone ? [col(PHONE[name][0]), PHONE[name][1]] : [col(column), y];
         const add = (t: Tile) => {
             tiles.push(t);
             stage.addChild(t.view);
@@ -93,7 +127,7 @@ export default defineDemo({
 
         // the 78% card: orange, with a progress bar
         {
-            const t = add(tile(col(0), 20, COL_W, 240, C.orange, 0));
+            const t = add(tile(...at('orange', 0, 20), COL_W, 240, C.orange, 0));
             const value = new Odometer({
                 ticker,
                 prefix: '\u2248', // almost equal
@@ -123,7 +157,7 @@ export default defineDemo({
 
         // up arrow tile
         {
-            const t = add(tile(col(0), 280, COL_W, 250, C.slate, 0.08));
+            const t = add(tile(...at('arrow', 0, 280), COL_W, 250, C.slate, 0.08));
             const g = new SilkGraphics();
             const cx = COL_W / 2;
 
@@ -144,7 +178,7 @@ export default defineDemo({
 
         // 24h trading volume
         {
-            const t = add(tile(col(0), 550, COL_W, 330, C.clay, 0.16));
+            const t = add(tile(...at('volume', 0, 550), COL_W, 330, C.clay, 0.16));
             const rows: [boolean, string, string][] = [
                 [true, 'Bitcoin', '$67,258.69'],
                 [false, 'Ethereum', '$2,631.39'],
@@ -170,7 +204,7 @@ export default defineDemo({
 
         // send / receive
         {
-            const t = add(tile(col(1), 20, COL_W, 170, C.stone, 0.04));
+            const t = add(tile(...at('send', 1, 20), COL_W, 170, C.stone, 0.04));
             const inner = new SilkGraphics();
             const send = new Odometer({
                 ticker,
@@ -199,7 +233,7 @@ export default defineDemo({
 
         // research card: a price, then three plan cards stacked on its lower half
         {
-            const t = add(tile(col(1), 205, COL_W, 470, 0xbdbdba, 0.12));
+            const t = add(tile(...at('research', 1, 205), COL_W, 470, 0xbdbdba, 0.12));
             const g = new SilkGraphics();
             const plans: [string, string, number, number][] = [
                 ['Key\nBenefits', 'AI tools', 2, 0xdcdcda],
@@ -260,7 +294,7 @@ export default defineDemo({
 
         // currency tiles
         {
-            const t = add(tile(col(1), 690, COL_W, 190, 0xbdbdba, 0.2));
+            const t = add(tile(...at('currency', 1, 690), COL_W, 190, 0xbdbdba, 0.2));
             const g = new SilkGraphics();
             const half = (COL_W - 24) / 2;
 
@@ -276,7 +310,7 @@ export default defineDemo({
 
         // weekly bars
         {
-            const t = add(tile(col(2), 20, COL_W, 375, C.olive, 0.08));
+            const t = add(tile(...at('bars', 2, 20), COL_W, 375, C.olive, 0.08));
             const bars = new SilkGraphics();
             const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             const totals = [0.86, 0.75, 0.6, 0.68, 0.84, 0.67, 0.78];
@@ -297,8 +331,11 @@ export default defineDemo({
                 place(label('All Time:', 12, 0x2f3527, '400'), 14, 350, 0, 0.5),
                 total,
             );
+            // phones show the first letter only: the cells are narrow for the larger text
             days.forEach((d, i) =>
-                t.view.addChild(place(label(d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5)),
+                t.view.addChild(
+                    place(label(phone ? d[0] : d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5),
+                ),
             );
             total.y = 350;
             t.update = (p) => {
@@ -320,7 +357,7 @@ export default defineDemo({
 
         // one quarter donut
         {
-            const t = add(tile(col(2), 415, COL_W, 200, C.page, 0.16));
+            const t = add(tile(...at('donut', 2, 415), COL_W, 200, C.page, 0.16));
             const g = new SilkGraphics();
             const cx = COL_W / 2;
 
@@ -334,7 +371,7 @@ export default defineDemo({
 
         // clock dial with rotated numbers
         {
-            const t = add(tile(col(2), 630, COL_W, 250, C.page, 0.24));
+            const t = add(tile(...at('clock', 2, 630), COL_W, 250, C.page, 0.24));
             const face = new SilkGraphics();
             const numbers = new Container();
             const cx = COL_W / 2;

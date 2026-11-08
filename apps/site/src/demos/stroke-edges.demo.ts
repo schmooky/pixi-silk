@@ -1,3 +1,4 @@
+import { Container } from 'pixi.js';
 import { type LineJoin, SilkGraphics } from 'pixi-silk';
 import { defineDemo, label, PALETTE } from './runtime';
 
@@ -11,6 +12,8 @@ const NOTES: Record<string, string> = {
 export default defineDemo({
     title: 'Stroke edge cases',
     size: [720, 280],
+    // phones: the note wraps over the drawing, which is shown at half size
+    phone: { size: [360, 250] },
     controls: {
         scene: {
             type: 'select',
@@ -21,11 +24,18 @@ export default defineDemo({
         zoom: { type: 'range', label: 'zoom', min: 1, max: 12, step: 0.5, value: 1, unit: 'x' },
         join: { type: 'select', label: 'join', options: ['miter', 'bevel', 'round'], value: 'miter' },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, phone }) {
         const g = new SilkGraphics();
-        const note = label('', 24, 18);
+        const note = phone ? label('', 16, 14, { wordWrap: true, wordWrapWidth: 328 }) : label('', 24, 18);
+        // the drawing is laid out on 720x280; phones show it at 0.48 under the note
+        const view = new Container();
 
-        stage.addChild(g, note);
+        if (phone) {
+            view.scale.set(0.48);
+            view.position.set(180 - 360 * 0.48, 158 - 156 * 0.48);
+        }
+        view.addChild(g);
+        stage.addChild(view, note);
         tick((t) => {
             g.clear();
             const join = params.join as LineJoin;

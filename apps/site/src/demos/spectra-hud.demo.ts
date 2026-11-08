@@ -40,35 +40,68 @@ const grey = (v: number) => {
     return (c << 16) | (c << 8) | c;
 };
 
-export default defineDemo({
-    title: 'Spectrum HUD',
-    size: [W, H],
-    setup({ stage, tick }) {
-        const frame = new SilkGraphics();
-        const cells = new SilkGraphics();
-        const live = new SilkGraphics();
-        const texts = new Container();
-        let frameCount = 0;
+/** One block of the HUD: its own graphics and texts, so the phone layout can move it as a whole. */
+interface Part {
+    view: Container;
+    g: SilkGraphics;
+    text: TextFn;
+}
 
-        stage.addChild(cells, frame, live, texts);
+function part(parent: Container, x = 0, y = 0): Part {
+    const view = new Container();
+    const g = new SilkGraphics();
+    const texts = new Container();
 
-        const text: TextFn = (value, x, y, size = 11, color = DIM, anchor = 0, weight = '400') => {
+    view.position.set(x, y);
+    view.addChild(g, texts);
+    parent.addChild(view);
+
+    return {
+        view,
+        g,
+        text: (value, tx, ty, size = 11, color = DIM, anchor = 0, weight = '400') => {
             const t = new Text({
                 text: value,
                 style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.4 },
             });
 
             t.anchor.set(anchor, 0.5);
-            t.position.set(x, y);
+            t.position.set(tx, ty);
             texts.addChild(t);
 
             return t;
-        };
+        },
+    };
+}
 
-        drawTitle(frame, text);
-        drawPlot(frame, text);
-        drawDialFace(frame, text);
-        drawFooter(frame, text);
+export default defineDemo({
+    title: 'Spectrum HUD',
+    size: [W, H],
+    // phones: the plot in the middle, the title and the dial above it, the rest below
+    phone: { size: [360, 780] },
+    setup({ stage, tick, width, height, phone }) {
+        const cells = new SilkGraphics();
+        const live = new SilkGraphics();
+        const blink = new SilkGraphics();
+        let frameCount = 0;
+
+        // the parts keep the wide coordinates, phones move each part to its own place
+        const at = (x: number, y: number): [number, number] => (phone ? [x, y] : [0, 0]);
+        const plot = part(stage, ...at(-160, 232));
+        const title = part(stage);
+        const times = part(stage, ...at(0, 360));
+        const badge = part(stage, ...at(-360, 40));
+        const dial = part(stage, ...at(-350, 38));
+        const controls = part(stage, ...at(-360, 362));
+        const footer = part(stage);
+
+        plot.view.addChildAt(cells, 0);
+        dial.view.addChild(live);
+        footer.view.addChild(blink);
+        drawTitle(title, times, badge);
+        drawPlot(plot);
+        drawDialFace(dial, controls);
+        drawFooter(footer, width, height);
 
         tick((t) => {
             // the heatmap redraws at half the frame rate: plenty for a slow drift
@@ -82,7 +115,8 @@ export default defineDemo({
             live.line(DIAL.x, DIAL.y, DIAL.x + Math.cos(a - 1.2) * DIAL.r, DIAL.y + Math.sin(a - 1.2) * DIAL.r).stroke(
                 hair(0.5),
             );
-            live.circle(30, H - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
+            blink.clear();
+            blink.circle(30, height - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
         });
 
         return undefined;
@@ -127,23 +161,23 @@ function drawCells(g: SilkGraphics, t: number) {
     }
 }
 
-function drawTitle(g: SilkGraphics, text: TextFn) {
+function drawTitle({ text }: Part, times: Part, badge: Part) {
     text('06F', 24, 42, 30, WHITE, 0, '700');
     text('Neptune Spectra', 24, 76, 13, WHITE, 0, '600');
     text('APHELION', 24, 108);
     text('30.33 AU', 24, 124, 12, WHITE);
     text('PERIHELION', 24, 150);
     text('29.81 AU', 24, 166, 12, WHITE);
-    g.rect(24, 290, 104, 20).fill(WHITE);
-    text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
-    text('C 19:28:24', 24, 330);
-    text('P 17:06:47', 24, 348);
-    text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
-    g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
-    text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
+    times.g.rect(24, 290, 104, 20).fill(WHITE);
+    times.text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
+    times.text('C 19:28:24', 24, 330);
+    times.text('P 17:06:47', 24, 348);
+    badge.text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
+    badge.g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
+    badge.text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
 }
 
-function drawPlot(g: SilkGraphics, text: TextFn) {
+function drawPlot({ g, text }: Part) {
     g.circle(CX, CY, RADIUS + 14).stroke(hair(0.35));
     g.rect(CX - 100, CY - 84, 200, 200).stroke(hair(0.9));
     g.rect(CX - 16, CY - 156, 184, 184).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
@@ -161,7 +195,7 @@ function drawPlot(g: SilkGraphics, text: TextFn) {
     g.rect(CX - 3, 18, 6, 12).fill(WHITE);
 }
 
-function drawDialFace(g: SilkGraphics, text: TextFn) {
+function drawDialFace({ g, text }: Part, controls: Part) {
     const { x, y, r } = DIAL;
 
     g.circle(x, y, r).stroke(hair(0.6));
@@ -182,13 +216,13 @@ function drawDialFace(g: SilkGraphics, text: TextFn) {
         const cy = 300 + i * 32;
         const s = flip ? -1 : 1;
 
-        g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
-        g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
+        controls.g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
+        controls.g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
     }
 }
 
-function drawFooter(g: SilkGraphics, text: TextFn) {
-    g.line(24, H - 52, W - 24, H - 52).stroke(hair(0.2));
-    text('Selection  LDK 06F', 44, H - 30, 12, WHITE);
-    text('Form A  1039 / 3972', W - 24, H - 30, 12, WHITE, 1);
+function drawFooter({ g, text }: Part, w: number, h: number) {
+    g.line(24, h - 52, w - 24, h - 52).stroke(hair(0.2));
+    text('Selection  LDK 06F', 44, h - 30, 12, WHITE);
+    text('Form A  1039 / 3972', w - 24, h - 30, 12, WHITE, 1);
 }

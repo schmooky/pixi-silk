@@ -20,20 +20,24 @@ const PALETTES: [number, number, number][] = [
 export default defineDemo({
     title: 'Aurora',
     size: [720, 470],
+    // phones: one device at full size instead of three at half size
+    phone: { size: [360, 470] },
     controls: {
         rise: { type: 'range', label: 'rise', min: 0.3, max: 0.9, step: 0.01, value: 0.62 },
         speed: { type: 'range', label: 'speed', min: 0, max: 3, step: 0.1, value: 1 },
     },
-    setup({ silk, stage: frame, params, tick }) {
+    setup({ silk, stage: frame, params, tick, phone: narrow }) {
         // the phones span x 30 to 750 and y 20 to 434: fit that inside the shared padding
         const stage = new Container();
         const fit = (720 - 2 * PAD) / 720;
 
-        stage.scale.set(fit);
-        stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        if (!narrow) {
+            stage.scale.set(fit);
+            stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        }
         frame.addChild(stage);
-        const auroras = PALETTES.map((colors, i) => {
-            const x = 40 + i * 240;
+        const auroras = PALETTES.slice(0, narrow ? 1 : 3).map((colors, i) => {
+            const x = narrow ? 80 : 40 + i * 240;
             const phone = new Container();
             const frame = new SilkGraphics();
             const aurora = new Aurora({ width: 200, height: 330, radius: 30, colors, ticker: silk.app.ticker });

@@ -7,7 +7,9 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Read-only text selection',
     size: [520, 260],
-    setup({ silk, stage }) {
+    // phones: a narrower column, so the paragraph keeps its 15 px
+    phone: { size: [360, 300] },
+    setup({ silk, stage, phone }) {
         const font = 'Inter, system-ui, sans-serif';
         const paragraph = new TextEditor({
             text: 'Release notes. Text layers now edit on the canvas. Selection, the clipboard and input methods go through a hidden text field, so they behave the way the platform does. Double click a word to select it.',
@@ -15,15 +17,15 @@ export default defineDemo({
             fontSize: 15,
             lineHeight: 23,
             fill: 0xd1d1d6,
-            width: 440,
+            width: phone ? 300 : 440,
             readOnly: true,
             element: silk.app.canvas,
             theme: { selection: 0xffd60a, selectionAlpha: 0.28 },
         });
         const readout = new SilkText({ fontFamily: font, fontSize: 12, fill: 0x8e8e93 });
 
-        paragraph.position.set(40, 36);
-        readout.position.set(40, 214);
+        paragraph.position.set(phone ? 30 : 40, phone ? 24 : 36);
+        readout.position.set(phone ? 30 : 40, phone ? 254 : 214);
         stage.addChild(paragraph, readout);
         const stop = paragraph.state.selection.subscribe(() => {
             const n = paragraph.selectedText.length;

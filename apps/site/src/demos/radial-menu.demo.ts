@@ -80,18 +80,20 @@ const tools: RadialItem[] = [
 export default defineDemo({
     title: 'Radial menu',
     size: [720, 400],
+    // phones: the artboard goes under the round button
+    phone: { size: [360, 600] },
     touchAction: 'none',
     controls: {
         closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, height, phone }) {
         const ticker = silk.app.ticker;
         const surface = new Container();
         const status = new Text({
             text: 'press, drag, release, or tap',
             style: { fill: INK.muted, fontFamily: FONT, fontSize: 13 },
         });
-        const bounds = { x: 0, y: 0, width: 720, height: 400 };
+        const bounds = { x: 0, y: 0, width, height };
         const report = (_item: RadialItem, path: readonly RadialItem[]) => {
             status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
         };
@@ -128,16 +130,22 @@ export default defineDemo({
             .fill(PALETTE.green);
 
         surface.eventMode = 'static';
-        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 720 && y <= 400 };
-        status.position.set(24, 20);
-        hub.position.set(170, 200);
-        add.position.set(670, 350);
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+        // phones: the hub on top, the board drawn at (330, 70) moved under it
+        const hubAt = phone ? [180, 170] : [170, 200];
+        const addAt = phone ? [312, 556] : [670, 350];
+        const boardAt = phone ? [30, 300] : [330, 70];
+
+        board.position.set(boardAt[0] - 330, boardAt[1] - 70);
+        status.position.set(phone ? 16 : 24, 20);
+        hub.position.set(hubAt[0], hubAt[1]);
+        add.position.set(addAt[0], addAt[1]);
         stage.addChild(
             surface,
             board,
-            label('Artboard', 330, 46),
-            label('tools', 170, 244, {}, 0.5),
-            label('quick add', 634, 342, {}, 1),
+            label('Artboard', boardAt[0], boardAt[1] - 24),
+            label('tools', hubAt[0], hubAt[1] + 44, {}, 0.5),
+            label('quick add', addAt[0] - 36, addAt[1] - 8, {}, 1),
             status,
             hub,
             add,

@@ -21,6 +21,8 @@ const pick: Icon = (g, s) => {
 export default defineDemo({
     title: 'Mode ring',
     size: [640, 360],
+    // the layout is centred on the width, so phones only need a narrower design size
+    phone: { size: [360, 360] },
     touchAction: 'none',
     setup({ silk, stage, width, height }) {
         const ticker = silk.app.ticker;

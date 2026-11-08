@@ -54,19 +54,19 @@ function pill(label: string, value: string, color: number): { box: FlexContainer
         inset: 0,
         onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 30, 0.6).fill(0x1c1c1e),
     });
-    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 34, fill: 0xa1a1aa }));
+    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 38, fill: 0xa1a1aa }));
     box.add(v, { fit: 'scale-down', minScale: 0.55 });
 
     return { box, value: v };
 }
 
-/** A round button with a label on it. */
-function button(radius: number, color: number, text: string): Container {
+/** A round button with a label on it, `size` design units tall. */
+function button(radius: number, color: number, text: string, size: number): Container {
     const c = new Container();
 
     c.addChild(
         new SilkGraphics().circle(0, 0, radius).fill(color),
-        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: radius * 0.36, fill: 0xffffff, anchor: 0.5 }),
+        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: size, fill: 0xffffff, anchor: 0.5 }),
     );
     c.eventMode = 'static';
     c.cursor = 'pointer';
@@ -80,14 +80,16 @@ const LENGTH = 238;
 export default defineDemo({
     title: 'Responsive player HUD',
     size: [920, 520],
+    // phones: a tall area, so a portrait device shows at about 0.85 of its real size
+    phone: { size: [360, 700] },
     controls: {
         device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
         notch: { type: 'toggle', label: 'notch', value: false },
         debug: { type: 'toggle', label: 'debug', value: false },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, height }) {
         // a device window previewed inside the page. Every SmartContainer follows it.
-        const sim = simulateViewport({ area: { x: 0, y: 0, width: 920, height: 520 }, device: 'desktop' });
+        const sim = simulateViewport({ area: { x: 0, y: 0, width, height }, device: 'desktop' });
         const debug = layoutDebug(silk.app, { key: 'KeyL' });
         const all: SmartContainer[] = [];
         const make = (label: string, options: SmartContainerOptions) => {
@@ -133,7 +135,7 @@ export default defineDemo({
             layout: { justifyContent: 'center', alignItems: 'center' },
             portraitData: { align: 'right', valign: 'top', width: 140, height: 140 },
             landscapeData: { align: 'right', valign: 'top', width: 140, height: 140 },
-        }).add(button(40, 0x2c2c2e, 'MENU'));
+        }).add(button(60, 0x2c2c2e, 'MENU', 34));
 
         // the bar: along the bottom and as wide as the window, with a flex row inside
         const bar = make('bar', {
@@ -149,7 +151,7 @@ export default defineDemo({
         });
         const time = pill('TIME', `0:00 / ${clock(LENGTH)}`, 0xffffff);
         const volume = pill('VOLUME', '72%', 0x64d2ff);
-        const play = button(76, 0x30d158, 'PLAY');
+        const play = button(76, 0x30d158, 'PLAY', 36);
         const playLabel = play.children[1] as SilkText;
         let playing = false;
         let position = 0;

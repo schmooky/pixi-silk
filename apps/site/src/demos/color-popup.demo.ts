@@ -8,9 +8,10 @@ import { defineDemo } from './runtime';
 // it open. The pipette samples the artwork (the app supplies the sampler, here plain maths).
 const W = 600;
 const H = 260;
-const ART = { x: 20, y: 20, w: 420, h: 220 };
+/** The artwork rectangle in design space. */
+type Rect = { x: number; y: number; w: number; h: number };
 /** Colour of the artwork at a design-space point: hue across, value down. */
-const artColor = (x: number, y: number): number | null => {
+const artColor = (ART: Rect, x: number, y: number): number | null => {
     const u = (x - ART.x) / ART.w;
     const v = (y - ART.y) / ART.h;
 
@@ -25,7 +26,10 @@ export default defineDemo({
     title: 'Colour popup',
     size: [W, H],
     touchAction: 'none',
-    setup({ silk, stage }) {
+    // phones: the artwork under the Studio link, the colour, pipette and recent row under it
+    phone: { size: [360, 350] },
+    setup({ silk, stage, phone }) {
+        const ART: Rect = phone ? { x: 20, y: 48, w: 320, h: 214 } : { x: 20, y: 20, w: 420, h: 220 };
         const ticker = silk.app.ticker;
         const model = new ColorModel({ color: 0xff9f0a });
         const art = new SilkGraphics();
@@ -44,7 +48,7 @@ export default defineDemo({
             sample: (gx, gy) => {
                 const p = stage.toLocal({ x: gx, y: gy });
 
-                return artColor(p.x, p.y);
+                return artColor(ART, p.x, p.y);
             },
         });
         const button = new SilkButton({
@@ -78,9 +82,15 @@ export default defineDemo({
 
             popup.openAt(p.x, p.y, e);
         });
-        button.position.set(482, 42);
-        chip.position.set(520, 20);
-        recent.position.set(462, 96);
+        if (phone) {
+            chip.position.set(20, 282);
+            button.position.set(112, 304);
+            recent.position.set(152, 291);
+        } else {
+            button.position.set(482, 42);
+            chip.position.set(520, 20);
+            recent.position.set(462, 96);
+        }
         stage.addChild(art, surface, chip, recent, button, popup, dropper);
         model.value.subscribe(() => chip.clear().roundRect(0, 0, 60, 44, 12).fill(model.hex));
         chip.roundRect(0, 0, 60, 44, 12).fill(model.hex);

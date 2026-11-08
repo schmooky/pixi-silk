@@ -103,10 +103,12 @@ type Role = 'ink' | 'onDisc' | 'faint';
 export default defineDemo({
     title: 'Weather card',
     size: [W, H],
+    // phones: the same card, as tall as the frame width allows, with no text under 12 px
+    phone: { size: [W, H] },
     controls: {
         theme: { type: 'select', label: 'theme', options: ['light', 'dark'], value: 'dark' },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, phone }) {
         const base = new SilkGraphics();
         const live = new SilkGraphics();
         const texts = new Container();
@@ -125,12 +127,13 @@ export default defineDemo({
             anchor = 0,
             weight: TextStyleFontWeight = '400',
         ) => {
+            // a phone frame shows the card at about 0.9: the small labels grow to stay readable
             const t = new Text({
                 text: value,
                 style: {
                     fill: 0xffffff,
                     fontFamily: MONO,
-                    fontSize: size,
+                    fontSize: phone ? Math.max(12, size) : size,
                     fontWeight: weight,
                     letterSpacing: size * 0.08,
                 },
@@ -364,13 +367,42 @@ interface Tile {
     update?: (p: number, t: number) => void;
 }
 
-const label = (
+type Label = (
     text: string,
     size: number,
     color: number,
-    weight: TextStyleFontWeight = '500',
-    extra: TextStyleOptions = {},
-) => new Text({ text, style: { fill: color, fontFamily: SANS, fontSize: size, fontWeight: weight, ...extra } });
+    weight?: TextStyleFontWeight,
+    extra?: TextStyleOptions,
+) => Text;
+
+/** Text in the board's font. Sizes under `floor` grow to it, and so does their line height. */
+const labelWithFloor =
+    (floor: number): Label =>
+    (text, size, color, weight = '500', extra = {}) => {
+        const k = Math.max(1, floor / size);
+        const lineHeight = extra.lineHeight === undefined ? undefined : extra.lineHeight * k;
+
+        return new Text({
+            text,
+            style: { fill: color, fontFamily: SANS, fontSize: size * k, fontWeight: weight, ...extra, lineHeight },
+        });
+    };
+
+// phones: two columns instead of three, shown at about 0.73, so labels grow to 15 to stay readable
+const PHONE_W = 2 * COL_W + 3 * GAP;
+const PHONE_H = 1396;
+/** Tile positions on phones: column and top. */
+const PHONE: Record<string, [number, number]> = {
+    orange: [0, 20],
+    volume: [0, 279],
+    bars: [0, 628],
+    clock: [0, 1022],
+    send: [1, 20],
+    research: [1, 209],
+    currency: [1, 698],
+    arrow: [1, 907],
+    donut: [1, 1176],
+};
 
 function tile(x: number, y: number, w: number, h: number, fill: number, delay: number, radius = 10): Tile {
     const view = new Container();
@@ -400,10 +432,15 @@ function place(child: Container, x: number, y: number, ax = 0, ay = 0) {
 export default defineDemo({
     title: 'Finance bento',
     size: [W, H],
-    setup({ silk, stage, tick }) {
+    phone: { size: [PHONE_W, PHONE_H] },
+    setup({ silk, stage, tick, width, height, phone }) {
         const ticker = silk.app.ticker;
         const tiles: Tile[] = [];
-        const bg = new SilkGraphics().rect(0, 0, W, H).fill(C.page);
+        const bg = new SilkGraphics().rect(0, 0, width, height).fill(C.page);
+        const label = labelWithFloor(phone ? 15 : 0);
+        /** A tile's place: its wide column and top, or its phone place. */
+        const at = (name: string, column: number, y: number): [number, number] =>
+            phone ? [col(PHONE[name][0]), PHONE[name][1]] : [col(column), y];
         const add = (t: Tile) => {
             tiles.push(t);
             stage.addChild(t.view);
@@ -415,7 +452,7 @@ export default defineDemo({
 
         // the 78% card: orange, with a progress bar
         {
-            const t = add(tile(col(0), 20, COL_W, 240, C.orange, 0));
+            const t = add(tile(...at('orange', 0, 20), COL_W, 240, C.orange, 0));
             const value = new Odometer({
                 ticker,
                 prefix: '\u2248', // almost equal
@@ -445,7 +482,7 @@ export default defineDemo({
 
         // up arrow tile
         {
-            const t = add(tile(col(0), 280, COL_W, 250, C.slate, 0.08));
+            const t = add(tile(...at('arrow', 0, 280), COL_W, 250, C.slate, 0.08));
             const g = new SilkGraphics();
             const cx = COL_W / 2;
 
@@ -466,7 +503,7 @@ export default defineDemo({
 
         // 24h trading volume
         {
-            const t = add(tile(col(0), 550, COL_W, 330, C.clay, 0.16));
+            const t = add(tile(...at('volume', 0, 550), COL_W, 330, C.clay, 0.16));
             const rows: [boolean, string, string][] = [
                 [true, 'Bitcoin', '$67,258.69'],
                 [false, 'Ethereum', '$2,631.39'],
@@ -492,7 +529,7 @@ export default defineDemo({
 
         // send / receive
         {
-            const t = add(tile(col(1), 20, COL_W, 170, C.stone, 0.04));
+            const t = add(tile(...at('send', 1, 20), COL_W, 170, C.stone, 0.04));
             const inner = new SilkGraphics();
             const send = new Odometer({
                 ticker,
@@ -521,7 +558,7 @@ export default defineDemo({
 
         // research card: a price, then three plan cards stacked on its lower half
         {
-            const t = add(tile(col(1), 205, COL_W, 470, 0xbdbdba, 0.12));
+            const t = add(tile(...at('research', 1, 205), COL_W, 470, 0xbdbdba, 0.12));
             const g = new SilkGraphics();
             const plans: [string, string, number, number][] = [
                 ['Key\nBenefits', 'AI tools', 2, 0xdcdcda],
@@ -582,7 +619,7 @@ export default defineDemo({
 
         // currency tiles
         {
-            const t = add(tile(col(1), 690, COL_W, 190, 0xbdbdba, 0.2));
+            const t = add(tile(...at('currency', 1, 690), COL_W, 190, 0xbdbdba, 0.2));
             const g = new SilkGraphics();
             const half = (COL_W - 24) / 2;
 
@@ -598,7 +635,7 @@ export default defineDemo({
 
         // weekly bars
         {
-            const t = add(tile(col(2), 20, COL_W, 375, C.olive, 0.08));
+            const t = add(tile(...at('bars', 2, 20), COL_W, 375, C.olive, 0.08));
             const bars = new SilkGraphics();
             const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             const totals = [0.86, 0.75, 0.6, 0.68, 0.84, 0.67, 0.78];
@@ -619,8 +656,11 @@ export default defineDemo({
                 place(label('All Time:', 12, 0x2f3527, '400'), 14, 350, 0, 0.5),
                 total,
             );
+            // phones show the first letter only: the cells are narrow for the larger text
             days.forEach((d, i) =>
-                t.view.addChild(place(label(d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5)),
+                t.view.addChild(
+                    place(label(phone ? d[0] : d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5),
+                ),
             );
             total.y = 350;
             t.update = (p) => {
@@ -642,7 +682,7 @@ export default defineDemo({
 
         // one quarter donut
         {
-            const t = add(tile(col(2), 415, COL_W, 200, C.page, 0.16));
+            const t = add(tile(...at('donut', 2, 415), COL_W, 200, C.page, 0.16));
             const g = new SilkGraphics();
             const cx = COL_W / 2;
 
@@ -656,7 +696,7 @@ export default defineDemo({
 
         // clock dial with rotated numbers
         {
-            const t = add(tile(col(2), 630, COL_W, 250, C.page, 0.24));
+            const t = add(tile(...at('clock', 2, 630), COL_W, 250, C.page, 0.24));
             const face = new SilkGraphics();
             const numbers = new Container();
             const cx = COL_W / 2;
@@ -744,35 +784,68 @@ const grey = (v: number) => {
     return (c << 16) | (c << 8) | c;
 };
 
-export default defineDemo({
-    title: 'Spectrum HUD',
-    size: [W, H],
-    setup({ stage, tick }) {
-        const frame = new SilkGraphics();
-        const cells = new SilkGraphics();
-        const live = new SilkGraphics();
-        const texts = new Container();
-        let frameCount = 0;
+/** One block of the HUD: its own graphics and texts, so the phone layout can move it as a whole. */
+interface Part {
+    view: Container;
+    g: SilkGraphics;
+    text: TextFn;
+}
 
-        stage.addChild(cells, frame, live, texts);
+function part(parent: Container, x = 0, y = 0): Part {
+    const view = new Container();
+    const g = new SilkGraphics();
+    const texts = new Container();
 
-        const text: TextFn = (value, x, y, size = 11, color = DIM, anchor = 0, weight = '400') => {
+    view.position.set(x, y);
+    view.addChild(g, texts);
+    parent.addChild(view);
+
+    return {
+        view,
+        g,
+        text: (value, tx, ty, size = 11, color = DIM, anchor = 0, weight = '400') => {
             const t = new Text({
                 text: value,
                 style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.4 },
             });
 
             t.anchor.set(anchor, 0.5);
-            t.position.set(x, y);
+            t.position.set(tx, ty);
             texts.addChild(t);
 
             return t;
-        };
+        },
+    };
+}
 
-        drawTitle(frame, text);
-        drawPlot(frame, text);
-        drawDialFace(frame, text);
-        drawFooter(frame, text);
+export default defineDemo({
+    title: 'Spectrum HUD',
+    size: [W, H],
+    // phones: the plot in the middle, the title and the dial above it, the rest below
+    phone: { size: [360, 780] },
+    setup({ stage, tick, width, height, phone }) {
+        const cells = new SilkGraphics();
+        const live = new SilkGraphics();
+        const blink = new SilkGraphics();
+        let frameCount = 0;
+
+        // the parts keep the wide coordinates, phones move each part to its own place
+        const at = (x: number, y: number): [number, number] => (phone ? [x, y] : [0, 0]);
+        const plot = part(stage, ...at(-160, 232));
+        const title = part(stage);
+        const times = part(stage, ...at(0, 360));
+        const badge = part(stage, ...at(-360, 40));
+        const dial = part(stage, ...at(-350, 38));
+        const controls = part(stage, ...at(-360, 362));
+        const footer = part(stage);
+
+        plot.view.addChildAt(cells, 0);
+        dial.view.addChild(live);
+        footer.view.addChild(blink);
+        drawTitle(title, times, badge);
+        drawPlot(plot);
+        drawDialFace(dial, controls);
+        drawFooter(footer, width, height);
 
         tick((t) => {
             // the heatmap redraws at half the frame rate: plenty for a slow drift
@@ -786,7 +859,8 @@ export default defineDemo({
             live.line(DIAL.x, DIAL.y, DIAL.x + Math.cos(a - 1.2) * DIAL.r, DIAL.y + Math.sin(a - 1.2) * DIAL.r).stroke(
                 hair(0.5),
             );
-            live.circle(30, H - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
+            blink.clear();
+            blink.circle(30, height - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
         });
 
         return undefined;
@@ -831,23 +905,23 @@ function drawCells(g: SilkGraphics, t: number) {
     }
 }
 
-function drawTitle(g: SilkGraphics, text: TextFn) {
+function drawTitle({ text }: Part, times: Part, badge: Part) {
     text('06F', 24, 42, 30, WHITE, 0, '700');
     text('Neptune Spectra', 24, 76, 13, WHITE, 0, '600');
     text('APHELION', 24, 108);
     text('30.33 AU', 24, 124, 12, WHITE);
     text('PERIHELION', 24, 150);
     text('29.81 AU', 24, 166, 12, WHITE);
-    g.rect(24, 290, 104, 20).fill(WHITE);
-    text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
-    text('C 19:28:24', 24, 330);
-    text('P 17:06:47', 24, 348);
-    text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
-    g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
-    text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
+    times.g.rect(24, 290, 104, 20).fill(WHITE);
+    times.text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
+    times.text('C 19:28:24', 24, 330);
+    times.text('P 17:06:47', 24, 348);
+    badge.text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
+    badge.g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
+    badge.text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
 }
 
-function drawPlot(g: SilkGraphics, text: TextFn) {
+function drawPlot({ g, text }: Part) {
     g.circle(CX, CY, RADIUS + 14).stroke(hair(0.35));
     g.rect(CX - 100, CY - 84, 200, 200).stroke(hair(0.9));
     g.rect(CX - 16, CY - 156, 184, 184).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
@@ -865,7 +939,7 @@ function drawPlot(g: SilkGraphics, text: TextFn) {
     g.rect(CX - 3, 18, 6, 12).fill(WHITE);
 }
 
-function drawDialFace(g: SilkGraphics, text: TextFn) {
+function drawDialFace({ g, text }: Part, controls: Part) {
     const { x, y, r } = DIAL;
 
     g.circle(x, y, r).stroke(hair(0.6));
@@ -886,15 +960,15 @@ function drawDialFace(g: SilkGraphics, text: TextFn) {
         const cy = 300 + i * 32;
         const s = flip ? -1 : 1;
 
-        g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
-        g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
+        controls.g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
+        controls.g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
     }
 }
 
-function drawFooter(g: SilkGraphics, text: TextFn) {
-    g.line(24, H - 52, W - 24, H - 52).stroke(hair(0.2));
-    text('Selection  LDK 06F', 44, H - 30, 12, WHITE);
-    text('Form A  1039 / 3972', W - 24, H - 30, 12, WHITE, 1);
+function drawFooter({ g, text }: Part, w: number, h: number) {
+    g.line(24, h - 52, w - 24, h - 52).stroke(hair(0.2));
+    text('Selection  LDK 06F', 44, h - 30, 12, WHITE);
+    text('Form A  1039 / 3972', w - 24, h - 30, 12, WHITE, 1);
 }
 ```
 
@@ -926,13 +1000,15 @@ const COLORS = spectrum(8);
 export default defineDemo({
     title: 'Glass prism',
     size: [720, 440],
+    // phones: the prism in the middle of a narrow frame, the light from the lower left
+    phone: { size: [360, 440] },
     background: 0x000000,
     touchAction: 'none',
     controls: {
         spread: { type: 'range', label: 'spread', min: 0.2, max: 1.2, step: 0.01, value: 0.62 },
         frost: { type: 'range', label: 'frost', min: 0, max: 40, step: 1, value: 14 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height }) {
         const beam = new SilkGraphics();
         const rainbow = new SilkGraphics();
         const glass = new Glass({
@@ -946,8 +1022,8 @@ export default defineDemo({
             light: 1,
         });
         const hit = new SilkGraphics();
-        const centre = { x: 360, y: 220 };
-        let source = { x: 90, y: 420 };
+        const centre = { x: width / 2, y: height / 2 };
+        let source = { x: width / 8, y: height - 20 };
 
         beam.blendMode = 'add';
         rainbow.blendMode = 'add';
@@ -963,7 +1039,7 @@ export default defineDemo({
 
         brand.position.set(150, 120);
         glass.content.addChild(brand);
-        hit.rect(0, 0, 720, 440).fill({ color: 0x000000, alpha: 0.001 });
+        hit.rect(0, 0, width, height).fill({ color: 0x000000, alpha: 0.001 });
         stage.addChild(hit, beam, rainbow, glass);
 
         trackGesture(hit, {
@@ -1020,13 +1096,17 @@ const label = (text: string, size: number, color: number, weight: TextStyleFontW
 export default defineDemo({
     title: 'Sunrise glow',
     size: [640, 440],
+    // phones: a narrower card under the same sun
+    phone: { size: [360, 440] },
     background: 0x260600,
-    setup({ stage, tick }) {
+    setup({ stage, tick, phone }) {
+        // the sun's centre moves with the frame width
+        const dx = phone ? -140 : 0;
         const orb = new SilkGraphics();
         const core = new SilkGraphics();
         const glass = new Glass({
-            width: 360,
-            height: 136,
+            width: phone ? 312 : 360,
+            height: phone ? 156 : 136,
             radius: 26,
             blur: 26,
             refraction: 10,
@@ -1035,15 +1115,19 @@ export default defineDemo({
             tintAmount: 0.12,
         });
         const eyebrow = label('WORK SPACE', 11, 0xffd9b8, '600');
-        const title = label('Enable Efficient Teamwork', 22, 0xffffff, '600');
+        const title = label('Enable Efficient Teamwork', phone ? 20 : 22, 0xffffff, '600');
         const body = label('Create a culture of clarity across every project.', 13, 0xffd9b8);
 
         eyebrow.style.letterSpacing = 1.4;
         eyebrow.position.set(24, 26);
         title.position.set(24, 44);
         body.position.set(24, 88);
+        if (phone) {
+            body.style.wordWrap = true;
+            body.style.wordWrapWidth = 264;
+        }
         glass.content.addChild(eyebrow, title, body);
-        glass.position.set(140, 280);
+        glass.position.set(phone ? 24 : 140, phone ? 268 : 280);
         stage.addChild(orb, core, glass);
 
         tick((t) => {
@@ -1052,14 +1136,14 @@ export default defineDemo({
 
             // shape 1: a red disc under layer blur 226
             orb.clear()
-                .circle(320 + drift * 0.3, 170, 150 * breathe)
+                .circle(320 + dx + drift * 0.3, 170, 150 * breathe)
                 .fill({ color: 0xe5400f, blur: 90 })
-                .circle(320, 190, 110)
+                .circle(320 + dx, 190, 110)
                 .fill({ color: 0xff5a14, alpha: 0.55, blur: 50 });
             // shape 2: a yellow peanut under layer blur 140, and shape 3: the same with a
             // progressive blur, 100 at the top to 0 at the bottom, so it sits on a crisp horizon
             const peanut = (g: SilkGraphics) =>
-                g.ellipse(310 + drift, 196, 92, 50).ellipse(330 + drift * 0.6, 228, 112, 46);
+                g.ellipse(310 + dx + drift, 196, 92, 50).ellipse(330 + dx + drift * 0.6, 228, 112, 46);
 
             core.clear();
             peanut(core).fill({ color: 0xffb21f, alpha: 0.7, blur: 60, spread: 10 });
@@ -1115,13 +1199,17 @@ function label(text: string, x: number, y: number, color: number, anchorX = 0): 
 export default defineDemo({
     title: 'Beams and bolts',
     size: [720, 520],
-    setup({ stage: frame, tick }) {
-        // the three panels are drawn at 760 wide and inset by the shared padding
+    // phones: the three panels stack in one column
+    phone: { size: [360, 840] },
+    setup({ stage: frame, tick, width, height, phone }) {
+        // the panels are drawn at 760 wide (370 on phones) and inset by the shared padding
         const stage = new Container();
-        const fit = (720 - 2 * PAD) / W;
+        const hw = phone ? 370 : W;
+        const drawn = phone ? 800 : 520;
+        const fit = (width - 2 * PAD) / hw;
 
         stage.scale.set(fit);
-        stage.position.set(PAD, (520 - 520 * fit) / 2);
+        stage.position.set(PAD, (height - drawn * fit) / 2);
         frame.addChild(stage);
 
         // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
@@ -1130,8 +1218,8 @@ export default defineDemo({
         const beam = new SilkGraphics();
         const heroClip = new SilkGraphics();
 
-        heroBg.roundRect(0, 0, W, 240, 18, 0.6).fill(0x05031a);
-        heroClip.roundRect(0, 0, W, 240, 18, 0.6).fill(0xffffff);
+        heroBg.roundRect(0, 0, hw, 240, 18, 0.6).fill(0x05031a);
+        heroClip.roundRect(0, 0, hw, 240, 18, 0.6).fill(0xffffff);
         beam.mask = heroClip;
         hero.addChild(heroBg, beam, heroClip);
 
@@ -1200,7 +1288,8 @@ export default defineDemo({
             label('Speed: ON', 26, 220, 0x8a7484),
             label('400 ms', 344, 220, 0x8a7484, 1),
         );
-        speed.position.set(390, 260);
+        if (phone) speed.position.set(0, 540);
+        else speed.position.set(390, 260);
 
         stage.addChild(hero, wavePanel, speed);
 
@@ -1208,9 +1297,9 @@ export default defineDemo({
             const breathe = 1 + Math.sin(t * 0.9) * 0.06;
 
             beam.clear();
-            hourglass(beam, W / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
-            hourglass(beam, W / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
-            hourglass(beam, W / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
+            hourglass(beam, hw / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
+            hourglass(beam, hw / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
+            hourglass(beam, hw / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
 
             const pts = (dy: number) => {
                 const out: number[] = [];
@@ -1287,20 +1376,24 @@ const PALETTES: [number, number, number][] = [
 export default defineDemo({
     title: 'Aurora',
     size: [720, 470],
+    // phones: one device at full size instead of three at half size
+    phone: { size: [360, 470] },
     controls: {
         rise: { type: 'range', label: 'rise', min: 0.3, max: 0.9, step: 0.01, value: 0.62 },
         speed: { type: 'range', label: 'speed', min: 0, max: 3, step: 0.1, value: 1 },
     },
-    setup({ silk, stage: frame, params, tick }) {
+    setup({ silk, stage: frame, params, tick, phone: narrow }) {
         // the phones span x 30 to 750 and y 20 to 434: fit that inside the shared padding
         const stage = new Container();
         const fit = (720 - 2 * PAD) / 720;
 
-        stage.scale.set(fit);
-        stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        if (!narrow) {
+            stage.scale.set(fit);
+            stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        }
         frame.addChild(stage);
-        const auroras = PALETTES.map((colors, i) => {
-            const x = 40 + i * 240;
+        const auroras = PALETTES.slice(0, narrow ? 1 : 3).map((colors, i) => {
+            const x = narrow ? 80 : 40 + i * 240;
             const phone = new Container();
             const frame = new SilkGraphics();
             const aurora = new Aurora({ width: 200, height: 330, radius: 30, colors, ticker: silk.app.ticker });
