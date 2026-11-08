@@ -1,15 +1,18 @@
 {
   "everything": {
-    "gzip": 19339
+    "gzip": 26607
   },
   "SilkGraphics": {
-    "gzip": 17151
+    "gzip": 22756
   },
   "SilkGraphics + gradients": {
-    "gzip": 17612
+    "gzip": 23190
   },
   "createSilkApp": {
-    "gzip": 883
+    "gzip": 932
+  },
+  "webgpu (enableWebGPU)": {
+    "gzip": 8592
   },
   "gradients": {
     "gzip": 2224
@@ -23,50 +26,62 @@
   "signal (signal, computed, batch)": {
     "gzip": 371
   },
+  "selection": {
+    "gzip": 1115
+  },
+  "history": {
+    "gzip": 1989
+  },
+  "path": {
+    "gzip": 3670
+  },
   "ui/radial (RadialMenu)": {
-    "gzip": 22545
+    "gzip": 28078
   },
   "ui/button (SilkButton)": {
-    "gzip": 20216
+    "gzip": 25789
   },
   "ui/dock (ButtonDock)": {
     "gzip": 1044
   },
   "ui/gizmo": {
-    "gzip": 24459
+    "gzip": 30011
   },
   "ui/outline": {
-    "gzip": 19356
+    "gzip": 24926
+  },
+  "ui/pathgizmo": {
+    "gzip": 30139
   },
   "ui/snap": {
-    "gzip": 19869
+    "gzip": 25495
   },
   "ui/camera": {
-    "gzip": 20811
+    "gzip": 26453
   },
   "ui/camera (Camera only)": {
     "gzip": 3145
   },
   "ui/measure": {
-    "gzip": 19545
+    "gzip": 25149
   },
   "ui/grid": {
-    "gzip": 18679
+    "gzip": 24282
   },
   "ui/ruler": {
-    "gzip": 19910
+    "gzip": 25516
   },
   "ui/guides": {
-    "gzip": 20415
+    "gzip": 26030
   },
   "ui/marquee": {
-    "gzip": 19690
+    "gzip": 25268
   },
   "ui/group": {
     "gzip": 1117
   },
   "ui/spacing": {
-    "gzip": 19776
+    "gzip": 25379
   },
   "ui/spacing (findSpacing)": {
     "gzip": 899
@@ -75,22 +90,22 @@
     "gzip": 1303
   },
   "ui/color": {
-    "gzip": 27061
+    "gzip": 32644
   },
   "ui/halo": {
-    "gzip": 21181
+    "gzip": 26725
   },
   "ui/brush": {
-    "gzip": 19977
+    "gzip": 25593
   },
   "ui/modes": {
-    "gzip": 24769
+    "gzip": 30310
   },
   "ui/dial": {
-    "gzip": 21739
+    "gzip": 27302
   },
   "ui/timeline": {
-    "gzip": 21060
+    "gzip": 26655
   },
   "ui/odometer": {
     "gzip": 2159
@@ -99,12 +114,24 @@
     "gzip": 940
   },
   "glass": {
-    "gzip": 19512
+    "gzip": 26098
   },
   "glow": {
-    "gzip": 19587
+    "gzip": 25172
+  },
+  "text": {
+    "gzip": 10342
+  },
+  "text (SilkText)": {
+    "gzip": 10117
+  },
+  "text (layoutText, sdfFromAlpha)": {
+    "gzip": 1434
+  },
+  "ui/pill (ValuePill)": {
+    "gzip": 23408
   },
   "ui (everything)": {
-    "gzip": 67474
+    "gzip": 83616
   }
 }
