@@ -55,11 +55,12 @@ export function rayQuad(r: Ray): [number, number, number, number, number, number
     ];
 }
 
-/** Adds a tapered ray to `g` as two triangles (fill it afterwards, blurred for light). */
+/**
+ * Adds a tapered ray to `g` as one quad (fill it afterwards, blurred for light). One shape has no
+ * seam down its diagonal when it is blurred or translucent.
+ */
 export function ray(g: SilkGraphics, r: Ray): SilkGraphics {
-    const [ax, ay, bx, by, cx, cy, dx, dy] = rayQuad(r);
-
-    return g.triangle(ax, ay, bx, by, cx, cy).triangle(ax, ay, cx, cy, dx, dy);
+    return g.poly(rayQuad(r));
 }
 
 /**

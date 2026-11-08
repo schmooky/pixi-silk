@@ -35,6 +35,7 @@ export {
     type FillStyle,
     type InnerShadow,
     type LineCap,
+    type LineJoin,
     type PolylineOptions,
     type ProgressiveBlur,
     SilkGeometry,

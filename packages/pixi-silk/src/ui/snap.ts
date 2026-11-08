@@ -425,11 +425,13 @@ export class SnapGuides extends Container {
                 const p0 = guide.axis === 'x' ? { x: a, y: guide.at } : { x: guide.at, y: a };
                 const p1 = guide.axis === 'x' ? { x: b, y: guide.at } : { x: guide.at, y: b };
 
-                g.line(p0.x, p0.y, p1.x, p1.y).stroke({ width: 1, color, alpha });
+                // the gap and its end ticks are one stroke: no darker dots where they cross
+                g.line(p0.x, p0.y, p1.x, p1.y);
                 for (const p of [p0, p1]) {
-                    if (guide.axis === 'x') g.line(p.x, p.y - 4, p.x, p.y + 4).stroke({ width: 1, color, alpha });
-                    else g.line(p.x - 4, p.y, p.x + 4, p.y).stroke({ width: 1, color, alpha });
+                    if (guide.axis === 'x') g.line(p.x, p.y - 4, p.x, p.y + 4);
+                    else g.line(p.x - 4, p.y, p.x + 4, p.y);
                 }
+                g.stroke({ width: 1, color, alpha, union: true });
                 if (this._opts.readouts === false) return;
                 let pill = entry.pills[i];
 
@@ -455,8 +457,9 @@ export class SnapGuides extends Container {
             [x0, y0],
             [x1, y1],
         ]) {
-            g.line(x - 3, y - 3, x + 3, y + 3).stroke({ width: 1, color, alpha });
-            g.line(x - 3, y + 3, x + 3, y - 3).stroke({ width: 1, color, alpha });
+            g.line(x - 3, y - 3, x + 3, y + 3)
+                .line(x - 3, y + 3, x + 3, y - 3)
+                .stroke({ width: 1, color, alpha, union: true });
         }
     }
 }
