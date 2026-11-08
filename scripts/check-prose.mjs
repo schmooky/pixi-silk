@@ -296,6 +296,23 @@ for (const file of files) {
     }
 }
 
+// The lab's design reproductions keep their reference text as it is, except for dot separators:
+// labels like "Body fat \u00b7 trend" read as generated filler, so they are banned there too.
+const DESIGN = join(root, 'apps/site/src/lab');
+const designFiles = ['_sheets', '_widgets', '_cards'].flatMap((d) =>
+    existsSync(join(DESIGN, d)) ? readdirSync(join(DESIGN, d)).map((f) => join(DESIGN, d, f)) : [],
+);
+
+for (const file of designFiles) {
+    readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((l, i) => {
+            if (l.includes('prose-ignore')) return;
+            for (const ch of ['\u00b7', '\u2022'])
+                if (l.includes(ch)) report(file, i + 1, `"${ch}": ${TYPOGRAPHY[ch]}`);
+        });
+}
+
 for (const p of problems) console.log(p);
-console.log(`check-prose: ${files.length} files, ${problems.length} problems`);
+console.log(`check-prose: ${files.length + designFiles.length} files, ${problems.length} problems`);
 process.exit(problems.length ? 1 : 0);

@@ -48,7 +48,7 @@ export const DOCS_AREAS = [
     {
         id: 'drawing',
         title: 'Drawing',
-        summary: 'Shapes, arcs, lines and paths, fills and strokes, dashes and transforms.',
+        summary: 'Every shape SilkGraphics can draw, and how to fill, stroke and move it.',
         intro: [
             'Everything SilkGraphics can draw, one primitive family per page. Each page opens with a live demo and its source.',
             'Read shapes first. The other pages build on its fill and stroke calls, and transforms apply to all of them.',
@@ -65,7 +65,7 @@ export const DOCS_AREAS = [
     {
         id: 'paint',
         title: 'Paint',
-        summary: 'Gradients in OKLab without banding, glows, soft shadows and motion blur.',
+        summary: 'Gradients that do not band, and blur that turns any shape into a glow or a shadow.',
         intro: [
             'What goes inside a shape once it is drawn. Gradients cover linear, radial, conic and along-the-path ramps.',
             'Blur turns the same distance field into glows and shadows without a filter pass.',
@@ -80,7 +80,7 @@ export const DOCS_AREAS = [
     {
         id: 'ui',
         title: 'UI widgets',
-        summary: 'Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
+        summary: 'Charts and sharp text, plus the first ready-made widgets and how they react to input.',
         intro: [
             'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
             'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera.',
@@ -99,8 +99,7 @@ export const DOCS_AREAS = [
     {
         id: 'editor-ui',
         title: 'Editor UI',
-        summary:
-            'An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, undo, path editing, colour pickers, dials and a timeline.',
+        summary: 'Everything a design tool draws on its canvas, from the camera and rulers to gizmos and undo.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
             'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls.',
@@ -168,7 +167,7 @@ export const DOCS_AREAS = [
     {
         id: 'reference',
         title: 'Reference',
-        summary: 'The generated API reference, the glossary, the FAQ, the changelog and plain-text docs.',
+        summary: 'The API reference lists every export with its JSDoc. The other pages here are for looking things up.',
         intro: [
             'Look things up here once you know what you need. The API reference lists every export with its JSDoc.',
             'The glossary defines the terms the guides use.',

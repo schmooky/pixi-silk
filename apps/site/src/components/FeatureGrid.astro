@@ -4,10 +4,10 @@ import { Aperture, Blend, Gauge, Layers, MousePointerClick, Ruler, Sparkles, Squ
 const features = [
     { icon: Aperture, title: 'Exact anti-aliasing', body: 'Each pixel gets its coverage from the exact distance to the shape. Smooth at any zoom, rotation and DPR, in filters and render textures too.' },
     { icon: Layers, title: 'One draw call', body: 'Each SilkGraphics is one instanced draw call. Rebuilding 50,000 primitives takes about 12 ms of CPU per frame.' },
-    { icon: Ruler, title: 'Squircles and more shapes', body: 'Smooth squircle corners, per-corner radii, arcs, donut sectors, hearts, stars, rounded triangles and chart areas.' },
-    { icon: Blend, title: 'OKLab gradients', body: 'Linear, radial, conic and along-the-path gradients. Mixed in OKLab, stored as half floats and dithered, so they do not band.' },
-    { icon: Sparkles, title: 'Glows and soft shadows', body: 'Blur any fill or stroke. Neon glows, drop shadows and motion blur cost no filter and no extra pass.' },
-    { icon: SquareDashed, title: 'Dashes, dots, tapers', body: 'Dashes and dots with caps, drawn in the shader. Closed outlines have no seam. Strokes can taper along the path.' },
+    { icon: Ruler, title: 'Squircles and more shapes', body: 'Corners can follow a squircle curve, with a radius per corner. Arcs, donut sectors and free paths are exact shapes too.' },
+    { icon: Blend, title: 'OKLab gradients', body: 'Gradients run straight, round, around a point or along a path. They mix in OKLab and are dithered, so they do not band.' },
+    { icon: Sparkles, title: 'Glows and soft shadows', body: 'Blur any fill or stroke. A neon glow or a drop shadow costs no filter and no extra pass.' },
+    { icon: SquareDashed, title: 'Dashed and tapered lines', body: 'Dashes and dots with caps, drawn in the shader. Closed outlines have no seam. Strokes can taper along the path.' },
     { icon: Gauge, title: 'DPR-exact canvas', body: 'createSilkApp maps canvas pixels 1:1 to device pixels, even at 1.5x or 2.625x, and follows DPR changes.' },
     { icon: MousePointerClick, title: 'Real hit testing', body: 'Pointer events test the real shape. Rings are hollow and a line only reacts on its stroke.' },
 ];

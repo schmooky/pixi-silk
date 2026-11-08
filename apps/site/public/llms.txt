@@ -60,7 +60,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Drawing
 
-- [Drawing overview](https://pixi-silk.schmooky.dev/docs/drawing/): Shapes, arcs, lines and paths, fills and strokes, dashes and transforms.
+- [Drawing overview](https://pixi-silk.schmooky.dev/docs/drawing/): Every shape SilkGraphics can draw, and how to fill, stroke and move it.
 - [Shapes](https://pixi-silk.schmooky.dev/docs/shapes/): Rects, squircles with per-corner radii, pills, circles, ellipses, hearts, stars, polygons and rounded triangles, each an exact anti-aliased distance field. (Markdown: https://pixi-silk.schmooky.dev/docs/shapes.md)
   - Experiment: [Rounded rects & squircles](https://pixi-silk.schmooky.dev/lab/07-rounded-rects/): Per-corner radii and continuous-curvature corners with a live smoothing slider.
   - Experiment: [Icons](https://pixi-silk.schmooky.dev/lab/11-icons/): Sixteen glyphs built from primitives, crisp at 16, 28 and 56 px. Uses save / translateTransform.
@@ -75,7 +75,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Paint
 
-- [Paint overview](https://pixi-silk.schmooky.dev/docs/paint/): Gradients in OKLab without banding, glows, soft shadows and motion blur.
+- [Paint overview](https://pixi-silk.schmooky.dev/docs/paint/): Gradients that do not band, and blur that turns any shape into a glow or a shadow.
 - [Gradients](https://pixi-silk.schmooky.dev/docs/gradients/): Linear, radial, conic and along-the-path gradients in OKLab, with smooth easing. Half-float ramps and dithering keep dark gradients free of banding. (Markdown: https://pixi-silk.schmooky.dev/docs/gradients.md)
   - Experiment: [Gradients](https://pixi-silk.schmooky.dev/lab/12-gradients/): Linear, radial, conic and along-the-path gradients, extend modes, sRGB vs linear vs OKLab, premultiplied alpha.
   - Experiment: [Banding](https://pixi-silk.schmooky.dev/lab/13-banding/): Half-float ramps with ±0.5 LSB dither. Toggle dither and "reveal x8" to watch the contour lines disappear.
@@ -86,7 +86,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### UI widgets
 
-- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
+- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts and sharp text, plus the first ready-made widgets and how they react to input.
 - [Charts](https://pixi-silk.schmooky.dev/docs/charts/): Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots. (Markdown: https://pixi-silk.schmooky.dev/docs/charts.md)
   - Experiment: [Area chart](https://pixi-silk.schmooky.dev/lab/15-area-chart/): Smoothed series, gradient fill, dotted guides, dashed forecast, NOW marker, eased updates.
   - Experiment: [Bar charts](https://pixi-silk.schmooky.dev/lab/16-bar-charts/): Slim bars with a past/future split and chunky stepped bars that grow in.
@@ -101,7 +101,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Editor UI
 
-- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, undo, path editing, colour pickers, dials and a timeline.
+- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): Everything a design tool draws on its canvas, from the camera and rulers to gizmos and undo.
 - [Canvas and measurements](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/): Pan and zoom a PixiJS scene like a design tool, with pinch, fling and fit, and measure the distances between objects with redlines and size badges. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-and-measurements.md)
 - [Grid, rulers and selection](https://pixi-silk.schmooky.dev/docs/canvas-tools/): Add a zoom-aware grid, rulers, draggable guides, rubber-band selection, group transforms and Figma-style smart spacing to a PixiJS canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-tools.md)
 - [Transform gizmos](https://pixi-silk.schmooky.dev/docs/transform-gizmos/): Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps. (Markdown: https://pixi-silk.schmooky.dev/docs/transform-gizmos.md)
@@ -148,7 +148,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Reference
 
-- [Reference overview](https://pixi-silk.schmooky.dev/docs/reference/): The generated API reference, the glossary, the FAQ, the changelog and plain-text docs.
+- [Reference overview](https://pixi-silk.schmooky.dev/docs/reference/): The API reference lists every export with its JSDoc. The other pages here are for looking things up.
 - [Glossary](https://pixi-silk.schmooky.dev/docs/glossary/): Short definitions of anti-aliasing, MSAA, SSAA, FXAA, signed distance fields, coverage, device pixel ratio, squircles, OKLab, banding and dithering. (Markdown: https://pixi-silk.schmooky.dev/docs/glossary.md)
 
 ## API reference
