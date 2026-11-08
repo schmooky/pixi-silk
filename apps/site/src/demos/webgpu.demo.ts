@@ -11,14 +11,14 @@ export default defineDemo({
     size: [460, 310],
     renderers: ['webgl', 'webgpu'],
     controls: {
-        spin: { type: 'toggle', label: 'rotate', value: false },
+        rotate: { type: 'toggle', label: 'rotate', value: false },
     },
     setup({ stage, params, tick }) {
         const g = new SilkGraphics();
 
         stage.addChild(g);
         tick((t) => {
-            const a = params.spin ? t * 0.5 : 0;
+            const a = params.rotate ? t * 0.5 : 0;
             const cells: ((g: SilkGraphics) => void)[] = [
                 (g) => g.roundRect(-28, -22, 56, 44, 14, 0.6).fill(linear([0x0a84ff, 0xbf5af2])),
                 (g) => g.circle(0, 0, 26).fill(radial([0xffffff, 0xff9f0a, [1, 0xff375f, 0]])),

@@ -288,7 +288,7 @@ export default defineDemo({
                 color: C.ink,
                 textStyle: { fontFamily: SANS, fontWeight: '400' },
             });
-            const slot = (COL_W - 24) / 7;
+            const cell = (COL_W - 24) / 7;
 
             t.view.addChild(
                 place(label('You Shop\nData Insights', 20, C.ink, '700', { lineHeight: 22 }), 14, 14),
@@ -297,7 +297,7 @@ export default defineDemo({
                 total,
             );
             days.forEach((d, i) =>
-                t.view.addChild(place(label(d, 10, 0x3a4130, '400'), 12 + slot * (i + 0.5), 316, 0.5, 0.5)),
+                t.view.addChild(place(label(d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5)),
             );
             total.y = 350;
             t.update = (p) => {
@@ -305,8 +305,8 @@ export default defineDemo({
                 total.x = COL_W - 14 - total.width / 2;
                 bars.clear();
                 totals.forEach((v, i) => {
-                    const x = 12 + slot * i + 3;
-                    const w = slot - 6;
+                    const x = 12 + cell * i + 3;
+                    const w = cell - 6;
                     const grow = ease.outCubic(Math.min(1, Math.max(0, p * 1.4 - i * 0.06)));
                     const full = 220 * v * grow;
                     const fill = 220 * filled[i] * grow;

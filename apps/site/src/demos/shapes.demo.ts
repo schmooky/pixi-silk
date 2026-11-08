@@ -22,7 +22,7 @@ export default defineDemo({
     size: [720, 270],
     controls: {
         outline: { type: 'toggle', label: 'outline', value: false },
-        spin: { type: 'toggle', label: 'rotate', value: false },
+        rotate: { type: 'toggle', label: 'rotate', value: false },
     },
     setup({ stage, params, tick }) {
         const g = new SilkGraphics();
@@ -33,7 +33,7 @@ export default defineDemo({
             SHAPES.forEach((shape, i) => {
                 g.save()
                     .translateTransform(120 + (i % 6) * 96, 75 + Math.floor(i / 6) * 120)
-                    .rotateTransform(params.spin ? t * 0.6 : 0);
+                    .rotateTransform(params.rotate ? t * 0.6 : 0);
                 const path = shape.draw(g);
 
                 if (shape.open) path.stroke({ width: 5, cap: 'round', color: shape.color });
