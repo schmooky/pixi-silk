@@ -195,6 +195,7 @@
     "build": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "node bench/primitives.mjs",
     "typecheck": "tsc && tsc -p tsconfig.build.json",
     "prepack": "node ../../scripts/stage-package-files.mjs",
     "postpack": "node ../../scripts/stage-package-files.mjs --clean"

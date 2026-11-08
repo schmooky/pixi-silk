@@ -17,12 +17,29 @@ work to rebuild it and the GPU work per covered pixel.
 | Cost | What it is |
 |---|---|
 | Draw calls | One per `SilkGraphics`. With batching on, a run of them shares one |
-| CPU | 44 floats per primitive, written into a reusable buffer when you redraw. Rebuilding 50,000 primitives every frame takes about 12 ms on a laptop. A UI with hundreds of primitives costs well under 0.5 ms |
+| CPU | 44 floats per primitive, written into a reusable buffer when you redraw. See [CPU cost measured](#cpu-cost-measured) for what a rebuild takes |
 | GPU | Each primitive is one quad sized to its bounds plus a one-pixel margin, shaded once per covered pixel. A blur grows the quad by three sigma |
 | Memory | Buffers grow to the largest frame and stay. Gradients share one 256x256 half-float atlas, one row per ramp |
 
 GPU cost follows covered area, like any 2D renderer. A full-screen blurred shape costs more than a
 thousand small dots.
+
+## CPU cost measured
+
+The benchmark in [`packages/pixi-silk/bench/primitives.mjs`](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/bench/primitives.mjs)
+rebuilds one `SilkGraphics` per frame like the stress demo above. It calls `clear()`, then draws
+circles and rounded rectangles with `fill()` and lines with `stroke()`, a third each. It times the
+CPU work only, not the upload or the draw.
+
+| Primitives per frame | Median CPU time |
+|---|---|
+| 500 | 0.2 ms |
+| 5,000 | 1.8 ms |
+| 50,000 | 18 to 21 ms |
+
+Each row is the range of medians over several runs of 200 or more frames, on an Apple M4 with
+Node 24.14. A browser on other hardware gives other numbers. Run `pnpm build && pnpm --filter pixi-silk bench`
+to measure your machine, and pass a count to try other sizes.
 
 ## Batch many objects
 
