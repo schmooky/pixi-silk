@@ -32,6 +32,8 @@ interface Props {
     hubSection?: SectionId;
     /** Open Graph image, when the path has no card of its own. */
     image?: string;
+    /** Keep the page out of search indexes. */
+    noIndex?: boolean;
 }
 const props = Astro.props;
 const fm = props.frontmatter ?? {};
@@ -100,6 +102,7 @@ const arrow = 'M5 12h14M13 6l6 6-6 6';
     description={description}
     path={pathname}
     image={props.image}
+    noIndex={props.noIndex}
     type="article"
     article={{ section: sectionName, tags: props.keywords, published: SITE.published, modified }}
     keywords={props.keywords}

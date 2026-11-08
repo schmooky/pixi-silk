@@ -39,7 +39,7 @@ const refs = (page?.data.api ?? []).map((name) => ({ name, href: reference.find(
     </Docs>
 )}
 {!area && !entry && section && (
-    <Docs title={section.title} seoTitle={`${section.title}: every pixi-silk feature for PixiJS v8`} description={`${section.summary} Each page opens with live demos and their source.`} hubSection={section.id} image="/og/section/docs.png">
+    <Docs title={section.title} seoTitle={`${section.title}: every pixi-silk feature for PixiJS v8`} description={`${section.summary} Each page opens with live demos and their source.`} hubSection={section.id} image="/og/section/docs.png" noIndex>
         <SectionHub section={section} />
     </Docs>
 )}
