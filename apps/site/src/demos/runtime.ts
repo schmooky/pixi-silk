@@ -118,6 +118,7 @@ export async function mountDemo(demo: Demo, host: HTMLElement, values: Record<st
     );
 
     return {
+        silk: parts[0].silk,
         setParam: (key, value) => {
             for (const p of parts) p.setParam(key, value);
         },
