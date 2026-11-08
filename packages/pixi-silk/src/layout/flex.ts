@@ -178,7 +178,7 @@ function solve(
     let out: Measured;
 
     if (!flow.length) {
-        // a leaf: measured content, or just its padding
+        // a leaf: measured content, or only its padding
         const inner = [0, 1].map((a) => {
             const room = size[a] ?? Math.min(a ? ah : aw, lim[a][1]);
 

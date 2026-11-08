@@ -131,7 +131,13 @@
   "ui/pill (ValuePill)": {
     "gzip": 23408
   },
+  "layout": {
+    "gzip": 3637
+  },
+  "ui/layout (SmartContainer)": {
+    "gzip": 6748
+  },
   "ui (everything)": {
-    "gzip": 83616
+    "gzip": 90211
   }
 }

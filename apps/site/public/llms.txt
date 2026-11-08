@@ -98,6 +98,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
   - Experiment: [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.
 - [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
+- [Layout and smart containers](https://pixi-silk.schmooky.dev/docs/layout/): A small headless flex layout engine, and a Pixi container that lays out its children with it: fit modes, portrait and landscape styles, safe areas and spring transitions. (Markdown: https://pixi-silk.schmooky.dev/docs/layout.md)
 
 ### Editor UI
 

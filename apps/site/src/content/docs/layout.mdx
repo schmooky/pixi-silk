@@ -1,0 +1,239 @@
+---
+title: Layout and smart containers
+seoTitle: 'Flexbox layout and smart containers for PixiJS'
+description: 'A small headless flex layout engine, and a Pixi container that lays out its children: fit modes, portrait and landscape styles, safe areas and spring transitions.'
+keywords: ['PixiJS layout', 'flexbox', 'auto layout', 'responsive canvas UI', 'slot game HUD', 'reference resolution']
+updated: 2026-11-08
+---
+
+<Demo name="layout-hud" height={520} caption="Drag the screen width. Under the screen height the HUD turns portrait and every piece glides to its new slot. Press SPIN for a new win." />
+
+Two entry points, so you ship only what you use:
+
+```ts
+import { LayoutNode } from 'pixi-silk/layout';
+import { SmartContainer } from 'pixi-silk/ui/layout';
+```
+
+- **`pixi-silk/layout`** is the flex engine. It works on plain nodes and has no Pixi in it, so it
+  runs in tests, workers and on a server. It is about 3.5 kB gzipped.
+- **`pixi-silk/ui/layout`** is `SmartContainer`, a Pixi container that lays out its children with
+  the engine. It adds what game screens need: fit modes, breakpoints, safe areas and transitions.
+
+## The flex engine
+
+```ts
+import { LayoutNode } from 'pixi-silk/layout';
+
+const root = new LayoutNode({ direction: 'row', gap: 8, padding: 16 });
+const icon = new LayoutNode({ width: 100 });
+const label = new LayoutNode({ grow: 1 });
+
+root.add(icon).add(label);
+root.calculate(400, 120);
+
+label.layout; // { x: 124, y: 16, width: 260, height: 88 }
+```
+
+A node has a style, children and an optional `measure` function. `calculate(width, height)` lays out
+the tree. Each node's `layout` holds its box relative to its parent. Leave a size out to fit that
+axis to the content.
+
+The style follows CSS flexbox, with `box-sizing: border-box` everywhere:
+
+- **Container.** `direction` (`row`, `column` and their `-reverse`), `wrap`, `gap`, `rowGap`,
+  `columnGap`, `padding`, `justifyContent`, `alignItems` and `alignContent`.
+- **Item.** `grow`, `shrink`, `basis`, `alignSelf` and `margin`. An `auto` margin takes the free
+  space, which centres an item or pushes it to the far end.
+- **Size.** `width`, `height`, their `min` and `max`, and `aspectRatio`. Sizes are pixels, a percent
+  of the parent's content box such as `'50%'`, or `'auto'`.
+- **Position.** `position: 'absolute'` with `top`, `right`, `bottom`, `left` or `inset`. Anchors may
+  be percents. `display: 'none'` takes a node out of the flow.
+
+Grow and shrink run the CSS loop: items that hit their `min` or `max` freeze there, and the rest of
+the space goes round again. Shrinking is weighted by the basis, as in a browser.
+
+### Measuring text
+
+A leaf with content gets a `measure` function. It receives the space offered and returns the content
+size. Either argument is `Infinity` when that axis is free.
+
+```ts
+import { LayoutNode } from 'pixi-silk/layout';
+
+const charWidth = 9;
+const lineHeight = 20;
+const copy = 'Free spins start on three scatters';
+
+const text = new LayoutNode({}, (availableWidth) => {
+    const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
+    const lines = Math.ceil(copy.length / perLine);
+
+    return { width: Math.min(copy.length, perLine) * charWidth, height: lines * lineHeight };
+});
+
+new LayoutNode({ direction: 'column', width: 160 }).add(text).calculate();
+```
+
+Return a `baseline` too and `alignItems: 'baseline'` lines up text in a row.
+
+### Incremental layout
+
+Changing a style, adding or removing a child, or calling `markDirty()` marks the node and its
+ancestors dirty. The next `calculate()` skips every clean subtree whose space did not change. A
+measured leaf keeps its sizes per available space, so it is measured again only after `markDirty()`.
+
+## SmartContainer
+
+```ts
+import { SmartContainer } from 'pixi-silk/ui/layout';
+import { Sprite, Text } from 'pixi.js';
+
+const bar = new SmartContainer({ layout: { gap: 12, padding: 16, alignItems: 'center' } });
+
+bar.add(Sprite.from('coin.png'), { width: 48, height: 48, fit: 'contain' });
+bar.add(new Text({ text: 'Balance' }), { grow: 1 });
+app.stage.addChild(bar);
+bar.fitTo(app);
+```
+
+Give a child a style with `add(child, style)` or `setLayout(child, style)`. Children with no style
+take part with the defaults. The container measures a child by its local bounds, or with the style's
+`measure` (for wrapped text, use the `wrapText` helper). Pixi `Text` and `SilkText` both report real
+text metrics.
+
+The container lays out once per frame, and only after something changed. That is a child added,
+removed or restyled, a new size, or `invalidate(child)` after new text or a new texture. Set
+`watch: true` to check the children's bounds every frame instead. An idle container is off the
+ticker and costs nothing.
+
+### Fit modes
+
+<Demo name="layout-fit" height={360} caption="The same artwork in five slots, one per fit mode. The last slot shrinks a long text down to a minimum scale." />
+
+`fit` scales a child into its slot, like CSS `object-fit`:
+
+- **`none`** keeps the child's size. This is the default.
+- **`contain`** fits it inside the slot.
+- **`cover`** fills the slot and overflows. Mask the slot to clip it, not the child: a masked
+  child measures only what its mask shows.
+- **`scale-down`** is `contain` that never enlarges.
+- **`fill`** stretches both axes.
+
+`fitAlign` places the child in its slot, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
+default is the centre. `minScale` and `maxScale` clamp the fit scale.
+
+**Text shrink-to-fit** is `fit: 'scale-down'` with a floor. The text keeps its size while it fits
+and scales down when its slot gets narrow, never below `minScale`:
+
+```ts
+import { SmartContainer } from 'pixi-silk/ui/layout';
+import { SilkText } from 'pixi-silk/text';
+
+const pill = new SmartContainer({ layout: { direction: 'column', padding: [10, 18] } });
+
+pill.add(new SilkText({ text: '$1,250,000.00', fontSize: 30 }), { fit: 'scale-down', minScale: 0.55 });
+```
+
+### Portrait, landscape and breakpoints
+
+Any style can carry `portrait` and `landscape` values, and a list of `media` rules for widths. Rules
+apply in order over the base values. They test the root container's layout area.
+
+```ts
+import { SmartContainer } from 'pixi-silk/ui/layout';
+
+const main = new SmartContainer({
+    layout: {
+        gap: 20,
+        landscape: { direction: 'row' },
+        portrait: { direction: 'column' },
+        media: [{ maxWidth: 600, style: { gap: 10 } }],
+    },
+});
+const banner = new SmartContainer();
+
+main.add(banner, { landscape: { display: 'none' } });
+```
+
+A child with `display: 'none'` is hidden too, and shows again when the rule stops matching.
+
+### Screen size, design resolution and safe areas
+
+The root container follows the screen with `fitTo(app)`. It listens to the renderer's resizes. Pass
+a size instead, such as `app.screen`, for a one-off fit, or call `resize(width, height)`.
+
+```ts
+import { SmartContainer } from 'pixi-silk/ui/layout';
+
+const hud = new SmartContainer({
+    reference: { width: 1920, height: 1080 },
+    safeArea: { top: 44, bottom: 34 },
+    layout: { direction: 'column', padding: 24 },
+});
+
+app.stage.addChild(hud);
+hud.fitTo(app);
+```
+
+With a `reference` resolution you design at one size and the container scales it to the screen, the
+way slot games do. The design swaps to 1080x1920 on a portrait screen. `contain` (the default) keeps
+the whole design area visible and gives the spare room to the layout. `cover` fills the screen.
+
+Safe-area insets are in screen pixels. The container adds them to its padding in design units, so
+notches and home bars stay clear at any scale.
+
+### Transitions
+
+```ts
+import { SmartContainer } from 'pixi-silk/ui/layout';
+
+const stack = new SmartContainer({ transition: { stiffness: 190, damping: 24 }, layout: { gap: 12 } });
+```
+
+With `transition`, children glide to their new slots on springs, scale included. A new child lands
+in place without a glide. Set `animate: false` on a child to keep it from gliding. The ticker runs
+only while something moves.
+
+### Nesting and backgrounds
+
+A SmartContainer inside another one joins its parent's layout as a nested flex container. Its own
+style sets its direction and gap. The style its parent gives it sets `grow`, `margin` and the like.
+
+A child with `onSize` is called with its slot size whenever that changes. Use it to draw a panel at
+the size of its slot. Such a child measures as zero, so size it with `inset`, `grow` or a size:
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { SmartContainer } from 'pixi-silk/ui/layout';
+
+const panel = new SmartContainer({ layout: { padding: 16 } });
+const bg = new SilkGraphics();
+
+panel.add(bg, {
+    position: 'absolute',
+    inset: 0,
+    onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 18, 0.6).fill(0x1c1c1e),
+});
+```
+
+### Debug overlay
+
+<Demo name="layout-stack" height={420} caption="Add cards and change the direction, gap, padding and alignment. Boxes are blue, padding green and gaps pink." />
+
+Set `debug: true` on the root to draw every node's box, its padding and the gaps between items.
+
+## Differences from CSS
+
+The engine follows CSS flexbox where results differ in practice. A few things are simpler:
+
+- **Minimum size.** An item's default minimum is 0, not its content size. Set `minWidth` or
+  `shrink: 0` to keep an item from shrinking below its content.
+- **Aspect ratio and stretch.** As in CSS, a stretched cross size wins over `aspectRatio`. Set
+  `alignSelf` to keep the ratio.
+- **Baseline.** A container's baseline is its first item's. Only measured leaves report one of their
+  own.
+- **Absolute items** without anchors sit where the parent's `justifyContent` and `alignItems` put
+  them, not at their static position.
+- **Not there.** `order`, `overflow`, borders and `flex-basis: content` are not part of the engine.
+  Rotated children keep their slot but are measured unrotated.
