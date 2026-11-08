@@ -23,6 +23,15 @@
   "signal (signal, computed, batch)": {
     "gzip": 371
   },
+  "selection": {
+    "gzip": 1115
+  },
+  "history": {
+    "gzip": 1989
+  },
+  "path": {
+    "gzip": 3670
+  },
   "ui/radial (RadialMenu)": {
     "gzip": 22545
   },
@@ -37,6 +46,9 @@
   },
   "ui/outline": {
     "gzip": 19356
+  },
+  "ui/pathgizmo": {
+    "gzip": 24641
   },
   "ui/snap": {
     "gzip": 19869
@@ -60,16 +72,16 @@
     "gzip": 21181
   },
   "ui/brush": {
-    "gzip": 19977
+    "gzip": 19973
   },
   "ui/modes": {
-    "gzip": 24769
+    "gzip": 24765
   },
   "ui/dial": {
-    "gzip": 21739
+    "gzip": 21738
   },
   "ui/timeline": {
-    "gzip": 21060
+    "gzip": 21055
   },
   "ui/odometer": {
     "gzip": 2159
@@ -84,6 +96,6 @@
     "gzip": 19587
   },
   "ui (everything)": {
-    "gzip": 59335
+    "gzip": 69708
   }
 }
