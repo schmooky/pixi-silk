@@ -4,19 +4,26 @@ import { Driver } from '../ui/driver';
 
 /** One soft ellipse of an {@link Aurora} at a moment in time. */
 export interface AuroraBlob {
+    /** Centre x in box units. */
     x: number;
+    /** Centre y in box units. */
     y: number;
+    /** Horizontal radius. */
     rx: number;
+    /** Vertical radius. */
     ry: number;
-    /** 0 deep colour, 1 mid colour, 2 hot colour, 3 white. */
+    /** Which colour: 0 deep, 1 mid, 2 hot, 3 white. */
     tone: 0 | 1 | 2 | 3;
+    /** Opacity, 0 to 1. */
     alpha: number;
+    /** Blur radius passed to the fill. */
     blur: number;
 }
 
 /**
- * Where the blobs of an aurora sit at time `t` (seconds) in a `width` by `height` box. Light rises
- * from the bottom: deep colour high and wide, white low and thin. `rise` (0..1) sets how high it reaches.
+ * Where the nine blobs of an aurora sit at time `t` (seconds) in a `width` by `height` box. Light
+ * rises from the bottom: deep colour high and wide, white low and thin. `rise`, 0 to 1, sets how
+ * high it reaches (default 0.62). Pure function: it allocates a new array and draws nothing.
  */
 export function auroraBlobs(t: number, width: number, height: number, rise = 0.62): AuroraBlob[] {
     const w = width;
@@ -74,24 +81,28 @@ export function auroraBlobs(t: number, width: number, height: number, rise = 0.6
 
 /** Options of {@link Aurora}. */
 export interface AuroraOptions {
+    /** Box width in local units. */
     width: number;
+    /** Box height in local units. */
     height: number;
-    /** Deep, mid and hot colours, top to bottom. White is added under them. Default violet to pink. */
+    /** Deep, mid and hot colours, top to bottom. White is added under them. Default violet, pink, white. */
     colors?: [ColorSource, ColorSource, ColorSource];
     /** Colour above the light. Default near black. */
     background?: ColorSource;
-    /** How high the light reaches, from 0 to 1. Default 0.62. */
+    /** How high the light reaches, 0 to 1 of the box height. Default 0.62. */
     rise?: number;
-    /** Drift speed. 0 freezes it. Default 1. */
+    /** Drift speed, a multiplier on time. 0 freezes it and stops the ticker. Default 1. */
     speed?: number;
-    /** Corner radius of the box. Default 0. */
+    /** Corner radius of the box in local units. Default 0. */
     radius?: number;
+    /** Ticker that drives the drift. Default `Ticker.shared`. `null` leaves it to {@link Aurora.tick}. */
     ticker?: Ticker | null;
 }
 
 /**
- * Light rising from the bottom of a box in three colours, blended additively (Plus lighter) so it
- * burns to white where it is strongest. It drifts slowly while a ticker runs.
+ * Light rising from the bottom of a box in three colours. The blobs blend additively, so the light
+ * burns to white where it is strongest. A mask clips it to the box. It drifts while `speed` is not 0
+ * and redraws every blob each frame.
  */
 export class Aurora extends Container {
     private readonly _bg = new SilkGraphics({ label: 'AuroraBackground' });
@@ -122,7 +133,7 @@ export class Aurora extends Container {
         this._driver.wake();
     }
 
-    /** Changes colours, rise, speed or size. */
+    /** Merges new colours, rise, speed, size or radius and redraws. The ticker cannot change. Returns this. */
     set(options: Partial<Omit<AuroraOptions, 'ticker'>>): this {
         this._o = { ...this._o, ...options };
         this._paintBackground();
@@ -132,7 +143,7 @@ export class Aurora extends Container {
         return this;
     }
 
-    /** Advances by `dt` seconds (with `ticker: null`). */
+    /** Advances by `dt` seconds, clamped to 0..0.1, for `ticker: null`. Returns false when `speed` is 0. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

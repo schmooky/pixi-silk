@@ -5,53 +5,65 @@ import { Driver } from './driver';
 import { hex } from './paint';
 import { ValuePill } from './ValuePill';
 
-/** Axis-aligned rectangle in the snapping space. */
+/** Axis-aligned rectangle in the snapping space. Targets are compared by identity in `exclude`. */
 export interface SnapRect {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
+    /** Width, 0 for a point. */
     width: number;
+    /** Height, 0 for a point. */
     height: number;
 }
 
-/** A line the snap engine found, ready to draw. `axis: 'x'` is a vertical line at x = `at`. */
+/** A line the snap engine found, ready to draw, in the snapping space. */
 export interface SnapGuide {
+    /** `x` is a vertical line at x = `at`, `y` a horizontal line at y = `at`. */
     axis: 'x' | 'y';
+    /** What lined up: target edges, target centres, a fixed guide line, or an equal gap. */
     kind: 'edge' | 'centre' | 'line' | 'spacing';
-    /** Position of the line on its axis. */
+    /** Position of the line on its axis. For spacing guides, where the gap markers sit across the axis. */
     at: number;
-    /** Extent of the line along the other axis. */
+    /** Start of the line along the other axis. */
     from: number;
+    /** End of the line along the other axis. */
     to: number;
-    /** Spacing guides: the equal gaps, as [start, end] on `axis`, drawn at `at` on the other axis. */
+    /** Spacing guides only: the equal gaps, as [start, end] on `axis`, drawn at `at` on the other axis. */
     gaps?: [number, number][];
-    /** Spacing guides: the gap size. */
+    /** Spacing guides only: the gap size. */
     gap?: number;
 }
 
-/** What {@link SnapEngine.snap} found. Add `dx` / `dy` to the moving rect to snap it. */
+/** What {@link SnapEngine.snap} found. Add `dx` and `dy` to the moving rectangle to snap it. */
 export interface SnapResult {
+    /** Horizontal move, 0 when nothing snapped on x. */
     dx: number;
+    /** Vertical move, 0 when nothing snapped on y. */
     dy: number;
+    /** True when something within the threshold lined up on x. */
     snappedX: boolean;
+    /** True when something within the threshold lined up on y. */
     snappedY: boolean;
+    /** Every alignment at the snapped position, x guides first. */
     guides: SnapGuide[];
 }
 
-/** Options of {@link SnapEngine}. */
+/** Options of {@link SnapEngine}. Each one sets the engine property of the same name. */
 export interface SnapEngineOptions {
-    /** Distance within which things snap. Default 6. */
+    /** Distance within which things snap, in the snapping space's units. Default 6. Divide by the zoom for screen pixels. */
     threshold?: number;
-    /** Snap edges to edges. Default true. */
+    /** Uses target edges as snap anchors. Default true. */
     edges?: boolean;
-    /** Snap centres to centres. Default true. */
+    /** Uses target centres as snap anchors. Default true. */
     centres?: boolean;
-    /** Snap to equal gaps between neighbours. Default true. */
+    /** Snaps to an equal gap between neighbours that overlap on the other axis. Default true. */
     spacing?: boolean;
-    /** Rectangles to snap against (other objects). */
+    /** Rectangles to snap against (other objects). Default none. The array is kept, not copied. */
     targets?: SnapRect[];
-    /** Fixed guide lines: vertical lines at `x`, horizontal lines at `y`. */
+    /** Fixed guide lines: vertical lines at `x`, horizontal lines at `y`. The moving edges and centre snap to them. */
     lines?: { x?: number[]; y?: number[] };
-    /** Points to snap edges and centres to. */
+    /** Points, used like zero-size targets. */
     points?: { x: number; y: number }[];
 }
 
@@ -72,16 +84,26 @@ const EPS = 0.5;
 /**
  * Pure snapping maths, no drawing. It moves a rectangle so its edges or centre line up with
  * other rectangles, guide lines and points, or so it sits at an equal gap from its neighbours.
- * Works in whatever space the rectangles are given in.
+ * Each axis picks the nearest candidate within the threshold. Works in whatever space the
+ * rectangles are given in, axis-aligned only. Change the properties at any time.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class SnapEngine {
-    /** Distance within which things snap. */
+    /** Distance within which things snap, in the snapping space's units. */
     threshold: number;
+    /** Uses target edges as snap anchors. */
     edges: boolean;
+    /** Uses target centres as snap anchors. */
     centres: boolean;
+    /** Snaps to equal gaps between neighbours. */
     spacing: boolean;
+    /** Rectangles to snap against. */
     targets: SnapRect[];
+    /** Fixed guide lines. `Guides.bindSnap()` from `pixi-silk/ui/guides` keeps them in step with a guides layer. */
     lines: { x: number[]; y: number[] };
+    /** Points, used like zero-size targets. */
     points: { x: number; y: number }[];
 
     constructor(options: SnapEngineOptions = {}) {
@@ -94,7 +116,10 @@ export class SnapEngine {
         this.points = options.points ?? [];
     }
 
-    /** Snaps a moving rectangle. `exclude` leaves out targets (usually the moving object itself). */
+    /**
+     * Snaps a moving rectangle and returns the move and the guides. Does not change `rect`.
+     * `exclude` leaves out targets by identity, usually the moving object's own rectangle.
+     */
     snap(rect: SnapRect, exclude: readonly SnapRect[] = []): SnapResult {
         const others = this.targets.filter((t) => !exclude.includes(t));
         const pts = this.points.map((p) => ({ x: p.x, y: p.y, width: 0, height: 0 }));
@@ -124,7 +149,7 @@ export class SnapEngine {
         };
     }
 
-    /** Snaps a single point (a zero-size rectangle). */
+    /** Snaps a single point, as a zero-size rectangle, and returns where it lands. */
     snapPoint(x: number, y: number): { x: number; y: number; guides: SnapGuide[] } {
         const r = this.snap({ x, y, width: 0, height: 0 });
 
@@ -303,12 +328,13 @@ function dedupe(guides: SnapGuide[]): SnapGuide[] {
 
 /** Options of {@link SnapGuides}. */
 export interface SnapGuidesOptions {
-    /** Line colour. Default pink-red, like design tools. */
+    /** Line colour, also the pill fill. Default `0xff375f`. */
     color?: number | string;
-    /** Draw spacing values in pills. Default true. */
+    /** Draws spacing values in pills. Default true. */
     readouts?: boolean;
     /** Digits after the point in readouts. Default 0. */
     precision?: number;
+    /** Ticker that runs fades and redraws. Default `Ticker.shared`. With `null`, call {@link SnapGuides.tick} yourself. */
     ticker?: Ticker | null;
 }
 
@@ -326,7 +352,10 @@ const keyOf = (g: SnapGuide): string => `${g.axis}:${g.kind}:${Math.round(g.at *
  * Draws what a {@link SnapEngine} found: dashed alignment lines with end marks, and equal-gap
  * markers with their distance in a pill. Each alignment fades in when found and out when lost,
  * so the guides never slide from one alignment to the next.
- * Add it to the same space as the rectangles you snap.
+ * Add it to the same space as the rectangles you snap. It ignores pointer events.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class SnapGuides extends Container {
     private readonly _g = new SilkGraphics();
@@ -344,12 +373,12 @@ export class SnapGuides extends Container {
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
     }
 
-    /** Guides currently found (not counting ones fading out). */
+    /** Guides shown now, not counting ones fading out. Allocates a new array. */
     get guides(): readonly SnapGuide[] {
         return [...this._shown.values()].filter((s) => s.live).map((s) => s.guide);
     }
 
-    /** Shows the guides of a snap result. Guides no longer in it fade out. */
+    /** Shows the guides of a snap result, replacing the last call's. Guides no longer in it fade out. */
     show(guides: readonly SnapGuide[] | SnapResult): void {
         const list = Array.isArray(guides) ? (guides as SnapGuide[]) : (guides as SnapResult).guides;
         const keys = new Set<string>();
@@ -374,7 +403,7 @@ export class SnapGuides extends Container {
         this._driver.wake();
     }
 
-    /** Advances the fades by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the fades by `dt` seconds (clamped to 0..0.1) and redraws. Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

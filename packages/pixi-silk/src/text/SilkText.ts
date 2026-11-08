@@ -34,19 +34,19 @@ const STRIDE = 12;
 
 /** A line drawn around the glyphs, outside their edge. */
 export interface TextOutline {
-    /** Width in local units (pixels at scale 1). */
+    /** Width in local units (pixels at scale 1). Reaches up to about a quarter of the font size with the default atlas. */
     width: number;
-    /** Default black. */
+    /** Outline colour. Default black. */
     color?: ColorSource;
-    /** Default 1. */
+    /** Outline opacity, 0 to 1. Default 1. */
     alpha?: number;
 }
 
 /** A soft copy of the glyphs under them: a drop shadow with an offset, a glow without one. */
 export interface TextShadow {
-    /** Default black. */
+    /** Shadow colour. Default black. */
     color?: ColorSource;
-    /** Default 1. */
+    /** Shadow opacity, 0 to 1. Default 1. */
     alpha?: number;
     /** Softness in local units. Reaches up to about a quarter of the font size with the default atlas. Default 4. */
     blur?: number;
@@ -84,9 +84,9 @@ export interface SilkTextStyle {
     tabularNumbers?: boolean;
     /** Applies the font's kerning (measured from Canvas). Default true. */
     kerning?: boolean;
-    /** A line around the glyphs. `null` for none. */
+    /** A line around the glyphs. `null` for none. Default `null`. */
     outline?: TextOutline | null;
-    /** A drop shadow or glow under the glyphs. `null` for none. */
+    /** A drop shadow or glow under the glyphs. `null` for none. Default `null`. */
     shadow?: TextShadow | null;
     /** Grows (positive) or thins (negative) the glyphs, in local units. Default 0. */
     dilate?: number;
@@ -115,12 +115,13 @@ export type ResolvedTextStyle = Required<Omit<SilkTextStyle, 'outline' | 'shadow
 };
 
 /**
- * Geometry behind every {@link SilkText}: one unit quad plus one instance per glyph. You rarely need it directly.
+ * Geometry behind every {@link SilkText}: one unit quad plus one instance of 12 floats per glyph.
+ * SilkText owns and fills it. You rarely need it directly.
  */
 export class SilkTextGeometry extends Geometry {
-    /** Per-glyph data, grown on demand. */
+    /** Per-glyph instance data, 12 floats per glyph. It grows when the text needs more room and never shrinks. */
     readonly instanceBuffer: Buffer;
-    /** The text box in local units. */
+    /** The text box in local units, anchor offset included. Also returned by `bounds`. */
     readonly localBounds: Bounds = new Bounds();
 
     constructor() {
@@ -172,14 +173,18 @@ const premultiply = (out: Float32Array, color: ColorSource, alpha: number): void
 };
 
 /**
- * Text that stays sharp at any zoom. Glyphs come from any CSS font, baked once into a shared
- * signed distance field atlas ({@link SdfAtlas}), and drawn with the same per-pixel anti-aliasing
- * as SilkGraphics. A text is one instanced draw call however long it is.
+ * Text from `pixi-silk/text`, drawn from signed distance fields. Glyphs come from any CSS font. They
+ * are baked once at one size into a shared {@link SdfAtlas} and drawn scaled, with the same
+ * per-pixel anti-aliasing as SilkGraphics. Every glyph is an instance of one mesh.
  *
- * Outlines, shadows, glows and weight changes read the same distance field, so they cost nothing
- * extra. Layout uses Canvas `measureText`, so line breaks and widths match PixiJS `Text`.
+ * Outlines, shadows, glows and weight changes read the same distance field. Their reach is limited
+ * by the atlas field radius, about a quarter of the font size by default. Layout uses Canvas
+ * `measureText`, so line breaks and widths match PixiJS `Text`. Style changes relayout once, on the
+ * next render or the next read of {@link SilkText.layout}.
  *
- * Works with Pixi's WebGL2 and WebGPU renderers.
+ * It has no rich text, per-character styles or right-to-left shaping. Glyphs combine code points
+ * one by one, so complex scripts and emoji sequences do not shape. Works with Pixi's WebGL2 and
+ * WebGPU renderers.
  *
  * @example
  * ```ts
@@ -210,9 +215,9 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         aaWidth: 1,
     };
 
-    /** Point of the text box at the position: (0, 0) top left, (0.5, 0.5) centre, (1, 1) bottom right. */
+    /** Point of the text box placed at the position: (0, 0) top left, (0.5, 0.5) centre, (1, 1) bottom right. Changing it relayouts. */
     readonly anchor: ObservablePoint;
-    /** The atlas this text's glyphs live in. */
+    /** The atlas this text's glyphs live in. Fixed at construction. */
     readonly atlas: SdfAtlas;
 
     private _text = '';
@@ -255,7 +260,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         }
     }
 
-    /** The text. `\n` starts a new line. */
+    /** The text. `\n` starts a new line. Numbers are converted with `String()`. */
     get text(): string {
         return this._text;
     }
@@ -274,7 +279,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         return this._style;
     }
 
-    /** Changes several style fields (and the text) at once. */
+    /** Changes several style fields, and the text, at once. Fields left `undefined` keep their value. Relayouts once. Returns this. */
     set(options: SilkTextStyle & { text?: string | number }): this {
         const { text, ...style } = options;
 
@@ -286,7 +291,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         return this;
     }
 
-    /** CSS font family list. */
+    /** CSS font family list. Glyphs of a new family are baked on first use. */
     get fontFamily(): string {
         return this._style.fontFamily;
     }
@@ -296,7 +301,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('fontFamily', v);
     }
 
-    /** Font size in local units. */
+    /** Font size in local units. Glyphs are not rebaked, the atlas copy is scaled. */
     get fontSize(): number {
         return this._style.fontSize;
     }
@@ -306,7 +311,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('fontSize', v);
     }
 
-    /** CSS font weight. */
+    /** CSS font weight, as a number or a keyword. A new weight bakes new glyphs. */
     get fontWeight(): string | number {
         return this._style.fontWeight;
     }
@@ -316,7 +321,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('fontWeight', v);
     }
 
-    /** `normal`, `italic` or `oblique`. */
+    /** `normal`, `italic` or `oblique`. A new style bakes new glyphs. */
     get fontStyle(): 'normal' | 'italic' | 'oblique' {
         return this._style.fontStyle;
     }
@@ -326,7 +331,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('fontStyle', v);
     }
 
-    /** A colour or a gradient over the text box. */
+    /** A colour, or a pixi-silk gradient spread over the text box. */
     get fill(): ColorSource | Gradient {
         return this._style.fill;
     }
@@ -336,7 +341,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('fill', v);
     }
 
-    /** Extra space after each character. */
+    /** Extra space after each character, in local units. May be negative. */
     get letterSpacing(): number {
         return this._style.letterSpacing;
     }
@@ -346,7 +351,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('letterSpacing', v);
     }
 
-    /** Distance between baselines, 0 for the font's own. */
+    /** Distance between baselines in local units. 0 uses the font's ascent plus descent. */
     get lineHeight(): number {
         return this._style.lineHeight;
     }
@@ -376,7 +381,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('wordWrap', v);
     }
 
-    /** Width that word wrap breaks lines at. */
+    /** Width that word wrap breaks lines at, in local units. Ignored while {@link SilkText.wordWrap} is false. */
     get wordWrapWidth(): number {
         return this._style.wordWrapWidth;
     }
@@ -386,7 +391,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('wordWrapWidth', v);
     }
 
-    /** Breaks words wider than a line. */
+    /** Breaks words wider than {@link SilkText.wordWrapWidth} on their own. Needs `wordWrap`. */
     get breakWords(): boolean {
         return this._style.breakWords;
     }
@@ -396,7 +401,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('breakWords', v);
     }
 
-    /** Digits share one width. */
+    /** Gives the digits one width, the widest digit's advance, so readouts do not jitter. */
     get tabularNumbers(): boolean {
         return this._style.tabularNumbers;
     }
@@ -406,7 +411,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('tabularNumbers', v);
     }
 
-    /** Applies the font's kerning. */
+    /** Applies kerning pairs measured from Canvas `measureText`. */
     get kerning(): boolean {
         return this._style.kerning;
     }
@@ -416,7 +421,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('kerning', v);
     }
 
-    /** A line around the glyphs, or `null`. */
+    /** A line around the glyphs, or `null`. Set a new object to change it, mutating this one does nothing. */
     get outline(): TextOutline | null {
         return this._style.outline;
     }
@@ -426,7 +431,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('outline', v);
     }
 
-    /** A drop shadow or glow, or `null`. */
+    /** A drop shadow or glow, or `null`. Set a new object to change it, mutating this one does nothing. */
     get shadow(): TextShadow | null {
         return this._style.shadow;
     }
@@ -446,7 +451,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('dilate', v);
     }
 
-    /** Width of the anti-aliasing ramp in device pixels. */
+    /** Width of the anti-aliasing ramp in device pixels. Larger is softer, 1 matches SilkGraphics. */
     get aaWidth(): number {
         return this._style.aaWidth;
     }
@@ -502,14 +507,14 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         return rects;
     }
 
-    /** The laid-out lines: text, width and baseline of each. */
+    /** The laid-out lines: text, width and baseline of each, in layout units (see {@link SilkText.layout}). Relayouts first if needed. */
     get lines(): readonly LayoutLine[] {
         this.updateText();
 
         return (this._layout as TextLayout).lines;
     }
 
-    /** Glyphs drawn: characters with ink, shadows not counted. */
+    /** Glyph instances drawn: characters with ink. Spaces, shadows and outlines are not counted. */
     get glyphCount(): number {
         this.updateText();
 

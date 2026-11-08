@@ -21,7 +21,9 @@ function fromPixiStyle(style: TextStyleOptions): SilkTextStyle {
 
 /**
  * A label factory that makes {@link SilkText} labels, for widgets such as `ValuePill`. The widget's
- * style comes first, then `overrides` (any SilkText option but the text).
+ * style comes first, then `overrides` (any SilkText option but the text). From the Pixi style it
+ * keeps the font, letter spacing, line height, left, center or right alignment, and a plain colour fill.
+ * Gradients, strokes and drop shadows of the Pixi style are dropped.
  *
  * @example
  * ```ts

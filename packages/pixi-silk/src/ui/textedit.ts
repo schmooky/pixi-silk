@@ -32,15 +32,15 @@ export interface TextEditorTheme {
     caret: ColorSource;
     /** Selection highlight while the editor has focus. */
     selection: ColorSource;
-    /** Opacity of the highlight. */
+    /** Opacity of the highlight, 0 to 1. */
     selectionAlpha: number;
     /** Underline of text an input method is still composing. */
     composition: ColorSource;
-    /** Opacity of the placeholder text. */
+    /** Opacity of the placeholder text, 0 to 1. */
     placeholderAlpha: number;
 }
 
-/** Default colours of a {@link TextEditor}: a blue caret and highlight, like a design tool. */
+/** Default colours of a {@link TextEditor}: a blue caret and highlight. Override single values with the `theme` option. */
 export const TEXT_EDITOR_THEME: Readonly<TextEditorTheme> = {
     caret: 0x0a84ff,
     selection: 0x0a84ff,
@@ -81,7 +81,12 @@ export interface TextEditorOptions extends Omit<SilkTextOptions, 'wordWrap' | 'w
      * to put text edits in line with its other steps. When it has `undo()` and `redo()`, cmd or ctrl + Z
      * calls them while the editor has focus.
      */
-    history?: HistoryLike & { undo?(): unknown; redo?(): unknown };
+    history?: HistoryLike & {
+        /** Undoes the app's last step, text edits included. */
+        undo?(): unknown;
+        /** Redoes the app's last undone step. */
+        redo?(): unknown;
+    };
     /**
      * The element the scene is drawn on, usually `app.canvas`. Positions the hidden text field at the
      * caret, so input method popups open next to it. Default the element of the first press.
@@ -91,10 +96,11 @@ export interface TextEditorOptions extends Omit<SilkTextOptions, 'wordWrap' | 'w
     ariaLabel?: string;
     /** Draggable handles at the ends of a selection made by touch. Default true. */
     handles?: boolean;
-    /** Colours. */
+    /** Values that replace parts of {@link TEXT_EDITOR_THEME}. */
     theme?: Partial<TextEditorTheme>;
     /** Caret width in screen pixels, whatever the zoom. Default 1.5. */
     caretWidth?: number;
+    /** Ticker driving the caret blink. Default `Ticker.shared`. `null` for manual {@link TextEditor.tick}. */
     ticker?: Ticker | null;
 }
 
@@ -168,21 +174,23 @@ const SLOP = 6;
 const scratch = new Matrix();
 
 /**
- * Text you can click and edit on the canvas, like a text layer in a design tool. It draws a
- * {@link SilkText}, so it stays sharp under a zooming {@link Camera}, plus a caret and a selection
- * drawn with silk.
+ * Text you can click and edit on the canvas. It draws a {@link SilkText} plus a caret and a
+ * selection drawn with silk.
  *
  * Typing goes through a hidden `<textarea>` that follows the caret on screen. Input methods (Japanese,
  * Chinese, dead keys), mobile keyboards, autocorrect, the emoji picker and the clipboard all work.
  *
  * - Click to place the caret, drag to select, Shift + click to extend. Double click selects a word,
  *   triple click a paragraph. On touch, tap places the caret and a long press selects a word.
- * - Arrows, Home and End, word jumps (Option on Mac, Ctrl elsewhere), cmd or ctrl + A, Backspace and
- *   Delete with their word variants, Escape to leave.
+ * - Editing keys follow the platform. Escape leaves the editor.
  * - Undo merges consecutive typing. Pass `history` to share the app's undo stack.
  *
  * Events: `focus`, `blur`, `input` (every edit), `change` (on commit, when the text changed), `submit`
  * (Enter in a single-line editor) and `tab`. The same values are on {@link TextEditor.state}.
+ *
+ * Rich text (mixed styles in one editor) and right-to-left text are not supported.
+ *
+ * Experimental: the API may change in a minor release.
  *
  * @example
  * ```ts
@@ -191,6 +199,8 @@ const scratch = new Matrix();
  * name.on('change', (text: string) => console.log('renamed to', text));
  * world.addChild(name);
  * ```
+ *
+ * @experimental
  */
 export class TextEditor extends Container {
     /** The editor that has keyboard focus, or null. */
@@ -230,11 +240,11 @@ export class TextEditor extends Container {
     readonly content: Container;
     /** Longest text allowed, in UTF-16 code units. */
     maxLength: number;
-    /** What Enter does. */
+    /** What Enter does. See the `enter` option. */
     enter: 'newline' | 'commit' | 'blur';
-    /** What Tab does. */
+    /** What Tab does. See the `tab` option. */
     tab: 'insert' | 'next';
-    /** Caret width in screen pixels. */
+    /** Caret width in screen pixels, whatever the zoom. Call {@link TextEditor.redraw} after changing it. */
     caretWidth: number;
 
     private readonly _multiline: boolean;
@@ -445,7 +455,12 @@ export class TextEditor extends Container {
     }
 
     /** Range of the text an input method is composing, or null. */
-    get composition(): { start: number; end: number } | null {
+    get composition(): {
+        /** Index of the first composed character. */
+        start: number;
+        /** Index after the last composed character. */
+        end: number;
+    } | null {
         const c = this._compose;
 
         return c ? { start: c.start, end: this._text.length - c.tail } : null;
@@ -732,6 +747,7 @@ export class TextEditor extends Container {
         this._drawCaret(k, true);
     }
 
+    /** Blurs (which commits the text), removes the hidden text field and stops listening for input. */
     override destroy(options?: DestroyOptions): void {
         this.blur();
         this._driver.sleep();

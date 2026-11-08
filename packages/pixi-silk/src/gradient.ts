@@ -25,7 +25,8 @@ export type StopInput =
  * - `linear`: piecewise linear between stops (CSS behaviour).
  * - `smooth`: monotone cubic spline through the stops with eased ends. Removes the
  *   Mach bands you see at every stop of a linear ramp and never overshoots.
- * - a function remaps the gradient parameter before lookup (e.g. an easing curve for scrims).
+ * - a function remaps the gradient parameter 0..1 before lookup, for example an easing curve
+ *   for scrims. Reuse one function instance: each new function bakes a new atlas row.
  */
 export type Easing = 'linear' | 'smooth' | ((t: number) => number);
 
@@ -50,11 +51,17 @@ export interface GradientOptions {
 
 /** Box a shape exposes to gradients in `shape` units (plus arc angles for conic gradients). */
 export interface ShapeFrame {
+    /** Left edge of the box, local units. */
     x: number;
+    /** Top edge of the box, local units. */
     y: number;
+    /** Box width, local units. */
     w: number;
+    /** Box height, local units. */
     h: number;
+    /** Arc start angle in radians, for conic gradients on arcs and sectors. */
     start?: number;
+    /** Arc sweep in radians, for conic gradients on arcs and sectors. */
     sweep?: number;
 }
 
@@ -125,7 +132,11 @@ function monotoneTangents(xs: number[], ys: number[]): number[] {
 
 /**
  * Base class of all gradients. Stops are interpolated premultiplied (OKLab by default), baked into a
- * shared half-float atlas and dithered when sampled, so gradients stay smooth without banding.
+ * shared half-float atlas and dithered when sampled, which hides banding.
+ *
+ * A gradient is read when a shape is filled or stroked. Changing its points later does not change
+ * shapes already painted: paint them again. The atlas holds 256 ramps in use at once, and
+ * gradients with the same stops, space and easing share one.
  */
 export abstract class Gradient {
     /** @internal Shader id of the gradient type. */
@@ -390,13 +401,13 @@ export class PathGradient extends Gradient {
 export const linear = (stops: StopInput[], options: Omit<LinearGradientOptions, 'stops'> = {}): LinearGradient =>
     new LinearGradient({ ...options, stops });
 
-/** Top-to-bottom linear gradient across the painted shape. */
+/** Top-to-bottom linear gradient across each painted shape's box. */
 export const vertical = (
     stops: StopInput[],
     options: Omit<LinearGradientOptions, 'stops' | 'from' | 'to'> = {},
 ): LinearGradient => new LinearGradient({ ...options, stops, from: [0, 0], to: [0, 1] });
 
-/** Left-to-right linear gradient across the painted shape. */
+/** Left-to-right linear gradient across each painted shape's box. */
 export const horizontal = (
     stops: StopInput[],
     options: Omit<LinearGradientOptions, 'stops' | 'from' | 'to'> = {},
@@ -470,7 +481,8 @@ export function sampleMesh(values: number[][], cols: number, rows: number, x: nu
 
 /**
  * A smooth colour surface through a grid of control colours, like a gradient mesh in Illustrator.
- * Colours blend in OKLab with a bicubic spline, so falloffs stay soft in both directions.
+ * Colours blend with a bicubic spline in its `space` (OKLab by default), so falloffs stay soft in
+ * both directions. The surface is baked at 16x16 samples.
  * Create it with {@link mesh}.
  */
 export class MeshGradient extends Gradient {
@@ -554,8 +566,9 @@ export class MeshGradient extends Gradient {
 }
 
 /**
- * Gradient mesh: `cols` x `rows` control colours (row by row, top-left first) spread over the
- * painted shape's box, blended into one smooth surface.
+ * Gradient mesh: `cols` by `rows` control colours (row by row, top-left first) spread over the
+ * painted shape's box, blended into one smooth surface. `cols` and `rows` are clamped to 1..16.
+ * Missing colours repeat the last one.
  *
  * @example
  * ```ts

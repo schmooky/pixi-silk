@@ -27,12 +27,15 @@ import { fitText, type PanelTheme, panelText, resolvePanelTheme } from './theme'
 
 /** A number you scrub or type. */
 export interface NumberFieldSpec {
+    /** Field kind. */
     type: 'number';
     /** Dot path of the value, such as `alpha` or `position.x`. */
     key: string;
-    /** Row label. Also names the undo step. */
+    /** Row label. Also names the undo step. Default none: the row has no label and the step uses the key. */
     label?: string;
+    /** Lowest value. Scrubs and typed values clamp to it. Default no limit. */
     min?: number;
+    /** Highest value. Scrubs and typed values clamp to it. Default no limit. */
     max?: number;
     /** Snap step. Default 1. */
     step?: number;
@@ -46,16 +49,23 @@ export interface NumberFieldSpec {
 
 /** A one-line text field. */
 export interface TextFieldSpec {
+    /** Field kind. */
     type: 'text';
+    /** Dot path of a string value. */
     key: string;
+    /** Row label. Also names the undo step. Default none: the row has no label and the step uses the key. */
     label?: string;
+    /** Text shown while the field is empty. */
     placeholder?: string;
 }
 
 /** An on and off switch. */
 export interface ToggleFieldSpec {
+    /** Field kind. */
     type: 'toggle';
+    /** Dot path of a boolean value. */
     key: string;
+    /** Row label. Also names the undo step. Default none: the row has no label and the step uses the key. */
     label?: string;
     /** Text after the switch. */
     text?: string;
@@ -63,32 +73,47 @@ export interface ToggleFieldSpec {
 
 /** Segmented choices. */
 export interface ChoiceFieldSpec {
+    /** Field kind. */
     type: 'choice';
+    /** Dot path of the value. It is compared with each option's `value`. */
     key: string;
+    /** Row label. Also names the undo step. Default none: the row has no label and the step uses the key. */
     label?: string;
+    /** The choices, left to right. They share the row width equally. */
     options: readonly ChoiceOption[];
 }
 
 /** A colour swatch that opens a colour picker. Values are 0xRRGGBB numbers. */
 export interface ColorFieldSpec {
+    /** Field kind. */
     type: 'color';
+    /** Dot path of a 0xRRGGBB number. */
     key: string;
+    /** Row label. Also names the undo step. Default none: the row has no label and the step uses the key. */
     label?: string;
 }
 
 /** Two numbers in one row, such as X and Y, or W and H with an aspect lock. */
 export interface VectorFieldSpec {
+    /** Field kind. */
     type: 'vector';
     /** Dot paths of the two values. */
     keys: readonly [string, string];
+    /** Row label. Also names the undo step. Default none: the step uses the first key. */
     label?: string;
     /** Short names inside the two fields. Default `X` and `Y`. */
     labels?: readonly [string, string];
+    /** Lowest value of both axes. Default no limit. */
     min?: number;
+    /** Highest value of both axes. Default no limit. */
     max?: number;
+    /** Snap step of both axes. Default 1. */
     step?: number;
+    /** Change per pixel of a scrub. Default `step`. */
     perPixel?: number;
+    /** Shown after both values, such as `px`. */
     unit?: string;
+    /** Decimals shown. Default from the step. */
     precision?: number;
     /** Shows a link button that keeps the ratio of the two values. Default false. */
     lockAspect?: boolean;
@@ -96,10 +121,13 @@ export interface VectorFieldSpec {
 
 /** A titled group of fields that folds. */
 export interface SectionSpec {
+    /** Field kind. */
     type: 'section';
+    /** Section title. */
     label: string;
     /** Start folded. Default false. */
     collapsed?: boolean;
+    /** The rows inside the section. Sections can nest. */
     fields: readonly InspectorField[];
 }
 
@@ -126,18 +154,19 @@ export interface InspectorOptions {
     history?: HistoryLike;
     /** Width of the label column. Default 72. */
     labelWidth?: number;
-    /** Row height. Default 30. */
+    /** Row height in local units. Default 30. */
     rowHeight?: number;
     /** Builds the colour picker of colour fields. Default a 176 pixel `HueSquarePicker`. */
     colorPicker?: ColorPickerFactory;
     /** Where colour pickers open. Default the top container of the scene at the time. */
     popoverLayer?: Container;
-    /** The element the scene is drawn on, usually `app.canvas`, for text fields. */
+    /** The element the scene is drawn on, usually `app.canvas`. Text fields position their hidden input against it. */
     element?: HTMLElement;
     /** Colours, radius and font. Default the dark theme. */
     theme?: Partial<PanelTheme>;
     /** Glyph atlas of the labels. Default the shared one. */
     atlas?: SdfAtlas;
+    /** Ticker driving the motion. Default `Ticker.shared`. With `null`, call `tick` on each field yourself. */
     ticker?: Ticker | null;
 }
 
@@ -194,6 +223,7 @@ class SectionHeader extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -219,7 +249,8 @@ class SectionHeader extends Container {
  * a multi-selection (differing values show as Mixed) or a set of signals.
  *
  * Every drag, toggle or commit goes through `history` as one undo step. Rows are laid out with
- * the flex engine, and labels are SilkText, so the inspector stays crisp at any scale.
+ * the flex engine, and labels are SilkText. The inspector does not watch the edited objects: call
+ * {@link Inspector.refresh} when they change elsewhere.
  *
  * @example
  * ```ts
@@ -235,11 +266,15 @@ class SectionHeader extends Container {
  * selection.state.items.subscribe((items) => inspector.bind(items));
  * panel.content.add(inspector);
  * ```
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class Inspector extends FlexContainer {
     /** What it edits and which field is busy, as signals. */
     readonly state: InspectorState;
-    /** Colours, radius and font. */
+    /** Colours, radius and font, resolved from the `theme` option. */
     readonly theme: PanelTheme;
 
     private readonly _o: InspectorOptions;
@@ -277,7 +312,7 @@ export class Inspector extends FlexContainer {
         return this._binding.value;
     }
 
-    /** The schema. */
+    /** The schema the rows were built from. */
     get schema(): readonly InspectorField[] {
         return this._schema;
     }
@@ -302,7 +337,7 @@ export class Inspector extends FlexContainer {
         return this.refresh();
     }
 
-    /** Replaces the rows. */
+    /** Replaces the rows: the old fields are destroyed and new ones built from `schema`. */
     setSchema(schema: readonly InspectorField[]): this {
         this._schema = schema;
         this._build();
@@ -347,6 +382,7 @@ export class Inspector extends FlexContainer {
         return busy;
     }
 
+    /** Closes an open colour picker and stops following the binding. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._closePopover?.();
         this._unsubscribe?.();

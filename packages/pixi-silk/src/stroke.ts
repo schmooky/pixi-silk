@@ -117,9 +117,13 @@ export interface PathRef {
     windows: number;
     /** Windows the instance owns. */
     count: number;
+    /** Join at inner vertices. */
     join: Join;
+    /** Miter length limit, in half line widths. */
     miterLimit: number;
+    /** Cap at the start of an open subpath. */
     cap0: Cap;
+    /** Cap at the end of an open subpath. */
     cap1: Cap;
     /** Half the line width. */
     hw: number;
@@ -212,13 +216,17 @@ export function pathStrokeDist(e: Float32Array, ref: PathRef, x: number, y: numb
 
 /** A run of segments `s .. s + count` of a subpath whose points are `sub.pts` (flat, cleaned). */
 export interface StrokeWindow<S extends { pts: number[] }> {
+    /** The subpath. */
     sub: S;
+    /** First segment index. */
     s: number;
+    /** Segments in the run. */
     count: number;
 }
 
 /** A window another instance owns, with that instance's key (its index). */
 export interface NearWindow<S extends { pts: number[] }> extends StrokeWindow<S> {
+    /** Index of the owning instance. */
     key: number;
 }
 

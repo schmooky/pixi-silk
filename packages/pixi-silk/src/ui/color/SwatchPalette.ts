@@ -9,6 +9,7 @@ import { ColorModel, hexToRgb, luminance } from './model';
 
 /** Options of {@link SwatchPalette}. */
 export interface SwatchPaletteOptions {
+    /** The colour a pick writes to, and whose `history` it shows. Default: a new model. */
     model?: ColorModel;
     /** Fixed colours (0xRRGGBB). Leave out to show the model's `history` (recent colours). */
     colors?: number[];
@@ -16,15 +17,17 @@ export interface SwatchPaletteOptions {
     layout?: 'grid' | 'ring';
     /** Swatches per row in a grid. Default 8. */
     columns?: number;
-    /** Swatch size. Default 24. */
+    /** Swatch size in local units. Default 24. */
     size?: number;
-    /** Space between swatches. Default 6. */
+    /** Space between swatches in local units. Default 6. */
     gap?: number;
     /** Ring radius (to the swatch centres). Default fits the count. */
     radius?: number;
     /** Empty slots drawn while history is short. Default: `columns` for history, 0 for fixed colours. */
     placeholders?: number;
+    /** Ticker that runs the hover and pop animation. Default `Ticker.shared`. With `null`, call {@link SwatchPalette.tick} yourself. */
     ticker?: Ticker | null;
+    /** Per pointer kind overrides of the tap slop. */
     profiles?: InputProfiles;
 }
 
@@ -42,6 +45,7 @@ interface Slot {
  * wears a ring. A ring layout centres on the origin, a grid starts at it.
  */
 export class SwatchPalette extends Container {
+    /** The colour this palette writes to. */
     readonly model: ColorModel;
     /** Index of the swatch under the pointer, or -1. */
     readonly hovered: Signal<number> = signal(-1);
@@ -95,16 +99,17 @@ export class SwatchPalette extends Container {
         this._rebuild();
     }
 
-    /** Colours shown, in order. */
+    /** Colours shown, in order, as 0xRRGGBB. The fixed colours, or the model's history. */
     get colors(): readonly number[] {
         return this._fixed ?? this.model.history.value;
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation and unsubscribes from the model. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         for (const stop of this._stops) stop();

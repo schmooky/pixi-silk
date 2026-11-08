@@ -14,9 +14,13 @@ import { fitText, type PanelTheme, panelText } from './theme';
 
 /** What every field needs from the inspector around it. */
 export interface FieldContext {
+    /** Resolved panel colours, radius and font. */
     theme: PanelTheme;
+    /** Glyph atlas of the field text. Default the shared one. */
     atlas?: SdfAtlas;
+    /** Ticker driving the motion. Default `Ticker.shared`. `null` for manual `tick` calls. */
     ticker?: Ticker | null;
+    /** The element the scene is drawn on. Text editing positions its hidden input against it. */
     element?: HTMLElement;
     /** Opens `content` as a popover next to `anchor`. Returns the function that closes it. */
     popover(content: Container, anchor: Container, onClose: () => void): () => void;
@@ -24,15 +28,21 @@ export interface FieldContext {
 
 /** The callbacks of a field's edit gesture: one `begin`, any number of `input`, one `end`. */
 export interface FieldEdit<V> {
+    /** A gesture starts. Capture the values to undo to. */
     begin(): void;
+    /** New values, one per edited object, while the gesture runs. Write them through. */
     input(values: readonly V[]): void;
+    /** The gesture ends. Record one undo step. */
     end(): void;
 }
 
 const decimals = (step: number): number =>
     !(step > 0) || step >= 1 ? 0 : Math.min(6, Math.ceil(-Math.log10(step) - 1e-9));
 
-/** A field: a box of a given size that shows values and edits them. */
+/**
+ * A field: a box of a given size that shows values and edits them. It holds no data. It shows what
+ * {@link Field.show} gives it and reports edits through its options. The `Inspector` builds these.
+ */
 export abstract class Field extends Container {
     protected readonly _ctx: FieldContext;
     protected readonly _driver: Driver;
@@ -60,12 +70,12 @@ export abstract class Field extends Container {
         });
     }
 
-    /** Width of the field. */
+    /** Width of the field box. Default 120 until {@link Field.resize}. */
     get fieldWidth(): number {
         return this._w;
     }
 
-    /** Sets the size and redraws. */
+    /** Sets the size of the field box and redraws. */
     resize(width: number, height: number): void {
         if (width === this._w && height === this._h) return;
         this._w = Math.max(0, width);
@@ -84,14 +94,15 @@ export abstract class Field extends Container {
         this.alpha = on ? 1 : 0.4;
     }
 
-    /** Shows the values of the edited objects. */
+    /** Shows the values of the edited objects, one per object. Differing values show as mixed. An empty list disables the field. */
     abstract show(values: readonly unknown[]): void;
 
-    /** Advances the motion by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the motion by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -132,9 +143,11 @@ export abstract class Field extends Container {
 export interface NumberFieldOptions extends FieldEdit<number> {
     /** A short name inside the field, such as `X` or `W`. Drag it to scrub. */
     prefix?: string;
+    /** Lowest value. Scrubs and typed values clamp to it. Default no limit. */
     min?: number;
+    /** Highest value. Scrubs and typed values clamp to it. Default no limit. */
     max?: number;
-    /** Snap and arrow step. Default 1. */
+    /** Snap step of scrubs. Default 1. */
     step?: number;
     /** Change per pixel of a scrub. Default `step`. */
     perPixel?: number;
@@ -218,7 +231,7 @@ export class NumberField extends Field {
         this._press = p;
     }
 
-    /** Scrubs to `dx` pixels from the start. `speed` multiplies the change, as Shift and Alt do. */
+    /** Scrubs to `dx` pixels from the start. `speed` multiplies the change, as Shift and Alt do. No-op outside a scrub. */
     scrubTo(dx: number, speed = 1): void {
         const p = this._press;
 
@@ -243,7 +256,10 @@ export class NumberField extends Field {
         this._driver.wake();
     }
 
-    /** Sets every value from typed text. Ignores text that is not a number. */
+    /**
+     * Sets every value from typed text, as one undo step. A trailing unit and a decimal comma are
+     * accepted. Returns false and changes nothing for text that is not a number.
+     */
     commitText(text: string): boolean {
         const v = Number.parseFloat(text.replace(this._o.unit ?? '\u0000', '').replace(',', '.'));
 
@@ -393,6 +409,7 @@ export class NumberField extends Field {
 
 /** Options of {@link TextField}. */
 export interface TextFieldOptions {
+    /** Text shown while the field is empty. */
     placeholder?: string;
     /** Called with the new text once per commit (Enter or blur). */
     onCommit(text: string): void;
@@ -417,7 +434,7 @@ export class TextField extends Field {
         this._make();
     }
 
-    /** The editor inside the field. */
+    /** The editor inside the field. A resize replaces it with a new one, so do not keep a reference. */
     get editor(): TextEditor | null {
         return this._editor;
     }
@@ -492,7 +509,7 @@ export class TextField extends Field {
 export interface ToggleFieldOptions {
     /** Text after the switch. */
     text?: string;
-    /** Called with the new state of every edited object. */
+    /** Called with the new state, which applies to every edited object. */
     onToggle(value: boolean): void;
 }
 
@@ -581,12 +598,15 @@ export class ToggleField extends Field {
 
 /** One choice of a {@link ChoiceField}. */
 export interface ChoiceOption {
+    /** Value written to the edited objects. Compared with `===`. */
     value: string | number | boolean;
+    /** Text of the segment. */
     label: string;
 }
 
 /** Options of {@link ChoiceField}. */
 export interface ChoiceFieldOptions {
+    /** The choices, left to right, sharing the width equally. */
     options: readonly ChoiceOption[];
     /** Called with the chosen value. */
     onChoose(value: ChoiceOption['value']): void;
@@ -738,7 +758,7 @@ export class ColorField extends Field {
     private _colors: number[] = [];
     private _mixed = false;
     private _open = 0;
-    /** True while the picker is open. */
+    /** True while the picker is open. Set it with {@link ColorField.setOpen}. */
     opened = false;
 
     constructor(ctx: FieldContext, options: ColorFieldOptions) {

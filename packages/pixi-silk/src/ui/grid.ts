@@ -9,56 +9,60 @@ import { hex } from './paint';
 /** How a {@link CanvasGrid} draws: thin `lines` or `dots` at the crossings. */
 export type GridStyle = 'lines' | 'dots';
 
-/** One level of a {@link CanvasGrid}: its step in world units, its spacing on screen and how strong it is. */
+/** One level of a {@link CanvasGrid}, as {@link gridLevels} returns it. */
 export interface GridLevel {
     /** Distance between lines, in world units. */
     step: number;
-    /** Distance between lines on screen, in pixels. */
+    /** Distance between lines on screen, in CSS pixels (`step` times the zoom). */
     spacing: number;
-    /** Opacity this level adds, so the lines it shares with coarser levels add up to theirs. */
+    /** Opacity this level adds, 0..1, so the lines it shares with coarser levels add up to theirs. */
     alpha: number;
 }
 
 /** Options of {@link gridLevels}. */
 export interface GridLevelOptions {
-    /** Finest step, in world units. Default 1, like a pixel grid. */
+    /** Finest step, in world units. Default 1, a pixel grid at 100%. Must be above 0. */
     unit?: number;
-    /** Each level is this many times the one below. Default 10. */
+    /** Each level is this many times the one below. Default 10, at least 2. */
     ratio?: number;
-    /** Opacity of a line at full strength. Default 0.1. */
+    /** Opacity of a line at full strength, 0..1. Default 0.1. */
     alpha?: number;
-    /** Screen spacing where a level starts to show and where it reaches full strength. Default `[6, 120]`. */
+    /** Screen spacing in CSS pixels where a level starts to show and where it reaches full strength. Default `[6, 120]`. */
     fade?: [number, number];
 }
 
-/** Options of {@link CanvasGrid}. */
+/**
+ * Options of {@link CanvasGrid}. In `dots` style, `alpha` defaults to 0.32 and `fade` to
+ * `[12, 160]`, so dots read as strong as lines.
+ */
 export interface CanvasGridOptions extends GridLevelOptions {
-    /** The camera the grid follows. */
+    /** The camera the grid follows. The grid redraws whenever the camera's signals change. */
     camera: Camera;
-    /** Default `lines`. Change it later through `state.style`, the grid crossfades. */
+    /** Lines or dots. Default `lines`. Change it later through `state.style`, and the grid crossfades. */
     style?: GridStyle;
     /** Line and dot colour. Default white. */
     color?: ColorSource;
-    /** Line width, screen pixels. Default 1. */
+    /** Line width in CSS pixels. Default 1. A level is skipped when its spacing is below twice this. */
     lineWidth?: number;
-    /** Dot diameter, screen pixels. Default 2. */
+    /** Dot diameter in CSS pixels. Default 2. A level is skipped when its spacing is below twice this. */
     dotSize?: number;
-    /** Draw the x = 0 and y = 0 axes in `axisColor`. Default false. Change it later through `state.axes`. */
+    /** Draws the x = 0 and y = 0 axes in `axisColor`, 1 pixel wide. Default false. Change it later through `state.axes`. */
     axes?: boolean;
-    /** Colour of the axes. Default a soft blue. */
+    /** Colour of the axes. Default `0x64a8ff`. */
     axisColor?: ColorSource;
-    /** Opacity of the axes. Default 0.5. */
+    /** Opacity of the axes, 0..1. Default 0.5. */
     axisAlpha?: number;
+    /** Ticker that runs fades and redraws. Default `Ticker.shared`. With `null`, call {@link CanvasGrid.tick} yourself. */
     ticker?: Ticker | null;
 }
 
-/** The reactive state of a {@link CanvasGrid}. */
+/** The reactive state of a {@link CanvasGrid}. Write to these signals to change the grid. */
 export interface CanvasGridState {
     /** Lines or dots. Changes crossfade. */
     style: Signal<GridStyle>;
-    /** Shows or hides the grid with a fade. */
+    /** Shows or hides the grid with a fade. Starts true. Separate from the container's `visible`. */
     visible: Signal<boolean>;
-    /** Shows the x = 0 and y = 0 axes. */
+    /** Shows the x = 0 and y = 0 axes. Switches at once, without a fade. */
     axes: Signal<boolean>;
 }
 
@@ -72,6 +76,7 @@ const smooth = (t: number): number => {
  * The grid levels to draw at `zoom`, finest first. Each level is `ratio` times the one below. A
  * level fades in as its spacing grows from `fade[0]` to `fade[1]` pixels. Levels nest, so a line
  * of a coarse level is also drawn by the finer ones: each level's `alpha` is what it adds on top.
+ * Levels that would add almost nothing are left out. Returns an empty array for a zoom or unit of 0 or less.
  */
 export function gridLevels(zoom: number, options: GridLevelOptions = {}): GridLevel[] {
     const unit = options.unit ?? 1;
@@ -103,15 +108,18 @@ export function gridLevels(zoom: number, options: GridLevelOptions = {}): GridLe
 }
 
 /**
- * An infinite grid behind a {@link Camera}'s world, like a design tool's pixel and layout grids.
+ * An unbounded grid behind a {@link Camera}'s world. Levels nest (1, 10, 100 by default) and fade
+ * in and out with the zoom. The grid lives in screen space and only draws what shows. All vertical
+ * lines of a level are one dashed stroke, and so are the horizontal ones. Dots take one stroke per row.
  *
- * - Levels nest (1, 10, 100 by default) and fade in and out smoothly with the zoom.
- * - Lines or dots, crisp at any zoom: the grid lives in screen space and only draws what shows.
- * - Few shapes: all vertical lines of a level are one dashed stroke, and so are the horizontal ones.
+ * Add it under the world, in screen space: `app.stage.addChild(grid, world, overlay)`. It covers
+ * the camera's element from (0, 0), ignores pointer events, and cannot be rotated with the view.
  *
- * Add it under the world, in screen space: `app.stage.addChild(grid, world, overlay)`.
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class CanvasGrid extends Container {
+    /** Style, fade and axes, as signals. */
     readonly state: CanvasGridState;
 
     private readonly _g = new SilkGraphics({ label: 'CanvasGrid' });
@@ -154,24 +162,24 @@ export class CanvasGrid extends Container {
         this._draw();
     }
 
-    /** How many shapes the last frame drew. Each is one silk instance. */
+    /** How many shapes the last frame drew, each one silk instance. For tests and stats. */
     get shapes(): number {
         return this._drawn;
     }
 
-    /** The levels drawn at the current zoom. */
+    /** The levels of the current style at the camera's zoom. Computed on each read. */
     get levels(): GridLevel[] {
         return gridLevels(this._camera.zoom, this._levelOptions());
     }
 
-    /** Redraws now, for a resized canvas. Camera moves redraw by themselves. */
+    /** Redraws on the next frame. Camera moves and resizes the camera sees redraw by themselves. */
     refresh(): this {
         this._driver.wake();
 
         return this;
     }
 
-    /** Advances fades by `dt` seconds and redraws (only needed with `ticker: null`). */
+    /** Advances fades by `dt` seconds (clamped to 0..0.1) and redraws. Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

@@ -6,40 +6,49 @@ import { hex } from './paint';
 import type { SnapGuide, SnapRect, SnapResult } from './snap';
 import { ValuePill } from './ValuePill';
 
-/**
- * A gap marker: a segment from `from` to `to` along `axis`, drawn at `at` across it, labelled with
- * `value`. `axis: 'x'` is a horizontal gap.
- */
+/** A gap marker between two boxes. All values are in the boxes' space. */
 export interface GapMarker {
+    /** `x` is a horizontal gap, `y` a vertical one. */
     axis: 'x' | 'y';
+    /** Where the gap starts along `axis`. */
     from: number;
+    /** Where the gap ends along `axis`. */
     to: number;
+    /** Position across `axis` where the marker is drawn. */
     at: number;
+    /** Size of the gap, the number its pill shows. */
     value: number;
 }
 
-/** An alignment line: `axis: 'x'` is a vertical line at x = `at`, from `from` to `to` in y. */
+/** An alignment line. All values are in the boxes' space. */
 export interface AlignLine {
+    /** `x` is a vertical line at x = `at`, `y` a horizontal line at y = `at`. */
     axis: 'x' | 'y';
+    /** Whether edges or centres line up. */
     kind: 'edge' | 'centre';
+    /** Position of the line. */
     at: number;
+    /** Start of the line across `axis`, covering every box that lines up. */
     from: number;
+    /** End of the line across `axis`. */
     to: number;
 }
 
 /** What {@link findSpacing} found: equal gaps to show and edges or centres that line up. */
 export interface SpacingResult {
+    /** Gaps that equal another gap in the same row or column. */
     gaps: GapMarker[];
+    /** Edges and centres that line up. */
     lines: AlignLine[];
 }
 
 /** Options of {@link findSpacing}. */
 export interface FindSpacingOptions {
-    /** Two gaps (or edges) this close count as equal. Default 0.5. */
+    /** Two gaps, edges or centres this close count as equal, in the boxes' units. Default 0.5. */
     tolerance?: number;
-    /** Look for edges and centres that line up. Default true. */
+    /** Looks for edges and centres that line up. Default true. */
     alignment?: boolean;
-    /** Look for equal gaps. Default true. */
+    /** Looks for equal gaps. Default true. */
     gaps?: boolean;
 }
 
@@ -64,8 +73,9 @@ const across = (a: Span, b: Span): number => {
 };
 
 /**
- * The gaps between consecutive rectangles along an axis, for rows and columns. Overlapping
- * neighbours have no gap. Use it to show the spacing of an auto-layout container's children.
+ * The gaps between consecutive rectangles along an axis, sorted by position, for rows and columns.
+ * Overlapping or touching neighbours have no gap. Use it to show the spacing of an auto-layout
+ * container's children. It does not check that the rectangles share a row.
  */
 export function gapsBetween(rects: readonly SnapRect[], axis: 'x' | 'y'): GapMarker[] {
     const spans = rects.map((r) => span(r, axis)).sort((a, b) => a.lo - b.lo);
@@ -154,13 +164,12 @@ function axisLines(m: Span, all: Span[], axis: 'x' | 'y', tol: number): AlignLin
 }
 
 /**
- * Smart spacing for a box being dragged among others, the way Figma shows it:
+ * Smart spacing for a box being dragged among others. When the gap to a neighbour equals another
+ * gap in the same row or column, every one of those gaps is returned. Edges and centres that line
+ * up with other boxes come back as lines spanning them. Edges only match edges, centres only centres.
  *
- * - Equal gaps: when the gap to a neighbour equals another gap in the same row or column, every
- *   one of those gaps is returned, to draw as pink segments with their value.
- * - Alignment: edges and centres that line up with other boxes, as lines spanning them.
- *
- * It only reports. Snap with a {@link SnapEngine} first, then call this on the snapped box.
+ * It only reports and never moves the box. Snap with a {@link SnapEngine} first, then call this on
+ * the snapped box. `moving` itself is skipped when it is also in `others`.
  */
 export function findSpacing(
     moving: SnapRect,
@@ -182,7 +191,10 @@ export function findSpacing(
     return { gaps, lines };
 }
 
-/** The same shapes from a {@link SnapEngine} result, for drawing its guides with {@link SpacingMarkers}. */
+/**
+ * Converts a {@link SnapEngine} result, or its guides, to a {@link SpacingResult} for
+ * {@link SpacingMarkers}. Spacing guides become gaps, every other guide becomes a line.
+ */
 export function spacingFromSnap(result: SnapResult | readonly SnapGuide[]): SpacingResult {
     const guides = Array.isArray(result) ? (result as readonly SnapGuide[]) : (result as SnapResult).guides;
     const out: SpacingResult = { gaps: [], lines: [] };
@@ -207,18 +219,19 @@ export function spacingFromSnap(result: SnapResult | readonly SnapGuide[]): Spac
 /** Options of {@link SpacingMarkers}. */
 export interface SpacingMarkersOptions {
     /**
-     * The space the rectangles are in, usually the camera's world. Lines and pills keep their
-     * screen size at any zoom. Default the markers' parent.
+     * The space the rectangles are in, usually the camera's world. With the markers outside that
+     * space, lines and pills keep their screen size at any zoom. Default the markers' parent.
      */
     space?: Container;
-    /** Marker colour. Default Figma's pink. */
+    /** Marker colour, also the pill fill. Default `0xff24bd`. */
     color?: ColorSource;
     /** Pill text colour. Default white. */
     textColor?: ColorSource;
-    /** Turns a gap into the pill text. Default whole numbers. */
+    /** Turns a gap into the pill text. Default rounds to a whole number. */
     format?: (value: number) => string;
-    /** Draw alignment lines too. Default true. */
+    /** Draws alignment lines too. Default true. With false, `show()` drops the lines it gets. */
     lines?: boolean;
+    /** Ticker that runs fades and redraws. Default `Ticker.shared`. With `null`, call {@link SpacingMarkers.tick} yourself. */
     ticker?: Ticker | null;
 }
 
@@ -233,13 +246,17 @@ const gapKey = (g: GapMarker): string => `${g.axis}:${Math.round(g.from * 2)}:${
 const lineKey = (l: AlignLine): string => `${l.axis}:${Math.round(l.at * 2)}`;
 
 /**
- * Draws smart spacing: pink gap segments with end bars and a value pill, and thin alignment
- * lines with crosses at their ends. Each marker fades in when found and out when lost, and grows
- * from its middle.
+ * Draws smart spacing: gap segments with end bars and a value pill, and thin alignment lines
+ * with crosses at their ends. Each marker fades in when found and out when lost, and grows
+ * from its middle. Markers are matched across calls by position, rounded to half a unit.
  *
  * Feed it {@link findSpacing} on every move of a drag, a {@link SnapEngine} result through
  * {@link spacingFromSnap}, or gaps of your own (an auto-layout container's children through
  * {@link gapsBetween}). Put it in screen space above the world, with `space` set to the world.
+ * It ignores pointer events.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class SpacingMarkers extends Container {
     private readonly _opts: SpacingMarkersOptions;
@@ -261,7 +278,7 @@ export class SpacingMarkers extends Container {
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
     }
 
-    /** Markers shown now (not counting ones fading out). */
+    /** Markers shown now, not counting ones fading out. Allocates new arrays. */
     get shown(): SpacingResult {
         return {
             gaps: [...this._gaps.values()].filter((s) => s.live).map((s) => s.item),
@@ -269,7 +286,7 @@ export class SpacingMarkers extends Container {
         };
     }
 
-    /** Shows these markers. Markers no longer in it fade out. `null` fades everything out. */
+    /** Shows these markers, replacing the last call's. Markers no longer in it fade out. `null` fades everything out. */
     show(result: Partial<SpacingResult> | null): this {
         const gaps = result?.gaps ?? [];
         const lines = this._opts.lines === false ? [] : (result?.lines ?? []);
@@ -281,12 +298,12 @@ export class SpacingMarkers extends Container {
         return this;
     }
 
-    /** Fades everything out. */
+    /** Fades every marker out. Same as `show(null)`. */
     clear(): this {
         return this.show(null);
     }
 
-    /** Advances by `dt` seconds and redraws (only needed with `ticker: null`). */
+    /** Advances fades by `dt` seconds (clamped to 0..0.1) and redraws. Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

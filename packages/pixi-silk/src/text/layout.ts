@@ -3,7 +3,7 @@ export type TextAlign = 'left' | 'center' | 'right';
 
 /** Widths of characters at the size being laid out, in local units. */
 export interface TextMeasurer {
-    /** Advance width of a character. */
+    /** Advance width of one character, without kerning or letter spacing. */
     advance(char: string): number;
     /** Extra space between two characters (negative pulls them together). */
     kerning(a: string, b: string): number;
@@ -19,7 +19,7 @@ export interface LayoutOptions {
     letterSpacing?: number;
     /** Distance between baselines. Default `ascent + descent`. */
     lineHeight?: number;
-    /** Default `left`. */
+    /** Alignment of the lines inside the widest line. Default `left`. */
     align?: TextAlign;
     /** Breaks lines longer than `wordWrapWidth` at spaces. Default false. */
     wordWrap?: boolean;
@@ -39,9 +39,9 @@ export interface PlacedGlyph {
     char: string;
     /** Pen position: the left of its advance box, after alignment. */
     x: number;
-    /** Baseline. */
+    /** Baseline y. */
     y: number;
-    /** Line index. */
+    /** Index of the line in {@link TextLayout.lines}. */
     line: number;
     /** Offset of the character in the source text, in UTF-16 code units. */
     index: number;
@@ -51,9 +51,9 @@ export interface PlacedGlyph {
 export interface LayoutLine {
     /** The characters on the line, without the spaces a wrap removed. */
     text: string;
-    /** Width of the line. */
+    /** Width of the line, without trailing spaces that hang past the edge. */
     width: number;
-    /** Baseline. */
+    /** Baseline y. */
     y: number;
     /** Left edge of the line after alignment. */
     x: number;

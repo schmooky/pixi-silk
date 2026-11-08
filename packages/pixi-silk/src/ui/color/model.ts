@@ -3,9 +3,13 @@ import { type Signal, signal } from '../../signal';
 
 /** Hue in degrees (0..360), saturation, value and alpha (0..1). */
 export interface HSVA {
+    /** Hue in degrees, 0 to 360. */
     h: number;
+    /** Saturation, 0 to 1. */
     s: number;
+    /** Value (brightness), 0 to 1. */
     v: number;
+    /** Alpha, 0 to 1. */
     a: number;
 }
 
@@ -18,7 +22,7 @@ export type OKLCH = [number, number, number];
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const wrapHue = (h: number): number => ((h % 360) + 360) % 360;
 
-/** HSV (hue in degrees) to sRGB. */
+/** HSV (hue in degrees, saturation and value 0..1) to straight sRGB 0..1. */
 export function hsvToRgb(h: number, s: number, v: number): RGB {
     const f = (n: number) => {
         const k = (n + wrapHue(h) / 60) % 6;
@@ -45,12 +49,12 @@ export function rgbToHsv(r: number, g: number, b: number, hue = 0): { h: number;
     return { h: wrapHue(h), s: max > 1e-6 ? d / max : 0, v: max };
 }
 
-/** 0xRRGGBB to sRGB. */
+/** 0xRRGGBB to sRGB channels 0..1. */
 export function hexToRgb(hex: number): RGB {
     return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 }
 
-/** sRGB to 0xRRGGBB (clamped). */
+/** sRGB channels 0..1 to 0xRRGGBB. Channels are clamped to 0..1 and rounded. */
 export function rgbToHex(rgb: RGB): number {
     const c = (v: number) => Math.round(clamp01(v) * 255);
 
@@ -75,7 +79,7 @@ export function oklchToRgbUnclamped(L: number, C: number, h: number): RGB {
     ) as RGB;
 }
 
-/** True when the OKLCH colour fits in sRGB. */
+/** True when the OKLCH colour fits in sRGB, with a tolerance of `eps` per channel. */
 export function inGamut(L: number, C: number, h: number, eps = 1e-4): boolean {
     const a = (h * Math.PI) / 180;
     const lin = oklabToLinear(L, C * Math.cos(a), C * Math.sin(a));
@@ -83,7 +87,7 @@ export function inGamut(L: number, C: number, h: number, eps = 1e-4): boolean {
     return lin.every((v) => v >= -eps && v <= 1 + eps);
 }
 
-/** Largest chroma at this lightness and hue that still fits in sRGB. */
+/** Largest chroma at this lightness and hue that still fits in sRGB, found by bisection. 0 for black and white. */
 export function maxChroma(L: number, h: number): number {
     if (L <= 0 || L >= 1) return 0;
     let lo = 0;
@@ -107,7 +111,7 @@ export function oklchToRgb(L: number, C: number, h: number): RGB {
     return oklchToRgbUnclamped(l, c, h).map(clamp01) as RGB;
 }
 
-/** Relative luminance (WCAG), to pick a readable colour on top. */
+/** Relative luminance (WCAG 2), 0 to 1, from straight sRGB. Use it to pick a readable colour on top. */
 export function luminance(rgb: RGB): number {
     return 0.2126 * srgbToLinear(rgb[0]) + 0.7152 * srgbToLinear(rgb[1]) + 0.0722 * srgbToLinear(rgb[2]);
 }
@@ -116,7 +120,7 @@ export function luminance(rgb: RGB): number {
 export interface ColorModelOptions {
     /** Starting colour, 0xRRGGBB. Default 0x0a84ff. */
     color?: number;
-    /** Starting alpha. Default 1. */
+    /** Starting alpha, 0 to 1. Default 1. */
     alpha?: number;
     /** How many committed colours `history` keeps. Default 16. */
     historySize?: number;
@@ -148,31 +152,34 @@ export class ColorModel {
         this._historySize = options.historySize ?? 16;
     }
 
-    /** Hue in degrees. */
+    /** Hue in degrees, 0 to 360. */
     get h(): number {
         return this.value.value.h;
     }
 
+    /** HSV saturation, 0 to 1. */
     get s(): number {
         return this.value.value.s;
     }
 
+    /** HSV value (brightness), 0 to 1. */
     get v(): number {
         return this.value.value.v;
     }
 
+    /** Alpha, 0 to 1. */
     get alpha(): number {
         return this.value.value.a;
     }
 
-    /** Current colour as straight sRGB. */
+    /** Current colour as straight sRGB 0..1, without alpha. A new array each read. */
     get rgb(): RGB {
         const { h, s, v } = this.value.value;
 
         return hsvToRgb(h, s, v);
     }
 
-    /** Current colour as 0xRRGGBB. */
+    /** Current colour as 0xRRGGBB, without alpha. */
     get hex(): number {
         return rgbToHex(this.rgb);
     }
@@ -182,7 +189,7 @@ export class ColorModel {
         return rgbToOklch(this.rgb, this.h);
     }
 
-    /** Changes any of h, s, v, a. Values are clamped (hue wrapped). */
+    /** Changes any of h, s, v, a. Values are clamped and the hue wrapped. No change, no signal. */
     setHsv(next: Partial<HSVA>, origin: unknown = null): void {
         const cur = this.value.value;
         const h = next.h === undefined ? cur.h : wrapHue(next.h);
@@ -198,7 +205,7 @@ export class ColorModel {
         this.value.set(out);
     }
 
-    /** Sets the colour from sRGB, keeping the hue when the colour is grey. */
+    /** Sets the colour from sRGB 0..1 (clamped), keeping the hue when the colour is grey. Alpha is unchanged. */
     setRgb(rgb: RGB, origin: unknown = null): void {
         const { h, s, v } = rgbToHsv(clamp01(rgb[0]), clamp01(rgb[1]), clamp01(rgb[2]), this.h);
 
@@ -212,7 +219,7 @@ export class ColorModel {
         this.setHsv({ h, s, v, a: alpha }, origin);
     }
 
-    /** Sets the colour from OKLCH, reducing chroma to fit sRGB. */
+    /** Sets the colour from OKLCH, reducing chroma to fit sRGB. Alpha is unchanged. */
     setOklch(lch: OKLCH, origin: unknown = null): void {
         this.setRgb(oklchToRgb(lch[0], lch[1], lch[2]), origin);
     }

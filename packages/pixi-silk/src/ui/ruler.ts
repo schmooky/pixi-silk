@@ -8,53 +8,60 @@ import type { LabelFactory, TextLabel } from './label';
 import { boundsQuad, unionQuad } from './outline';
 import { hex } from './paint';
 
-/** Which bar of a {@link Ruler} a point is on. */
+/** Which bar of a {@link Ruler} a point is on. `corner` is the square where both bars meet. */
 export type RulerSide = 'top' | 'left' | 'corner';
 
-/** What a {@link Ruler} highlights: objects (followed every frame) or a rectangle in world units. */
+/**
+ * What a {@link Ruler} highlights: objects, followed every frame through their axis-aligned
+ * bounds, or a fixed rectangle in world units.
+ */
 export type RulerTarget = Container | readonly Container[] | WorldRect;
 
 /** Options of {@link Ruler}. */
 export interface RulerOptions {
-    /** The camera the ruler reads. */
+    /** The camera the ruler reads. The ruler redraws whenever the camera's signals change. */
     camera: Camera;
     /** Which rulers to draw. Default `both`. */
     sides?: 'both' | 'top' | 'left';
-    /** Thickness, screen pixels. Default 20. */
+    /** Bar thickness in CSS pixels. Default 20. */
     size?: number;
-    /** Background. Default near black. */
+    /** Bar background. Default `0x1c1c1e`. */
     background?: ColorSource;
-    /** Tick colour. Default white at low opacity. */
+    /** Tick colour, drawn at 28% opacity. Default white. */
     tickColor?: ColorSource;
-    /** Label colour. Default grey. */
+    /** Label colour. Default `0x8e8e93`. */
     textColor?: ColorSource;
-    /** Selection band, its labels and the cursor marker. Default blue. */
+    /** Colour of the selection band, its edge labels and the cursor marker. Default `0x0a84ff`. */
     accent?: ColorSource;
-    /** Smallest distance between labels, screen pixels. Default 72. */
+    /** Smallest distance between labels in CSS pixels. Default 72. The step rounds up to 1, 2 or 5 times a power of ten. */
     labelSpacing?: number;
-    /** Label font size. Default 10. */
+    /** Label font size in pixels. Default 10. */
     fontSize?: number;
-    /** Turns a world value into a label. `step` is the distance between labels. Default whole numbers. */
+    /**
+     * Turns a world value into a label. `step` is the distance between labels. Default whole
+     * numbers, or as many decimals as a step below 1 needs (at most 6).
+     */
     format?: (value: number, step: number) => string;
     /**
-     * Builds the label text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
-     * labels that stay sharp at any resolution.
+     * Builds the label text. Default a PixiJS `Text` at resolution 3. Pass `silkLabel()` from
+     * `pixi-silk/text` to draw labels as SDF text instead.
      */
     label?: LabelFactory;
-    /** Follow the pointer over the camera's element with a marker. Default true. */
+    /** Follows the pointer over the camera's element with a marker. Adds pointer listeners to the element. Default true. */
     trackCursor?: boolean;
+    /** Ticker that runs fades and redraws. Default `Ticker.shared`. With `null`, call {@link Ruler.tick} yourself. */
     ticker?: Ticker | null;
 }
 
 /** The reactive state of a {@link Ruler}. */
 export interface RulerState {
-    /** Pointer position on the element, screen pixels, or null when it is away. */
+    /** Pointer position on the element in CSS pixels, or null when it is away. Set it yourself with `trackCursor: false`. */
     cursor: Signal<PointData | null>;
     /** The highlighted extent in world units, or null. Updated every frame while it follows objects. */
     selection: Signal<WorldRect | null>;
 }
 
-/** The nice step (1, 2 or 5 times a power of ten) at or above `min`. */
+/** The nice step (1, 2 or 5 times a power of ten) at or above `min`. Returns 1 for 0, negative or infinite input. */
 export function niceStep(min: number): number {
     if (!(min > 0) || !Number.isFinite(min)) return 1;
     const p = 10 ** Math.floor(Math.log10(min));
@@ -64,7 +71,7 @@ export function niceStep(min: number): number {
     return 10 * p;
 }
 
-/** Minor ticks per label step: 5 for 1 and 5, 4 for 2. */
+/** Minor ticks per label step from {@link niceStep}: 4 when the step is 2 times a power of ten, else 5. */
 export function tickDivisions(step: number): number {
     const m = Math.round(step / 10 ** Math.floor(Math.log10(step) + 1e-9));
 
@@ -88,16 +95,19 @@ interface Label {
 }
 
 /**
- * Top and left rulers for a {@link Camera}, like a design tool's.
- *
- * - Ticks and labels adapt to the zoom in 1, 2, 5 steps. Labels fade in and out as steps change.
- * - The selection's extent shows as a band with its edges labelled in the accent colour.
- * - A marker follows the pointer.
+ * Top and left rulers for a {@link Camera}. Ticks and labels adapt to the zoom in 1, 2, 5 steps,
+ * and labels fade as steps change. The highlighted extent shows as a band with its edges labelled
+ * in the accent colour. A marker follows the pointer.
  *
  * Values are world units, through `format` for units or rounding. Put the ruler in screen space,
- * above the world. It catches presses on its bars, so a {@link Guides} layer can drag guides out of it.
+ * above the world, at (0, 0) of the camera's element. It catches presses on its bars, so a
+ * {@link Guides} layer can drag guides out of it. A rotated world is not supported.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class Ruler extends Container {
+    /** Pointer and highlighted extent, as signals. */
     readonly state: RulerState = {
         cursor: signal<PointData | null>(null),
         selection: signal<WorldRect | null>(null, sameRect),
@@ -147,22 +157,22 @@ export class Ruler extends Container {
         this._driver.wake();
     }
 
-    /** Thickness of the bars, screen pixels. */
+    /** Bar thickness in CSS pixels, from {@link RulerOptions.size}. */
     get size(): number {
         return this._opts.size ?? 20;
     }
 
-    /** The distance between labels now, in world units. */
+    /** The distance between labels at the camera's zoom now, in world units. */
     get step(): number {
         return niceStep((this._opts.labelSpacing ?? 72) / this._camera.zoom);
     }
 
-    /** Labels on screen now (not counting ones fading out). */
+    /** Texts of the tick labels shown now, not counting ones fading out or the edge labels. Allocates. */
     get labels(): string[] {
         return this._pool.filter((l) => l.live).map((l) => l.text.text);
     }
 
-    /** Which bar a screen point is on, or null. */
+    /** Which bar a point in the ruler's local space (CSS pixels) is on, or null. */
     side(p: PointData): RulerSide | null {
         const s = this.size;
         const sides = this._opts.sides ?? 'both';
@@ -174,7 +184,10 @@ export class Ruler extends Container {
         return top ? 'top' : left ? 'left' : null;
     }
 
-    /** Highlights the extent of objects or of a world rectangle (null clears it). */
+    /**
+     * Highlights the extent of objects or of a world rectangle, with a fade. `null` clears it.
+     * While it follows objects the ruler redraws every frame.
+     */
     highlight(target: RulerTarget | null): this {
         this._target = target;
         this._driver.wake();
@@ -182,7 +195,7 @@ export class Ruler extends Container {
         return this;
     }
 
-    /** Advances by `dt` seconds and redraws (only needed with `ticker: null`). */
+    /** Advances fades by `dt` seconds (clamped to 0..0.1) and redraws. Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

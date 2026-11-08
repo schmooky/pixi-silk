@@ -7,11 +7,11 @@ import { hsvToRgb, rgbToHex } from './model';
 
 /** Options of {@link ColorWheel}. */
 export interface ColorWheelOptions extends ColorPickerOptions {
-    /** Disc diameter. Default 200. */
+    /** Disc diameter in local units. Default 200. */
     size?: number;
-    /** Width of the value strip on the right. `0` hides it. Default 18. */
+    /** Width of the value strip on the right, local units. `0` hides it. Default 18. */
     stripWidth?: number;
-    /** Space between disc and strip. Default 14. */
+    /** Space between disc and strip, local units. Default 14. */
     gap?: number;
 }
 
@@ -37,7 +37,7 @@ export class ColorWheel extends ColorPicker {
         this._v = this.model.v;
     }
 
-    /** Total width (disc, gap and strip). */
+    /** Total width in local units: disc, gap and strip. */
     get pickerWidth(): number {
         return this._size + (this._stripW > 0 ? this._gap + this._stripW : 0);
     }

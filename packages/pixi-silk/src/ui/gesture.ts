@@ -3,17 +3,20 @@ import { type InputKind, type InputProfiles, inputKind, inputProfile } from './i
 
 /** A point in the gesture's space plus the event behind it. */
 export interface GesturePoint {
+    /** Position in the gesture's `space`, local units. */
     x: number;
     y: number;
-    /** Movement since the press. */
+    /** Movement since the press, local units. */
     dx: number;
     dy: number;
+    /** Pointer kind, from the event's `pointerType`. Unknown kinds count as mouse. */
     kind: InputKind;
     /** Copied from the event, so a point stays valid after Pixi reuses the event object. */
     pointerId: number;
     pointerType: string;
+    /** `buttons` bit mask of the event (1 left, 2 right, 4 middle). */
     buttons: number;
-    /** Position on the canvas (a copy). */
+    /** Position on the canvas in CSS pixels (a copy). */
     global: Point;
     /** The live event. Pixi pools events: read it inside the callback only. */
     event: FederatedPointerEvent;
@@ -23,14 +26,18 @@ export interface GesturePoint {
 export interface GestureHandlers {
     /** Pointer went down (before the gesture is known). */
     onDown?: (p: GesturePoint) => void;
-    /** Short press that did not move. */
+    /** Press released within the pointer's `tapMs` (at least 260 ms) that moved less than its `slop`, with no hold. */
     onTap?: (p: GesturePoint) => void;
     /** Press held still for `holdMs`. A hold that then moves continues as a drag. */
     onHold?: (p: GesturePoint) => void;
-    /** Fast release after a short move. `angle` points the way of the flick, `speed` in units per second. */
+    /**
+     * Fast release within 450 ms of the press. Fires after `onDragEnd`. `angle` is the direction in
+     * radians, `speed` is in local units per second.
+     */
     onFlick?: (p: GesturePoint, angle: number, speed: number) => void;
-    /** Movement passed the slop. */
+    /** Movement passed the pointer's `slop`. Cancels a pending hold. */
     onDragStart?: (p: GesturePoint) => void;
+    /** Every move after `onDragStart`, on or off the target. */
     onDrag?: (p: GesturePoint) => void;
     /** Drag ended (release, or the pointer was lost). */
     onDragEnd?: (p: GesturePoint) => void;
@@ -46,15 +53,17 @@ export interface GestureOptions {
     holdMs?: number;
     /** Minimum speed of a flick, units per second. Default 700. `0` turns flicks off. */
     flickSpeed?: number;
-    /** Mouse buttons that start a gesture (0 left, 1 middle, 2 right). Default [0]. */
+    /** Mouse buttons that start a gesture (0 left, 1 middle, 2 right). Default [0]. Pens and touches always start one. */
     buttons?: number[];
+    /** Per pointer kind overrides of `slop` and `tapMs`. See `INPUT_PROFILES`. */
     profiles?: InputProfiles;
 }
 
 /**
  * Reads tap, hold, flick and drag from one target, with the slop and timing of the pointer kind
  * (fingers get more room than mice). The drag keeps going when the pointer leaves the target.
- * Returns a function that stops tracking.
+ * One pointer at a time: a second finger is ignored until the first lifts. Sets the target's
+ * `eventMode` to `static` when it was not interactive. Returns a function that stops tracking.
  */
 export function trackGesture(target: Container, handlers: GestureHandlers, options: GestureOptions = {}): () => void {
     const { holdMs = 420, flickSpeed = 700, buttons = [0] } = options;

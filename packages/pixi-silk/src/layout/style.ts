@@ -23,7 +23,9 @@ export type Edges<T = Length> = T | readonly [T, T] | readonly [T, T, T] | reado
 
 /** A size in pixels. */
 export interface Size {
+    /** Width in pixels. */
     width: number;
+    /** Height in pixels. */
     height: number;
 }
 
@@ -44,7 +46,7 @@ export interface LayoutStyle {
     direction?: FlexDirection;
     /** Break items into several lines when they overflow. Default `nowrap`. */
     wrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
-    /** Space between items and between lines. */
+    /** Space between items and between lines, in pixels. Default 0. */
     gap?: number;
     /** Space between lines (rows). Overrides `gap`. */
     rowGap?: number;

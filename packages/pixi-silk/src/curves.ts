@@ -3,7 +3,7 @@ import type { PointData } from 'pixi.js';
 /** Points as a flat `[x0, y0, x1, y1, ...]` array, a typed array, or an array of `{ x, y }` objects. */
 export type PointsInput = number[] | Float32Array | Float64Array | PointData[];
 
-/** Normalises `[x0, y0, x1, y1, ...]` or `[{x, y}, ...]` into a flat number array. */
+/** Copies any {@link PointsInput} into a new flat `[x0, y0, x1, y1, ...]` array. */
 export function toFlat(points: PointsInput): number[] {
     if (points.length === 0) return [];
     if (typeof points[0] === 'number') return Array.from(points as ArrayLike<number>);
@@ -17,7 +17,8 @@ export function toFlat(points: PointsInput): number[] {
 /**
  * Monotone cubic interpolation in x (Steffen's method, same family as d3's monotoneX).
  * Never overshoots the data: peaks stay at the data points, flat runs stay flat.
- * `step` is the target spacing of the output samples in local units.
+ * `step` is the target spacing of the output samples in local units, at most 64 per segment.
+ * Points must be sorted by x. Fewer than 3 points come back as a copy.
  */
 export function monotoneX(flat: number[], step = 2): number[] {
     const n = flat.length / 2;
@@ -70,7 +71,12 @@ export function monotoneX(flat: number[], step = 2): number[] {
     return out;
 }
 
-/** Centripetal Catmull-Rom spline through the points (no cusps or self-loops). */
+/**
+ * Samples a centripetal Catmull-Rom spline through flat points. It has no cusps or self-loops
+ * within a segment. `closed` adds the segment back to the first point. `step` is the target sample
+ * spacing in local units, at most 64 per segment. `alpha` 0.5 is centripetal (0 uniform, 1
+ * chordal). Fewer than 3 points come back as a copy.
+ */
 export function catmullRom(flat: number[], closed = false, step = 2, alpha = 0.5): number[] {
     const n = flat.length / 2;
 
@@ -124,7 +130,7 @@ export function catmullRom(flat: number[], closed = false, step = 2, alpha = 0.5
     return out;
 }
 
-/** Flattens a cubic bezier (start point excluded) into `out`. */
+/** Appends a cubic Bezier to `out` as 2 to 256 points, about one per `step` units of its control polygon. The start point is not added. */
 export function flattenCubic(
     out: number[],
     x0: number,
@@ -152,7 +158,7 @@ export function flattenCubic(
     }
 }
 
-/** Flattens a quadratic bezier (start point excluded) into `out`. */
+/** Appends a quadratic Bezier to `out` as 2 to 256 points, about one per `step` units of its control polygon. The start point is not added. */
 export function flattenQuadratic(
     out: number[],
     x0: number,

@@ -9,23 +9,23 @@ export type InputKind = 'mouse' | 'pen' | 'touch';
  * Distances are in screen pixels.
  */
 export interface InputProfile {
-    /** Radius around the centre where nothing is picked (the cancel zone). */
+    /** Radius around the centre where nothing is picked (the cancel zone), screen pixels. */
     deadzone: number;
-    /** How far past the outer edge the pointer still steers the selection. `Infinity` never lets go. */
+    /** How far past the outer edge the pointer still steers the selection, screen pixels. `Infinity` never lets go. */
     falloff: number;
-    /** Size multiplier for the widget's targets. */
+    /** Size multiplier for the widget's targets. 1 keeps the designed size. */
     scale: number;
-    /** A press shorter than this, that moved less than `slop`, is a tap. */
+    /** A press shorter than this many milliseconds, that moved less than `slop`, is a tap. */
     tapMs: number;
-    /** Movement allowed before a press stops being a tap, and the extra hit margin of buttons. */
+    /** Movement allowed before a press stops being a tap, and the extra hit margin of buttons, screen pixels. */
     slop: number;
-    /** Grace time before a pointer that left the falloff area closes a widget (when it closes on leave). */
+    /** Grace time in milliseconds before a pointer that left the falloff area closes a widget (when it closes on leave). */
     leaveDelayMs: number;
     /** Angle (radians) the pointer must pass a boundary by before the selection switches. Kills flicker. */
     hysteresis: number;
 }
 
-/** Defaults per pointer kind. */
+/** Defaults per pointer kind. Touch is the most forgiving, mouse the tightest. */
 export const INPUT_PROFILES: Readonly<Record<InputKind, Readonly<InputProfile>>> = {
     mouse: { deadzone: 14, falloff: 120, scale: 1, tapMs: 220, slop: 4, leaveDelayMs: 400, hysteresis: 0.03 },
     pen: { deadzone: 16, falloff: 140, scale: 1, tapMs: 240, slop: 6, leaveDelayMs: 500, hysteresis: 0.04 },
@@ -40,12 +40,12 @@ export function inputKind(e: Pick<FederatedPointerEvent, 'pointerType'>): InputK
     return e.pointerType === 'touch' || e.pointerType === 'pen' ? e.pointerType : 'mouse';
 }
 
-/** Default profile for `kind` with `overrides` applied. */
+/** Default profile for `kind` with `overrides` applied. Returns a new object each call. */
 export function inputProfile(kind: InputKind, overrides?: InputProfiles): InputProfile {
     return { ...INPUT_PROFILES[kind], ...overrides?.[kind] };
 }
 
-/** Guess for the device before any pointer arrives: touch on coarse-pointer screens. */
+/** Guess for the device before any pointer arrives: touch on coarse-pointer screens, mouse elsewhere and outside a browser. */
 export function preferredInputKind(): InputKind {
     if (typeof matchMedia !== 'function') return 'mouse';
 

@@ -50,7 +50,10 @@ export function modDown(): boolean {
     return isKeyDown('ControlLeft') || isKeyDown('ControlRight') || isKeyDown('MetaLeft') || isKeyDown('MetaRight');
 }
 
-/** True when a key event comes from a text field, where the keys belong to the field and not to the canvas. */
+/**
+ * True when a key event comes from an `input`, `textarea`, `select` or content-editable element. The
+ * keys then belong to the field and not to the canvas.
+ */
 export function isTypingTarget(target: EventTarget | null): boolean {
     const el = target as { tagName?: unknown; isContentEditable?: boolean } | null;
 
@@ -60,7 +63,10 @@ export function isTypingTarget(target: EventTarget | null): boolean {
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
 }
 
-/** Calls `fn` on every key press and release. Returns the unsubscribe function. */
+/**
+ * Calls `fn` on every key press and release on `window`. Auto-repeat presses are skipped. When the
+ * window loses focus, every held key gets a synthetic release. Returns the unsubscribe function.
+ */
 export function onKey(fn: (code: string, down: boolean, e: KeyboardEvent) => void): () => void {
     install();
     listeners.add(fn);

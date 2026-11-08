@@ -1,11 +1,11 @@
 import { Color, type ColorSource } from 'pixi.js';
 
-/** Colour as 0xRRGGBB. */
+/** Converts any Pixi colour source to 0xRRGGBB. Alpha is dropped. */
 export function hex(color: ColorSource): number {
     return Color.shared.setValue(color).toNumber();
 }
 
-/** Mixes two 0xRRGGBB colours in sRGB. `t` 0 gives `a`, 1 gives `b`. */
+/** Mixes two 0xRRGGBB colours per channel in sRGB (not linear light). `t` 0 gives `a`, 1 gives `b`, clamped. */
 export function mix(a: number, b: number, t: number): number {
     if (t <= 0) return a;
     if (t >= 1) return b;
@@ -18,7 +18,7 @@ export function mix(a: number, b: number, t: number): number {
     return ch(16) | ch(8) | ch(0);
 }
 
-/** Moves `t` towards 0..1 with a slight overshoot, good for pop-in scales. */
+/** Back-out easing: maps 0..1 to 0..1, overshooting past 1 near the end. `s` sets the overshoot. */
 export function outBack(t: number, s = 1.6): number {
     const u = t - 1;
 

@@ -9,14 +9,14 @@ interface Row {
 }
 
 /**
- * All gradient ramps live in one RGBA16F texture (one ramp per row), shared by every
- * SilkGraphics. Half floats keep ~11 bits per channel so dark and low-alpha ramps
- * don't get quantised before the shader dithers them to the 8-bit framebuffer.
+ * All gradient ramps live in one RGBA16F texture, 256 samples by 256 rows, shared by every
+ * SilkGraphics. Half floats keep about 11 bits per channel, so dark and low-alpha ramps are not
+ * quantised before the shader dithers them to the 8-bit framebuffer. You rarely need it directly.
  */
 export class GradientAtlas {
     private static _shared: GradientAtlas | null = null;
 
-    /** The atlas every SilkGraphics uses. */
+    /** The atlas every SilkGraphics uses, created on first access. */
     static get shared(): GradientAtlas {
         GradientAtlas._shared ??= new GradientAtlas();
 
@@ -48,7 +48,10 @@ export class GradientAtlas {
         });
     }
 
-    /** Returns the atlas row for a gradient ramp, baking it on first use. */
+    /**
+     * Returns the atlas row for a gradient and adds a reference to it. Gradients with the same
+     * `key` share a row, baked and uploaded on first use. Pair every call with {@link GradientAtlas.release}.
+     */
     acquire(gradient: Gradient): number {
         let entry = this._rows.get(gradient.key);
 
@@ -62,7 +65,11 @@ export class GradientAtlas {
         return entry.row;
     }
 
-    /** Drops one reference to a ramp. When the atlas is full, rows nobody uses are reused. */
+    /**
+     * Drops one reference to a ramp by its gradient key. The row stays baked, so it is free to
+     * reuse only once all 256 rows have been handed out. With every row in use, row 0 is shared
+     * and a warning is logged.
+     */
     release(key: string): void {
         const entry = this._rows.get(key);
 

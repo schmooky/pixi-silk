@@ -56,7 +56,7 @@ export interface BatchSize {
     texels: number;
 }
 
-/** Floats of `a` grown to hold at least `n`, keeping its contents. */
+/** Returns `a` when it holds `n` floats, or a copy grown to at least `n` (doubling). */
 export function grow(a: Float32Array, n: number): Float32Array {
     if (a.length >= n) return a;
     const bigger = new Float32Array(Math.max(n, a.length * 2));
@@ -233,6 +233,7 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
     });
     private readonly _localGroup = new BindGroup({ 0: this._local });
 
+    /** Created once per renderer, by the pipe that `enableSilkBatching()` installs or by Pixi's extensions. */
     constructor(renderer: Renderer) {
         this._renderer = renderer;
     }
@@ -397,8 +398,9 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
 }
 
 /**
- * Turns on batching across objects: runs of consecutive SilkGraphics with the same blend mode and
- * settings render in one draw call. Objects created after the call take part. Each renderer gets
+ * Turns on batching across objects, which is off by default. Runs of consecutive SilkGraphics with
+ * the same blend mode and settings then render in one draw call. Only objects created after the
+ * call take part, and an object with `batch: false` never does. There is no call to turn it off. Each renderer gets
  * the pipe the first time it draws one of them, so you can call it before or after creating the
  * Application. It is safe to call again.
  *

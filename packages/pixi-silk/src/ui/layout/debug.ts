@@ -24,7 +24,7 @@ export interface LayoutDebug {
     enabled: boolean;
     /** Turns the overlay on or off. Returns the new state. */
     toggle(): boolean;
-    /** Removes the overlay, the key binding and the pointer listener. */
+    /** Removes the overlay, the key binding and the pointer listener. The handle is unusable afterwards. */
     destroy(): void;
 }
 

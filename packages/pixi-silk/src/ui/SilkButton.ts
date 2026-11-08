@@ -11,17 +11,25 @@ const TAU = Math.PI * 2;
 
 /** Colours of a {@link SilkButton} (any Pixi colour). */
 export interface ButtonTheme {
+    /** Body colour at rest. */
     fill: number | string;
+    /** Body colour under a hovering mouse or pen. Touch never hovers. */
     fillHover: number | string;
+    /** Body colour while pressed. */
     fillPress: number | string;
+    /** Body colour when `state.enabled` is false. */
     fillDisabled: number | string;
+    /** Tint of the label and icon. */
     content: number | string;
+    /** Tint of the label and icon when disabled. */
     contentDisabled: number | string;
+    /** Hover outline and long-press progress ring. */
     accent: number | string;
+    /** Soft drop shadow under the body. */
     shadow: number | string;
 }
 
-/** Default theme: blue filled button. */
+/** Default theme: a blue filled button with white content. Merge a `Partial<ButtonTheme>` over it with the `theme` option. */
 export const BUTTON_THEME: Readonly<ButtonTheme> = {
     fill: 0x0a84ff,
     fillHover: 0x3a9bff,
@@ -42,11 +50,13 @@ export interface ButtonState {
     shown: Signal<boolean>;
     /** Disabled buttons dim and ignore input. */
     enabled: Signal<boolean>;
-    /** Busy buttons show a spinner and ignore input (a spin in progress, a request in flight). */
+    /** Busy buttons show a spinner and ignore input (a save or a request in flight). */
     busy: Signal<boolean>;
     /** Animation phase. Input is only accepted while `shown`. */
     phase: Signal<ButtonPhase>;
+    /** A mouse or pen is over the button. Always false for touch. */
     hovered: Signal<boolean>;
+    /** A pointer is down on the button and not yet released. */
     pressed: Signal<boolean>;
     /** True when the button accepts input: shown, settled, enabled and not busy. */
     active: Computed<boolean>;
@@ -54,35 +64,43 @@ export interface ButtonState {
 
 /** Options of {@link SilkButton}. */
 export interface SilkButtonOptions {
-    /** Default 120 (the height for circles). */
+    /** Width in local units. Default 120. Circles ignore it and use `height`. */
     width?: number;
-    /** Default 48. */
+    /** Height in local units. Default 48. The button is centred on its origin. */
     height?: number;
     /** Default `pill`. `squircle` uses continuous corners. */
     shape?: 'pill' | 'circle' | 'rect' | 'squircle';
-    /** Corner radius of `rect` and `squircle`. Default 14. */
+    /** Corner radius of `rect` and `squircle`, local units. Default 14. */
     radius?: number;
+    /** Text shown after the icon, about 15 px semibold system font unless `textStyle` says otherwise. */
     label?: string;
+    /** Icon shown before the label. See {@link IconSource}. */
     icon?: IconSource;
-    /** Default 22. */
+    /** Icon size in local units. Default 22. */
     iconSize?: number;
+    /** Pixi text style merged over the label's default style. */
     textStyle?: TextStyleOptions;
+    /** Colours merged over {@link BUTTON_THEME}. Read once, at construction. */
     theme?: Partial<ButtonTheme>;
     /** Start visible. Default true. */
     shown?: boolean;
-    /** Default true. */
+    /** Initial value of `state.enabled`. Default true. */
     enabled?: boolean;
-    /** Long-press time in ms. A press held this long fires `onHold` instead of `onPress`. */
+    /** Long-press time in ms. A press held this long fires `onHold` instead of `onPress`. Off when left out. */
     holdMs?: number;
     /** Scale the button grows from when it appears. Default 0.6. */
     appearScale?: number;
-    /** Distance it rises from when it appears. Default 10. */
+    /** Distance it rises from when it appears, local units. Default 10. */
     appearOffset?: number;
-    /** Extra hit margin around the shape (a finger landing a little outside still counts). Default 6. */
+    /** Extra hit margin around the shape in local units (a finger landing a little outside still counts). Default 6. */
     hitPadding?: number;
+    /** Per pointer kind overrides. The `slop` sets how far a press may slide off and still count. */
     profiles?: InputProfiles;
+    /** Ticker that runs the animation. Default `Ticker.shared`. With `null`, call {@link SilkButton.tick} yourself. */
     ticker?: Ticker | null;
+    /** Called on release over the button while `state.active`. Not called after a hold fired. */
     onPress?: (button: SilkButton) => void;
+    /** Called once when a press is held for `holdMs`. */
     onHold?: (button: SilkButton) => void;
 }
 
@@ -91,13 +109,16 @@ export interface SilkButtonOptions {
  *
  * - `show()` / `hide()` (or write `state.shown`) spring it in and out. Both return a promise that
  *   resolves `true` when the animation finishes, `false` when it was reversed half way.
- * - Input is off while it appears, disappears, is disabled or busy: no double spins, no taps on a
- *   button that is fading away.
- * - A press that slides off the button still counts when released within the pointer's slop.
- * - Optional long-press (`holdMs`) with a progress indicator, e.g. tap to spin, hold for autoplay.
+ * - Input is off while it appears, disappears, is disabled or busy: no double activations, no taps
+ *   on a button that is fading away.
+ * - A press that slides off the button still counts when released within twice the pointer's slop.
+ * - Optional long-press (`holdMs`) with a progress indicator, for example tap to run once, hold to repeat.
  * - `state.busy` swaps the content for a spinner.
+ *
+ * The button is centred on its origin. The theme and content are fixed at construction.
  */
 export class SilkButton extends Container {
+    /** Signals to read and write. See {@link ButtonState}. */
     readonly state: ButtonState;
 
     private readonly _w: number;
@@ -176,12 +197,12 @@ export class SilkButton extends Container {
         this._driver.wake();
     }
 
-    /** Width of the shape. */
+    /** Width of the shape in local units, without the hit padding. */
     get buttonWidth(): number {
         return this._w;
     }
 
-    /** Height of the shape. */
+    /** Height of the shape in local units, without the hit padding. */
     get buttonHeight(): number {
         return this._h;
     }
@@ -191,12 +212,12 @@ export class SilkButton extends Container {
         return clamp01(this._appear.value);
     }
 
-    /** Animates the button in. Resolves true when it finishes, false if reversed first. */
+    /** Animates the button in. Resolves true when it finishes (at once if already shown), false if reversed first. */
     show(): Promise<boolean> {
         return this._toggle(true);
     }
 
-    /** Animates the button out. Resolves true when it finishes, false if reversed first. */
+    /** Animates the button out. Resolves true when it finishes (at once if already hidden), false if reversed first. */
     hide(): Promise<boolean> {
         return this._toggle(false);
     }
@@ -206,7 +227,7 @@ export class SilkButton extends Container {
         return this._driver.tick(dt);
     }
 
-    /** Fires `onPress` as if tapped (respects `state.active`). */
+    /** Fires `onPress` and the press bounce as if tapped. Does nothing unless `state.active`. */
     press(): void {
         if (!this.state.active.value) return;
         this._press.velocity -= 12;
@@ -214,6 +235,7 @@ export class SilkButton extends Container {
         this._driver.wake();
     }
 
+    /** Stops the animation and resolves pending `show` / `hide` promises with false. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         this.state.active.dispose();

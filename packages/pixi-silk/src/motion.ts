@@ -1,14 +1,17 @@
 /**
- * Frame-rate independent motion helpers. Values glide the same at 60, 120 or 144 Hz,
- * and never overshoot unless you ask a spring to.
+ * Frame-rate independent motion helpers. Values move the same at 60, 120 or 144 Hz. `damp`
+ * never overshoots. A spring overshoots when its damping is low.
  */
 
-/** Exponential approach: moves `current` towards `target`. `lambda` is about 1/seconds, higher is snappier. */
+/**
+ * Exponential approach: returns `current` moved towards `target` over `dtSeconds`. `lambda` is
+ * about 1 / seconds, higher is snappier. It never reaches the target exactly.
+ */
 export function damp(current: number, target: number, lambda: number, dtSeconds: number): number {
     return target + (current - target) * Math.exp(-lambda * dtSeconds);
 }
 
-/** Damped angle approach along the shortest path. */
+/** Like {@link damp} for angles in radians: it turns the short way round. The result is not wrapped to one turn. */
 export function dampAngle(current: number, target: number, lambda: number, dtSeconds: number): number {
     let delta = (target - current) % (Math.PI * 2);
 
@@ -19,8 +22,8 @@ export function dampAngle(current: number, target: number, lambda: number, dtSec
 }
 
 /**
- * Damped harmonic spring (semi-implicit Euler with fixed sub-steps).
- * `stiffness` / `damping` follow the usual UI spring convention (e.g. 170 / 26).
+ * Damped harmonic spring with unit mass, integrated in fixed 1/240 s sub-steps. `stiffness` and
+ * `damping` follow the usual UI spring convention. The defaults are 170 and 26.
  */
 export class Spring {
     /** Current value. */
@@ -29,11 +32,12 @@ export class Spring {
     target: number;
     /** Current speed, in units per second. */
     velocity = 0;
-    /** Pull towards the target. Higher is faster. */
+    /** Pull towards the target. Higher is faster. Default 170. */
     stiffness: number;
-    /** Friction. Lower bounces more. */
+    /** Friction. Lower bounces more. Default 26. */
     damping: number;
 
+    /** Starts at rest at `value`, with its target there too. */
     constructor(value = 0, stiffness = 170, damping = 26) {
         this.value = value;
         this.target = value;
@@ -41,7 +45,7 @@ export class Spring {
         this.damping = damping;
     }
 
-    /** Advances the spring and returns the new value. */
+    /** Advances the spring by `dtSeconds`, capped at 0.1 s so a stalled tab does not jump, and returns the new value. */
     step(dtSeconds: number): number {
         const h = 1 / 240;
         let t = Math.min(dtSeconds, 0.1);
@@ -58,7 +62,7 @@ export class Spring {
         return this.value;
     }
 
-    /** True once the spring is at rest on its target. */
+    /** True once the spring is within 1e-4 of its target and its speed is below 1e-4. */
     get settled(): boolean {
         return Math.abs(this.value - this.target) < 1e-4 && Math.abs(this.velocity) < 1e-4;
     }

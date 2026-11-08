@@ -17,16 +17,17 @@ const C_MAX = 0.37;
 
 /** Options of {@link ColorSlider}. */
 export interface ColorSliderOptions extends ColorPickerOptions {
+    /** The channel this track edits. */
     channel: ColorChannel;
-    /** Track length. Default 220. */
+    /** Track length in local units. Default 220. */
     width?: number;
-    /** Track thickness. Default 18. */
+    /** Track thickness in local units. Default 18. */
     height?: number;
     /** `vertical` runs bottom (0) to top (1). Default `horizontal`. */
     orientation?: 'horizontal' | 'vertical';
 }
 
-/** Reads one channel of the model, as 0..1. */
+/** Reads one channel of the model, as 0..1. Hues map 0..360 degrees to 0..1, OKLCH chroma 0..0.37 to 0..1. */
 export function readChannel(model: ColorModel, channel: ColorChannel): number {
     switch (channel) {
         case 'h':
@@ -49,7 +50,7 @@ export function readChannel(model: ColorModel, channel: ColorChannel): number {
     }
 }
 
-/** Writes one channel of the model from 0..1. */
+/** Writes one channel of the model from `t` 0..1 (clamped), with the scales of {@link readChannel}. OKLCH writes reduce chroma to fit sRGB. */
 export function writeChannel(model: ColorModel, channel: ColorChannel, t: number, origin: unknown = null): void {
     const v = Math.max(0, Math.min(1, t));
 
@@ -121,6 +122,7 @@ export function channelColor(model: ColorModel, channel: ColorChannel, t: number
  * of the colour unchanged, so moving the hue recolours the saturation track and so on.
  */
 export class ColorSlider extends ColorPicker {
+    /** The channel this track edits. */
     readonly channel: ColorChannel;
     private readonly _len: number;
     private readonly _thick: number;
@@ -136,12 +138,12 @@ export class ColorSlider extends ColorPicker {
         this._t = readChannel(this.model, this.channel);
     }
 
-    /** Track length. */
+    /** Track length in local units. */
     get length(): number {
         return this._len;
     }
 
-    /** Track thickness. */
+    /** Track thickness in local units. */
     get thickness(): number {
         return this._thick;
     }
@@ -216,20 +218,26 @@ export class ColorSlider extends ColorPicker {
 
 /** Options of {@link ChannelSliders}. */
 export interface ChannelSlidersOptions {
+    /**
+     * The colour to edit. Pass one: without it every track creates its own model, so the tracks do
+     * not stay in step.
+     */
     model?: ColorModel;
     /** Which channels: `hsv`, `rgb` or `oklch`. Default `hsv`. */
     mode?: 'hsv' | 'rgb' | 'oklch';
     /** Adds an alpha track. Default true. */
     alpha?: boolean;
-    /** Track length. Default 220. */
+    /** Track length in local units. Default 220. */
     width?: number;
-    /** Track thickness. Default 16. */
+    /** Track thickness in local units. Default 16. */
     height?: number;
-    /** Space between tracks. Default 12. */
+    /** Space between tracks in local units. Default 12. */
     gap?: number;
-    /** Letter labels before the tracks. Default true. */
+    /** Letter labels before the tracks. They take 22 units on the left. Default true. */
     labels?: boolean;
+    /** Passed to every track. See {@link ColorPickerOptions.ticker}. */
     ticker?: Ticker | null;
+    /** Passed to every track. */
     profiles?: InputProfiles;
 }
 
@@ -241,6 +249,7 @@ const MODES: Record<NonNullable<ChannelSlidersOptions['mode']>, ColorChannel[]> 
 
 /** A stack of {@link ColorSlider}s for one colour model, with optional letter labels. */
 export class ChannelSliders extends Container {
+    /** The tracks, top to bottom, alpha last. */
     readonly sliders: ColorSlider[];
 
     constructor(options: ChannelSlidersOptions = {}) {

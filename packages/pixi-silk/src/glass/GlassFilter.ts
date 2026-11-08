@@ -151,9 +151,13 @@ let program: GlProgram | null = null;
 let gpuProgram: GpuProgram | null = null;
 
 /**
- * Low-level frosted glass filter. Prefer {@link Glass}, which sizes it, keeps it in step with the
- * transform and turns on the back buffer it needs. Set the shape with {@link GlassFilter.setShape}
- * in screen pixels.
+ * The frosted glass filter behind {@link Glass}. Prefer {@link Glass}: it sizes the filter, keeps it
+ * in step with the transform and turns on the WebGL back buffer the filter needs.
+ *
+ * Using it alone, set `filterArea` on the filtered container to the glass rectangle. Pass every
+ * distance in screen pixels, so multiply by the world scale yourself. The filter reads the backdrop
+ * (`blendRequired`), so on WebGL it needs `useBackBuffer: true` on the renderer. Each setter
+ * uploads its uniform only when a value changes.
  */
 export class GlassFilter extends Filter {
     private readonly _u: UniformGroup;
@@ -190,27 +194,27 @@ export class GlassFilter extends Filter {
         this._u = u;
     }
 
-    /** Half width and height, corner radius (screen pixels) and squircle smoothing 0..1. */
+    /** Half width, half height and corner radius in screen pixels, and squircle smoothing 0 to 1. Defaults 50, 50, 16, 0. */
     setShape(halfWidth: number, halfHeight: number, radius: number, smoothing: number): void {
         this._set('uShape', halfWidth, halfHeight, radius, smoothing);
     }
 
-    /** Blur radius, refraction distance and bevel width (screen pixels), dispersion 0..1. */
+    /** Blur radius, refraction distance and bevel width in screen pixels, and dispersion 0 to 1. Defaults 16, 12, 0.3, 18. */
     setOptics(blur: number, refraction: number, dispersion: number, bevel: number): void {
         this._set('uOptics', blur, refraction, dispersion, bevel);
     }
 
-    /** Tint colour (straight sRGB 0..1) and how much of it to mix in. */
+    /** Tint colour as straight sRGB 0 to 1 per channel, and how much of it to mix in, 0 to 1. Default white at 0.04. */
     setTint(r: number, g: number, b: number, amount: number): void {
         this._set('uTint', r, g, b, amount);
     }
 
-    /** Direction towards the light (unit vector), light strength and grain amount. */
+    /** Unit vector towards the light (see {@link lightVector}), light strength and grain amount. Defaults top left, 0.8, 0.035. */
     setLight(x: number, y: number, strength: number, grain: number): void {
         this._set('uLight', x, y, strength, grain);
     }
 
-    /** Frost (whitening 0..1), opacity, saturation and a grain seed. */
+    /** Frost 0 to 1, opacity 0 to 1, saturation (1 keeps colours) and a grain seed. Defaults 0.06, 1, 1.15, 0. */
     setSurface(frost: number, opacity: number, saturation: number, seed: number): void {
         this._set('uSurface', frost, opacity, saturation, seed);
     }

@@ -9,8 +9,8 @@ export type LayerIcon = LayerKind | ((g: SilkGraphics, size: number, color: numb
  * required. The tree never holds its own copy of the data, so it can show a Pixi scene graph, a
  * document model or a state store.
  *
- * Children come in display order: the first child is the top row, the way design tools list
- * the front-most layer first.
+ * Children come in display order: the first child is the top row, so list the front-most layer
+ * first.
  */
 export interface TreeAdapter<T> {
     /** The children of `node`, in display order. */
@@ -19,17 +19,17 @@ export interface TreeAdapter<T> {
     getName(node: T): string;
     /** The parent of `node`, or null for the root. Without it the tree searches from the root. */
     getParent?(node: T): T | null;
-    /** Renames. Without it, double click does nothing. */
+    /** Renames `node`. Without it, double click, Enter and F2 do nothing. */
     setName?(node: T, name: string): void;
     /** The icon of the row. Default none. */
     getIcon?(node: T): LayerIcon | null;
     /** True when the node shows. Without it, the row has no eye toggle. */
     isVisible?(node: T): boolean;
-    /** Shows or hides. */
+    /** Shows or hides `node`. Needed for the eye toggle to work. */
     setVisible?(node: T, visible: boolean): void;
     /** True when the node is locked. Without it, the row has no lock toggle. */
     isLocked?(node: T): boolean;
-    /** Sets the lock. */
+    /** Sets the lock of `node`. Needed for the lock toggle to work. */
     setLocked?(node: T, locked: boolean): void;
     /** True when other nodes can be dropped inside. Default: when it has children. */
     canHaveChildren?(node: T): boolean;
@@ -234,8 +234,11 @@ export function topLevelNodes<T>(
 
 /** One move of {@link applyDrop}: where a node was and where it went, as `move()` indices. */
 export interface MoveStep<T> {
+    /** The moved node. */
     node: T;
+    /** Its parent and display index before the move. */
     from: { parent: T; index: number };
+    /** Its parent and display index after the move. */
     to: { parent: T; index: number };
 }
 

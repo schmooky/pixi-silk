@@ -13,21 +13,29 @@ import { ValuePill } from './ValuePill';
 export interface HaloItem {
     /** Stable id, handed back on selection. */
     id: string;
+    /** Icon drawn at {@link ContextHaloOptions.iconSize}: a string, texture, container or draw function. A container is used as is. */
     icon?: IconSource;
     /** Shown in a pill while the item is hovered. */
     label?: string;
-    /** Shown but not selectable. */
+    /** Shown greyed out and not selectable. */
     disabled?: boolean;
 }
 
 /** Colours of a {@link ContextHalo} (any Pixi colour). */
 export interface HaloTheme {
+    /** Button fill. */
     fill: number | string;
+    /** Button fill under the pointer. */
     fillHover: number | string;
+    /** Fill of disabled buttons. */
     fillDisabled: number | string;
+    /** Icon tint. */
     icon: number | string;
+    /** Icon tint under the pointer. */
     iconHover: number | string;
+    /** Hover ring and the flash on selection. */
     accent: number | string;
+    /** Drop shadow under each button, drawn at 30% alpha. */
     shadow: number | string;
 }
 
@@ -44,14 +52,19 @@ export const HALO_THEME: Readonly<HaloTheme> = {
 
 /** Rectangle in the halo's coordinates (its parent's, while the halo sits at 0, 0 unscaled). */
 export interface HaloBounds {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
+    /** Width. */
     width: number;
+    /** Height. */
     height: number;
 }
 
-/** Options of {@link ContextHalo}. */
+/** Options of {@link ContextHalo}. Lengths are in the halo's local units. */
 export interface ContextHaloOptions {
+    /** The actions, in order along the arc. Replace them later with {@link ContextHalo.setItems}. */
     items: HaloItem[];
     /** Radius of each button. Default 18. */
     radius?: number;
@@ -61,29 +74,32 @@ export interface ContextHaloOptions {
     spacing?: number;
     /** Icon size. Default 18. */
     iconSize?: number;
-    /** Preferred side, as an angle (radians, -PI/2 is above). Default above. */
+    /** Preferred side, as an angle in radians from the target's centre. -PI/2 (default) is above. */
     direction?: number;
-    /** The buttons stay inside this rectangle, turning to another side of the target when needed. */
+    /** The buttons stay inside this rectangle, turning to another side of the target when needed. A function is called several times per frame, so keep it cheap. */
     bounds?: HaloBounds | (() => HaloBounds);
-    /** Fold the buttons away while `state.dragging` is true. Default false: they follow. */
+    /** Folds the buttons away while `state.dragging` is true. Default false: they follow. */
     hideWhileDragging?: boolean;
     /**
      * How the buttons move to a new target. `pop` (default) pops them out at the old target and
      * back in around the new one. `glide` slides them across. Following one target is always smooth.
      */
     transition?: 'pop' | 'glide';
+    /** Colours that replace parts of {@link HALO_THEME}. Read once, in the constructor. */
     theme?: Partial<HaloTheme>;
+    /** Per pointer kind overrides of `slop`, the hit margin of a button and how far a press may slide. */
     profiles?: InputProfiles;
     /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link ContextHalo.tick}. */
     ticker?: Ticker | null;
+    /** Called when a button is tapped: pressed and released on the same enabled button while the halo is `shown`. */
     onSelect?: (item: HaloItem) => void;
 }
 
 /** The reactive state of a {@link ContextHalo}. */
 export interface HaloState {
-    /** Object the halo orbits, or null. */
+    /** Object the halo orbits, or null. Set through `attach()` and `detach()`. */
     target: Signal<Container | null>;
-    /** Item under the pointer. */
+    /** Item under the pointer, or null. Disabled items can be hovered, and show their label. */
     hover: Signal<HaloItem | null>;
     /** Set it while the target is being dragged: the halo follows faster, or folds away with `hideWhileDragging`. */
     dragging: Signal<boolean>;
@@ -110,17 +126,19 @@ interface Slot {
 const SIDES = [-Math.PI / 2, 0, Math.PI / 2, Math.PI, -Math.PI / 4, (-3 * Math.PI) / 4, Math.PI / 4, (3 * Math.PI) / 4];
 
 /**
- * Action buttons orbiting the selected object, the way 3D and design tools show context actions.
+ * Action buttons orbiting the selected object. It follows the target every frame from its bounds,
+ * so it tracks drags, tweens and camera moves. The buttons sit on an arc hugging the target's box,
+ * on the preferred side. When that side would leave `bounds` the arc turns to the side with the
+ * most room. Buttons pop in with a stagger and pop out on `detach()`.
  *
- * - Follows the target every frame, from its bounds, so it tracks drags, tweens and camera moves.
- * - Lays the buttons on an arc hugging the target's box, on the preferred side. When that side would
- *   leave `bounds` it turns to the side with the most room, gliding round rather than jumping.
- * - Pops in with a stagger and pops out on `detach()`. Selecting another object pops the buttons
- *   out at the old one and in around the new one (`transition: 'glide'` slides them instead).
+ * Attach it to a target with `attach(target)`. Keep the halo in a space that is not scaled by a
+ * camera, so the buttons keep their size. The target is measured by its axis-aligned bounds.
  *
- * Attach it to a target with `attach(target)`. Keep the halo above the target in the display list.
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class ContextHalo extends Container {
+    /** Target, hover, drag and pop phase, as signals. */
     readonly state: HaloState = {
         target: signal<Container | null>(null),
         hover: signal<HaloItem | null>(null),
@@ -170,7 +188,7 @@ export class ContextHalo extends Container {
         this.setItems(options.items);
     }
 
-    /** Fold the buttons away while `state.dragging` is true. Can change at any time. */
+    /** Folds the buttons away while `state.dragging` is true. Can change at any time. */
     get hideWhileDragging(): boolean {
         return !!this._opts.hideWhileDragging;
     }
@@ -180,7 +198,7 @@ export class ContextHalo extends Container {
         this._driver.wake();
     }
 
-    /** Replaces the actions. */
+    /** Replaces the actions. Destroys the old icons, so do not share icon containers between halos. */
     setItems(items: HaloItem[]): void {
         for (const s of this._slots) s.icon?.destroy();
         this._icons.removeChildren();
@@ -195,7 +213,10 @@ export class ContextHalo extends Container {
         this._driver.wake();
     }
 
-    /** Starts orbiting `target`. From another target the buttons pop out there and in here. */
+    /**
+     * Starts orbiting `target`. From another target the buttons pop out there and in here, or glide
+     * with `transition: 'glide'`. Moves the halo to the top of its parent's children.
+     */
     attach(target: Container): void {
         if (target === this.state.target.value && this.state.phase.value !== 'out') return;
         const visible = this._slots.some((sl) => sl.open.value > 0.02);
@@ -214,7 +235,7 @@ export class ContextHalo extends Container {
         this._driver.wake();
     }
 
-    /** Pops the buttons out and lets go of the target. */
+    /** Pops the buttons out and lets go of the target. `state.target` is null at once. */
     detach(): void {
         this.state.target.set(null);
         this._next = null;
@@ -255,12 +276,12 @@ export class ContextHalo extends Container {
         });
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
+    /** Advances the animation by `dt` seconds (clamped to 0..0.1). Only needed with `ticker: null`. Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
-    /** Where each button is heading, in the halo's coordinates (for tests and custom drawing). */
+    /** Where each button is heading, in the halo's coordinates, for tests and custom drawing. Allocates. */
     get positions(): { id: string; x: number; y: number }[] {
         return this._slots.map((s) => ({ id: s.item.id, x: s.tx, y: s.ty }));
     }

@@ -93,7 +93,7 @@ export interface FillStyle {
     spread?: number;
     /**
      * `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom
-     * towards white. It stays in the same draw call. Default `normal`.
+     * towards white. Default `normal`.
      */
     blend?: 'normal' | 'add';
     /** One or more shadows inside closed shapes, drawn in order on top of the fill. */
@@ -107,7 +107,7 @@ export interface FillStyle {
      */
     union?: boolean;
     /**
-     * Combines the closed shapes of the active path into one shape, exact on its outline.
+     * Combines the closed shapes of the active path into one shape.
      * `subtract` takes every later shape out of the first one, `intersect` keeps what they all
      * cover, and `exclude` keeps what an odd number of them cover. `union` is the same as
      * `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd.
@@ -548,10 +548,10 @@ function cleanPoints(pts: number[], closed: boolean): { pts: number[]; keep: num
 
 /**
  * Geometry behind every {@link SilkGraphics}: one unit quad plus an interleaved instance buffer
- * (40 floats per primitive). You rarely need it directly.
+ * of 44 floats (`STRIDE`) per primitive. You rarely need it directly.
  */
 export class SilkGeometry extends Geometry {
-    /** Per-primitive data, grown on demand and reused across `clear()`. */
+    /** Per-primitive data, 44 floats each. It grows on demand and never shrinks, so `clear()` reuses it. */
     readonly instanceBuffer: Buffer;
     /** Bounds of everything drawn, in local units (includes stroke widths and blur). */
     readonly localBounds: Bounds = new Bounds();
@@ -600,8 +600,11 @@ export class SilkGeometry extends Geometry {
 
 /**
  * A PixiJS display object with a `Graphics`-like API. Every primitive is a signed distance field
- * evaluated per pixel, so edges are smooth at any scale, rotation and device pixel ratio. Each
- * object is one instanced draw call.
+ * evaluated per pixel, so edges stay sharp at any zoom, rotation and device pixel ratio. Each
+ * object is one instanced draw call, and `enableSilkBatching()` merges neighbours further.
+ *
+ * It renders on WebGL2. For WebGPU, call `enableWebGPU()` from `pixi-silk/webgpu` before the first
+ * SilkGraphics, or create the app with `createSilkApp({ preference: 'webgpu' })`.
  *
  * Shapes go on the active path and are painted by {@link SilkGraphics.fill | fill()} or
  * {@link SilkGraphics.stroke | stroke()}. `stroke()` right after `fill()` paints the same shapes.
@@ -671,7 +674,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._silk = this._uniforms.uniforms.uSilk as Float32Array;
     }
 
-    /** Number of primitives (= instances in the single draw call). */
+    /**
+     * Number of primitives drawn, one instance each. A fill with blur, a dashed stroke or a long
+     * path can emit several. 0 after `clear()`.
+     */
     get primitiveCount(): number {
         return this._count;
     }
@@ -681,27 +687,27 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this._silk[0];
     }
 
-    /** Sets the dither amplitude of this object. */
+    /** Takes effect on the next render. With batching on, objects regroup by their settings. */
     set dither(v: number) {
         this._setting(0, v);
     }
 
-    /** Width of the anti-aliasing ramp in device pixels. 1 is a crisp box filter, larger is softer. */
+    /** Width of the anti-aliasing ramp in device pixels. 1 is a crisp box filter, larger is softer. Default 1. */
     get aaWidth(): number {
         return this._silk[1];
     }
 
-    /** Sets the anti-aliasing width of this object. */
+    /** Takes effect on the next render. With batching on, objects regroup by their settings. */
     set aaWidth(v: number) {
         this._setting(1, v);
     }
 
-    /** Strokes thinner than this many device pixels keep this width and fade instead (hairlines). */
+    /** Strokes thinner than this many device pixels keep this width and fade instead (hairlines). Default 1. */
     get minStrokePx(): number {
         return this._silk[2];
     }
 
-    /** Sets the hairline threshold of this object. */
+    /** Takes effect on the next render. With batching on, objects regroup by their settings. */
     set minStrokePx(v: number) {
         this._setting(2, v);
     }
@@ -726,14 +732,17 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     // -------------------------------------------------------------------------------- transform
 
-    /** Pushes the current transform (Pixi GraphicsContext API). */
+    /**
+     * Pushes the current drawing transform on a stack, as in Pixi's GraphicsContext. The transform
+     * applies to shapes drawn after it, not to the display object.
+     */
     save(): this {
         this._mStack.push({ ...this._m });
 
         return this;
     }
 
-    /** Pops the transform pushed by the matching {@link SilkGraphics.save | save()}. */
+    /** Pops the transform pushed by the matching {@link SilkGraphics.save | save()}. Does nothing on an empty stack. */
     restore(): this {
         const m = this._mStack.pop();
 
@@ -742,21 +751,24 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Resets the current transform to identity. */
+    /** Resets the drawing transform to identity. The `save()` stack is kept. */
     resetTransform(): this {
         this._m = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
 
         return this;
     }
 
-    /** Replaces the current transform with the matrix `[a c tx; b d ty]`. */
+    /**
+     * Replaces the drawing transform with the matrix `[a c tx; b d ty]`. Skew is not supported:
+     * shapes take the rotation and the scale of each axis, and widths take the uniform scale.
+     */
     setTransform(a: number, b: number, c: number, d: number, tx: number, ty: number): this {
         this._m = { a, b, c, d, tx, ty };
 
         return this;
     }
 
-    /** Moves the coordinate system. Shapes drawn next are offset by (x, y). */
+    /** Moves the drawing coordinate system. Shapes drawn next are offset by (x, y), local units. `y` defaults to `x`. */
     translateTransform(x: number, y: number = x): this {
         const m = this._m;
 
@@ -766,7 +778,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Scales the coordinate system. Stroke widths, dashes and blur scale with its uniform part. */
+    /**
+     * Scales the drawing coordinate system. `y` defaults to `x`. Stroke widths, dashes and blur
+     * scale with the uniform part, the square root of the determinant.
+     */
     scaleTransform(x: number, y: number = x): this {
         const m = this._m;
 
@@ -778,7 +793,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Rotates the coordinate system by `angle` radians (clockwise on screen). Rotated primitives stay exact. */
+    /** Rotates the drawing coordinate system by `angle` radians, clockwise on screen. */
     rotateTransform(angle: number): this {
         const m = this._m;
         const cos = Math.cos(angle);
@@ -838,16 +853,18 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     // ----------------------------------------------------------------------------------- shapes
 
-    /** Axis-aligned rectangle (rotated by the current transform, if any). */
+    /** Rectangle with its top-left corner at (x, y). A negative width or height flips it to the other side. */
     rect(x: number, y: number, w: number, h: number): this {
         return this.roundRect(x, y, w, h, 0);
     }
 
     /**
      * Rectangle with rounded corners. `smoothing` above 0 turns the corners into squircles.
+     * Negative radii count as 0.
      *
-     * @param radius - one radius or `[topLeft, topRight, bottomRight, bottomLeft]`
-     * @param smoothing - 0..1 continuous-curvature ("squircle") corners, iOS uses about 0.6
+     * @param radius - one radius or `[topLeft, topRight, bottomRight, bottomLeft]`, local units.
+     *   Missing entries copy the first (and the top-right for bottom-left), as in CSS.
+     * @param smoothing - 0..1 continuous-curvature ("squircle") corners, iOS uses about 0.6. Default 0.
      */
     roundRect(x: number, y: number, w: number, h: number, radius: number | number[] = 0, smoothing = 0): this {
         if (w < 0) {
@@ -882,17 +899,17 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Rounded rect with fully round ends. */
+    /** Rounded rect whose corner radius is half its shorter side, so the short ends are half circles. */
     pill(x: number, y: number, w: number, h: number): this {
         return this.roundRect(x, y, w, h, Math.min(Math.abs(w), Math.abs(h)) / 2);
     }
 
-    /** Circle centred on (x, y). */
+    /** Circle centred on (x, y). A negative radius counts as positive. */
     circle(x: number, y: number, radius: number): this {
         return this.ellipse(x, y, radius, radius);
     }
 
-    /** Ellipse centred on (x, y) with an exact distance field (no polygon approximation). */
+    /** Ellipse centred on (x, y) with radii `rx` and `ry`, local units. It is not a polygon. */
     ellipse(x: number, y: number, rx: number, ry: number): this {
         return this._begin({
             kind: 'ellipse',
@@ -905,7 +922,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Open circular arc (stroke it). Angles work as in canvas. It starts its own subpath. */
+    /**
+     * Open circular arc, for strokes. Angles are radians and work as in Canvas 2D: 0 points right
+     * and positive angles turn clockwise on screen. It starts its own subpath. A fill paints nothing.
+     */
     arc(cx: number, cy: number, radius: number, startAngle: number, endAngle: number, anticlockwise = false): this {
         let sweep = endAngle - startAngle;
 
@@ -924,7 +944,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this.arcSweep(cx, cy, radius, startAngle, sweep);
     }
 
-    /** Open arc given start angle and signed sweep (positive = clockwise on screen). */
+    /** Open arc from a start angle and a signed sweep, radians. Positive sweeps clockwise on screen, clamped to one turn. */
     arcSweep(cx: number, cy: number, radius: number, startAngle: number, sweep: number): this {
         sweep = Math.max(-TAU, Math.min(TAU, sweep));
         const k = this._k;
@@ -941,9 +961,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     }
 
     /**
-     * Closed annular sector: pie slices, donut segments, gauge segments.
-     * @param innerRadius - 0 for a pie slice
-     * @param cornerRadius - rounds all corners
+     * Closed annular sector, for pie slices, donut segments and gauges. Angles are radians, and the
+     * sweep is clamped to one turn.
+     * @param innerRadius - 0 for a pie slice. Clamped to `radius`.
+     * @param cornerRadius - rounds all corners. Clamped to half the ring width.
      */
     sector(
         cx: number,
@@ -972,7 +993,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Heart icon centred at (cx, cy), `size` wide. `rounding` (0..0.3) puffs it up. */
+    /** Heart icon centred at (cx, cy), `size` local units wide. `rounding` (0..0.3, default 0) puffs it up. */
     heart(cx: number, cy: number, size: number, rounding = 0): this {
         const k = this._k;
 
@@ -987,7 +1008,11 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Star with `points` tips. `innerRadius` defaults to a classic star. */
+    /**
+     * Star with `points` tips (rounded, at least 3). Angles are radians. `innerRadius` defaults to
+     * half of `radius` and is capped at the inner radius of the regular polygon. `cornerRadius` rounds
+     * every corner.
+     */
     star(
         cx: number,
         cy: number,
@@ -1017,14 +1042,14 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Regular polygon (first vertex points up). */
+    /** Regular polygon with `sides` corners (rounded, at least 3), the first one pointing up. `rotation` is radians. */
     regularPoly(cx: number, cy: number, radius: number, sides: number, rotation = 0, cornerRadius = 0): this {
         const n = Math.max(3, Math.round(sides));
 
         return this.star(cx, cy, n, radius, radius * Math.cos(Math.PI / n), rotation, cornerRadius);
     }
 
-    /** Triangle through three points, with optionally rounded corners. */
+    /** Triangle through three points. `cornerRadius` (local units, default 0) rounds its corners. */
     triangle(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, cornerRadius = 0): this {
         const k = this._k;
 
@@ -1036,7 +1061,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Straight line (stroke it). */
+    /** Straight line from (x0, y0) to (x1, y1), as an open path. Stroke it. */
     line(x0: number, y0: number, x1: number, y1: number): this {
         return this._begin({
             kind: 'path',
@@ -1045,7 +1070,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         });
     }
 
-    /** Polyline through points (stroke it), optionally smoothed. */
+    /**
+     * Open or closed path through points, optionally smoothed. Stroke it, or fill it as one
+     * even-odd shape. Smoothing resamples the points every `step` local units.
+     */
     polyline(points: PointsInput, options: PolylineOptions = {}): this {
         let pts = toFlat(points);
         const closed = options.closed ?? false;
@@ -1057,7 +1085,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     }
 
     /**
-     * Pixi-style polygon. `fill()` paints it as one exact shape (even-odd), so blur, spread, inner
+     * Pixi-style polygon. `fill()` paints it as one shape (even-odd), so blur, spread, inner
      * shadows and gradients work on bolts, drops and other free outlines.
      */
     poly(points: PointsInput, close = true): this {
@@ -1066,7 +1094,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     /**
      * Area under a series. Fill it, then `stroke` draws the top line. Points must be sorted by x.
-     * @param lower - baseline y, or a second series with the same x values for bands
+     * The path transform's translation and scale apply, but rotation and skew do not: rotate the
+     * object instead. It warns once and ignores them.
+     * @param lower - baseline y, or a second series with the same number of points for bands.
+     *   A different count warns and adds nothing.
      */
     area(points: PointsInput, lower: number | PointsInput, options: AreaOptions = {}): this {
         let top = toFlat(points);
@@ -1111,7 +1142,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     // ------------------------------------------------------------------------- path building
 
-    /** Starts a new, empty path (shapes drawn so far are kept). */
+    /** Starts a new, empty active path. Shapes already painted stay. Unpainted shapes are dropped. */
     beginPath(): this {
         this._pending = [];
         this._consumed = false;
@@ -1121,7 +1152,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Starts a new subpath at (x, y). Paths are stroke-only. */
+    /** Starts a new subpath at (x, y). `fill()` paints the path even-odd, `stroke()` follows it. */
     moveTo(x: number, y: number): this {
         const shape = this._pathShape();
         const px = this._x(x, y);
@@ -1133,7 +1164,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Straight segment from the current point to (x, y). */
+    /** Straight segment from the current point to (x, y). Without a current point it starts a subpath at (x, y). */
     lineTo(x: number, y: number): this {
         const px = this._x(x, y);
         const py = this._y(x, y);
@@ -1145,7 +1176,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Quadratic Bezier to (x, y), flattened adaptively. */
+    /** Quadratic Bezier to (x, y). It is flattened into 2 to 256 line segments, about one per 2 units of its control polygon. */
     quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): this {
         const [qx, qy, px, py] = this._pts([cpx, cpy, x, y]);
         const sp = this._currentSubpath(qx, qy);
@@ -1157,7 +1188,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Cubic Bezier to (x, y), flattened adaptively. */
+    /** Cubic Bezier to (x, y). It is flattened into 2 to 256 line segments, about one per 2 units of its control polygon. */
     bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): this {
         const [ax, ay, bx, by, px, py] = this._pts([cp1x, cp1y, cp2x, cp2y, x, y]);
         const sp = this._currentSubpath(ax, ay);
@@ -1169,7 +1200,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Closes the current subpath back to its first point. */
+    /** Closes the current subpath back to its first point. Does nothing after the path was painted. */
     closePath(): this {
         const shape = this._pending[this._pending.length - 1];
 
@@ -1205,8 +1236,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
      * Paint the result with `fill()` or `stroke()` like any shape. The callbacks only add shapes:
      * do not paint inside them.
      *
-     * The outline is exact, so anti-aliasing is as sharp as on a circle. Inside the shape the
-     * distance is a close bound, not exact: a large blur, spread or inner shadow can round its
+     * The outline is anti-aliased as sharply as a circle. Inside the shape the distance is a close
+     * bound: a large blur, spread or inner shadow can round its
      * inner corners slightly.
      *
      * @example
@@ -1267,7 +1298,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     // ---------------------------------------------------------------------------------- paint
 
-    /** Fills the shapes of the active path (Pixi semantics: `rect().circle().fill()` fills both). */
+    /**
+     * Fills the shapes of the active path, as in Pixi: `rect().circle().fill()` fills both. Each
+     * shape is painted on its own unless `union` or `op` is set. Open arcs are skipped. The path
+     * stays active, so `stroke()` can follow, and the next shape you add starts a new path. Does
+     * nothing on an empty path.
+     */
     fill(style?: FillInput): this {
         const shapes = this._pending;
 
@@ -1293,7 +1329,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Strokes the shapes of the active path. Right after `fill()` it merges into the same instances. */
+    /**
+     * Strokes the shapes of the active path. Right after `fill()` on closed shapes it shares their
+     * instances, so fill and stroke cost no more than the fill. A width of 0 or less paints nothing.
+     */
     stroke(style?: StrokeInput): this {
         const shapes = this._pending;
 
@@ -1361,7 +1400,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
-    /** Removes everything. Keeps the buffers for reuse, so redrawing every frame is cheap. */
+    /**
+     * Removes every shape and resets the drawing transform and its `save()` stack. It keeps the
+     * buffers and releases gradient rows, so redrawing every frame does not allocate.
+     */
     clear(): this {
         this._releaseRamps();
         this._count = 0;
@@ -1385,8 +1427,9 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     }
 
     /**
-     * Hit test against the real shapes (local coordinates): rings are hollow, lines count only
-     * within their stroke. Used by Pixi's event system when `eventMode` is set.
+     * Hit test against the painted shapes, in local coordinates. Rings are hollow and lines count
+     * only within their stroke, at least 1 unit to each side. Blur does not widen the hit area. Pixi's event
+     * system calls it when `eventMode` is set.
      */
     override containsPoint(point: PointData): boolean {
         if (!this.geometry.localBounds.containsPoint(point.x, point.y)) return false;
@@ -1394,6 +1437,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return hitTest(this._f, this._count, point.x, point.y, this._poly);
     }
 
+    /** Destroys the object with its geometry, shader and path texture, and releases its gradient rows. */
     override destroy(options?: DestroyOptions): void {
         this._releaseRamps();
         const geometry = this.geometry;
@@ -1825,7 +1869,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         if (!box || depth.max > OP_STACK) {
             if (box && !warnedOpDepth) {
                 warnedOpDepth = true;
-                console.warn(`pixi-silk: shape operations nest deeper than ${OP_STACK} levels and are skipped`);
+                console.warn(`[pixi-silk] shape operations nest deeper than ${OP_STACK} levels and are skipped`);
             }
             this._count--;
 

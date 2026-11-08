@@ -93,12 +93,12 @@ export class Selection<T = unknown> {
         return this._items.value.includes(item);
     }
 
-    /** Adds items at the end. The last one becomes primary. */
+    /** Adds items at the end. Selected items move to the end. The last one becomes primary. Items the filter rejects are skipped. */
     add(...items: T[]): this {
         return this._apply(items, 'add');
     }
 
-    /** Removes items. */
+    /** Removes items. Unselected items are ignored. If the primary item leaves, the last remaining item becomes primary. */
     remove(...items: T[]): this {
         return this._apply(items, 'remove');
     }
@@ -108,7 +108,7 @@ export class Selection<T = unknown> {
         return this._apply([item], 'toggle');
     }
 
-    /** Makes `items` the whole selection. */
+    /** Makes `items` the whole selection, without duplicates. The last one becomes primary. */
     replace(items: readonly T[]): this {
         return this._apply(items, 'replace');
     }
@@ -138,7 +138,10 @@ export class Selection<T = unknown> {
         return this;
     }
 
-    /** Calls `fn` after every change, with what joined and what left. Returns the unsubscribe function. */
+    /**
+     * Calls `fn` after every change, with what joined and what left. A call that changes neither the
+     * items nor the primary item emits nothing. Returns the unsubscribe function.
+     */
     onChange(fn: (change: SelectionChange<T>) => void): () => void {
         this._listeners.add(fn);
 
@@ -190,18 +193,23 @@ export class Selection<T = unknown> {
 
 /** What {@link bindOutline} needs from an outline, such as `SelectionOutline`. */
 export interface OutlineLike<T> {
+    /** Frames these targets, or nothing with null. */
     select(targets: readonly T[] | null): void;
+    /** Shows a hover frame on `target`, or none with null. */
     hover(target: T | null): void;
 }
 
 /** What {@link bindGizmo} needs from a gizmo, such as `TransformGizmo`. */
 export interface GizmoLike<T> {
+    /** Attaches to `target`, or detaches with null. */
     attach(target: T | null): void;
 }
 
 /** What {@link bindMeasure} needs from a measure, such as `Measure`. */
 export interface MeasureLike<T> {
+    /** Shows the size badge of `target`, or hides it with null. */
     size(target: T | null): unknown;
+    /** Shows the distances between `a` and `b`, or hides them when either is null. */
     between(a: T | null, b: T | null): unknown;
 }
 

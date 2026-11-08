@@ -31,14 +31,17 @@ export function odometerColumns(units: number, columns: number): number[] {
     return out;
 }
 
-/** Number of digit columns a whole number needs (at least `min`). */
+/** Number of digit columns the whole part of `units` needs, at least `min`. The sign is ignored. */
 export function digitCount(units: number, min = 1): number {
     const n = Math.floor(Math.abs(units));
 
     return Math.max(min, n === 0 ? 1 : Math.floor(Math.log10(n)) + 1);
 }
 
-/** Count-up time for a jump of `delta` units: longer for bigger jumps, with a cap. */
+/**
+ * Count-up time in seconds for a jump of `delta` units. With `speedUp` it scales `base` by 0.6 to 3,
+ * growing with the log of the jump. Without it, returns `base`.
+ */
 export function countDuration(base: number, delta: number, speedUp: boolean): number {
     if (!speedUp) return base;
 
@@ -49,7 +52,7 @@ export function countDuration(base: number, delta: number, speedUp: boolean): nu
 export interface OdometerOptions {
     /** Start value. Default 0. */
     value?: number;
-    /** Digits after the decimal point. Default 0. */
+    /** Digits after the decimal point, 0 to 8. Default 0. */
     decimals?: number;
     /** Text before the number, such as a currency sign. */
     prefix?: string;
@@ -59,12 +62,13 @@ export interface OdometerOptions {
     thousands?: string;
     /** Decimal mark. Default `.`. */
     point?: string;
-    /** Minimum number of whole digits. Default 1. */
+    /** Minimum number of whole digits, padded with zeros. Default 1. */
     minDigits?: number;
-    /** Default 32. */
+    /** Font size in px. Default 32, bold system font. */
     fontSize?: number;
-    /** Default white. */
+    /** Text colour. Default white. */
     color?: number | string;
+    /** Pixi text style merged over the default. It builds a bitmap font, so set it once. */
     textStyle?: TextStyleOptions;
     /** Count-up time in seconds for a small change. Default 0.9. */
     duration?: number;
@@ -72,8 +76,9 @@ export interface OdometerOptions {
     speedUp?: boolean;
     /** Easing of the count. Default `outCubic`. */
     easing?: (t: number) => number;
+    /** Ticker that runs the count. Default `Ticker.shared`. With `null`, call {@link Odometer.tick} yourself. */
     ticker?: Ticker | null;
-    /** The count reached its target. */
+    /** The count reached its target. Called with the target value. */
     onDone?: (value: number) => void;
 }
 
@@ -95,12 +100,16 @@ interface Column {
 }
 
 /**
- * A number that rolls its digits into place like a mechanical counter, for live readouts and win
- * counters. Each column shows two glyphs at most and the frame only moves them, so it stays cheap
+ * A number that rolls its digits into place like a mechanical counter, for live readouts, scores
+ * and totals. Each column shows two glyphs at most and the frame only moves them, so it stays cheap
  * while counting. Glyphs come from a bitmap font made from the text style on first use.
- * A mask clips the columns.
+ * A mask clips the columns. The number is centred on the origin.
+ *
+ * Negative values roll as their absolute value: the rolling display draws no minus sign.
+ * {@link Odometer.format} does include it.
  */
 export class Odometer extends Container {
+    /** Signals to read and write. See {@link OdometerState}. */
     readonly state: OdometerState;
 
     private readonly _opts: OdometerOptions;
@@ -144,7 +153,7 @@ export class Odometer extends Container {
         this.state.value.set(value);
     }
 
-    /** Jumps to the end of the current count. */
+    /** Jumps to the end of the current count. `onDone` fires on the next step. */
     skip(): void {
         this._t = 1;
         this._driver.wake();
@@ -155,7 +164,7 @@ export class Odometer extends Container {
         return this._driver.tick(dt);
     }
 
-    /** Text of a value in this odometer's format, without rolling. */
+    /** Text of a value in this odometer's format (sign, prefix, padding, separators, suffix), without rolling. */
     format(value: number): string {
         const { prefix = '', suffix = '', thousands = ',', point = '.' } = this._opts;
         const neg = value < 0;
@@ -167,6 +176,7 @@ export class Odometer extends Container {
         return `${neg ? '-' : ''}${prefix}${grouped}${frac ? point + frac : ''}${suffix}`;
     }
 
+    /** Stops the count. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });

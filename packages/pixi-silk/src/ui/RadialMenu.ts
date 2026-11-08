@@ -25,9 +25,9 @@ export interface RadialItem {
     id: string;
     /** Text: drawn inside the segment when there is no icon, otherwise shown as a pill on hover. */
     label?: string;
-    /** Icon drawn in the segment. */
+    /** Icon drawn in the segment, white and tinted by the theme. See {@link IconSource}. */
     icon?: IconSource;
-    /** Shown but not selectable. */
+    /** Shown dimmed. It cannot be hovered, picked or opened. */
     disabled?: boolean;
     /** Sub-items, laid out on the next ring, centred on this item. */
     children?: RadialItem[];
@@ -35,19 +35,29 @@ export interface RadialItem {
 
 /** Colours of a {@link RadialMenu} (any Pixi colour). */
 export interface RadialTheme {
+    /** Segment fill at rest. */
     segment: number | string;
+    /** Segment fill under the pointer. */
     segmentHover: number | string;
+    /** Segment fill and icon tint of disabled items. */
     segmentDisabled: number | string;
+    /** Centre disc. */
     hub: number | string;
+    /** Icon tint at rest, and the dot in the hub. */
     icon: number | string;
+    /** Icon tint under the pointer. */
     iconHover: number | string;
+    /** Selection flash, hover rim, aim marker on the hub and the dots that mark sub-rings. */
     accent: number | string;
+    /** Soft shadow under the hub and the first ring. */
     shadow: number | string;
+    /** Background of the label pill shown on hover for icon items. */
     pill: number | string;
+    /** Text of the label pill. */
     pillText: number | string;
 }
 
-/** Light-on-dark default, close to the look of 3D and paint tools. */
+/** Default theme: light segments with dark icons and a blue accent, meant for dark scenes. */
 export const RADIAL_THEME: Readonly<RadialTheme> = {
     segment: 0xe9e9ec,
     segmentHover: 0xffffff,
@@ -63,7 +73,9 @@ export const RADIAL_THEME: Readonly<RadialTheme> = {
 
 /** Area the menu must stay inside, in its parent's coordinates. */
 export interface RadialBounds {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
     width: number;
     height: number;
@@ -71,6 +83,7 @@ export interface RadialBounds {
 
 /** Options of {@link RadialMenu}. Distances are design units, scaled per input kind by the profile. */
 export interface RadialMenuOptions {
+    /** Items of the first ring, in order from `direction` clockwise. */
     items: RadialItem[];
     /** Inner radius of the first ring (the hub sits inside). Default 40. */
     innerRadius?: number;
@@ -84,15 +97,15 @@ export interface RadialMenuOptions {
     autoDirection?: boolean;
     /** Gap between segments, in units. Default 4. */
     gap?: number;
-    /** Corner radius of segments. Default 10. */
+    /** Corner radius of segments, in units. Default 10. */
     corner?: number;
-    /** Gap between rings. Default 6. */
+    /** Gap between rings, in units. Default 6. */
     ringGap?: number;
-    /** Thickness of sub-rings. Default 46. */
+    /** Thickness of sub-rings, in units. Default 46. */
     ringWidth?: number;
-    /** Arc length of one sub-item along its ring. Default 58. */
+    /** Arc length of one sub-item along its ring, in units. Default 58. */
     itemArc?: number;
-    /** Icon size. Default 26. */
+    /** Icon size, in units. Default 26. */
     iconSize?: number;
     /** Close when the pointer stays outside the falloff area for the profile's leave delay. Default false: it stays. */
     closeOnLeave?: boolean;
@@ -104,16 +117,17 @@ export interface RadialMenuOptions {
     bounds?: RadialBounds | (() => RadialBounds);
     /** Per-pointer-kind tuning of dead zone, falloff, scale, tap and hysteresis. */
     profiles?: InputProfiles;
+    /** Colours merged over {@link RADIAL_THEME}. Read once, at construction. */
     theme?: Partial<RadialTheme>;
     /** Style of text labels. */
     textStyle?: TextStyleOptions;
-    /** Escape closes the menu. Default true. */
+    /** Escape closes the menu. Listens on `window` only while open. Default true. */
     escapeCloses?: boolean;
     /** Draw the centre disc. Turn it off when the menu opens around a button that should stay visible. Default true. */
     hub?: boolean;
     /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link RadialMenu.tick}. */
     ticker?: Ticker | null;
-    /** An item was picked. `path` runs from the first ring to the item. */
+    /** An item was picked. `path` runs from the first ring to the item, the item included. */
     onSelect?: (item: RadialItem, path: readonly RadialItem[]) => void;
     /** The menu started closing. `item` is the selection, if any. */
     onClose?: (item: RadialItem | null) => void;
@@ -177,8 +191,9 @@ export interface RadialState {
  * - Full circles or arcs (`sweep`), which turn away from screen edges.
  * - Dead zone, falloff, size and timing adapt to the pointer kind (bigger and more forgiving for touch).
  *
- * State lives in tiny signals on `state` (`phase`, `hover`, `path`, `kind`) you can subscribe to.
- * The menu draws with one {@link SilkGraphics} and only animates while something moves.
+ * State lives in signals on `state` (`phase`, `hover`, `path`, `kind`) you can subscribe to.
+ * The menu draws into one {@link SilkGraphics} and only animates while something moves. It starts
+ * closed: add it to the stage, then call {@link RadialMenu.openAt} or use {@link bindRadialTrigger}.
  */
 export class RadialMenu extends Container {
     /** Reactive state: subscribe to drive other UI from the menu. */
@@ -257,7 +272,7 @@ export class RadialMenu extends Container {
         this.setItems(options.items);
     }
 
-    /** Close when the pointer stays outside the falloff area. Can change at any time. */
+    /** Close when the pointer stays outside the falloff area for the profile's `leaveDelayMs`. Can change at any time. */
     get closeOnLeave(): boolean {
         return this._o.closeOnLeave;
     }
@@ -272,7 +287,7 @@ export class RadialMenu extends Container {
         return this.state.phase.value === 'open';
     }
 
-    /** Replaces the items (closes sub-rings). */
+    /** Replaces the items and rebuilds their icons. Open sub-rings close. */
     setItems(items: RadialItem[]): void {
         for (const n of this._nodes) n.icon?.destroy();
         for (const n of this._nodes) n.pillText?.destroy();
@@ -370,7 +385,7 @@ export class RadialMenu extends Container {
         this._driver.wake();
     }
 
-    /** Closes the menu (animated). */
+    /** Closes the menu with an animation and calls `onClose`. Does nothing unless it is open. */
     close(): void {
         if (this.state.phase.value !== 'open') return;
         this.state.phase.set('closing');
@@ -388,7 +403,7 @@ export class RadialMenu extends Container {
         this._driver.wake();
     }
 
-    /** Picks `item` as if the user released on it. */
+    /** Picks `item` as if the user released on it. Ignored when the menu is not open, or the item is disabled or not shown in it. */
     select(item: RadialItem): void {
         const node = this._nodes.find((n) => n.item === item);
 
@@ -407,6 +422,7 @@ export class RadialMenu extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation and the Escape listener. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         if (typeof window !== 'undefined') window.removeEventListener('keydown', this._onKey);
@@ -857,7 +873,7 @@ export class RadialMenu extends Container {
 export interface RadialTriggerOptions {
     /** `press` opens on pointer down, `hold` after a still press of `holdMs` (long-press, good on touch). Default `press`. */
     mode?: 'press' | 'hold';
-    /** Long-press time for `hold`. Default 320 ms. */
+    /** Long-press time for `hold`, in ms. Default 320. */
     holdMs?: number;
     /** Open centred on the `target` or at the `pointer`. Default `target`. */
     at?: 'target' | 'pointer';
@@ -866,7 +882,8 @@ export interface RadialTriggerOptions {
 }
 
 /**
- * Makes `target` open `menu` (which must already be on the stage). Returns a function that unbinds it.
+ * Makes `target` open `menu` (which must already be on the stage). Sets the target's `eventMode` to
+ * `static` when it was not interactive. Returns a function that unbinds it.
  */
 export function bindRadialTrigger(target: Container, menu: RadialMenu, options: RadialTriggerOptions = {}): () => void {
     const { mode = 'press', holdMs = 320, at = 'target', buttons = [0, 2] } = options;
