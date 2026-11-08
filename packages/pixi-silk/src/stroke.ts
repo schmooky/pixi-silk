@@ -87,29 +87,35 @@ export function polygonDist(pts: number[], x: number, y: number): number {
     return sign * Math.sqrt(d);
 }
 
-/** End kinds of one straight piece: 0 butt, 1 round, 2 square (the Cap ids). */
-function pieceDist(qx: number, qy: number, len: number, k0: number, k1: number, hw: number): number {
+/**
+ * Distance of one straight piece in its own frame (qx along, qy across) covering [0, len]. End
+ * kinds are the Cap ids (0 butt, 1 round, 2 square). At the start, 3 is the round join of an inner
+ * vertex. That disc is cut to the stroke: at most `back` before the start and no further than the
+ * piece's end. The shader's `pieceSD` does the same.
+ */
+function pieceDist(qx: number, qy: number, len: number, k0: number, k1: number, hw: number, back: number): number {
     const lo = k0 === Cap.Square ? -hw : 0;
     const hi = len + (k1 === Cap.Square ? hw : 0);
     const bx = Math.abs(qx - 0.5 * (lo + hi)) - 0.5 * (hi - lo);
     const by = Math.abs(qy) - hw;
     let d = Math.hypot(Math.max(bx, 0), Math.max(by, 0)) + Math.min(Math.max(bx, by), 0);
+    const disc = Math.hypot(qx, qy) - hw;
 
-    if (k0 === Cap.Round) d = Math.min(d, Math.hypot(qx, qy) - hw);
+    if (k0 === Cap.Round) d = Math.min(d, disc);
+    if (k0 === 3) d = Math.min(d, Math.max(disc, -back - qx, qx - hi));
     if (k1 === Cap.Round) d = Math.min(d, Math.hypot(qx - len, qy) - hw);
 
     return d;
 }
 
-/** Options of {@link pathStrokeDist}, in the order a Prim.Path instance stores them. */
+/**
+ * Options of {@link pathStrokeDist}, as a Prim.Path instance stores them. Its window texels
+ * (header texel, first segment, count, owner key) list the windows it owns first.
+ */
 export interface PathRef {
-    /** First header texel. */
-    header: number;
-    /** Subpaths in the instance. */
-    subpaths: number;
-    /** First segment of a chunk (ignored when `count` is negative). */
-    first: number;
-    /** Segments of a chunk, or -1 for every segment of every subpath. */
+    /** First window texel. */
+    windows: number;
+    /** Windows the instance owns. */
     count: number;
     join: Join;
     miterLimit: number;
@@ -128,28 +134,55 @@ function dirOf(e: Float32Array, t: number): [number, number] {
 }
 
 /**
- * Signed distance to the stroke of the segments a Prim.Path instance owns (no dashes): negative
- * inside. Every chunk owns the join at the start of its segments, as the shader does.
+ * How the shader joins two pieces with directions d0 and d1. 0 is butt ends only, where the path
+ * folds back. 1 is a round disc: round joins, and miters or bevels within a tenth of a pixel `px`
+ * of one. 2 is a miter, 3 a bevel.
  */
-export function pathStrokeDist(e: Float32Array, ref: PathRef, x: number, y: number): number {
+export function joinKind(
+    d0x: number,
+    d0y: number,
+    d1x: number,
+    d1y: number,
+    hw: number,
+    join: Join,
+    limit: number,
+    px: number,
+): number {
+    if (join === Join.Round) return 1;
+    const ch = Math.sqrt(Math.max(0.5 * (1 + d0x * d1x + d0y * d1y), 0));
+
+    if (ch < 1e-4) return 0;
+    const miter = join === Join.Miter && 1 / ch <= limit;
+    const diff = miter ? hw * (1 / ch - 1) : hw * (1 - ch);
+
+    if (diff < 0.1 * px) return 1;
+
+    return miter ? 2 : 3;
+}
+
+/**
+ * Signed distance to the stroke of the segments a Prim.Path instance owns (no dashes): negative
+ * inside. The piece after a vertex owns its join, as in the shader. `px` is the size of a pixel in
+ * local units: joins closer than a tenth of it to round are drawn round, as the shader does.
+ *
+ * Path texture layout of a subpath: a header (segments, closed, length, dash scale), one
+ * (ax, ay, bx, by) texel per segment, then the length before each segment, four per texel.
+ */
+export function pathStrokeDist(e: Float32Array, ref: PathRef, x: number, y: number, px = 0): number {
     const { hw, join } = ref;
-    const whole = ref.count < 0;
-    const interior = join === Join.Round ? Cap.Round : Cap.Butt;
-    let hdr = ref.header;
     let best = Infinity;
 
-    for (let sp = 0; sp < ref.subpaths; sp++) {
+    for (let w = 0; w < ref.count; w++) {
+        const wt = (ref.windows + w) * 4;
+        const hdr = Math.round(e[wt]);
+        const s = Math.round(e[wt + 1]);
+        const m = Math.round(e[wt + 2]);
         const n = Math.round(e[hdr * 4]);
         const closed = e[hdr * 4 + 1] > 0.5;
         const first = hdr + 1;
-        const a = whole ? 0 : ref.first;
-        const m = whole ? n : ref.count;
+        const cumAt = (first + n) * 4;
 
-        hdr += 1 + n;
-        for (let k = 0; k < m; k++) {
-            const i = a + k;
-
-            if (i >= n) break;
+        for (let i = s; i < s + m && i < n; i++) {
             const t = first + i;
             const ax = e[t * 4];
             const ay = e[t * 4 + 1];
@@ -159,18 +192,14 @@ export function pathStrokeDist(e: Float32Array, ref: PathRef, x: number, y: numb
             const hasNext = closed || i < n - 1;
             const wx = x - ax;
             const wy = y - ay;
-            let d = pieceDist(
-                wx * dx + wy * dy,
-                dx * wy - dy * wx,
-                len,
-                hasPrev ? interior : ref.cap0,
-                hasNext ? interior : ref.cap1,
-                hw,
-            );
+            const back = closed ? Infinity : e[cumAt + i] + (ref.cap0 !== Cap.Butt ? hw : 0);
+            const [ux, uy] = hasPrev ? dirOf(e, first + ((i - 1 + n) % n)) : [dx, dy];
+            const kind = hasPrev ? joinKind(ux, uy, dx, dy, hw, join, ref.miterLimit, px) : -1;
+            const k0 = kind < 0 ? ref.cap0 : kind === 1 ? 3 : Cap.Butt;
+            let d = pieceDist(wx * dx + wy * dy, dx * wy - dy * wx, len, k0, hasNext ? Cap.Butt : ref.cap1, hw, back);
 
-            if (hasPrev && join !== Join.Round) {
-                const [px, py] = dirOf(e, first + ((i - 1 + n) % n));
-                const poly = joinPolygon(ax, ay, px, py, dx, dy, hw, join, ref.miterLimit);
+            if (kind >= 2) {
+                const poly = joinPolygon(ax, ay, ux, uy, dx, dy, hw, join, ref.miterLimit);
 
                 if (poly) d = Math.min(d, polygonDist(poly, x, y));
             }
@@ -179,4 +208,151 @@ export function pathStrokeDist(e: Float32Array, ref: PathRef, x: number, y: numb
     }
 
     return best;
+}
+
+/** A run of segments `s .. s + count` of a subpath whose points are `sub.pts` (flat, cleaned). */
+export interface StrokeWindow<S extends { pts: number[] }> {
+    sub: S;
+    s: number;
+    count: number;
+}
+
+/** A window another instance owns, with that instance's key (its index). */
+export interface NearWindow<S extends { pts: number[] }> extends StrokeWindow<S> {
+    key: number;
+}
+
+function pointSegDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+    const abx = bx - ax;
+    const aby = by - ay;
+    const len2 = abx * abx + aby * aby;
+    const h = len2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / len2)) : 0;
+
+    return Math.hypot(px - ax - abx * h, py - ay - aby * h);
+}
+
+const cross = (ox: number, oy: number, px: number, py: number, qx: number, qy: number) =>
+    (px - ox) * (qy - oy) - (py - oy) * (qx - ox);
+
+/** Distance between segment `a` of `ca` and segment `b` of `cb` (4 floats each: ax, ay, bx, by). */
+export function segSegDist(ca: number[], a: number, cb: number[], b: number): number {
+    const ax = ca[a];
+    const ay = ca[a + 1];
+    const bx = ca[a + 2];
+    const by = ca[a + 3];
+    const cx = cb[b];
+    const cy = cb[b + 1];
+    const dx = cb[b + 2];
+    const dy = cb[b + 3];
+
+    if (
+        cross(ax, ay, bx, by, cx, cy) * cross(ax, ay, bx, by, dx, dy) < 0 &&
+        cross(cx, cy, dx, dy, ax, ay) * cross(cx, cy, dx, dy, bx, by) < 0
+    )
+        return 0;
+
+    return Math.min(
+        pointSegDist(ax, ay, cx, cy, dx, dy),
+        pointSegDist(bx, by, cx, cy, dx, dy),
+        pointSegDist(cx, cy, ax, ay, bx, by),
+        pointSegDist(dx, dy, ax, ay, bx, by),
+    );
+}
+
+/**
+ * For every instance of a stroked path, given as the windows it owns, the windows of the other
+ * instances whose segments come within `2 r` of its own. There their strokes, `r` wide on each
+ * side, can meet. The test is symmetric, so two instances that can paint the same pixel always see each
+ * other's segments and agree on which of them shades it.
+ */
+export function nearWindows<S extends { pts: number[] }>(owned: StrokeWindow<S>[][], r: number): NearWindow<S>[][] {
+    const reach = 2 * r;
+    const coords: number[][] = [];
+    const refs: { sub: S; i: number }[][] = [];
+    const boxes: number[][] = [];
+
+    for (const wins of owned) {
+        const c: number[] = [];
+        const ref: { sub: S; i: number }[] = [];
+        const box = [Infinity, Infinity, -Infinity, -Infinity];
+
+        for (const { sub, s, count } of wins) {
+            const n = sub.pts.length / 2;
+
+            for (let i = s; i < s + count; i++) {
+                const j = n === 1 ? 0 : (i + 1) % n;
+
+                c.push(sub.pts[i * 2], sub.pts[i * 2 + 1], sub.pts[j * 2], sub.pts[j * 2 + 1]);
+                ref.push({ sub, i });
+            }
+        }
+        for (let k = 0; k < c.length; k += 2) {
+            box[0] = Math.min(box[0], c[k]);
+            box[1] = Math.min(box[1], c[k + 1]);
+            box[2] = Math.max(box[2], c[k]);
+            box[3] = Math.max(box[3], c[k + 1]);
+        }
+        coords.push(c);
+        refs.push(ref);
+        boxes.push(box);
+    }
+    const marks = owned.map(() => new Map<number, Set<number>>());
+    const mark = (to: number, from: number, seg: number) => {
+        let set = marks[to].get(from);
+
+        if (!set) {
+            set = new Set();
+            marks[to].set(from, set);
+        }
+        set.add(seg);
+    };
+
+    for (let a = 0; a < owned.length; a++) {
+        const A = boxes[a];
+        const ca = coords[a];
+
+        for (let b = a + 1; b < owned.length; b++) {
+            const B = boxes[b];
+
+            if (A[0] - reach > B[2] || B[0] - reach > A[2] || A[1] - reach > B[3] || B[1] - reach > A[3]) continue;
+            const cb = coords[b];
+
+            for (let u = 0; u < ca.length; u += 4) {
+                const x0 = Math.min(ca[u], ca[u + 2]) - reach;
+                const x1 = Math.max(ca[u], ca[u + 2]) + reach;
+                const y0 = Math.min(ca[u + 1], ca[u + 3]) - reach;
+                const y1 = Math.max(ca[u + 1], ca[u + 3]) + reach;
+
+                if (x0 > B[2] || x1 < B[0] || y0 > B[3] || y1 < B[1]) continue;
+                for (let t = 0; t < cb.length; t += 4) {
+                    if (Math.max(cb[t], cb[t + 2]) < x0 || Math.min(cb[t], cb[t + 2]) > x1) continue;
+                    if (Math.max(cb[t + 1], cb[t + 3]) < y0 || Math.min(cb[t + 1], cb[t + 3]) > y1) continue;
+                    if (segSegDist(ca, u, cb, t) > reach) continue;
+                    mark(a, b, t / 4);
+                    mark(b, a, u / 4);
+                }
+            }
+        }
+    }
+
+    // marked segments of each other instance, as runs of consecutive segments of one subpath
+    return marks.map((byOwner) => {
+        const out: NearWindow<S>[] = [];
+
+        for (const [key, set] of byOwner) {
+            let cur: NearWindow<S> | null = null;
+
+            for (const idx of [...set].sort((x, y) => x - y)) {
+                const { sub, i } = refs[key][idx];
+
+                if (cur && cur.sub === sub && cur.s + cur.count === i) cur.count++;
+                else {
+                    cur = { sub, s: i, count: 1, key };
+                    out.push(cur);
+                }
+            }
+        }
+
+        return out;
+    });
 }

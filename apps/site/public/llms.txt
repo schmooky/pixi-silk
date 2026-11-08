@@ -64,6 +64,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Shapes](https://pixi-silk.schmooky.dev/docs/shapes/): Rects, squircles with per-corner radii, pills, circles, ellipses, hearts, stars, polygons and rounded triangles, each an exact anti-aliased distance field. (Markdown: https://pixi-silk.schmooky.dev/docs/shapes.md)
   - Experiment: [Rounded rects & squircles](https://pixi-silk.schmooky.dev/lab/07-rounded-rects/): Per-corner radii and continuous-curvature corners with a live smoothing slider.
   - Experiment: [Icons](https://pixi-silk.schmooky.dev/lab/11-icons/): Sixteen glyphs built from primitives, crisp at 16, 28 and 56 px. Uses save / translateTransform.
+- [Shape operations](https://pixi-silk.schmooky.dev/docs/shape-operations/): Union, subtract, intersect and exclude shapes and SVG paths in PixiJS. Each result is one exact distance field with sharp edges, strokes, gradients and blur. (Markdown: https://pixi-silk.schmooky.dev/docs/shape-operations.md)
 - [Arcs, sectors & rings](https://pixi-silk.schmooky.dev/docs/arcs-and-rings/): Arcs with round, butt or square caps, pie and donut sectors with rounded corners, and activity rings whose conic gradients follow the arc. (Markdown: https://pixi-silk.schmooky.dev/docs/arcs-and-rings.md)
   - Experiment: [Activity rings](https://pixi-silk.schmooky.dev/lab/08-activity-rings/): Conic gradients that follow each arc, >100% overlap with a soft tip shadow, springs.
 - [Lines & paths](https://pixi-silk.schmooky.dev/docs/lines-and-paths/): Anti-aliased lines and polylines with monotone or Catmull-Rom smoothing, Bezier paths, tapered strokes and translucent joints without double blending. (Markdown: https://pixi-silk.schmooky.dev/docs/lines-and-paths.md)
@@ -94,10 +95,12 @@ The docs are grouped into areas. Each area overview tours its features with live
   - Experiment: [Gauges](https://pixi-silk.schmooky.dev/lab/20-gauges/): ISS flyover, car battery, heading dial with ticks, barometer, UV week, dimmer.
   - Experiment: [Sparklines](https://pixi-silk.schmooky.dev/lab/21-sparklines/): Value-coloured strokes, gradient markers, threshold stops, interactive crosshair.
 - [Sharp text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas. Text stays crisp from 0.5x to 100x zoom, with outlines, glows and tabular numbers. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
+- [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/): TextEditor makes SilkText clickable and editable like a design tool text layer: caret, selection, undo, clipboard and input methods, sharp at any zoom. (Markdown: https://pixi-silk.schmooky.dev/docs/editing-text.md)
 - [Hit testing & events](https://pixi-silk.schmooky.dev/docs/hit-testing/): Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded. (Markdown: https://pixi-silk.schmooky.dev/docs/hit-testing.md)
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
   - Experiment: [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.
 - [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
+- [Layout and smart containers](https://pixi-silk.schmooky.dev/docs/layout/): Place HUD boxes on any screen the way slot games do, with portrait and landscape records, then lay out what is inside them with a small flex engine. (Markdown: https://pixi-silk.schmooky.dev/docs/layout.md)
 
 ### Editor UI
 
@@ -110,6 +113,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/): Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model. (Markdown: https://pixi-silk.schmooky.dev/docs/color-pickers.md)
 - [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/): Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch. (Markdown: https://pixi-silk.schmooky.dev/docs/editor-tools.md)
 - [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline/): A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits. (Markdown: https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md)
+- [Panels](https://pixi-silk.schmooky.dev/docs/panels/): Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera. (Markdown: https://pixi-silk.schmooky.dev/docs/panels.md)
 
 ### Examples
 
@@ -163,7 +167,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [RadialGradient](https://pixi-silk.schmooky.dev/api/classes/RadialGradient/): Class. A ramp from a centre outwards, optionally starting at an inner radius. Create it with radial.
 - [SilkGeometry](https://pixi-silk.schmooky.dev/api/classes/SilkGeometry/): Class. Geometry behind every SilkGraphics: one unit quad plus an interleaved instance buffer (40 floats per primitive). You rarely need it directly.
 - [SilkGraphics](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/): Class. A PixiJS display object with a Graphics-like API. Every primitive is a signed distance field evaluated per pixel, so edges are smooth at any scale,...
-- [SilkPipe](https://pixi-silk.schmooky.dev/api/classes/SilkPipe/): Class. Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call. enableSilkBatching installs it.
+- [SilkPipe](https://pixi-silk.schmooky.dev/api/classes/SilkPipe/): Class. Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call, under WebGL2 and WebGPU. enableSilkBatching installs it.
 - [Spring](https://pixi-silk.schmooky.dev/api/classes/Spring/): Class. Damped harmonic spring (semi-implicit Euler with fixed sub-steps). stiffness / damping follow the usual UI spring convention (e.g. 170 / 26).
 - [along](https://pixi-silk.schmooky.dev/api/functions/along/): Function. Gradient that follows a stroke from its first point (t = 0) to its last (t = 1).
 - [catmullRom](https://pixi-silk.schmooky.dev/api/functions/catmullRom/): Function. Centripetal Catmull-Rom spline through the points (no cusps or self-loops).
@@ -206,6 +210,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [MeshColorInput](https://pixi-silk.schmooky.dev/api/types/MeshColorInput/): Type. A mesh control colour: any Pixi colour, or [color, alpha]. Type MeshColorInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [PointsInput](https://pixi-silk.schmooky.dev/api/types/PointsInput/): Type. Points as a flat [x0, y0, x1, y1, ...] array, a typed array, or an array of { x, y } objects.
 - [RGBA](https://pixi-silk.schmooky.dev/api/types/RGBA/): Type. Straight (non-premultiplied) sRGB colour with alpha, all channels 0..1, as returned by parseColor.
+- [ShapeOp](https://pixi-silk.schmooky.dev/api/types/ShapeOp/): Type. A shape operation: union merges, subtract cuts the later shapes out of the first, intersect keeps the overlap, and exclude keeps what is covered an odd...
 - [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/): Type. A color stop: a bare color (stops are spread evenly), [offset, color], [offset, color, alpha] or { offset, color, alpha }.
 - [StrokeInput](https://pixi-silk.schmooky.dev/api/types/StrokeInput/): Type. What stroke() accepts: any Pixi colour, a gradient or a StrokeStyle. Type StrokeInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [Vec2](https://pixi-silk.schmooky.dev/api/types/Vec2/): Type. A point [x, y]. In shape units, x and y are fractions of the painted shape's box.
@@ -235,6 +240,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [What license is pixi-silk under?](https://pixi-silk.schmooky.dev/faq/#what-license-is-pixi-silk-under)
 - [Does pixi-silk come with UI widgets?](https://pixi-silk.schmooky.dev/faq/#does-pixi-silk-come-with-ui-widgets)
 - [Can I build an editor or design tool with pixi-silk?](https://pixi-silk.schmooky.dev/faq/#can-i-build-an-editor-or-design-tool-with-pixi-silk)
+- [Do I need DOM panels over the canvas for a scene editor?](https://pixi-silk.schmooky.dev/faq/#do-i-need-dom-panels-over-the-canvas-for-a-scene-editor)
 - [Are the slot game HUD controls part of pixi-silk?](https://pixi-silk.schmooky.dev/faq/#are-the-slot-game-hud-controls-part-of-pixi-silk)
 
 ## Optional

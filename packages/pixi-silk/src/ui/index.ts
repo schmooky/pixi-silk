@@ -73,6 +73,7 @@ export { ButtonDock, type ButtonDockOptions } from './ButtonDock';
 export { BrushCursor, type BrushCursorOptions, type BrushState } from './brush';
 export {
     Camera,
+    type CameraInsets,
     type CameraOptions,
     type CameraState,
     type WorldRect,
@@ -192,6 +193,32 @@ export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, isTypingTarget, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
 export {
+    type Breakpoint,
+    DEVICES,
+    type FitMode,
+    FlexContainer,
+    type FlexContainerOptions,
+    fitScale,
+    type Insets,
+    type LayoutData,
+    type LayoutDebug,
+    type LayoutDebugOptions,
+    layoutDebug,
+    type MediaRule,
+    type Placement,
+    placeBox,
+    SimulatedViewport,
+    type SimulatedViewportOptions,
+    SmartContainer,
+    type SmartContainerOptions,
+    type SmartLayout,
+    type SmartStyle,
+    simulateViewport,
+    type ViewportRect,
+    type ViewportSource,
+    wrapText,
+} from './layout';
+export {
     combineSelection,
     Marquee,
     type MarqueeMode,
@@ -232,6 +259,100 @@ export {
     scaleQuad,
     unionQuad,
 } from './outline';
+export {
+    bindObjects,
+    bindSignals,
+    type FieldValue,
+    fieldValue,
+    getPath,
+    type InspectorBinding,
+    setPath,
+    type WritableSignal,
+} from './panels/binding';
+export {
+    ChoiceField,
+    type ChoiceFieldOptions,
+    type ChoiceOption,
+    ColorField,
+    type ColorFieldOptions,
+    Field,
+    type FieldContext,
+    type FieldEdit,
+    NumberField,
+    type NumberFieldOptions,
+    TextField,
+    type TextFieldOptions,
+    ToggleField,
+    type ToggleFieldOptions,
+    VectorField,
+    type VectorFieldOptions,
+} from './panels/fields';
+export {
+    type ChoiceFieldSpec,
+    type ColorFieldSpec,
+    type ColorPickerFactory,
+    Inspector,
+    type InspectorField,
+    type InspectorOptions,
+    type InspectorState,
+    type NumberFieldSpec,
+    type SectionSpec,
+    type TextFieldSpec,
+    type ToggleFieldSpec,
+    type VectorFieldSpec,
+} from './panels/Inspector';
+export { drawLayerIcon, type LayerKind } from './panels/icons';
+export { LayerTree, type LayerTreeOptions, type LayerTreeState } from './panels/LayerTree';
+export {
+    Minimap,
+    type MinimapOptions,
+    type MinimapState,
+    type MinimapTransform,
+    minimapFit,
+    minimapToWorld,
+    unionRect,
+    worldRectToMinimap,
+    worldToMinimap,
+} from './panels/Minimap';
+export {
+    dockAt,
+    dockRect,
+    Panel,
+    type PanelDock,
+    type PanelInsets,
+    type PanelOptions,
+    type PanelRect,
+    type PanelState,
+    type PanelViewport,
+    panelHitTest,
+} from './panels/Panel';
+export { type PixiTreeAdapter, type PixiTreeOptions, pixiTreeAdapter } from './panels/pixi-tree';
+export { ScrollView, type ScrollViewOptions, type ScrollViewState } from './panels/ScrollView';
+export {
+    fitText,
+    PANEL_THEME,
+    PANEL_THEME_LIGHT,
+    type PanelTextOptions,
+    type PanelTheme,
+    panelText,
+    resolvePanelTheme,
+} from './panels/theme';
+export {
+    applyDrop,
+    type DropTarget,
+    type DropTargetOptions,
+    dropTarget,
+    type FlatRow,
+    findParent,
+    flattenTree,
+    type LayerIcon,
+    type MoveStep,
+    redoMoves,
+    type TreeAdapter,
+    topLevelNodes,
+    undoMoves,
+    visibleRange,
+} from './panels/tree';
 export {
     PATH_GIZMO_THEME,
     PathGizmo,
@@ -297,6 +418,15 @@ export {
     type SpacingResult,
     spacingFromSnap,
 } from './spacing';
+export {
+    TEXT_EDITOR_THEME,
+    type TextEditKind,
+    TextEditor,
+    type TextEditorOptions,
+    type TextEditorState,
+    type TextEditorTheme,
+    type TextSelection,
+} from './textedit';
 export {
     MiniTimeline,
     type MiniTimelineOptions,

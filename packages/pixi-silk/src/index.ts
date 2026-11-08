@@ -39,6 +39,7 @@ export {
     type LineJoin,
     type PolylineOptions,
     type ProgressiveBlur,
+    type ShapeOp,
     SilkGeometry,
     SilkGraphics,
     type SilkGraphicsOptions,

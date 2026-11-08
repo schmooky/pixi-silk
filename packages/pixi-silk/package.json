@@ -135,6 +135,26 @@
       "types": "./dist/ui/pill.d.ts",
       "default": "./dist/ui/pill.js"
     },
+    "./ui/textedit": {
+      "types": "./dist/ui/textedit.d.ts",
+      "default": "./dist/ui/textedit.js"
+    },
+    "./ui/panel": {
+      "types": "./dist/ui/panel.d.ts",
+      "default": "./dist/ui/panel.js"
+    },
+    "./ui/layers": {
+      "types": "./dist/ui/layers.d.ts",
+      "default": "./dist/ui/layers.js"
+    },
+    "./ui/inspector": {
+      "types": "./dist/ui/inspector.d.ts",
+      "default": "./dist/ui/inspector.js"
+    },
+    "./ui/minimap": {
+      "types": "./dist/ui/minimap.d.ts",
+      "default": "./dist/ui/minimap.js"
+    },
     "./glass": {
       "types": "./dist/glass.d.ts",
       "default": "./dist/glass.js"
@@ -150,6 +170,14 @@
     "./text": {
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "default": "./dist/layout.js"
+    },
+    "./ui/layout": {
+      "types": "./dist/ui/layout.d.ts",
+      "default": "./dist/ui/layout.js"
     },
     "./package.json": "./package.json"
   },

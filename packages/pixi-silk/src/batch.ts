@@ -14,16 +14,21 @@ import {
     State,
     UniformGroup,
     type WebGLRenderer,
+    type WebGPURenderer,
 } from 'pixi.js';
 import { POLY_WIDTH, STRIDE } from './constants';
 import { SilkGeometry, SilkGraphics } from './SilkGraphics';
 import { createSilkShader } from './shader';
+import { silkGpu } from './shader-slot';
 
 /*
  * Batching across objects. Consecutive SilkGraphics with the same blend mode and settings render
  * in one instanced draw: their instances are copied into one buffer, each tagged with its object
  * index (aFx.w). The vertex shader reads that object's matrix, tint and path-texel base from an
  * object table texture. Path texels are copied into one shared texture at that base.
+ *
+ * WebGL2 and WebGPU share all of it: the packing, the textures and the shader resources. Only the
+ * bind groups of Pixi's global and local uniforms differ: GL binds them by name, WebGPU by group.
  */
 
 /** Texels per object in the object table: matrix (a, b, c, d), (tx, ty, path base, 0), tint. */
@@ -204,8 +209,8 @@ interface SetRecord {
 }
 
 /**
- * Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call.
- * {@link enableSilkBatching} installs it. On WebGPU it hands every object to Pixi's mesh pipe.
+ * Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call, under WebGL2
+ * and WebGPU. {@link enableSilkBatching} installs it.
  */
 export class SilkPipe implements RenderPipe<SilkGraphics> {
     /** Pixi extension metadata, for `extensions.add(SilkPipe)` if you register it yourself. */
@@ -232,8 +237,12 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
         this._renderer = renderer;
     }
 
+    /**
+     * Whether this renderer batches. WebGPU needs the WGSL program (`enableWebGPU()`), or the batch
+     * would have no program to draw with: without it, objects go to the mesh pipe as before.
+     */
     private get _batching(): boolean {
-        return this._renderer.type === RendererType.WEBGL;
+        return this._renderer.type === RendererType.WEBGL || silkGpu.program !== null;
     }
 
     /** Adds `g` to the current run when it can share its draw, or starts a new run. */
@@ -369,12 +378,21 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
             silk.set(b.settings);
             (shader.resources.silkUniforms as UniformGroup).update();
         }
-        const renderer = this._renderer as WebGLRenderer;
-
-        shader.groups[100] = renderer.globalUniforms.bindGroup;
-        shader.groups[101] = this._localGroup;
         b.state.blendMode = b.blendMode;
-        renderer.encoder.draw({ geometry: b.geometry, shader, state: b.state });
+        if (this._renderer.type === RendererType.WEBGPU) {
+            // WGSL groups 0 and 1: Pixi's globals, and identity local uniforms (the object table moves objects)
+            const renderer = this._renderer as WebGPURenderer;
+
+            shader.groups[0] = renderer.globalUniforms.bindGroup;
+            shader.groups[1] = renderer.renderPipes.uniformBatch.getUniformBindGroup(this._local, true);
+            renderer.encoder.draw({ geometry: b.geometry, shader, state: b.state });
+        } else {
+            const renderer = this._renderer as WebGLRenderer;
+
+            shader.groups[100] = renderer.globalUniforms.bindGroup;
+            shader.groups[101] = this._localGroup;
+            renderer.encoder.draw({ geometry: b.geometry, shader, state: b.state });
+        }
     }
 }
 
@@ -383,6 +401,9 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
  * settings render in one draw call. Objects created after the call take part. Each renderer gets
  * the pipe the first time it draws one of them, so you can call it before or after creating the
  * Application. It is safe to call again.
+ *
+ * It works with WebGL2 and with WebGPU. On WebGPU, call `enableWebGPU()` too ({@link createSilkApp}
+ * does it for you), or objects draw one call each, as without batching.
  *
  * @example
  * ```ts

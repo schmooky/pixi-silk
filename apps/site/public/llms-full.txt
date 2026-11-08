@@ -521,6 +521,9 @@ g.rect(0, -2, 40, 4)
 Let the shapes overlap a little. A `stroke()` right after a union fill follows the outline of the
 union. With `stroke({ union: true })`, separate lines and paths become one stroke.
 
+To subtract, intersect or exclude shapes, or to nest operations, see
+[Shape operations](https://pixi-silk.schmooky.dev/docs/shape-operations/).
+
 ## Rotated shapes
 
 Shapes drawn inside a rotated transform stay exact, because the rotation is part of the primitive.
@@ -541,6 +544,179 @@ g.roundRect(0, 0, 200, 80, 20, 0.6).fill(0x1c1c1e).stroke({ width: 2, color: 0x3
 Calling `stroke()` right after `fill()` merges both into one primitive. The shader splits each
 pixel's coverage exactly between the fill and the stroke band. So there is never a seam or a halo
 between them. See [Fills & strokes](https://pixi-silk.schmooky.dev/docs/fills-and-strokes/).
+
+---
+
+# Shape operations
+
+URL: https://pixi-silk.schmooky.dev/docs/shape-operations/
+Section: Drawing
+
+> Union, subtract, intersect and exclude shapes and SVG paths in PixiJS. Each result is one exact distance field with sharp edges, strokes, gradients and blur.
+
+Shape operations combine shapes into one. Cut a hole in a card, make a ring from two circles, or
+build an icon from a few primitives. The result is one distance field. It is painted once, so a
+translucent fill has no darker overlaps, and its outline is exact.
+
+Live demo `shape-ops` (source):
+
+```ts
+import { conic, type ShapeOp, SilkGraphics } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+// Shape operations: one exact shape from many. Each result is one instance, painted once.
+export default defineDemo({
+    size: [520, 280],
+    controls: {
+        op: {
+            type: 'select',
+            label: 'op',
+            options: ['union', 'subtract', 'intersect', 'exclude'],
+            value: 'subtract',
+        },
+        stroke: { type: 'toggle', label: 'stroke', value: true },
+        blur: { type: 'range', label: 'blur', min: 0, max: 12, step: 1, value: 0, unit: 'px' },
+    },
+    setup({ stage, params, tick }) {
+        const g = new SilkGraphics();
+        const ringPaint = conic([0x30d158, 0xffd60a, 0x30d158]);
+
+        stage.addChild(g);
+        tick((t) => {
+            const op = params.op as ShapeOp;
+            const outline = params.stroke ? { width: 3, color: 0xffffff, alpha: 0.9 } : null;
+            const dx = Math.sin(t * 0.8) * 14;
+
+            g.clear();
+            // two circles combined by the picked op, translucent so double painting would show
+            g.circle(76, 110, 52)
+                .circle(124 + dx, 110, 52)
+                .fill({ color: 0x0a84ff, alpha: 0.75, op, blur: params.blur });
+            if (outline) g.stroke({ ...outline, op });
+
+            // a ring with a notch: a circle minus a smaller circle and a bar
+            g.boolean(
+                'subtract',
+                (g) => g.circle(250, 110, 56),
+                (g) => g.circle(250, 110, 34).rect(244, 40, 12, 40),
+            ).fill({ gradient: ringPaint, blur: params.blur });
+            if (outline) g.stroke(outline);
+
+            // an icon: a rounded card minus a cutout keyhole, plus a dot
+            g.boolean(
+                'union',
+                (g) =>
+                    g.boolean(
+                        'subtract',
+                        (g) => g.roundRect(340, 54, 112, 112, 30, 0.6),
+                        (g) => g.circle(396, 98, 20).triangle(386, 104, 406, 104, 396, 140, 3),
+                    ),
+                (g) => g.circle(452, 54, 14),
+            ).fill({
+                color: 0xff375f,
+                blur: params.blur,
+                innerShadow: { y: 3, blur: 4, color: 0xffffff, alpha: 0.5 },
+            });
+            if (outline) g.stroke(outline);
+
+            // an SVG path, a star cut out of it
+            g.svgPath('M60 250 C 60 200 140 200 140 250 C 140 280 60 280 60 250 Z')
+                .star(100, 240, 5, 18, 8)
+                .fill({ color: 0xbf5af2, op: 'subtract', blur: params.blur });
+            g.svgPath('M180 270 l30 -60 l30 60 z m30 -42 l-12 30 h24 z').fill({ color: 0xff9f0a, blur: params.blur });
+            if (outline) g.stroke(outline);
+        });
+
+        return undefined;
+    },
+});
+```
+
+## Combine the shapes of a path
+
+Add `op` to `fill()` or `stroke()`. It combines every closed shape on the active path.
+
+```ts
+g.circle(60, 60, 50).circle(60, 60, 30).fill({ color: 0x30d158, op: 'subtract' }); // a ring
+g.rect(0, 0, 80, 80).circle(80, 80, 40).fill({ color: 0x0a84ff, op: 'intersect' }); // a quarter disc
+g.circle(40, 40, 30).circle(70, 40, 30).fill({ color: 0xff375f, op: 'exclude' }); // two lenses
+```
+
+| op | result |
+|---|---|
+| `union` | everything any shape covers. The same as `union: true`. |
+| `subtract` | the first shape, minus every later one |
+| `intersect` | only what every shape covers |
+| `exclude` | what an odd number of shapes cover |
+
+A `stroke()` right after the fill follows the outline of the result, in the same instance. A
+stroke with its own `op` strokes the outline without a fill.
+
+```ts
+g.roundRect(0, 0, 120, 80, 16)
+    .circle(60, 40, 24)
+    .fill({ color: 0x1c1c1e, op: 'subtract' })
+    .stroke({ width: 2, color: 0xffffff });
+```
+
+## Nest operations with boolean()
+
+`boolean(op, a, b)` adds one shape to the active path: what callback `a` draws, combined with what
+callback `b` draws. The shapes inside each callback are merged first. A callback can call
+`boolean()` again, so any tree of operations works. Paint the result like any shape.
+
+```ts
+// a ring with a notch, and a dot in the middle
+g.boolean(
+    'union',
+    (g) =>
+        g.boolean(
+            'subtract',
+            (g) => g.circle(50, 50, 40),
+            (g) => g.circle(50, 50, 24).rect(46, 0, 8, 30),
+        ),
+    (g) => g.circle(50, 50, 8),
+).fill(0xff9f0a);
+```
+
+The callbacks only add shapes. Do not call `fill()` or `stroke()` inside them. Up to 8 operands
+can wait on each other at once, which is far more nesting than an icon needs. Deeper trees are
+skipped with a warning.
+
+## SVG paths
+
+`svgPath(d)` reads the `d` attribute of an SVG path into the active path. It supports `M`, `L`,
+`H`, `V`, `C`, `S`, `Q`, `T`, `A` and `Z`, absolute and relative. A fill draws it as one
+even-odd shape, so the inner square of `M0 0 H60 V60 H0 Z M20 20 V40 H40 V20 Z` is a hole.
+
+```ts
+g.svgPath('M12 2 L22 22 H2 Z').fill(0xffd60a);
+g.svgPath('M4 4 H20 V20 H4 Z').circle(12, 12, 4).fill({ color: 0xffffff, op: 'subtract' });
+```
+
+In a shape operation, a path from `svgPath()` or `moveTo()` is one operand with all its subpaths.
+With `union`, each subpath counts on its own, as it always did.
+
+## Paint and effects
+
+Everything that paints a closed shape works on the result: colours, gradients, `blur`, a
+progressive blur, `spread`, inner shadows and `blend: 'add'`. Gradients without explicit units span
+the bounds of the result.
+
+The outline is exact, so anti-aliasing is as sharp as on a circle at any zoom. Inside the shape
+and far outside it, the combined distance is a close bound instead. A blur, a spread or an inner
+shadow wider than a corner can round that corner a little more than an exact field would. Keep
+blurs in proportion to the shape for crisp cutouts.
+
+## Hit testing
+
+`containsPoint()` follows the result. A ring is hollow, a cutout lets clicks through, and an
+intersection only hits where the shapes overlap.
+
+## Cost
+
+A combined shape is one instance. Each pixel evaluates every shape in it once, so ten shapes cost
+about what ten separate shapes do, in one draw call. Paths in an operation cost one step per edge.
 
 ---
 
@@ -771,6 +947,99 @@ the rounded outer corners of earlier versions.
 A path stroke checks every segment of its path per pixel. Subpaths longer than 32 segments are
 split into chunks, so long chart lines stay fast. Tapered strokes keep one capsule per segment.
 
+## Crossings, fold-backs and dash caps
+
+A translucent stroke stays one shape in the hard cases too. Zoom in on each of them below.
+
+Live demo `stroke-edges` (source):
+
+```ts
+import { type LineJoin, SilkGraphics } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+// Hard cases of stroked paths, translucent and seen up close. Each pixel is shaded once.
+export default defineDemo({
+    size: [480, 280],
+    controls: {
+        scene: {
+            type: 'select',
+            label: 'case',
+            options: ['crossing', 'fold-back', 'square dashes'],
+            value: 'crossing',
+        },
+        zoom: { type: 'range', label: 'zoom', min: 1, max: 12, step: 0.5, value: 4, unit: 'x' },
+        join: { type: 'select', label: 'join', options: ['miter', 'bevel', 'round'], value: 'miter' },
+    },
+    setup({ stage, params, tick }) {
+        const g = new SilkGraphics();
+
+        stage.addChild(g);
+        tick((t) => {
+            g.clear();
+            const join = params.join as LineJoin;
+            // [x, y] of the spot the zoom centres on
+            let focus: [number, number];
+
+            if (params.scene === 'crossing') {
+                // 400 segments: the second lobe crosses the first one far along the path
+                const pts: number[] = [];
+
+                for (let i = 0; i < 400; i++) {
+                    const u = (i / 400) * Math.PI * 2;
+
+                    pts.push(240 + 200 * Math.sin(3 * u + 0.3), 140 + 120 * Math.sin(2 * u));
+                }
+                g.polyline(pts, { closed: true }).stroke({ width: 14, join, color: 0x0a84ff, alpha: 0.5 });
+                focus = [240, 140];
+            } else if (params.scene === 'fold-back') {
+                // turns of 179 to 180 degrees: the stroke goes back over itself
+                const a = ((0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t))) * Math.PI) / 180;
+
+                g.moveTo(80, 140)
+                    .lineTo(300, 140)
+                    .lineTo(300 - 220 * Math.cos(a), 140 + 220 * Math.sin(a))
+                    .stroke({ width: 40, join, miterLimit: 10, color: 0xff9f0a, alpha: 0.6 });
+                focus = [300, 140];
+            } else {
+                // dashes whose square caps overlap their neighbours on a tight curve
+                g.moveTo(330, 140);
+                for (let k = 0; k < 4; k++) {
+                    const a0 = (k * Math.PI) / 2;
+                    const a1 = a0 + Math.PI / 2;
+                    const c = (4 / 3) * Math.tan(Math.PI / 8) * 90;
+
+                    g.bezierCurveTo(
+                        240 + 90 * Math.cos(a0) - c * Math.sin(a0),
+                        140 + 90 * Math.sin(a0) + c * Math.cos(a0),
+                        240 + 90 * Math.cos(a1) + c * Math.sin(a1),
+                        140 + 90 * Math.sin(a1) - c * Math.cos(a1),
+                        240 + 90 * Math.cos(a1),
+                        140 + 90 * Math.sin(a1),
+                    );
+                }
+                g.stroke({ width: 22, join, cap: 'square', dash: [6, 5], color: 0x30d158, alpha: 0.5 });
+                focus = [330, 140];
+            }
+            g.scale.set(params.zoom);
+            g.position.set(240 - focus[0] * params.zoom, 140 - focus[1] * params.zoom);
+        });
+
+        return undefined;
+    },
+});
+```
+
+- **Crossings.** A path that crosses itself far along its length is still shaded once where it
+  overlaps. Each chunk of a long path also checks the segments of the other chunks that come near
+  it, and the nearest segment decides who shades a pixel.
+- **Fold-backs.** A path that turns by 180 degrees, or nearly, goes back over itself with no dim
+  or doubled pixels. A full reversal has no join, as in Canvas.
+- **Square dash caps.** On a curve, caps that overlap the next dash merge into it. A dash that runs
+  through a round corner keeps its cap's reach, so the corner stays round.
+
+Hairlines seen from far out are the one limit. When a line is thinner than a pixel, crossings of
+far-apart parts of one path can blend twice.
+
 ## Paths
 
 The canvas-style path API strokes and fills:
@@ -790,7 +1059,11 @@ square makes a hole.
 
 ```ts
 g.poly([64, 0, 6, 58, 44, 58, 30, 100, 94, 40, 56, 40]).fill({ color: 0xffd60a, blur: 12 });
+g.svgPath('M10 80 Q 60 10 110 80 T 210 80').stroke({ width: 3, color: 0x0a84ff });
 ```
+
+`svgPath(d)` reads an SVG path string into the active path. Combine paths with other shapes in
+[Shape operations](https://pixi-silk.schmooky.dev/docs/shape-operations/).
 
 Each fill checks every edge of its path per pixel. Keep paths to a few hundred points.
 
@@ -3157,6 +3430,9 @@ const pill = new ValuePill({ label: silkLabel({ tabularNumbers: true }) });
 pill.show('42 px');
 ```
 
+To let people click and type into a text, wrap it in a `TextEditor`. [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/)
+covers the caret, selection, input methods and undo.
+
 ## Fonts and the atlas
 
 Glyphs are drawn with Canvas2D at 48 px the first time they appear, then turned into a distance
@@ -3183,6 +3459,394 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
   Latin, Greek and Cyrillic UI text works. Arabic and Indic scripts need PixiJS `Text`.
 - **Kerning** is per pair, measured with `measureText`. It matches Canvas for Latin text.
 - **Renderers**: WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.
+
+---
+
+# Editing text
+
+URL: https://pixi-silk.schmooky.dev/docs/editing-text/
+Section: UI widgets
+
+> TextEditor makes SilkText clickable and editable like a design tool text layer: caret, selection, undo, clipboard and input methods, sharp at any zoom.
+
+Live demo `text-edit-canvas` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History } from 'pixi-silk/history';
+import { SilkText, silkLabel } from 'pixi-silk/text';
+import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// Click a text to edit it, drag to select, double click a word. Pinch or ctrl + scroll to zoom in
+// and keep typing: the caret, the selection and the glyphs stay sharp. Scroll pans.
+export default defineDemo({
+    size: [760, 440],
+    background: 0x151517,
+    touchAction: 'none',
+    ownsCamera: true,
+    setup({ silk }) {
+        const app = silk.app;
+        const world = new Container();
+        const camera = new Camera({ world, element: app.canvas });
+        const zoom = new ZoomControl(camera, { label: silkLabel() });
+        // one undo stack for the whole canvas: text edits sit in it with everything else
+        const history = new History();
+        const font = 'Inter, system-ui, sans-serif';
+
+        app.stage.addChild(world, zoom);
+
+        const card = new SilkGraphics()
+            .roundRect(0, 0, 420, 260, 28, 0.6)
+            .fill(linear([0x2c2c30, 0x1c1c1f], { from: [0, 0], to: [0, 1] }))
+            .roundRect(0.5, 0.5, 419, 259, 28, 0.6)
+            .stroke({ color: 0xffffff, alpha: 0.08, width: 1 });
+        const caption = new SilkText({ text: 'Frame 1', fontFamily: font, fontSize: 11, fill: 0x8e8e93 });
+
+        caption.position.set(2, -18);
+        world.addChild(card, caption);
+
+        const title = new TextEditor({
+            text: 'Edit me',
+            fontFamily: font,
+            fontSize: 30,
+            fontWeight: 700,
+            fill: 0xffffff,
+            multiline: false,
+            history,
+            element: app.canvas,
+        });
+        const body = new TextEditor({
+            text: 'Text on an infinite canvas. Zoom to 800% and the caret is still one crisp pixel and a half wide.\n\nDouble click a word, triple click a paragraph.',
+            fontFamily: font,
+            fontSize: 15,
+            lineHeight: 22,
+            fill: 0xc7c7cc,
+            width: 356,
+            placeholder: 'Write something',
+            history,
+            element: app.canvas,
+        });
+
+        title.position.set(32, 30);
+        body.position.set(32, 86);
+        world.addChild(title, body);
+
+        // a tiny caption follows the title as you type
+        const count = new SilkText({ fontFamily: font, fontSize: 11, fill: 0x636366, tabularNumbers: true });
+
+        count.position.set(32, 230);
+        world.addChild(count);
+        const update = () => {
+            const words = body.value.split(/\s+/).filter(Boolean).length;
+
+            count.text = `${title.value.length} characters in the title, ${words} words below`;
+        };
+        const stops = [title.state.text.subscribe(update), body.state.text.subscribe(update), bindHistoryKeys(history)];
+
+        update();
+        const place = () =>
+            zoom.position.set(app.screen.width - zoom.size[0] - 12, app.screen.height - zoom.size[1] - 12);
+
+        app.renderer.on('resize', place);
+        place();
+        camera.fit({ x: -20, y: -40, width: 460, height: 320 }, 24, false);
+
+        return () => {
+            for (const stop of stops) stop();
+            app.renderer.off('resize', place);
+            title.destroy();
+            body.destroy();
+            camera.destroy();
+        };
+    },
+});
+```
+
+## A text layer you can type into
+
+`TextEditor` from `pixi-silk/ui/textedit` wraps a [SilkText](https://pixi-silk.schmooky.dev/docs/text/) with a caret, a selection
+and keyboard input. It lives in the scene like any display object, so it pans and zooms with a
+[camera](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/) and stays sharp at 800%.
+
+```ts
+
+declare const world: Container;
+declare const canvas: HTMLCanvasElement;
+
+const note = new TextEditor({
+    text: 'Edit me',
+    fontSize: 15,
+    width: 320, // wraps at 320, grows in height
+    placeholder: 'Write something',
+    element: canvas,
+});
+
+note.on('change', (text: string) => console.log('saved', text));
+world.addChild(note);
+```
+
+Click to place the caret, drag to select and Shift + click to extend. A double click selects a word
+and a triple click its paragraph. Words come from `Intl.Segmenter`, so they follow the language.
+
+## How typing works
+
+The keys do not go to the canvas. On focus, the editor puts a hidden `<textarea>` on the page, right
+at the caret, and keeps its text and selection in step with its own. The browser types into it, and
+the editor applies each change.
+
+That is why the platform's own text input works:
+
+- **Input methods** for Japanese, Chinese and Korean, and dead keys for accents. The text being
+  composed shows inline with an underline, and becomes one undo step when you confirm it.
+- Mobile keyboards, autocorrect and the emoji picker.
+- Copy, cut and paste, with the system clipboard.
+
+The field follows the caret as you type, pan or zoom, so input method popups open next to the text.
+Pass `element` (usually `app.canvas`) to place it. Without it, the editor uses the element of the first press.
+
+## Keys
+
+| Keys | What they do |
+| --- | --- |
+| Left, Right | Move by grapheme, so an emoji or an accented letter is one step |
+| Option + Left / Right on Mac, Ctrl elsewhere | Move by word |
+| Up, Down | Move by line, keeping the column you started from |
+| Home, End, or cmd + Left / Right on Mac | Start and end of the line on screen |
+| Shift with any of these | Extend the selection |
+| cmd or ctrl + A | Select all |
+| Backspace, Delete | Delete a grapheme, or a word with Option or Ctrl |
+| Enter | A new line, or commit in a single-line field |
+| cmd or ctrl + Enter | Commit and leave a multi-line field |
+| Tab | Move to the next field, or insert a tab with `tab: 'insert'` |
+| Escape | Leave the field |
+| cmd or ctrl + Z, Shift + cmd or ctrl + Z | Undo and redo |
+
+## Fields and forms
+
+Live demo `text-edit-form` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { watch } from 'pixi-silk/signal';
+import { SilkText } from 'pixi-silk/text';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// Single-line fields drawn on the canvas. Tab moves to the next field, Enter in the last one sends
+// the form. Japanese or Chinese input, dead keys and the emoji picker type into them as usual.
+export default defineDemo({
+    size: [520, 330],
+    background: 0x0f0f11,
+    setup({ silk, stage }) {
+        const font = 'Inter, system-ui, sans-serif';
+        const fields: TextEditor[] = [];
+        const stops: (() => void)[] = [];
+        const field = (label: string, y: number, options: ConstructorParameters<typeof TextEditor>[0]) => {
+            const row = new Container();
+            const name = new SilkText({ text: label, fontFamily: font, fontSize: 12, fontWeight: 600, fill: 0x8e8e93 });
+            const box = new SilkGraphics();
+            const editor = new TextEditor({
+                fontFamily: font,
+                fontSize: 15,
+                fill: 0xf2f2f7,
+                multiline: false,
+                width: 276,
+                element: silk.app.canvas,
+                ...options,
+            });
+
+            editor.position.set(12, 31);
+            // a press anywhere on the box focuses the field
+            box.eventMode = 'static';
+            box.cursor = 'text';
+            box.on('pointerdown', (e) => {
+                (e.nativeEvent as Event).preventDefault();
+                editor.focus();
+            });
+            row.addChild(name, box, editor);
+            row.position.set(40, y);
+            // the box lights up while its field has focus
+            stops.push(
+                watch(editor.state.focused, (on) => {
+                    box.clear()
+                        .roundRect(0, 20, 300, 40, 10, 0.6)
+                        .fill(on ? 0x1c1c22 : 0x18181b)
+                        .roundRect(0, 20, 300, 40, 10, 0.6)
+                        .stroke({ color: on ? 0x0a84ff : 0x3a3a3c, width: on ? 1.5 : 1, alignment: 'inside' });
+                }),
+            );
+            stage.addChild(row);
+            fields.push(editor);
+
+            return editor;
+        };
+
+        const name = field('Name', 24, { placeholder: 'Ada Lovelace' });
+        const email = field('Email', 104, { placeholder: 'ada@example.com' });
+        const code = field('Promo code, 8 characters at most', 184, { placeholder: 'SILK2026', maxLength: 8 });
+        const result = new SilkText({
+            fontFamily: font,
+            fontSize: 12,
+            fill: 0x30d158,
+            wordWrap: true,
+            wordWrapWidth: 150,
+        });
+        const button = new Container();
+        const pill = new SilkGraphics().pill(0, 0, 140, 40).fill(0x0a84ff);
+        const label = new SilkText({ text: 'Send', fontFamily: font, fontSize: 14, fontWeight: 600, anchor: 0.5 });
+
+        label.position.set(70, 20);
+        button.addChild(pill, label);
+        button.position.set(360, 228);
+        button.eventMode = 'static';
+        button.cursor = 'pointer';
+        result.position.set(360, 52);
+        stage.addChild(button, result);
+        const send = () => {
+            const values = [name.value || 'no name', email.value || 'no email', code.value || 'no code'];
+
+            result.text = `Sent\n${values.join('\n')}`;
+            TextEditor.active?.blur();
+        };
+
+        button.on('pointertap', send);
+        code.on('submit', send);
+        // Enter in the first fields moves on, like a sign-up form
+        name.on('submit', () => email.focus(true));
+        email.on('submit', () => code.focus(true));
+        stops.push(TextEditor.chain(fields));
+
+        return () => {
+            for (const stop of stops) stop();
+            for (const f of fields) f.destroy();
+        };
+    },
+});
+```
+
+With `multiline: false` the editor is an input. Enter commits instead of breaking the line. A
+`width` clips the text and scrolls it to keep the caret in view. `TextEditor.chain()` links fields in
+Tab order.
+
+```ts
+
+const email = new TextEditor({ multiline: false, width: 260, placeholder: 'ada@example.com' });
+const code = new TextEditor({ multiline: false, width: 260, maxLength: 8 });
+
+TextEditor.chain([email, code]);
+code.on('submit', () => console.log(email.value, code.value));
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `multiline` | true | A text area, or a single-line input |
+| `width` | none | Wraps a text area, clips and scrolls an input |
+| `placeholder` | empty | Shown while the text is empty |
+| `maxLength` | none | Longest text in UTF-16 code units, like `maxlength`. Never splits an emoji |
+| `readOnly` | false | Selectable and copyable, not editable |
+| `selectable` | true | False turns pointer input off |
+| `enter` | `newline` or `commit` | `newline`, `commit` or `blur` |
+| `tab` | `next` | `next` emits `tab` and leaves, `insert` types a tab |
+| `history` | its own | A `HistoryLike` to share the app's undo stack |
+| `theme` | blue | Caret, selection and underline colours |
+
+Every SilkText style option works too: font, size, weight, fill, letter spacing, line height and alignment.
+
+## Read-only text
+
+Live demo `text-edit-readonly` (source):
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// A read-only paragraph: select with the mouse or a long press, cmd or ctrl + C copies.
+// There is no caret and typing does nothing.
+export default defineDemo({
+    size: [520, 260],
+    background: 0x0b0b0d,
+    setup({ silk, stage }) {
+        const font = 'Inter, system-ui, sans-serif';
+        const paragraph = new TextEditor({
+            text: 'Release notes. Text layers now edit on the canvas. Selection, the clipboard and input methods go through a hidden text field, so they behave the way the platform does. Double click a word to select it.',
+            fontFamily: font,
+            fontSize: 15,
+            lineHeight: 23,
+            fill: 0xd1d1d6,
+            width: 440,
+            readOnly: true,
+            element: silk.app.canvas,
+            theme: { selection: 0xffd60a, selectionAlpha: 0.28 },
+        });
+        const readout = new SilkText({ fontFamily: font, fontSize: 12, fill: 0x8e8e93 });
+
+        paragraph.position.set(40, 36);
+        readout.position.set(40, 214);
+        stage.addChild(paragraph, readout);
+        const stop = paragraph.state.selection.subscribe(() => {
+            const n = paragraph.selectedText.length;
+
+            readout.text = n ? `${n} characters selected. Cmd or ctrl + C copies them.` : '';
+        });
+
+        return () => {
+            stop();
+            paragraph.destroy();
+        };
+    },
+});
+```
+
+`readOnly: true` keeps clicking, selecting and copying, and drops the caret and editing. Use it for
+release notes, logs or error messages that people want to copy.
+
+## Events, signals and undo
+
+The editor emits `focus`, `blur`, `input` on every edit, `change` when the text was committed with a
+new value, `submit` on Enter in a single-line field, and `tab`. The same state is on
+`editor.state` as [signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/): `text`, `committed`, `focused`, `selection`
+and `composing`.
+
+Undo is built in. Consecutive typing folds into one step, and a click or an arrow key starts the
+next. To put text edits in line with the rest of an editor, pass its history:
+
+```ts
+
+const history = new History();
+const title = new TextEditor({ text: 'Frame 1', multiline: false, history });
+
+bindHistoryKeys(history); // cmd + Z outside the field undoes text edits too
+```
+
+## Hit testing for other tools
+
+The caret math is in the layout, so other tools can use it. `SilkText` has `caretAt(point)` for the
+caret nearest to a local point. `caretRect(index)` gives where a caret sits and `rangeRects(from, to)`
+the highlight boxes of a range. They follow wrapped lines, alignment, letter spacing, line height,
+empty lines and trailing spaces. `pixi-silk/text` also exports the same functions on a `TextLayout`,
+plus `graphemeStops`, `wordAt` and the word jumps.
+
+```ts
+
+const label = new SilkText({ text: 'Hello world', wordWrap: true, wordWrapWidth: 60 });
+const hit = label.caretAt({ x: 30, y: 8 });
+const caret = label.caretRect(hit.index, hit.upstream);
+
+console.log(hit.index, caret.x, label.rangeRects(0, 5));
+```
+
+## Limits
+
+- **Right-to-left and mixed direction text** is not supported. Arabic and Hebrew lay out left to
+  right, and the caret moves in source order.
+- **Emoji** count as one caret step, but draw as one-colour silhouettes, as in [SilkText](https://pixi-silk.schmooky.dev/docs/text/).
+- **Shaping**: no ligatures and no combining marks drawn on their base letter. Each code point is a glyph.
+- **Spell check** underlines are off: the hidden field is invisible.
 
 ---
 
@@ -3724,6 +4388,743 @@ your application's ticker, or `null` to step them yourself with `tick(dt)`.
 
 ---
 
+# Layout and smart containers
+
+URL: https://pixi-silk.schmooky.dev/docs/layout/
+Section: UI widgets
+
+> Place HUD boxes on any screen the way slot games do, with portrait and landscape records, then lay out what is inside them with a small flex engine.
+
+Live demo `layout-hud` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import {
+    DEVICES,
+    FlexContainer,
+    layoutDebug,
+    SmartContainer,
+    type SmartContainerOptions,
+    simulateViewport,
+} from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// A slot game HUD built from SmartContainers, each placed by a portrait and a landscape record.
+// The balance pins to the top left corner, the menu to the top right, the reels stay centred and
+// fit, and the bar stretches along the bottom with a flex row inside. Pick a device: the page
+// previews it letterboxed, and the HUD glides to the new breakpoint. Press L, or tick debug, for
+// the layout overlay. Hover a box for its readout.
+
+const GOLD = 0xffd60a;
+const font = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+
+/** A 5 by 3 reel window with a few vector symbols, 1040x640 design units. */
+function reels(): Container {
+    const g = new SilkGraphics();
+
+    g.roundRect(0, 0, 1040, 640, 40, 0.6).fill(0x1c1c1e);
+    for (let c = 0; c < 5; c++) {
+        for (let r = 0; r < 3; r++) {
+            const x = 20 + c * 200 + 100;
+            const y = 20 + r * 200 + 100;
+            const kind = (c * 7 + r * 3) % 5;
+
+            g.roundRect(x - 88, y - 88, 176, 176, 32, 0.6).fill(0x2c2c2e);
+            if (kind === 0) g.heart(x, y + 4, 104, 8).fill(0xff375f);
+            else if (kind === 1) g.circle(x, y, 52).fill(0x0a84ff);
+            else if (kind === 2) g.regularPoly(x, y, 60, 6, 0, 12).fill(0x30d158);
+            else if (kind === 3) g.triangle(x, y - 56, x + 56, y + 44, x - 56, y + 44, 12).fill(0xbf5af2);
+            else g.regularPoly(x, y, 60, 4, Math.PI / 4, 8).fill(GOLD);
+        }
+    }
+
+    return g;
+}
+
+/** A pill with a label and a value. The value shrinks to fit the pill, never below 0.55. */
+function pill(label: string, value: string, color: number): { box: FlexContainer; value: SilkText } {
+    const box = new FlexContainer({ layout: { direction: 'column', padding: [14, 28], gap: 2 } });
+    const bg = new SilkGraphics();
+    const v = new SilkText({ text: value, fontFamily: font, fontWeight: 700, fontSize: 52, fill: color });
+
+    box.add(bg, {
+        position: 'absolute',
+        inset: 0,
+        onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 30, 0.6).fill(0x1c1c1e),
+    });
+    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 24, fill: 0x8e8e93 }));
+    box.add(v, { fit: 'scale-down', minScale: 0.55 });
+
+    return { box, value: v };
+}
+
+/** A round button with a label on it. */
+function button(radius: number, color: number, text: string): Container {
+    const c = new Container();
+
+    c.addChild(
+        new SilkGraphics().circle(0, 0, radius).fill(color),
+        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: radius * 0.4, fill: 0xffffff, anchor: 0.5 }),
+    );
+    c.eventMode = 'static';
+    c.cursor = 'pointer';
+
+    return c;
+}
+
+const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default defineDemo({
+    size: [920, 520],
+    background: 0x0b0b0d,
+    controls: {
+        device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
+        notch: { type: 'toggle', label: 'notch', value: false },
+        debug: { type: 'toggle', label: 'debug', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        // a device window previewed inside the page. Every SmartContainer follows it.
+        const sim = simulateViewport({ area: { x: 0, y: 0, width: 920, height: 520 }, device: 'desktop' });
+        const debug = layoutDebug(silk.app, { key: 'KeyL' });
+        const all: SmartContainer[] = [];
+        const make = (label: string, options: SmartContainerOptions) => {
+            const c = new SmartContainer({
+                ticker: silk.app.ticker,
+                viewport: sim,
+                // games usually snap. The demo glides on the switch to show where things go.
+                switchTransition: { stiffness: 160, damping: 22 },
+                ...options,
+            });
+
+            c.label = label;
+            all.push(c);
+            sim.content.addChild(c);
+
+            return c;
+        };
+
+        // background: covers the whole window, under the notch too
+        const bg = make('background', {
+            portraitData: { width: 1080, height: 1920, fitCover: true, ignoreSafeArea: true },
+            landscapeData: { width: 1920, height: 1080, fitCover: true, ignoreSafeArea: true },
+        });
+
+        bg.addChild(new SilkGraphics().rect(0, 0, 1920, 1920).fill(0x101014));
+
+        // reels: centred, fit to the reference resolution, moved up to leave room for the bar
+        make('reels', {
+            portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
+            landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
+        }).addChild(reels());
+
+        // balance pinned to the top left corner, menu to the top right
+        const corner = make('balance', {
+            layout: { padding: 24 },
+            portraitData: { align: 'left', valign: 'top', width: 440, height: 170 },
+            landscapeData: { align: 'left', valign: 'top', width: 440, height: 170 },
+        });
+
+        corner.add(pill('BALANCE', '$12,480.00', 0xffffff).box, { grow: 1 });
+
+        make('menu', {
+            layout: { justifyContent: 'center', alignItems: 'center' },
+            portraitData: { align: 'right', valign: 'top', width: 140, height: 140 },
+            landscapeData: { align: 'right', valign: 'top', width: 140, height: 140 },
+        }).add(button(40, 0x2c2c2e, 'MENU'));
+
+        // the bar: along the bottom and as wide as the window, with a flex row inside
+        const bar = make('bar', {
+            layout: {
+                padding: [16, 32, 28],
+                gap: 24,
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                media: [{ breakpoint: 'portrait', style: { wrap: 'wrap', justifyContent: 'center', rowGap: 16 } }],
+            },
+            portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
+            landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
+        });
+        const win = pill('WIN', '$0.00', GOLD);
+        const bet = pill('BET', '$2.00', 0xffffff);
+        const spin = button(76, 0x30d158, 'SPIN');
+
+        // in portrait the spin button takes a row of its own above the two pills
+        bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+        bar.add(bet.box, { grow: 1, basis: 0, maxWidth: 440 });
+        bar.add(win.box, { grow: 1, basis: 0, maxWidth: 440 });
+
+        spin.on('pointertap', () => {
+            win.value.text = money(Math.random() < 0.3 ? 0 : 10 ** (1 + Math.random() * 5));
+            // new text, new size: measure it again
+            win.box.invalidate(win.value);
+        });
+
+        stage.addChild(sim);
+
+        let last = '';
+        let debugParam = false;
+
+        tick(() => {
+            // the checkbox and the L key both toggle the overlay
+            if (params.debug !== debugParam) {
+                debugParam = params.debug;
+                if (debug.enabled !== debugParam) debug.toggle();
+            }
+            const key = `${params.device}|${params.notch}`;
+
+            if (key === last) return;
+            last = key;
+            const [w, h] = DEVICES[params.device];
+
+            for (const c of all)
+                c.setSafeArea(params.notch ? (w > h ? { left: 44, right: 44 } : { top: 47, bottom: 34 }) : {});
+            sim.setDevice(params.device);
+        });
+
+        return () => {
+            debug.destroy();
+            for (const c of all) c.destroy({ children: true });
+        };
+    },
+});
+```
+
+The HUD above is five SmartContainers. Each one places a design box in the window from a
+portrait record and a landscape record:
+
+- **Balance** pins to the top left corner, and the **menu** to the top right.
+- **Reels** stay centred and fit the reference resolution.
+- **The bar** runs along the bottom, as wide as the window, with a flex row inside.
+- **The background** covers the whole window, under the notch too.
+
+Everything lives in one entry point, plus the headless engine:
+
+```ts
+```
+
+## Which one
+
+- **SmartContainer** places a whole block on the screen: a HUD corner, the reels, a bottom bar, a
+  background. It anchors and scales to the window from layout records, per breakpoint.
+- **FlexContainer** arranges children inside a block: a row of buttons, a pill with a label and a
+  value, a card list. It knows nothing about the window.
+
+They compose. A SmartContainer with a `layout` is a flex container for its children, and it can
+hold FlexContainers. A FlexContainer can hold a SmartContainer, which then places itself and
+takes no slot. Both run on one update loop: layout once per frame after a change, springs while
+something moves, nothing when idle.
+
+## SmartContainer
+
+```ts
+
+const reels = new SmartContainer({
+    viewport: app,
+    portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
+    landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
+});
+
+app.stage.addChild(reels);
+```
+
+A SmartContainer has two layout records. It uses `portraitData` when the window is taller than
+wide and `landscapeData` otherwise. Each record describes a design box and how it sits in the
+window:
+
+- **`width` and `height`** are the design box, in design units.
+- **`viewportWidth` and `viewportHeight`** are the reference resolution. The defaults are 1080x1920
+  in portrait and 1920x1080 in landscape.
+- **`align` and `valign`** anchor the scaled box: `left`, `center` or `right`, and `top`, `center` or `bottom`.
+- **`fitCover`** scales to cover the window instead of fitting inside it.
+- **`stretchWidth` and `stretchHeight`** scale one axis so the box spans the window. That distorts
+  the content, which suits backgrounds.
+- **`correctionScaleX` and `correctionScaleY`** multiply the scale. `correctionOffsetX` and
+  `correctionOffsetY` move the box in design units.
+
+The scale is the window size over the reference resolution, the smaller ratio or the larger one
+with `fitCover`. Stretch replaces it per axis, and the corrections apply last. The position is the
+window origin, plus the aligned offset of the scaled box, plus the correction offset times the scale.
+
+These names and numbers match the SmartContainer many slot games already use, so a game can bring
+its records over unchanged. `placeBox(record, window)` gives the same placement without a container.
+
+### What it adds
+
+- **A viewport source, not window listeners.** Pass an Application or a renderer, and the
+  container updates on its `resize`. A signal of a rectangle works too. With a plain rectangle,
+  call `updateContainer()` after you change it.
+- **Named breakpoints.** `breakpoints` lists records with a `when(width, height)` test. The first
+  match wins, before portrait and landscape.
+- **Safe areas.** `safeArea` insets, in screen pixels, shrink the window the boxes are placed in.
+  A record with `ignoreSafeArea` places its box in the whole window, for backgrounds.
+- **A glide on switch.** With `switchTransition`, the container glides on a spring to its new
+  place and scale when the breakpoint changes. Resizes within a breakpoint snap. It is off by
+  default, as games usually want.
+- **`extendWidth` and `extendHeight`.** They keep the uniform scale and grow the box to the
+  window instead of stretching it. Content keeps its proportions and a flex layout spreads out.
+
+```ts
+
+const background = new SmartContainer({
+    viewport: app.renderer,
+    safeArea: { top: 44, bottom: 34 },
+    breakpoints: [
+        { name: 'ultrawide', when: (w, h) => w / h > 2.1, data: { width: 2560, height: 1080, viewportWidth: 2560, fitCover: true } },
+    ],
+    portraitData: { width: 1080, height: 1920, fitCover: true, ignoreSafeArea: true },
+    landscapeData: { width: 1920, height: 1080, fitCover: true, ignoreSafeArea: true },
+});
+```
+
+### A flex layout inside the box
+
+Without a `layout`, the children stay where you put them, in design units. Give the container a
+`layout`, or a record its own, and the design box becomes a flex container:
+
+```ts
+
+const bar = new SmartContainer({
+    viewport: app,
+    layout: {
+        padding: [16, 32, 28],
+        gap: 24,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        media: [{ breakpoint: 'portrait', style: { wrap: 'wrap', justifyContent: 'center' } }],
+    },
+    portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
+    landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
+});
+const spin = new Container();
+
+bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+```
+
+A `media` rule with `breakpoint` applies while that record is active. Everything below about
+children, fit modes and text works the same inside a SmartContainer.
+
+## Debug overlay
+
+```ts
+
+const debug = layoutDebug(app, { key: 'KeyL' });
+
+debug.toggle();
+```
+
+`layoutDebug` draws over the whole stage and is off until you toggle it, with the key or the
+handle. It shows, for each SmartContainer:
+
+- the design box and a tag with the breakpoint and the scale,
+- the reference resolution at the fit scale, in purple,
+- the alignment anchor in the window, as a dot,
+- the safe-area insets, in orange, and the stretched or extended axes, in yellow.
+
+For each FlexContainer it shows the box, the content box, the padding in green and the gaps in
+pink. Each child's slot is blue and its real bounds white, or red when the child overflows its slot.
+Hover a box for a readout of its name, size, scale and alignment.
+
+## Previewing devices
+
+```ts
+
+const sim = simulateViewport({ area: app.screen, device: 'phone portrait' });
+const hud = new SmartContainer({ viewport: sim, portraitData: { width: 1080, height: 300, valign: 'bottom' } });
+
+sim.content.addChild(hud);
+app.stage.addChild(sim);
+sim.setDevice('phone landscape');
+```
+
+`simulateViewport` shows a device window inside a desktop page, scaled down to fit and
+letterboxed. Pass it as the `viewport` of your SmartContainers and add them to its `content`. They
+lay out as they would on that device, so you can flip orientations without resizing the browser.
+`DEVICES` lists the preset sizes. A `[width, height]` pair works too.
+
+## FlexContainer
+
+Live demo `layout-stack` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import type { AlignItems, FlexDirection, JustifyContent } from 'pixi-silk/layout';
+import { SilkText } from 'pixi-silk/text';
+import { FlexContainer, layoutDebug } from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// An auto-layout stack, like a Figma frame. Change the item count, direction, gap, padding and
+// alignment: cards glide to their new slots on springs. The debug overlay draws the boxes and
+// slots (blue), the padding (green), the gaps (pink) and real bounds (white). Hover a card.
+
+const COLORS = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff, 0xffd60a];
+const W = 860;
+const H = 420;
+
+/** A card of its own size that redraws at its slot size, so `align: stretch` shows. */
+function card(frame: FlexContainer, i: number): Container {
+    const c = new Container();
+    const g = new SilkGraphics();
+    const t = new SilkText({ text: String(i + 1), fontWeight: 700, fontSize: 22, fill: 0xffffff, anchor: 0.5 });
+
+    c.addChild(g, t);
+
+    return frame.add(c, {
+        minWidth: 70 + ((i * 37) % 4) * 18,
+        minHeight: 56 + ((i * 53) % 3) * 22,
+        onSize: (w, h) => {
+            g.clear()
+                .roundRect(0, 0, w, h, 14, 0.6)
+                .fill(COLORS[i % COLORS.length]);
+            t.position.set(w / 2, h / 2);
+        },
+    });
+}
+
+export default defineDemo({
+    size: [W, H],
+    background: 0x151517,
+    controls: {
+        items: { type: 'range', label: 'items', min: 1, max: 14, step: 1, value: 6 },
+        direction: {
+            type: 'select',
+            label: 'direction',
+            options: ['row', 'column', 'row-reverse', 'column-reverse'],
+            value: 'row',
+        },
+        wrap: { type: 'toggle', label: 'wrap', value: true },
+        gap: { type: 'range', label: 'gap', min: 0, max: 40, step: 1, value: 12, unit: 'px' },
+        padding: { type: 'range', label: 'padding', min: 0, max: 60, step: 1, value: 24, unit: 'px' },
+        justify: {
+            type: 'select',
+            label: 'justify',
+            options: ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'],
+            value: 'start',
+        },
+        align: { type: 'select', label: 'align', options: ['start', 'center', 'end', 'stretch'], value: 'start' },
+        debug: { type: 'toggle', label: 'debug', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const frame = new FlexContainer({ ticker: silk.app.ticker, transition: true });
+        // the layout debug overlay: boxes, padding, gaps, slots against real bounds. Hover a card.
+        const debug = layoutDebug(silk.app, { enabled: true });
+        const bg = new SilkGraphics();
+        const cards: Container[] = [];
+        let last = '';
+
+        frame.resize(W, H);
+        frame.add(bg, {
+            position: 'absolute',
+            inset: 0,
+            animate: false,
+            onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 20, 0.6).fill(0x1c1c1e),
+        });
+        stage.addChild(frame);
+
+        tick(() => {
+            const key = JSON.stringify(params);
+
+            if (key === last) return;
+            last = key;
+            while (cards.length < params.items) cards.push(card(frame, cards.length));
+            while (cards.length > params.items) cards.pop()?.destroy({ children: true });
+            frame.setStyle({
+                direction: params.direction as FlexDirection,
+                wrap: params.wrap ? 'wrap' : 'nowrap',
+                gap: params.gap,
+                padding: params.padding,
+                justifyContent: params.justify as JustifyContent,
+                alignItems: params.align as AlignItems,
+                alignContent: 'start',
+            });
+            if (debug.enabled !== params.debug) debug.toggle();
+        });
+
+        return () => {
+            debug.destroy();
+            frame.destroy({ children: true });
+        };
+    },
+});
+```
+
+`FlexContainer` lays out its children with flexbox inside any box. The demo runs with the debug
+overlay on. Hover a card to read its slot. Call `resize(width, height)` on
+a root one, or nest it in another FlexContainer or a SmartContainer.
+
+```ts
+
+const row = new FlexContainer({ layout: { gap: 12, padding: 16, alignItems: 'center' } });
+
+row.add(Sprite.from('coin.png'), { width: 48, height: 48, fit: 'contain' });
+row.add(new Text({ text: 'Balance' }), { grow: 1 });
+row.resize(480, 80);
+```
+
+Give a child a style with `add(child, style)` or `setLayout(child, style)`. Children with no style
+take part with the defaults. A child is measured by its local bounds, or with the style's
+`measure` (for wrapped text, use the `wrapText` helper). Pixi `Text` and `SilkText` both report real
+text metrics.
+
+The container lays out once per frame, and only after something changed. That is a child added,
+removed or restyled, a new size, or `invalidate(child)` after new text or a new texture. Set
+`watch: true` to check the children's bounds every frame instead. An idle container is off the
+ticker and costs nothing.
+
+With `transition`, children glide to their new slots on springs, scale included. A new child lands
+in place. Set `animate: false` on a child to keep it from gliding.
+
+A child with `onSize` is called with its slot size whenever that changes. Use it to draw a panel at
+the size of its slot. Such a child measures as zero, so size it with `inset`, `grow` or a size:
+
+```ts
+
+const panel = new FlexContainer({ layout: { padding: 16 } });
+const bg = new SilkGraphics();
+
+panel.add(bg, {
+    position: 'absolute',
+    inset: 0,
+    onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 18, 0.6).fill(0x1c1c1e),
+});
+```
+
+### Fit modes and text shrink-to-fit
+
+Live demo `layout-fit` (source):
+
+```ts
+import type { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import { type FitMode, FlexContainer } from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// The same 200x120 artwork in five slots, one per fit mode, like CSS object-fit. Resize the
+// slots and move the alignment. The last slot shrinks a long text to fit, down to a floor.
+
+const MODES: FitMode[] = ['none', 'contain', 'cover', 'scale-down', 'fill'];
+const ALIGN: Record<string, [number, number]> = { center: [0.5, 0.5], start: [0, 0], end: [1, 1] };
+
+/** A 200x120 card: sky, sun and hills. */
+function artwork(): Container {
+    const g = new SilkGraphics();
+
+    // everything stays inside the card, so its bounds are exactly 200x120
+    g.roundRect(0, 0, 200, 120, 16, 0.6).fill(0x0a84ff);
+    g.circle(150, 38, 18).fill(0xffd60a);
+    g.poly([0, 84, 50, 62, 110, 86, 160, 70, 200, 82, 200, 104, 184, 120, 16, 120, 0, 104]).fill(0x30d158);
+
+    return g;
+}
+
+export default defineDemo({
+    size: [900, 360],
+    background: 0x151517,
+    controls: {
+        width: { type: 'range', label: 'slot width', min: 60, max: 130, step: 1, value: 120, unit: 'px' },
+        height: { type: 'range', label: 'slot height', min: 60, max: 220, step: 1, value: 180, unit: 'px' },
+        align: { type: 'select', label: 'fitAlign', options: ['center', 'start', 'end'], value: 'center' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const row = new FlexContainer({
+            ticker: silk.app.ticker,
+            layout: { gap: 14, padding: [24, 16], justifyContent: 'center', alignItems: 'start' },
+        });
+        const slots: { box: FlexContainer; art: Container }[] = [];
+        const label = (text: string) => new SilkText({ text, fontSize: 14, fill: 0x8e8e93 });
+        const slot = (title: string) => {
+            const column = row.add(
+                new FlexContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
+            );
+            const box = column.add(new FlexContainer());
+            const frame = new SilkGraphics();
+            const clip = new SilkGraphics();
+
+            // the slot outline, drawn at its size
+            box.add(frame, {
+                position: 'absolute',
+                inset: 0,
+                onSize: (w, h) => {
+                    frame.clear().roundRect(0, 0, w, h, 10).fill(0x232326).stroke({ width: 1, color: 0x48484a });
+                    clip.clear().roundRect(0, 0, w, h, 10).fill(0xffffff);
+                },
+            });
+            // the mask clips cover and fill to the slot. It goes on the slot, not on the child:
+            // a masked child measures only what its mask shows.
+            box.add(clip, { position: 'absolute', inset: 0, onSize: () => {} });
+            box.mask = clip;
+            column.add(label(title));
+
+            return box;
+        };
+
+        for (const fit of MODES) {
+            const box = slot(fit);
+
+            slots.push({ box, art: box.add(artwork(), { fit }) });
+        }
+        // text shrink-to-fit: scale-down with a minimum scale
+        const textBox = slot('scale-down text');
+        const text = textBox.add(
+            new SilkText({ text: 'MEGA WIN 1,250,000', fontWeight: 800, fontSize: 30, fill: 0xffd60a }),
+            {
+                fit: 'scale-down',
+                minScale: 0.35,
+            },
+        );
+
+        stage.addChild(row);
+        row.resize(900, 360);
+
+        let last = '';
+
+        tick(() => {
+            const key = JSON.stringify(params);
+
+            if (key === last) return;
+            last = key;
+            const fitAlign = ALIGN[params.align];
+
+            for (const { box, art } of slots) {
+                box.setStyle({ width: params.width, height: params.height });
+                box.setLayout(art, { ...box.getLayout(art), fitAlign });
+            }
+            textBox.setStyle({ width: params.width, height: params.height });
+            textBox.setLayout(text, { ...textBox.getLayout(text), fitAlign });
+        });
+
+        return () => row.destroy({ children: true });
+    },
+});
+```
+
+`fit` scales a child into its slot, like CSS `object-fit`:
+
+- **`none`** keeps the child's size. This is the default.
+- **`contain`** fits it inside the slot.
+- **`cover`** fills the slot and overflows. Mask the slot to clip it, not the child: a masked
+  child measures only what its mask shows.
+- **`scale-down`** is `contain` that never enlarges.
+- **`fill`** stretches both axes.
+
+`fitAlign` places the child in its slot, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
+default is the centre. `minScale` and `maxScale` clamp the fit scale.
+
+**Text shrink-to-fit** is `fit: 'scale-down'` with a floor. The text keeps its size while it fits
+and scales down when its slot gets narrow, never below `minScale`:
+
+```ts
+
+const pill = new FlexContainer({ layout: { direction: 'column', padding: [10, 18] } });
+
+pill.add(new SilkText({ text: '$1,250,000.00', fontSize: 30 }), { fit: 'scale-down', minScale: 0.55 });
+```
+
+### Responsive styles
+
+Any child style can carry `portrait` and `landscape` values, and `media` rules for widths and
+breakpoints. Rules apply in order over the base values. Width and orientation rules test the root
+container's layout area. A child with `display: 'none'` is hidden too.
+
+```ts
+
+const main = new FlexContainer({
+    layout: {
+        gap: 20,
+        landscape: { direction: 'row' },
+        portrait: { direction: 'column' },
+        media: [{ maxWidth: 600, style: { gap: 10 } }],
+    },
+});
+const banner = new FlexContainer();
+
+main.add(banner, { landscape: { display: 'none' } });
+```
+
+## The flex engine
+
+```ts
+
+const root = new LayoutNode({ direction: 'row', gap: 8, padding: 16 });
+const icon = new LayoutNode({ width: 100 });
+const label = new LayoutNode({ grow: 1 });
+
+root.add(icon).add(label);
+root.calculate(400, 120);
+
+label.layout; // { x: 124, y: 16, width: 260, height: 88 }
+```
+
+`pixi-silk/layout` is the engine under both containers. It works on plain nodes and has no Pixi
+in it, so it runs in tests, workers and on a server. It is about 3.5 kB gzipped.
+
+A node has a style, children and an optional `measure` function. `calculate(width, height)` lays out
+the tree. Each node's `layout` holds its box relative to its parent. Leave a size out to fit that
+axis to the content.
+
+The style follows CSS flexbox, with `box-sizing: border-box` everywhere:
+
+- **Container.** `direction` (`row`, `column` and their `-reverse`), `wrap`, `gap`, `rowGap`,
+  `columnGap`, `padding`, `justifyContent`, `alignItems` and `alignContent`.
+- **Item.** `grow`, `shrink`, `basis`, `alignSelf` and `margin`. An `auto` margin takes the free
+  space, which centres an item or pushes it to the far end.
+- **Size.** `width`, `height`, their `min` and `max`, and `aspectRatio`. Sizes are pixels, a percent
+  of the parent's content box such as `'50%'`, or `'auto'`.
+- **Position.** `position: 'absolute'` with `top`, `right`, `bottom`, `left` or `inset`. Anchors may
+  be percents. `display: 'none'` takes a node out of the flow.
+
+Grow and shrink run the CSS loop: items that hit their `min` or `max` freeze there, and the rest of
+the space goes round again. Shrinking is weighted by the basis, as in a browser.
+
+### Measuring text
+
+A leaf with content gets a `measure` function. It receives the space offered and returns the content
+size. Either argument is `Infinity` when that axis is free.
+
+```ts
+
+const charWidth = 9;
+const lineHeight = 20;
+const copy = 'Free spins start on three scatters';
+
+const text = new LayoutNode({}, (availableWidth) => {
+    const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
+    const lines = Math.ceil(copy.length / perLine);
+
+    return { width: Math.min(copy.length, perLine) * charWidth, height: lines * lineHeight };
+});
+
+new LayoutNode({ direction: 'column', width: 160 }).add(text).calculate();
+```
+
+Return a `baseline` too and `alignItems: 'baseline'` lines up text in a row.
+
+### Incremental layout
+
+Changing a style, adding or removing a child, or calling `markDirty()` marks the node and its
+ancestors dirty. The next `calculate()` skips every clean subtree whose space did not change. A
+measured leaf keeps its sizes per available space, so it is measured again only after `markDirty()`.
+
+## Differences from CSS
+
+The engine follows CSS flexbox where results differ in practice. A few things are simpler:
+
+- **Minimum size.** An item's default minimum is 0, not its content size. Set `minWidth` or
+  `shrink: 0` to keep an item from shrinking below its content.
+- **Aspect ratio and stretch.** As in CSS, a stretched cross size wins over `aspectRatio`. Set
+  `alignSelf` to keep the ratio.
+- **Baseline.** A container's baseline is its first item's. Only measured leaves report one of their
+  own.
+- **Absolute items** without anchors sit where the parent's `justifyContent` and `alignItems` put
+  them, not at their static position.
+- **Not there.** `order`, `overflow`, borders and `flex-basis: content` are not part of the engine.
+  Rotated children keep their slot but are measured unrotated.
+
+---
+
 # Canvas and measurements
 
 URL: https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/
@@ -3910,6 +5311,12 @@ follow the objects in the world and keep their size on screen.
 `worldToScreen()` convert points.
 
 Pass `wheel: 'zoom'` for map-style scrolling, where the wheel zooms and Shift + wheel pans.
+
+In a page that scrolls, a plain scroll over the canvas keeps scrolling the page until the canvas is
+clicked, so an embedded editor never traps the reader. Pinch and ctrl + scroll zoom at once.
+`pageScroll: false` gives the canvas every scroll. Full-screen canvases get them by default.
+
+`fit()` takes padding per side, like `{ left: 280, right: 300 }`, to centre content between docked panels.
 
 ## Measurements
 
@@ -6140,6 +7547,990 @@ Every digit column rolls on its own. A column only moves while the one below it 
 so carries ripple like a mechanical counter. Each column holds two glyphs at most. Glyphs come
 from a bitmap font made from the text style, so a frame only moves them, and one mask clips them all.
 `format(value)` returns the same text without rolling, for labels and accessibility.
+
+---
+
+# Panels
+
+URL: https://pixi-silk.schmooky.dev/docs/panels/
+Section: Editor UI
+
+> Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera.
+
+Live demo `editor-panels` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
+import { bindGizmo, bindMeasure, bindOutline, Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { silkLabel } from 'pixi-silk/text';
+import { Camera } from 'pixi-silk/ui/camera';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
+import { altDown } from 'pixi-silk/ui/keys';
+import { LayerTree, pixiTreeAdapter } from 'pixi-silk/ui/layers';
+import { Measure } from 'pixi-silk/ui/measure';
+import { Minimap } from 'pixi-silk/ui/minimap';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { PANEL_THEME, PANEL_THEME_LIGHT, Panel, type PanelTheme, panelHitTest } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** A layer with a fill, a size and a corner radius the inspector can edit. */
+class Shape extends Container {
+    private readonly g = new SilkGraphics();
+    private _fill: number;
+    private _w: number;
+    private _h: number;
+    private _radius: number;
+    readonly round: boolean;
+
+    constructor(label: string, w: number, h: number, fill: number, radius = 0, round = false) {
+        super({ label });
+        this._w = w;
+        this._h = h;
+        this._fill = fill;
+        this._radius = radius;
+        this.round = round;
+        this.addChild(this.g);
+        this.redraw();
+    }
+
+    get fill(): number {
+        return this._fill;
+    }
+    set fill(v: number) {
+        this._fill = v;
+        this.redraw();
+    }
+    get w(): number {
+        return this._w;
+    }
+    set w(v: number) {
+        this._w = Math.max(1, v);
+        this.redraw();
+    }
+    get h(): number {
+        return this._h;
+    }
+    set h(v: number) {
+        this._h = Math.max(1, v);
+        this.redraw();
+    }
+    get radius(): number {
+        return this._radius;
+    }
+    set radius(v: number) {
+        this._radius = Math.max(0, v);
+        this.redraw();
+    }
+
+    private redraw(): void {
+        const g = this.g.clear();
+
+        if (this.round) g.ellipse(this._w / 2, this._h / 2, this._w / 2, this._h / 2).fill(this._fill);
+        else
+            g.roundRect(0, 0, this._w, this._h, Math.min(this._radius, this._w / 2, this._h / 2), 0.6).fill(this._fill);
+    }
+}
+
+// The inspector rows for a layer. Keys are paths on the selected objects.
+const schema: InspectorField[] = [
+    {
+        type: 'section',
+        label: 'Layer',
+        fields: [
+            { type: 'text', key: 'label', label: 'Name' },
+            { type: 'toggle', key: 'visible', label: 'Visible' },
+            { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01, perPixel: 0.005 },
+            {
+                type: 'choice',
+                key: 'blendMode',
+                label: 'Blend',
+                options: [
+                    { value: 'inherit', label: 'Pass' },
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'add', label: 'Add' },
+                ],
+            },
+        ],
+    },
+    {
+        type: 'section',
+        label: 'Transform',
+        fields: [
+            { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+            { type: 'vector', keys: ['w', 'h'], label: 'Size', labels: ['W', 'H'], min: 1, lockAspect: true },
+            { type: 'number', key: 'angle', label: 'Rotation', step: 1, unit: 'deg' },
+        ],
+    },
+    {
+        type: 'section',
+        label: 'Fill',
+        fields: [
+            { type: 'color', key: 'fill', label: 'Colour' },
+            { type: 'number', key: 'radius', label: 'Radius', min: 0, step: 1, unit: 'px' },
+        ],
+    },
+];
+
+// A small editor drawn entirely on the canvas: layers on the left, the inspector on the right,
+// a minimap at the bottom right and the scene in the middle. Pick a layer in the list or on the
+// canvas, drag rows to reorder them, scrub a number, or open the colour swatch. Cmd or ctrl + Z
+// undoes every step. Drag a panel by its title to float it, and drop it near an edge to dock it.
+export default defineDemo({
+    size: [1100, 660],
+    background: 0x111113,
+    touchAction: 'none',
+    ownsCamera: true,
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
+    },
+    setup({ silk, params, tick }) {
+        const app = silk.app;
+        const world = new Container({ label: 'Page' });
+        const overlay = new Container();
+        const panelLayer = new Container();
+        const selection = new Selection<Container>();
+        const history = new History();
+        const label = silkLabel();
+        const hover = new SelectionOutline({ ticker: app.ticker });
+        const outline = new SelectionOutline({ ticker: app.ticker });
+        const measure = new Measure({ space: world, ticker: app.ticker, label });
+        const gizmo = new TransformGizmo({ ticker: app.ticker, onChange: () => synced() });
+        const panels: Panel[] = [];
+        const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(() => panels) });
+        const viewport = { width: camera.state.width, height: camera.state.height };
+
+        gizmo.state.mode.set('move');
+        overlay.addChild(hover, outline, gizmo, measure);
+        app.stage.addChild(world, overlay, panelLayer);
+        app.stage.eventMode = 'static';
+        app.stage.hitArea = app.screen;
+        app.stage.on('pointerdown', (e) => e.target === app.stage && !e.shiftKey && selection.clear());
+
+        // ------------------------------------------------------------------ the scene
+        const layer = <T extends Container>(item: T, parent: Container, x: number, y: number): T => {
+            item.position.set(x, y);
+            item.eventMode = 'static';
+            item.cursor = 'pointer';
+            item.on('pointerover', () => selection.state.hovered.set(item));
+            item.on('pointerout', () => {
+                if (selection.state.hovered.value === item) selection.state.hovered.set(null);
+            });
+            item.on('pointerdown', (e) => {
+                e.stopPropagation();
+                selection.pick(item, e.shiftKey ? 'toggle' : 'replace');
+            });
+            parent.addChild(item);
+
+            return item;
+        };
+        const group = (name: string, parent: Container, x = 0, y = 0) => {
+            const g = new Container({ label: name });
+
+            g.position.set(x, y);
+            parent.addChild(g);
+
+            return g;
+        };
+
+        const home = group('Home', world);
+
+        layer(new Shape('Background', 390, 620, 0xf4f4f6), home, 0, 0);
+        layer(new Shape('Hero', 342, 180, 0x5e5ce6, 24), home, 24, 24);
+        const cards = group('Cards', home, 24, 228);
+
+        layer(new Shape('Card A', 160, 120, 0xffffff, 18), cards, 0, 0);
+        layer(new Shape('Card B', 160, 120, 0xffffff, 18), cards, 182, 0);
+        const list = group('List', home, 24, 372);
+
+        for (let i = 0; i < 3; i++) {
+            const row = group(`Row ${i + 1}`, list, 0, i * 52);
+
+            layer(new Shape('Row background', 342, 44, 0xffffff, 12), row, 0, 0);
+            layer(new Shape('Avatar', 28, 28, [0x30d158, 0xff9f0a, 0xff375f][i], 0, true), row, 10, 8);
+            layer(new Shape('Title', 140, 10, 0xd1d1d6, 5), row, 50, 17);
+        }
+        layer(new Shape('Tab bar', 342, 52, 0x1c1c1e, 26), home, 24, 548);
+        const profile = group('Profile', world, 470, 0);
+
+        layer(new Shape('Background', 390, 620, 0xf4f4f6), profile, 0, 0);
+        layer(new Shape('Cover', 390, 200, 0xbf5af2), profile, 0, 0);
+        layer(new Shape('Photo', 96, 96, 0xffd60a, 0, true), profile, 147, 152);
+        layer(new Shape('Bio', 300, 80, 0xffffff, 16), profile, 45, 280);
+
+        // ------------------------------------------------------------------ the panels
+        let ui: ReturnType<typeof buildPanels> | null = null;
+        const synced = () => {
+            ui?.inspector.refresh();
+            ui?.minimap.refresh();
+        };
+        // the light theme builds the panels again with the other tokens
+        const buildPanels = (theme: Partial<PanelTheme>) => {
+            const layersPanel = new Panel({
+                title: 'Layers',
+                dock: 'left',
+                width: 248,
+                viewport,
+                scroll: false,
+                theme,
+            });
+            const inspectorPanel = new Panel({
+                title: 'Inspector',
+                dock: 'right',
+                width: 272,
+                viewport,
+                insets: { bottom: 196 },
+                theme,
+            });
+            const mapPanel = new Panel({
+                title: 'Map',
+                dock: 'bottom-right',
+                width: 272,
+                height: 188,
+                viewport,
+                scroll: false,
+                layout: { padding: 8 },
+                theme,
+            });
+            const tree = new LayerTree({
+                adapter: pixiTreeAdapter({ leaf: (c) => c instanceof Shape }),
+                root: world,
+                selection,
+                history,
+                element: app.canvas,
+                theme,
+            });
+            const inspector = new Inspector({ schema, history, element: app.canvas, popoverLayer: panelLayer, theme });
+            const minimap = new Minimap({ camera, background: false, theme });
+
+            layersPanel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+            inspectorPanel.content.add(inspector);
+            mapPanel.content.add(minimap, { grow: 1, onSize: (w, h) => minimap.resize(w, h) });
+            panels.length = 0;
+            panels.push(layersPanel, inspectorPanel, mapPanel);
+            panelLayer.addChild(...panels);
+            const stops = [
+                watch(selection.state.items, (items) => {
+                    inspector.bind(items);
+                    inspectorPanel.title =
+                        items.length > 1 ? `${items.length} layers` : (items[0]?.label ?? 'Inspector');
+                }),
+                history.onChange(() => {
+                    tree.refresh();
+                    synced();
+                }),
+            ];
+
+            return {
+                inspector,
+                minimap,
+                destroy: () => {
+                    for (const stop of stops) stop();
+                    for (const p of panels) p.destroy({ children: true });
+                },
+            };
+        };
+
+        ui = buildPanels(PANEL_THEME);
+        const redlines = () => altDown();
+        const measured = bindMeasure(selection, measure, { between: redlines });
+        const syncHover = () => {
+            const over = selection.state.hovered.value;
+
+            hover.hover(!over || selection.has(over) ? null : over);
+        };
+        // everything reads the one selection, and every change goes through the one history
+        const stops = [
+            bindOutline(selection, outline),
+            bindGizmo(selection, gizmo),
+            measured.stop,
+            recordGizmo(gizmo, history),
+            bindHistoryKeys(history),
+            watch(selection.state.hovered, syncHover),
+            watch(selection.state.items, syncHover),
+        ];
+        let theme = params.theme;
+
+        tick(() => {
+            if (params.theme === theme) return;
+            theme = params.theme;
+            app.renderer.background.color = theme === 'light' ? 0xe4e4ea : 0x111113;
+            ui?.destroy();
+            ui = buildPanels(theme === 'light' ? PANEL_THEME_LIGHT : PANEL_THEME);
+        });
+
+        selection.pick(cards.children[0] as Container);
+        // frame the artboards in the space the panels leave free, again when the canvas gets its size
+        const frame = () => {
+            camera.fit(world, { left: 248 + 32, right: 272 + 32, top: 32, bottom: 32 }, false);
+            ui?.minimap.refresh();
+        };
+        let framed = camera.state.width.value > 0;
+        const stopFrame = camera.state.width.subscribe((w) => {
+            if (framed || w <= 0) return;
+            framed = true;
+            frame();
+        });
+
+        stops.push(stopFrame);
+        frame();
+
+        return () => {
+            for (const stop of stops) stop();
+            ui?.destroy();
+            camera.destroy();
+        };
+    },
+});
+```
+
+## A scene editor without DOM
+
+A scene editor needs panels around its canvas: a layer list, an inspector and often a minimap.
+Most apps stack DOM over Pixi for them, and then keep two event systems, two layouts and two
+styles in step. These panels are Pixi containers instead. They take the same pointer events as
+the scene, lay out with the [flex engine](https://pixi-silk.schmooky.dev/docs/layout/), and draw their text with
+[SilkText](https://pixi-silk.schmooky.dev/docs/text/), so they stay sharp at any scale.
+
+They are widgets, not a framework. Each one has its own entry point:
+
+| Entry | What it has |
+| --- | --- |
+| `pixi-silk/ui/panel` | `Panel`, `ScrollView`, the panel themes, `dockRect` and `panelHitTest` |
+| `pixi-silk/ui/layers` | `LayerTree`, `pixiTreeAdapter` and the tree functions it uses |
+| `pixi-silk/ui/inspector` | `Inspector`, its fields, `bindObjects` and `bindSignals` |
+| `pixi-silk/ui/minimap` | `Minimap` and its mapping functions |
+
+## Panel
+
+Live demo `panel-dock` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import { PANEL_THEME, PANEL_THEME_LIGHT, Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+// Drag a panel by its title bar. Drop it near an edge or a corner to dock it there, drag it off to
+// float it again. Drag an edge to resize it, click the chevron to fold it, and scroll its list.
+export default defineDemo({
+    size: [760, 460],
+    background: 0x141416,
+    touchAction: 'none',
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
+    },
+    setup({ silk, stage, width, height, params, tick }) {
+        const viewport = { width, height };
+        const canvas = silk.app.canvas;
+        // the panels scroll with the wheel: keep the page still while the pointer is over the demo
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const backdrop = new SilkGraphics();
+
+        stage.addChild(backdrop);
+        let panels: Panel[] = [];
+        const build = (light: boolean) => {
+            for (const p of panels) p.destroy({ children: true });
+            const theme = light ? PANEL_THEME_LIGHT : PANEL_THEME;
+
+            backdrop
+                .clear()
+                .rect(0, 0, width, height)
+                .fill(light ? 0xe6e6eb : 0x141416);
+            const colours = new Panel({ title: 'Colours', x: 270, y: 70, width: 220, height: 300, viewport, theme });
+            const notes = new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
+
+            // forty swatch rows, laid out by the panel's flex column and clipped by its body
+            for (let i = 0; i < 40; i++) {
+                const row = new Container();
+                const hue = (i * 37) % 360;
+                const chip = new SilkGraphics().roundRect(0, 0, 22, 22, 6, 0.6).fill(`hsl(${hue} 70% 58%)`);
+                const name = new SilkText({
+                    text: `Swatch ${i + 1}`,
+                    fontFamily: theme.fontFamily,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    fill: theme.text,
+                });
+                const code = new SilkText({
+                    text: `${hue} deg`,
+                    fontFamily: theme.fontFamily,
+                    fontSize: 11,
+                    fill: theme.textDim,
+                    anchor: { x: 1, y: 0 },
+                });
+
+                name.position.set(32, 4);
+                code.position.set(196, 5);
+                row.addChild(chip, name, code);
+                colours.content.add(row);
+            }
+            const text = new SilkText({
+                text: 'Panels are Pixi containers. They pan, zoom and stay sharp like the rest of the scene, and need no DOM on top of the canvas.',
+                fontFamily: theme.fontFamily,
+                fontSize: 12,
+                lineHeight: 18,
+                fill: theme.textDim,
+                wordWrap: true,
+                wordWrapWidth: 190,
+            });
+
+            notes.content.add(text);
+            panels = [colours, notes];
+            stage.addChild(...panels);
+        };
+        let light = params.theme === 'light';
+
+        build(light);
+        tick(() => {
+            if ((params.theme === 'light') === light) return;
+            light = params.theme === 'light';
+            build(light);
+        });
+
+        return () => {
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+A `Panel` has a title bar, a body and edges to resize. Drag the title bar to move it. While the
+pointer is near a screen edge or corner, a preview shows where it docks, and releasing docks it
+there. Left and right panels span the screen height, top and bottom ones its width. Size,
+position and folding glide on springs.
+
+```ts
+
+declare const camera: Camera;
+declare const stage: Container;
+declare const rows: Container[];
+
+const panel = new Panel({
+    title: 'Library',
+    dock: 'left', // or 'right', 'top', 'bottom', 'top-left' and the other corners
+    width: 260,
+    viewport: camera.state, // the screen size, as signals or numbers
+});
+
+for (const row of rows) panel.content.add(row);
+stage.addChild(panel);
+```
+
+The body is `panel.content`, a flex column with a gap and a padding. It scrolls when it is taller
+than the panel: wheels and trackpads glide, fingers fling and stretch past the ends, and a slim
+scrollbar fades in while it moves. Widgets that scroll themselves, like the layer tree, take
+`scroll: false`, and the body is then a flex container as tall as the panel.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `dock` | floating | An edge or a corner. Needs `viewport` |
+| `margin` | 8 | Gap to the screen edge when docked |
+| `insets` | none | Space kept free along each edge, for a toolbar or another panel |
+| `collapsible`, `collapsed` | true, false | The chevron folds the body away |
+| `draggable`, `resizable`, `dockable` | true | Move, resize and dock by dragging |
+| `minWidth`, `minHeight` | 160, 96 | Smallest size a resize leaves |
+| `scroll` | true | Scroll `content`, or fill the body with it |
+| `theme` | dark | `PANEL_THEME_LIGHT`, or any tokens over the dark theme |
+
+`panel.state` holds `collapsed`, `dock`, `dragging`, `resizing` and `rect` as
+[signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/). Write `collapsed` or `dock` to fold or dock from code.
+`panel.actions` is a flex row in the title bar for buttons of your own.
+
+### Panels and the camera
+
+The [camera](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/) listens to the wheel on the whole canvas. Pass
+`panelHitTest` as its `ignore` option, and wheels and pan drags over a panel stay with the panel.
+
+```ts
+
+declare const app: Application;
+declare const world: Container;
+declare const panels: Panel[];
+
+const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(panels) });
+```
+
+## Layer tree
+
+Live demo `layers-tree` (source):
+
+```ts
+import { History } from 'pixi-silk/history';
+import { Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { SilkText } from 'pixi-silk/text';
+import { type LayerIcon, LayerTree, type TreeAdapter } from 'pixi-silk/ui/layers';
+import { PANEL_THEME, Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** The app's own model: plain objects, no Pixi in them. */
+interface Item {
+    name: string;
+    kind: 'frame' | 'group' | 'shape' | 'text';
+    children: Item[];
+    parent: Item | null;
+    hidden: boolean;
+    locked: boolean;
+}
+
+const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
+    const it: Item = { name, kind, children: [], parent, hidden: false, locked: false };
+
+    parent?.children.push(it);
+
+    return it;
+};
+
+// Two thousand layers in a plain object model. Only the rows in view are drawn. Click, Shift +
+// click and cmd or ctrl + click select. Drag rows to reorder them, or drop them on a group to move
+// them inside. Double click a name to rename it. Arrow keys move the selection.
+export default defineDemo({
+    size: [640, 460],
+    background: 0x141416,
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const canvas = silk.app.canvas;
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const root = item('Document', 'frame', null);
+        let count = 0;
+
+        for (let f = 0; f < 40; f++) {
+            const frame = item(`Screen ${f + 1}`, 'frame', root);
+
+            for (let g = 0; g < 5; g++) {
+                const group = item(`Section ${g + 1}`, 'group', frame);
+
+                for (let s = 0; s < 9; s++)
+                    item(s % 3 === 0 ? `Label ${s + 1}` : `Shape ${s + 1}`, s % 3 ? 'shape' : 'text', group);
+                count += 10;
+            }
+            count++;
+        }
+        const adapter: TreeAdapter<Item> = {
+            getChildren: (n) => n.children,
+            getName: (n) => n.name,
+            getParent: (n) => n.parent,
+            setName: (n, name) => {
+                n.name = name;
+            },
+            getIcon: (n): LayerIcon => n.kind,
+            isVisible: (n) => !n.hidden,
+            setVisible: (n, v) => {
+                n.hidden = !v;
+            },
+            isLocked: (n) => n.locked,
+            setLocked: (n, v) => {
+                n.locked = v;
+            },
+            canHaveChildren: (n) => n.kind === 'frame' || n.kind === 'group',
+            move: (n, parent, index) => {
+                n.parent?.children.splice(n.parent.children.indexOf(n), 1);
+                parent.children.splice(index, 0, n);
+                n.parent = parent;
+            },
+        };
+        const selection = new Selection<Item>();
+        const history = new History();
+        const panel = new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
+        const tree = new LayerTree({ adapter, root, selection, history, element: canvas });
+        const info = new SilkText({
+            fontFamily: PANEL_THEME.fontFamily,
+            fontSize: 13,
+            lineHeight: 20,
+            fill: 0x8e8e96,
+            wordWrap: true,
+            wordWrapWidth: 260,
+        });
+        const onKey = (e: KeyboardEvent) => {
+            const mod = e.metaKey || e.ctrlKey;
+
+            if (!mod || e.code !== 'KeyZ') return;
+            e.preventDefault();
+            if (e.shiftKey) history.redo();
+            else history.undo();
+        };
+
+        addEventListener('keydown', onKey);
+        tree.expand(root.children[0], true);
+        panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+        info.position.set(356, 40);
+        stage.addChild(panel, info);
+        const show = () => {
+            const picked = selection.items.map((n) => n.name);
+
+            info.text = [
+                `${count} layers, ${tree.rows.length} rows open`,
+                '',
+                picked.length
+                    ? `Selected: ${picked.slice(0, 6).join(', ')}${picked.length > 6 ? ' and more' : ''}`
+                    : 'Nothing selected',
+                '',
+                history.state.undoLabel.value ? `Undo: ${history.state.undoLabel.value}` : 'Nothing to undo',
+            ].join('\n');
+        };
+        const stops = [watch(selection.state.items, show), watch(tree.state.rows, show), history.onChange(show)];
+
+        return () => {
+            for (const stop of stops) stop();
+            removeEventListener('keydown', onKey);
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+`LayerTree` lists any tree. It reads your data through a `TreeAdapter`, a few callbacks such as
+`getChildren` and `getName`, so it can show a Pixi scene graph, a document model or a store. It
+keeps no copy of the data. Call `refresh()` after the data changes elsewhere.
+
+```ts
+
+declare const world: Container;
+declare const panel: Panel; // created with scroll: false
+
+const selection = new Selection<Container>();
+const tree = new LayerTree({ adapter: pixiTreeAdapter(), root: world, selection, history: new History() });
+
+panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+```
+
+- **Selection.** Click selects, Shift + click selects a range, cmd or ctrl + click toggles. The
+  rows follow a `Selection` store both ways. A pick on the canvas opens its groups and scrolls it
+  into view. Hovering a row sets `selection.state.hovered`, so the canvas can outline it.
+- **Reorder and reparent.** Drag rows between others, or onto the middle of a group to move them
+  inside. Below the last row of a group, the pointer's x picks how far out the drop goes. A line
+  or a box shows where they land. On touch, hold a row to pick it up.
+- **Rename, hide and lock.** Double click a name, or press Enter or F2, to rename it in place with
+  a `TextEditor`. The eye and lock toggles show on hover, and stay while they are off the default.
+- **Keys.** Up and Down move the selection, Shift extends it, Left and Right fold and unfold.
+- **Thousands of nodes.** Only the rows in view exist. A pool of row views is reused as you scroll.
+
+Every rename, toggle and move goes through `history` as one undo step. Rows are listed front to
+back, the way design tools show layers, so the adapter's first child is the top row.
+
+`pixiTreeAdapter()` maps containers to rows. Names are `label`, the eye sets `visible`, the lock
+turns pointer events off, and moves keep each node in place on screen. Pass `filter` to leave
+children out, and `name` or `icon` for your own labels and icons. For your own model, write the
+adapter:
+
+```ts
+
+interface Item {
+    name: string;
+    children: Item[];
+    parent: Item | null;
+}
+
+declare const doc: Item;
+
+const adapter: TreeAdapter<Item> = {
+    getChildren: (n) => n.children,
+    getName: (n) => n.name,
+    getParent: (n) => n.parent,
+    setName: (n, name) => (n.name = name),
+    move: (n, parent, index) => {
+        n.parent?.children.splice(n.parent.children.indexOf(n), 1);
+        parent.children.splice(index, 0, n);
+        n.parent = parent;
+    },
+};
+
+const tree = new LayerTree({ adapter, root: doc });
+```
+
+The logic behind the list is exported on its own and has no Pixi in it: `flattenTree`,
+`visibleRange`, `dropTarget`, `applyDrop` and `undoMoves`.
+
+## Inspector
+
+Live demo `inspector-schema` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History } from 'pixi-silk/history';
+import { bindOutline, Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** A card with a fill and a corner radius, so the inspector has something of its own to edit. */
+class Card extends Container {
+    private readonly g = new SilkGraphics();
+    private _fill: number;
+    private _radius = 18;
+    shadow = true;
+
+    constructor(label: string, fill: number) {
+        super({ label });
+        this._fill = fill;
+        this.addChild(this.g);
+        this.redraw();
+    }
+
+    get fill(): number {
+        return this._fill;
+    }
+    set fill(v: number) {
+        this._fill = v;
+        this.redraw();
+    }
+    get radius(): number {
+        return this._radius;
+    }
+    set radius(v: number) {
+        this._radius = v;
+        this.redraw();
+    }
+    get glow(): boolean {
+        return this.shadow;
+    }
+    set glow(v: boolean) {
+        this.shadow = v;
+        this.redraw();
+    }
+
+    redraw(): void {
+        const g = this.g.clear();
+
+        if (this.shadow)
+            g.roundRect(0, 8, 120, 120, this._radius, 0.6).fill({ color: this._fill, alpha: 0.45, blur: 7 });
+        g.roundRect(0, 0, 120, 120, this._radius, 0.6).fill(this._fill);
+    }
+}
+
+const schema: InspectorField[] = [
+    { type: 'text', key: 'label', label: 'Name' },
+    { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+    { type: 'vector', keys: ['scale.x', 'scale.y'], label: 'Scale', labels: ['X', 'Y'], step: 0.01, lockAspect: true },
+    { type: 'number', key: 'angle', label: 'Rotation', unit: 'deg' },
+    { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01, perPixel: 0.005 },
+    {
+        type: 'section',
+        label: 'Style',
+        fields: [
+            { type: 'color', key: 'fill', label: 'Fill' },
+            { type: 'number', key: 'radius', label: 'Radius', min: 0, max: 60, unit: 'px' },
+            { type: 'toggle', key: 'glow', label: 'Glow' },
+            {
+                type: 'choice',
+                key: 'blendMode',
+                label: 'Blend',
+                options: [
+                    { value: 'inherit', label: 'Pass' },
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'add', label: 'Add' },
+                ],
+            },
+        ],
+    },
+];
+
+// Click a card, or Shift + click to edit several: values that differ show as Mixed, and a scrub
+// moves each from its own start. Drag a number sideways, or click it to type. Open the swatch for
+// the colour picker. Cmd or ctrl + Z undoes each drag as one step.
+export default defineDemo({
+    size: [760, 480],
+    background: 0x141416,
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const canvas = silk.app.canvas;
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const selection = new Selection<Container>();
+        const history = new History();
+        const scene = new Container();
+        const outline = new SelectionOutline({ ticker: silk.app.ticker });
+        const panel = new Panel({ title: 'Inspector', x: 452, y: 20, width: 288, height: 440 });
+        const inspector = new Inspector({ schema, history, element: canvas, popoverLayer: stage });
+        const cards = [new Card('Blue', 0x0a84ff), new Card('Pink', 0xff375f), new Card('Mint', 0x30d158)];
+
+        cards.forEach((card, i) => {
+            card.position.set(40 + (i % 2) * 180, 50 + Math.floor(i / 2) * 200 + (i % 2) * 40);
+            card.eventMode = 'static';
+            card.cursor = 'pointer';
+            card.on('pointerdown', (e) => {
+                e.stopPropagation();
+                selection.pick(card, e.shiftKey ? 'toggle' : 'replace');
+            });
+            scene.addChild(card);
+        });
+        stage.eventMode = 'static';
+        stage.hitArea = { contains: () => true };
+        stage.on('pointerdown', (e) => {
+            if (e.target === stage) selection.clear();
+        });
+        panel.content.add(inspector);
+        stage.addChild(scene, outline, panel);
+        const stops = [
+            bindOutline(selection, outline),
+            watch(selection.state.items, (items) => {
+                inspector.bind(items);
+                panel.title = items.length > 1 ? `${items.length} cards` : (items[0]?.label ?? 'Inspector');
+            }),
+            history.onChange(() => inspector.refresh()),
+            bindHistoryKeys(history),
+        ];
+
+        selection.replace([cards[0], cards[1]]);
+
+        return () => {
+            for (const stop of stops) stop();
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+An `Inspector` builds its rows from a schema. Each entry names a key, a path on the edited
+objects such as `position.x`, and a field type.
+
+```ts
+
+declare const selection: Selection<Container>;
+declare const panel: Panel;
+
+const inspector = new Inspector({
+    schema: [
+        { type: 'text', key: 'label', label: 'Name' },
+        { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+        { type: 'vector', keys: ['width', 'height'], label: 'Size', labels: ['W', 'H'], lockAspect: true },
+        { type: 'number', key: 'angle', label: 'Rotation', unit: 'deg' },
+        {
+            type: 'section',
+            label: 'Layer',
+            fields: [
+                { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01 },
+                { type: 'toggle', key: 'visible', label: 'Visible' },
+                { type: 'color', key: 'tint', label: 'Tint' },
+            ],
+        },
+    ],
+    history: new History(),
+});
+
+selection.state.items.subscribe((items) => inspector.bind(items));
+panel.content.add(inspector);
+```
+
+| Type | Field |
+| --- | --- |
+| `number` | Drag sideways to scrub, Shift for ten times faster, Alt for ten times finer. Click to type. `min`, `max`, `step`, `unit` |
+| `text` | A one-line `TextEditor` |
+| `toggle` | A switch with a springy knob |
+| `choice` | Segmented options with a sliding thumb |
+| `color` | A swatch and its hex code. A click opens a colour picker |
+| `vector` | Two numbers in one row. `lockAspect` adds a link that keeps their ratio |
+| `section` | A titled group that folds |
+
+`bind()` takes a list of objects, or an `InspectorBinding` with `read` and `write` for a store of
+your own. `bindSignals()` edits [signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/), for a settings panel.
+With several objects bound, values that differ show as Mixed. A scrub moves each value from its
+own start, and a typed value sets them all.
+
+Every drag, toggle or commit is one step in `history`, with the values of each object before
+and after. Call `refresh()` when the objects change elsewhere, such as during a gizmo drag. Colour
+fields open a `HueSquarePicker` by default. Pass `colorPicker` to use another picker from
+[colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/), and `popoverLayer` for the container it opens in.
+
+## Minimap
+
+Live demo `minimap` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Camera } from 'pixi-silk/ui/camera';
+import { Minimap } from 'pixi-silk/ui/minimap';
+import { panelHitTest } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+// Scroll to pan and pinch or ctrl + scroll to zoom. The minimap follows the view. Drag its frame
+// to pan, click anywhere on it to jump there, and scroll over it to zoom.
+export default defineDemo({
+    size: [760, 460],
+    background: 0x101012,
+    touchAction: 'none',
+    ownsCamera: true,
+    controls: {
+        mode: { type: 'select', label: 'thumbnail', options: ['bounds', 'texture'], value: 'bounds' },
+    },
+    setup({ silk, params, tick }) {
+        const app = silk.app;
+        const world = new Container();
+        const maps: Container[] = [];
+        const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(() => maps) });
+
+        app.stage.addChild(world);
+        // a board of cards in rows, some wide, some tall
+        const colours = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff];
+
+        for (let i = 0; i < 60; i++) {
+            const w = 120 + ((i * 53) % 140);
+            const h = 80 + ((i * 31) % 120);
+            const g = new SilkGraphics().roundRect(0, 0, w, h, 16, 0.6).fill(colours[i % colours.length]);
+
+            g.position.set((i % 10) * 300 + ((i * 17) % 40), Math.floor(i / 10) * 260 + ((i * 29) % 50));
+            world.addChild(g);
+        }
+        let map: Minimap | null = null;
+        const place = () =>
+            map?.position.set(app.screen.width - map.mapWidth - 16, app.screen.height - map.mapHeight - 16);
+        const build = (mode: 'bounds' | 'texture') => {
+            map?.destroy();
+            map = new Minimap({ camera, width: 230, height: 150, mode, renderer: app.renderer });
+            maps[0] = map;
+            app.stage.addChild(map);
+            place();
+        };
+        let mode = params.mode;
+
+        build(mode as 'bounds' | 'texture');
+        app.renderer.on('resize', place);
+        tick(() => {
+            if (params.mode === mode) return;
+            mode = params.mode;
+            build(mode as 'bounds' | 'texture');
+        });
+        camera.fit({ x: 0, y: 0, width: 1200, height: 700 }, 40, false);
+
+        return () => {
+            app.renderer.off('resize', place);
+            camera.destroy();
+        };
+    },
+});
+```
+
+A `Minimap` shows a camera's world in small, with the view as a frame. Drag the frame to pan,
+click to jump there, and scroll over it to zoom. It frames the content and the view together, and
+glides as the view moves past the content.
+
+```ts
+
+declare const app: Application;
+declare const camera: Camera;
+
+const map = new Minimap({ camera, width: 220, height: 140 });
+
+app.stage.addChild(map);
+```
+
+The default `bounds` mode draws the outline of each object, crisp and cheap. `mode: 'texture'`
+renders the content into a small texture every `interval` seconds, for a real thumbnail. It needs
+the `renderer`. Call `refresh()` after the content moves, so the map measures it again.
 
 ---
 
@@ -8476,7 +10867,8 @@ import { Container, Text, type WebGLRenderer } from 'pixi.js';
 import { enableSilkBatching, SilkGraphics } from 'pixi-silk';
 import { defineDemo } from './runtime';
 
-// 2000 separate SilkGraphics that move every frame. With batching on, runs of them share a draw.
+// 2000 separate SilkGraphics that move every frame. With batching on, runs of them share a draw,
+// on WebGL2 and on WebGPU.
 enableSilkBatching();
 
 export default defineDemo({
@@ -8495,29 +10887,43 @@ export default defineDemo({
         caption.position.set(12, 10);
         stage.addChild(layer, caption);
 
-        // count draw calls by wrapping the WebGL context (WebGPU has no such hook: shows n/a)
+        // count draw calls: wrap the WebGL context, or the WebGPU render pass encoder
         const renderer = silk.app.renderer as WebGLRenderer;
         const gl = renderer.gl as WebGL2RenderingContext | undefined;
+        const restore: (() => void)[] = [];
         let calls = 0;
+        // only draws of this demo's renderer count: other demos on the page may draw in between
+        let mine = false;
+        const wrap = <T extends object>(target: T, names: (keyof T & string)[]) => {
+            for (const name of names) {
+                const fn = target[name] as unknown as (...a: unknown[]) => unknown;
 
-        if (gl) {
-            const instanced = gl.drawElementsInstanced.bind(gl);
-            const plain = gl.drawElements.bind(gl);
+                (target as Record<string, unknown>)[name] = function (this: unknown, ...a: unknown[]) {
+                    if (mine) calls++;
 
-            gl.drawElementsInstanced = (...a: Parameters<typeof instanced>) => {
-                calls++;
-                instanced(...a);
-            };
-            gl.drawElements = (...a: Parameters<typeof plain>) => {
-                calls++;
-                plain(...a);
-            };
-            silk.app.renderer.runners.prerender.add({
-                prerender: () => {
-                    calls = 0;
-                },
-            });
-        }
+                    return fn.apply(this, a);
+                };
+                restore.push(() => {
+                    (target as Record<string, unknown>)[name] = fn;
+                });
+            }
+        };
+
+        if (gl) wrap(gl, ['drawElementsInstanced', 'drawElements']);
+        else if (typeof GPURenderPassEncoder !== 'undefined')
+            wrap(GPURenderPassEncoder.prototype, ['drawIndexed', 'draw']);
+        const counter = {
+            prerender: () => {
+                calls = 0;
+                mine = true;
+            },
+            postrender: () => {
+                mine = false;
+            },
+        };
+
+        silk.app.renderer.runners.prerender.add(counter);
+        silk.app.renderer.runners.postrender.add(counter);
 
         let built = '';
         const colors = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2];
@@ -8546,10 +10952,12 @@ export default defineDemo({
                 g.position.set(240 + Math.cos(a) * r * 1.6, 150 + Math.sin(a) * r);
                 g.rotation = t + i;
             });
-            caption.text = `${n} objects, ${gl ? calls : 'n/a'} draw calls last frame`;
+            caption.text = `${n} objects, ${calls} draw calls last frame`;
         });
 
-        return undefined;
+        return () => {
+            for (const undo of restore) undo();
+        };
     },
 });
 ```
@@ -8623,14 +11031,20 @@ nearest of their butt rectangles, caps and joins, as Canvas 2D defines a stroke.
 shaded once, so translucent lines never double-blend. A join polygon reaches a little way back
 along both segments, so no seam shows where two rectangles meet.
 
-Long subpaths are split into chunks of 32 segments. Each chunk also looks at the segment on either
-side and leaves a pixel to its neighbour when that segment is nearer. Tapered strokes keep one
+Long subpaths are split into chunks of 32 segments. Each chunk also looks at the segments of the
+other chunks that come near its own, found on the CPU. A pixel goes to the chunk with the nearest
+segment, so it is shaded once even where the path crosses itself. Tapered strokes keep one
 instance per segment, with the exact distance to an uneven capsule.
 
 ## Unions
 
 `union: true` on a fill or stroke stores every shape of the path as a record in the same texture.
 The shader takes the nearest of their distances, so overlapping shapes paint as one.
+
+[Shape operations](https://pixi-silk.schmooky.dev/docs/shape-operations/) use the same records, each with an op. The shader folds
+them on a small stack: the minimum of two distances is a union, the maximum an intersection,
+`max(a, -b)` subtracts b from a, and `max(min(a, b), -max(a, b))` excludes. All four are exact on
+the outline.
 
 ## Areas
 
@@ -9074,8 +11488,8 @@ Geometry.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | [SilkGraphics.ts:509](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L509) |
-|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | [SilkGraphics.ts:511](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L511) |
+|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | [SilkGraphics.ts:555](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L555) |
+|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | [SilkGraphics.ts:557](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L557) |
 
 ## Accessors
 
@@ -9152,7 +11566,7 @@ Mesh<SilkGeometry, Shader>.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [SilkGraphics.ts:574](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L574) |
+|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [SilkGraphics.ts:620](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L620) |
 
 ## Accessors
 
@@ -9405,6 +11819,48 @@ Cubic Bezier to (x, y), flattened adaptively.
 #### Returns
 
 `this`
+
+***
+
+### boolean()
+
+```ts
+boolean(
+   op: ShapeOp, 
+   a: (g: this) => unknown, 
+   b: (g: this) => unknown
+): this;
+```
+
+Adds one shape to the active path: what `a` draws combined with what `b` draws by `op`. The
+shapes each callback adds are merged first, and a callback can call `boolean()` again to nest.
+Paint the result with `fill()` or `stroke()` like any shape. The callbacks only add shapes:
+do not paint inside them.
+
+The outline is exact, so anti-aliasing is as sharp as on a circle. Inside the shape the
+distance is a close bound, not exact: a large blur, spread or inner shadow can round its
+inner corners slightly.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `op` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) |
+| `a` | (`g`: `this`) => `unknown` |
+| `b` | (`g`: `this`) => `unknown` |
+
+#### Returns
+
+`this`
+
+#### Example
+
+```ts
+// a ring with a notch: a circle minus a smaller circle and a bar
+g.boolean('subtract', (g) => g.circle(50, 50, 40), (g) => g.circle(50, 50, 24).rect(46, 0, 8, 30))
+    .fill(0x30d158)
+    .stroke({ width: 2, color: 0xffffff });
+```
 
 ***
 
@@ -10063,6 +12519,34 @@ Strokes the shapes of the active path. Right after `fill()` it merges into the s
 
 ***
 
+### svgPath()
+
+```ts
+svgPath(d: string): this;
+```
+
+Adds an SVG path (the `d` attribute) to the active path: M, L, H, V, C, S, Q, T, A and Z, in
+absolute and relative form. Fill it as one even-odd shape, stroke it, or combine it with
+other shapes. The current transform applies.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `d` | `string` |
+
+#### Returns
+
+`this`
+
+#### Example
+
+```ts
+g.svgPath('M12 2 L22 22 H2 Z M12 8 L17 18 H7 Z').fill(0xff9f0a);
+```
+
+***
+
 ### translateTransform()
 
 ```ts
@@ -10120,8 +12604,8 @@ Triangle through three points, with optionally rounded corners.
 
 URL: https://pixi-silk.schmooky.dev/api/classes/SilkPipe/
 
-Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call.
-[enableSilkBatching](https://pixi-silk.schmooky.dev/api/functions/enableSilkBatching/) installs it. On WebGPU it hands every object to Pixi's mesh pipe.
+Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call, under WebGL2
+and WebGPU. [enableSilkBatching](https://pixi-silk.schmooky.dev/api/functions/enableSilkBatching/) installs it.
 
 ## Implements
 
@@ -10149,9 +12633,9 @@ new SilkPipe(renderer: Renderer): SilkPipe;
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `extension` | `static` | \{ `name`: `string`; `type`: `ExtensionType`[]; \} | Pixi extension metadata, for `extensions.add(SilkPipe)` if you register it yourself. | [batch.ts:212](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L212) |
-| `extension.name` | `public` | `string` | Key in `renderer.renderPipes`, and the `renderPipeId` of batched objects. | [batch.ts:216](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L216) |
-| `extension.type` | `public` | `ExtensionType`[] | Renderer pipe lists the pipe joins. | [batch.ts:214](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L214) |
+|  `extension` | `static` | \{ `name`: `string`; `type`: `ExtensionType`[]; \} | Pixi extension metadata, for `extensions.add(SilkPipe)` if you register it yourself. | [batch.ts:217](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L217) |
+| `extension.name` | `public` | `string` | Key in `renderer.renderPipes`, and the `renderPipeId` of batched objects. | [batch.ts:221](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L221) |
+| `extension.type` | `public` | `ExtensionType`[] | Renderer pipe lists the pipe joins. | [batch.ts:219](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L219) |
 
 ## Methods
 
@@ -10517,6 +13001,9 @@ settings render in one draw call. Objects created after the call take part. Each
 the pipe the first time it draws one of them, so you can call it before or after creating the
 Application. It is safe to call again.
 
+It works with WebGL2 and with WebGPU. On WebGPU, call `enableWebGPU()` too ([createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/)
+does it for you), or objects draw one call each, as without batching.
+
 ## Returns
 
 `void`
@@ -10788,8 +13275,8 @@ Options of `area()`: monotone smoothing of the series and its sample spacing.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [SilkGraphics.ts:165](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L165) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:167](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L167) |
+|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [SilkGraphics.ts:181](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L181) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:183](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L183) |
 
 ## ConicGradientOptions (Interface)
 
@@ -10828,14 +13315,15 @@ How a fill is painted: colour or gradient, opacity, blur with spread, blend mode
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:83](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L83) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [SilkGraphics.ts:97](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L97) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [SilkGraphics.ts:90](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L90) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [SilkGraphics.ts:81](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L81) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [SilkGraphics.ts:85](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L85) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [SilkGraphics.ts:99](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L99) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [SilkGraphics.ts:92](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L92) |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [SilkGraphics.ts:107](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L107) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [SilkGraphics.ts:98](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L98) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [SilkGraphics.ts:82](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L82) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [SilkGraphics.ts:117](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L117) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
 
 ## GradientOptions (Interface)
 
@@ -10870,13 +13358,13 @@ moved by `x` and `y`, shrunk by `spread` and blurred. What it no longer covers i
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:65](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L65) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [SilkGraphics.ts:75](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L75) |
-|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [SilkGraphics.ts:71](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L71) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [SilkGraphics.ts:63](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L63) |
-|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [SilkGraphics.ts:73](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L73) |
-|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [SilkGraphics.ts:67](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L67) |
-|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [SilkGraphics.ts:69](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L69) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:66](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L66) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [SilkGraphics.ts:76](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L76) |
+|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [SilkGraphics.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L72) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [SilkGraphics.ts:64](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L64) |
+|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [SilkGraphics.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L74) |
+|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [SilkGraphics.ts:68](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L68) |
+|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [SilkGraphics.ts:70](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L70) |
 
 ## LinearGradientOptions (Interface)
 
@@ -10925,9 +13413,9 @@ Options of `polyline()`: closed loops and monotone or Catmull-Rom smoothing of t
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [SilkGraphics.ts:155](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L155) |
-|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [SilkGraphics.ts:157](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L157) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:159](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L159) |
+|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [SilkGraphics.ts:171](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L171) |
+|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [SilkGraphics.ts:173](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L173) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:175](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L175) |
 
 ## ProgressiveBlur (Interface)
 
@@ -10940,9 +13428,9 @@ A blur that changes across the shape, like Figma's progressive layer blur. The r
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [SilkGraphics.ts:54](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L54) |
-|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [SilkGraphics.ts:50](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L50) |
-|  `to` | `number` | Blur at the end edge. | [SilkGraphics.ts:52](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L52) |
+|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [SilkGraphics.ts:55](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L55) |
+|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [SilkGraphics.ts:51](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L51) |
+|  `to` | `number` | Blur at the end edge. | [SilkGraphics.ts:53](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L53) |
 
 ## RadialGradientOptions (Interface)
 
@@ -11048,11 +13536,11 @@ Per-object rendering settings of a [SilkGraphics](https://pixi-silk.schmooky.dev
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [SilkGraphics.ts:175](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L175) |
-|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | [SilkGraphics.ts:184](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L184) |
-|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [SilkGraphics.ts:173](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L173) |
-|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [SilkGraphics.ts:179](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L179) |
-|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [SilkGraphics.ts:177](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L177) |
+|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [SilkGraphics.ts:191](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L191) |
+|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | [SilkGraphics.ts:200](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L200) |
+|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [SilkGraphics.ts:189](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L189) |
+|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [SilkGraphics.ts:195](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L195) |
+|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [SilkGraphics.ts:193](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L193) |
 
 ## StrokeStyle (Interface)
 
@@ -11068,22 +13556,23 @@ How a stroke is painted: width (or tapered widths), alignment, caps, dashes, plu
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [SilkGraphics.ts:124](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L124) |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [SilkGraphics.ts:83](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L83) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [SilkGraphics.ts:97](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L97) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [SilkGraphics.ts:90](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L90) |
-|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [SilkGraphics.ts:126](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L126) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [SilkGraphics.ts:81](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L81) |
-|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [SilkGraphics.ts:128](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L128) |
-|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [SilkGraphics.ts:132](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L132) |
-|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [SilkGraphics.ts:130](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L130) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [SilkGraphics.ts:85](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L85) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [SilkGraphics.ts:99](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L99) |
-|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | [SilkGraphics.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L138) |
-|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | [SilkGraphics.ts:143](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L143) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [SilkGraphics.ts:92](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L92) |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | [SilkGraphics.ts:107](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L107) |
-|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [SilkGraphics.ts:122](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L122) |
+|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [SilkGraphics.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L140) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [SilkGraphics.ts:98](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L98) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [SilkGraphics.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L142) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [SilkGraphics.ts:82](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L82) |
+|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [SilkGraphics.ts:144](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L144) |
+|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [SilkGraphics.ts:148](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L148) |
+|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [SilkGraphics.ts:146](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L146) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | [SilkGraphics.ts:154](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L154) |
+|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | [SilkGraphics.ts:159](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L159) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`op`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#op) | [SilkGraphics.ts:117](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L117) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
+|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [SilkGraphics.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L138) |
 
 ## ColorSpace (Type)
 
@@ -11192,6 +13681,17 @@ type RGBA = [number, number, number, number];
 ```
 
 Straight (non-premultiplied) sRGB colour with alpha, all channels 0..1, as returned by [parseColor](https://pixi-silk.schmooky.dev/api/functions/parseColor/).
+
+## ShapeOp (Type)
+
+URL: https://pixi-silk.schmooky.dev/api/types/ShapeOp/
+
+```ts
+type ShapeOp = "union" | "subtract" | "intersect" | "exclude";
+```
+
+A shape operation: `union` merges, `subtract` cuts the later shapes out of the first,
+`intersect` keeps the overlap, and `exclude` keeps what is covered an odd number of times.
 
 ## StopInput (Type)
 
@@ -11380,6 +13880,10 @@ Yes. Radial menus, animated buttons and a button dock ship under `pixi-silk/ui/*
 ## Can I build an editor or design tool with pixi-silk?
 
 Yes. `pixi-silk/ui/gizmo` has transform gizmos, selection outlines and smart guides. `pixi-silk/ui/color` has colour pickers, `pixi-silk/ui/halo`, `brush` and `modes` the tools around a selection, and `pixi-silk/ui/dial` and `timeline` the value controls. All of it draws on the canvas, with no DOM.
+
+## Do I need DOM panels over the canvas for a scene editor?
+
+No. `pixi-silk/ui/panel` draws dockable panels on the canvas, and `layers`, `inspector` and `minimap` fill them with a layer tree, a property inspector and a minimap. They are Pixi containers, so they share the scene, its pointer events and its undo history.
 
 ## Are the slot game HUD controls part of pixi-silk?
 

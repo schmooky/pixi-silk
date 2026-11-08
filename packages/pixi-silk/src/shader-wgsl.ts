@@ -530,159 +530,112 @@ fn segDir(e: vec4<f32>) -> vec2<f32> {
     return vec2<f32>(1.0, 0.0);
 }
 
+// Component i (0 to 3) of v.
+fn comp(v: vec4<f32>, i: i32) -> f32 {
+    return dot(v, select(vec4<f32>(0.0), vec4<f32>(1.0), vec4<i32>(i) == vec4<i32>(0, 1, 2, 3)));
+}
+
 // Stroke of a path (Prim 10): butt pieces, caps at open ends, a join at every inner vertex.
-// A chunk of a long subpath also evaluates the segment on each side of it: a pixel nearer to a
-// neighbour belongs to the neighbour's instance and is discarded here, so it is shaded once.
+// Segments come in windows: texels (header texel, first segment, count, owner key). The instance
+// owns its first windows and also evaluates the windows of other instances of the path that come
+// near its own. A pixel is shaded by the instance with the nearest segment, the lower key winning a
+// tie, so it is shaded once even where a long path crosses itself. Every instance computes a
+// segment's distance from the same texels in the same loop, so they agree.
 fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) -> f32 {
-    var hdr = i32(vShape0.x + 0.5);
-    let nSub = i32(vShape0.y + 0.5);
-    let whole = vShape0.w < 0.0;
+    let win = i32(vShape0.x + 0.5);
+    let nOwn = i32(vShape0.y + 0.5);
+    let nAll = nOwn + i32(vShape0.z + 0.5);
+    let key = vShape0.w;
     let join = i32(vShape1.x + 0.5);
     let limit = vShape1.y;
-    let dash = vDash.x;
-    let period = max(vDash.x + vDash.y, 1e-5);
     var own = 1e20;
-    var prevNb = 1e20;
-    var nextNb = 1e20;
-    var best = 1e20;
-    // the vertices a chunk shares with its neighbours, and the bisectors there
-    var v0 = vec2<f32>(0.0);
-    var b0 = vec2<f32>(0.0);
-    var v1 = vec2<f32>(0.0);
-    var b1 = vec2<f32>(0.0);
+    // distances closer than this count as a tie, which the key settles the same way everywhere
+    let tol = 1e-3 * px;
     gU = 0.0;
     gL = 1.0;
-    for (var sp = 0; sp < nSub; sp++) {
+    for (var w = 0; w < nAll; w++) {
+        let wt = polyTexel(win + w);
+        let hdr = i32(wt.x + 0.5);
+        let s = i32(wt.y + 0.5);
+        let cnt = i32(wt.z + 0.5);
         let h = polyTexel(hdr);
         let n = i32(h.x + 0.5);
         let closed = h.y > 0.5;
         let L = h.z;
+        // closed outlines stretch the dash pattern so it tiles: the factor is in the header
+        let dash = vDash.x * h.w;
+        let period = max((vDash.x + vDash.y) * h.w, 1e-5);
         let first = hdr + 1;
-        hdr += 1 + n;
-        let a = select(i32(vShape0.z + 0.5), 0, whole);
-        let m = select(i32(vShape0.w + 0.5), n, whole);
-        // A chunk also evaluates its neighbours' segments up to 'reach' along the path on each
-        // side: caps, discs and joins of short segments reach that far across the boundary.
-        let reach = 3.0 * hw + 2.0 * px;
-        let spare = select(1 << 20u, n - m, closed); // never wrap round into the chunk's own segments
-        var kb = 0;
-        var c = select(vShape1.z, 0.0, whole);
-        if (!whole) {
-            var acc = 0.0;
-            for (var j = 1; j <= 16; j++) {
-                var ok: bool;
-                let e = segFetch(first, n, closed, a - j, &ok);
-                if (!ok || j > spare / 2) {
-                    break;
-                }
-                kb = j;
-                acc += length(e.zw - e.xy);
-                if (acc >= reach) {
-                    break;
-                }
-            }
-            c -= acc;
-        }
-        let maxNext = select(min(16, spare - kb), 0, whole);
-        let k0 = -kb;
+        let cumAt = first + n;
         var hp: bool;
-        var hc: bool;
         var hn: bool;
-        var ep = segFetch(first, n, closed, a + k0 - 1, &hp);
-        var ec = segFetch(first, n, closed, a + k0, &hc);
-        var accNext = 0.0;
-        for (var k = k0; k < m + 16; k++) {
-            if (k >= m && (k - m >= maxNext || accNext >= reach || !hc)) {
-                break;
+        var ep = segFetch(first, n, closed, s - 1, &hp);
+        var ec = polyTexel(first + s);
+        var wmin = 1e20;
+        for (var k = s; k < s + cnt; k++) {
+            let en = segFetch(first, n, closed, k + 1, &hn);
+            let c = comp(polyTexel(cumAt + k / 4), k % 4);
+            let sa = ec.xy;
+            let len = length(ec.zw - sa);
+            let dir = segDir(ec);
+            let dp = segDir(ep);
+            var js = -1;
+            if (hp) {
+                js = joinKind(dp, dir, hw, join, limit, px);
             }
-            let en = segFetch(first, n, closed, a + k + 1, &hn);
-            if (hc) {
-                let sa = ec.xy;
-                let len = length(ec.zw - sa);
-                let dir = segDir(ec);
-                let dp = segDir(ep);
-                var js = -1;
-                if (hp) {
-                    js = joinKind(dp, dir, hw, join, limit, px);
+            var je = -1;
+            if (hn) {
+                je = joinKind(dir, segDir(en), hw, join, limit, px);
+            }
+            let ks = select(select(0, 3, js == 1), cap0, js < 0);
+            let ke = select(0, cap1, je < 0);
+            // how far the stroke (or a dash, through its start cap) reaches back before this segment
+            let capBack = select(0.0, hw, cap0 != 0);
+            let back = select(c + capBack, 1e20, closed);
+            let ej = min(hw, min(len, length(ep.zw - ep.xy)));
+            let q = vec2<f32>(dot(p - sa, dir), dir.x * (p.y - sa.y) - dir.y * (p.x - sa.x));
+            var d = 1e20;
+            if (!dashed) {
+                d = pieceSD(q, 0.0, len, ks, ke, hw, back);
+                if (js >= 2) {
+                    d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
                 }
-                var je = -1;
-                if (hn) {
-                    je = joinKind(dir, segDir(en), hw, join, limit, px);
-                }
-                let ks = select(select(0, 3, js == 1), cap0, js < 0);
-                let ke = select(0, cap1, je < 0);
-                // how far the stroke reaches back before this segment
-                let back = select(c + select(0.0, hw, cap0 != 0), 1e20, closed);
-                let ej = min(hw, min(len, length(ep.zw - ep.xy)));
-                let w = p - sa;
-                let q = vec2<f32>(dot(w, dir), dir.x * w.y - dir.y * w.x);
-                var d = 1e20;
-                if (!dashed) {
-                    d = pieceSD(q, 0.0, len, ks, ke, hw, back);
-                    if (js >= 2) {
-                        d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
+            } else {
+                let kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
+                for (var j = -1; j <= 1; j++) {
+                    let t0 = (kk + f32(j)) * period - vDash.z;
+                    let t1 = t0 + dash;
+                    let lo = max(t0, c);
+                    let hi = min(t1, c + len);
+                    if (hi < lo || (hi == lo && dash > 0.0)) {
+                        continue;
                     }
-                } else {
-                    let kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
-                    for (var j = -1; j <= 1; j++) {
-                        let t0 = (kk + f32(j)) * period - vDash.z;
-                        let t1 = t0 + dash;
-                        let lo = max(t0, c);
-                        let hi = min(t1, c + len);
-                        if (hi < lo || (hi == lo && dash > 0.0)) {
-                            continue;
-                        }
-                        // a dash cut by a vertex goes on along the next segment: the vertex decides that end
-                        d = min(d, pieceSD(q, lo - c, hi - c, select(cap0, ks, t0 < c), select(cap1, ke, t1 > c + len), hw, min(back, c - t0)));
-                    }
-                    // a dash that runs through the vertex (not one that starts or ends on it) gets the join
-                    let ph = fmod(c + vDash.z, period);
-                    let inDash = min(ph, dash - ph);
-                    if (js >= 2 && inDash > 1e-4 * period) {
-                        d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
-                    }
+                    // a dash cut by a vertex goes on along the next segment: the vertex decides that end
+                    d = min(d, pieceSD(q, lo - c, hi - c, select(cap0, ks, t0 < c), select(cap1, ke, t1 > c + len), hw, min(back, c - t0 + capBack)));
                 }
-                if (d < best) {
-                    best = d;
-                    gU = c + clamp(q.x, 0.0, len);
-                    gL = L;
-                }
-                if (k < 0) {
-                    prevNb = min(prevNb, d);
-                } else if (k >= m) {
-                    nextNb = min(nextNb, d);
-                } else {
-                    own = min(own, d);
-                }
-                if (k == 0 && hp) {
-                    v0 = sa;
-                    b0 = dp + dir;
-                }
-                if (k == m && hp) {
-                    v1 = sa;
-                    b1 = dp + dir;
-                }
-                c += len;
-                if (k >= m) {
-                    accNext += len;
+                // a dash that runs through the vertex (not one that starts or ends on it) gets the join
+                let ph = fmod(c + vDash.z, period);
+                let inDash = min(ph, dash - ph);
+                if (js >= 2 && inDash > 1e-4 * period) {
+                    d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
                 }
             }
+            if (w < nOwn && d < own) {
+                own = d;
+                gU = c + clamp(q.x, 0.0, len);
+                gL = L;
+            }
+            wmin = min(wmin, d);
             ep = ec;
-            hp = hc;
+            hp = true;
             ec = en;
-            hc = hn;
+        }
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
+        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) {
+            discard;
         }
     }
-    // A pixel nearer to a neighbour's segment is the neighbour's. Near-ties (the same formula can
-    // round differently in two chunks) go by the side of the bisector at the shared vertex.
-    let tol = 1e-3 * px;
-    if (prevNb < own - tol || (prevNb <= own + tol && dot(p - v0, b0) < 0.0)) {
-        discard;
-    }
-    if (nextNb < own - tol || (nextNb <= own + tol && dot(p - v1, b1) >= 0.0)) {
-        discard;
-    }
-    return min(own, min(prevNb, nextNb));
+    return own;
 }
 
 // Catmull-Rom weights for the four samples around fraction f
@@ -841,21 +794,54 @@ fn shapeSD(p: vec2<f32>, prim: i32, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>,
     return d;
 }
 
-// Closed shape of this instance. A union (Prim 11) is the nearest of its member shapes, whose
-// parameters are records of 4 texels (type, s0, s1, s2) in uPolys: one shape, painted once.
+// Two operands combined: 0 union, 1 subtract (a minus b), 2 intersect, 3 exclude. Exact on the
+// outline. Inside, max and min of distances are a bound, not the exact distance.
+fn combineSD(a: f32, b: f32, op: i32) -> f32 {
+    if (op == 1) {
+        return max(a, -b);
+    }
+    if (op == 2) {
+        return max(a, b);
+    }
+    if (op == 3) {
+        return max(min(a, b), -max(a, b));
+    }
+    return min(a, b);
+}
+
+// Closed shape of this instance. A union (Prim 11) is several shapes combined into one: records of
+// 4 texels, (type, op, 0, 0) then s0, s1, s2, in uPolys, folded on a small stack. Op 4 pushes the
+// shape as a new operand and ops 0 to 3 fold it into the top one. Type 255 folds the top operand
+// into the one below it with its op. One shape, painted once.
 fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
     if (prim == 11) {
         let start = i32(vShape0.x + 0.5);
         let n = i32(vShape0.y + 0.5);
-        var d = 1e6;
+        var st: array<f32, 8>;
+        var sp = 0;
+        st[0] = 1e6;
         for (var i = 0; i < n; i++) {
             let t = start + i * 4;
-            d = min(d, shapeSD(p, i32(polyTexel(t).x + 0.5), polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px));
+            let h = polyTexel(t);
+            let rt = i32(h.x + 0.5);
+            let op = i32(h.y + 0.5);
+            if (rt == 255) {
+                sp = max(sp - 1, 1);
+                st[sp - 1] = combineSD(st[sp - 1], st[sp], op);
+            } else {
+                let d = shapeSD(p, rt, polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px);
+                if (op == 4) {
+                    st[min(sp, 7)] = d;
+                    sp = min(sp + 1, 8);
+                } else {
+                    st[max(sp - 1, 0)] = combineSD(st[max(sp - 1, 0)], d, op);
+                }
+            }
         }
         gFillScale = 1.0;
         gU = 0.0;
         gL = 1.0;
-        return d;
+        return st[0];
     }
     return shapeSD(p, prim, vShape0, vShape1, vShape2, px);
 }

@@ -1,0 +1,156 @@
+---
+title: Editing text
+seoTitle: 'Editable text on a PixiJS canvas, with IME'
+description: 'TextEditor makes SilkText clickable and editable like a design tool text layer: caret, selection, undo, clipboard and input methods, sharp at any zoom.'
+keywords: ['PixiJS text input', 'canvas text editing', 'PixiJS textarea', 'IME canvas', 'text caret', 'editable text layer']
+updated: 2026-11-08
+---
+
+<Demo name="text-edit-canvas" height={440} caption="Click a text and type. Pinch or ctrl + scroll to zoom in: the caret and the selection stay crisp. Cmd or ctrl + Z undoes." />
+
+## A text layer you can type into
+
+`TextEditor` from `pixi-silk/ui/textedit` wraps a [SilkText](/docs/text/) with a caret, a selection
+and keyboard input. It lives in the scene like any display object, so it pans and zooms with a
+[camera](/docs/canvas-and-measurements/) and stays sharp at 800%.
+
+```ts
+import { Container } from 'pixi.js';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+
+declare const world: Container;
+declare const canvas: HTMLCanvasElement;
+
+const note = new TextEditor({
+    text: 'Edit me',
+    fontSize: 15,
+    width: 320, // wraps at 320, grows in height
+    placeholder: 'Write something',
+    element: canvas,
+});
+
+note.on('change', (text: string) => console.log('saved', text));
+world.addChild(note);
+```
+
+Click to place the caret, drag to select and Shift + click to extend. A double click selects a word
+and a triple click its paragraph. Words come from `Intl.Segmenter`, so they follow the language.
+
+## How typing works
+
+The keys do not go to the canvas. On focus, the editor puts a hidden `<textarea>` on the page, right
+at the caret, and keeps its text and selection in step with its own. The browser types into it, and
+the editor applies each change.
+
+That is why the platform's own text input works:
+
+- **Input methods** for Japanese, Chinese and Korean, and dead keys for accents. The text being
+  composed shows inline with an underline, and becomes one undo step when you confirm it.
+- Mobile keyboards, autocorrect and the emoji picker.
+- Copy, cut and paste, with the system clipboard.
+
+The field follows the caret as you type, pan or zoom, so input method popups open next to the text.
+Pass `element` (usually `app.canvas`) to place it. Without it, the editor uses the element of the first press.
+
+## Keys
+
+| Keys | What they do |
+| --- | --- |
+| Left, Right | Move by grapheme, so an emoji or an accented letter is one step |
+| Option + Left / Right on Mac, Ctrl elsewhere | Move by word |
+| Up, Down | Move by line, keeping the column you started from |
+| Home, End, or cmd + Left / Right on Mac | Start and end of the line on screen |
+| Shift with any of these | Extend the selection |
+| cmd or ctrl + A | Select all |
+| Backspace, Delete | Delete a grapheme, or a word with Option or Ctrl |
+| Enter | A new line, or commit in a single-line field |
+| cmd or ctrl + Enter | Commit and leave a multi-line field |
+| Tab | Move to the next field, or insert a tab with `tab: 'insert'` |
+| Escape | Leave the field |
+| cmd or ctrl + Z, Shift + cmd or ctrl + Z | Undo and redo |
+
+## Fields and forms
+
+<Demo name="text-edit-form" height={330} caption="Tab moves between the fields. Enter in the last one sends the form. The promo code takes 8 characters at most." />
+
+With `multiline: false` the editor is an input. Enter commits instead of breaking the line. A
+`width` clips the text and scrolls it to keep the caret in view. `TextEditor.chain()` links fields in
+Tab order.
+
+```ts
+import { TextEditor } from 'pixi-silk/ui/textedit';
+
+const email = new TextEditor({ multiline: false, width: 260, placeholder: 'ada@example.com' });
+const code = new TextEditor({ multiline: false, width: 260, maxLength: 8 });
+
+TextEditor.chain([email, code]);
+code.on('submit', () => console.log(email.value, code.value));
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `multiline` | true | A text area, or a single-line input |
+| `width` | none | Wraps a text area, clips and scrolls an input |
+| `placeholder` | empty | Shown while the text is empty |
+| `maxLength` | none | Longest text in UTF-16 code units, like `maxlength`. Never splits an emoji |
+| `readOnly` | false | Selectable and copyable, not editable |
+| `selectable` | true | False turns pointer input off |
+| `enter` | `newline` or `commit` | `newline`, `commit` or `blur` |
+| `tab` | `next` | `next` emits `tab` and leaves, `insert` types a tab |
+| `history` | its own | A `HistoryLike` to share the app's undo stack |
+| `theme` | blue | Caret, selection and underline colours |
+
+Every SilkText style option works too: font, size, weight, fill, letter spacing, line height and alignment.
+
+## Read-only text
+
+<Demo name="text-edit-readonly" height={260} caption="Select with the mouse or a long press, then copy. There is no caret, and typing does nothing." />
+
+`readOnly: true` keeps clicking, selecting and copying, and drops the caret and editing. Use it for
+release notes, logs or error messages that people want to copy.
+
+## Events, signals and undo
+
+The editor emits `focus`, `blur`, `input` on every edit, `change` when the text was committed with a
+new value, `submit` on Enter in a single-line field, and `tab`. The same state is on
+`editor.state` as [signals](/docs/selection-and-history/): `text`, `committed`, `focused`, `selection`
+and `composing`.
+
+Undo is built in. Consecutive typing folds into one step, and a click or an arrow key starts the
+next. To put text edits in line with the rest of an editor, pass its history:
+
+```ts
+import { bindHistoryKeys, History } from 'pixi-silk/history';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+
+const history = new History();
+const title = new TextEditor({ text: 'Frame 1', multiline: false, history });
+
+bindHistoryKeys(history); // cmd + Z outside the field undoes text edits too
+```
+
+## Hit testing for other tools
+
+The caret math is in the layout, so other tools can use it. `SilkText` has `caretAt(point)` for the
+caret nearest to a local point. `caretRect(index)` gives where a caret sits and `rangeRects(from, to)`
+the highlight boxes of a range. They follow wrapped lines, alignment, letter spacing, line height,
+empty lines and trailing spaces. `pixi-silk/text` also exports the same functions on a `TextLayout`,
+plus `graphemeStops`, `wordAt` and the word jumps.
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const label = new SilkText({ text: 'Hello world', wordWrap: true, wordWrapWidth: 60 });
+const hit = label.caretAt({ x: 30, y: 8 });
+const caret = label.caretRect(hit.index, hit.upstream);
+
+console.log(hit.index, caret.x, label.rangeRects(0, 5));
+```
+
+## Limits
+
+- **Right-to-left and mixed direction text** is not supported. Arabic and Hebrew lay out left to
+  right, and the caret moves in source order.
+- **Emoji** count as one caret step, but draw as one-colour silhouettes, as in [SilkText](/docs/text/).
+- **Shaping**: no ligatures and no combining marks drawn on their base letter. Each code point is a glyph.
+- **Spell check** underlines are off: the hidden field is invisible.

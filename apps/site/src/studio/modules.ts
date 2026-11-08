@@ -22,6 +22,7 @@ const PACKAGES: Record<string, Loader> = {
     'pixi-silk/glass': () => import('pixi-silk/glass'),
     'pixi-silk/glow': () => import('pixi-silk/glow'),
     'pixi-silk/text': () => import('pixi-silk/text'),
+    'pixi-silk/layout': () => import('pixi-silk/layout'),
     'pixi-silk/ui': () => import('pixi-silk/ui'),
     'pixi-silk/ui/radial': () => import('pixi-silk/ui/radial'),
     'pixi-silk/ui/button': () => import('pixi-silk/ui/button'),
@@ -49,6 +50,12 @@ const PACKAGES: Record<string, Loader> = {
     'pixi-silk/ui/arc': () => import('pixi-silk/ui/arc'),
     'pixi-silk/ui/keys': () => import('pixi-silk/ui/keys'),
     'pixi-silk/ui/pill': () => import('pixi-silk/ui/pill'),
+    'pixi-silk/ui/layout': () => import('pixi-silk/ui/layout'),
+    'pixi-silk/ui/textedit': () => import('pixi-silk/ui/textedit'),
+    'pixi-silk/ui/panel': () => import('pixi-silk/ui/panel'),
+    'pixi-silk/ui/layers': () => import('pixi-silk/ui/layers'),
+    'pixi-silk/ui/inspector': () => import('pixi-silk/ui/inspector'),
+    'pixi-silk/ui/minimap': () => import('pixi-silk/ui/minimap'),
     './runtime': () => import('@/demos/runtime'),
 };
 

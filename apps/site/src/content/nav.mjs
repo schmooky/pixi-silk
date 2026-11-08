@@ -55,6 +55,7 @@ export const DOCS_AREAS = [
         ],
         items: [
             { page: 'shapes', lab: ['07-rounded-rects', '11-icons'] },
+            'shape-operations',
             { page: 'arcs-and-rings', lab: ['08-activity-rings'] },
             { page: 'lines-and-paths', lab: ['09-lines'] },
             'fills-and-strokes',
@@ -83,16 +84,19 @@ export const DOCS_AREAS = [
         summary: 'Charts and sharp text, plus the first ready-made widgets and how they react to input.',
         intro: [
             'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
-            'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera.',
+            'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera. Editing text makes them clickable and typeable, like a design tool text layer.',
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
             'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
+            'Layout places them: a flex engine with no Pixi in it, and a smart container for responsive game screens.',
         ],
         items: [
             { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
             'text',
+            'editing-text',
             'hit-testing',
             { page: 'animation', lab: ['23-timers'] },
             'radial-menus-and-buttons',
+            'layout',
         ],
         aliases: ['building-ui'],
     },
@@ -102,7 +106,7 @@ export const DOCS_AREAS = [
         summary: 'Everything a design tool draws on its canvas, from the camera and rulers to gizmos and undo.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls.',
+            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls. Panels hold a layer tree, an inspector and a minimap, all on the canvas.',
         ],
         items: [
             'canvas-and-measurements',
@@ -113,6 +117,7 @@ export const DOCS_AREAS = [
             'color-pickers',
             'editor-tools',
             'dials-and-timeline',
+            'panels',
         ],
     },
     {
