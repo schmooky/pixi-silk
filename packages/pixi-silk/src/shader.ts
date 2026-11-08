@@ -403,14 +403,18 @@ float sdPolygon6(vec2 p, vec2 v[6], int n)
 }
 
 // One straight stroke piece in its own frame (q.x along, q.y across) covering [s0, s1].
-// End kinds: 0 butt, 1 round, 2 square.
-float pieceSD(vec2 q, float s0, float s1, int k0, int k1, float hw)
+// End kinds: 0 butt, 1 round, 2 square, and at the start 3: the round join of an inner vertex.
+// That disc is cut to the stroke: at most 'back' before s0 and no further than the piece's end.
+// Only the piece after a vertex owns its disc, so two chunks never see the same shape twice.
+float pieceSD(vec2 q, float s0, float s1, int k0, int k1, float hw, float back)
 {
     float lo = s0 - (k0 == 2 ? hw : 0.0);
     float hi = s1 + (k1 == 2 ? hw : 0.0);
     vec2 b = vec2(abs(q.x - 0.5 * (lo + hi)) - 0.5 * (hi - lo), abs(q.y) - hw);
     float d = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0);
-    if (k0 == 1) d = min(d, length(vec2(q.x - s0, q.y)) - hw);
+    float disc = length(vec2(q.x - s0, q.y)) - hw;
+    if (k0 == 1) d = min(d, disc);
+    if (k0 == 3) d = min(d, max(disc, max(s0 - back - q.x, q.x - hi)));
     if (k1 == 1) d = min(d, length(vec2(q.x - s1, q.y)) - hw);
     return d;
 }
@@ -501,6 +505,11 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
     float prevNb = 1e20;
     float nextNb = 1e20;
     float best = 1e20;
+    // the vertices a chunk shares with its neighbours, and the bisectors there
+    vec2 v0 = vec2(0.0);
+    vec2 b0 = vec2(0.0);
+    vec2 v1 = vec2(0.0);
+    vec2 b1 = vec2(0.0);
     gU = 0.0;
     gL = 1.0;
     for (int sp = 0; sp < nSub; sp++)
@@ -513,17 +522,37 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
         hdr += 1 + n;
         int a = whole ? 0 : int(vShape0.z + 0.5);
         int m = whole ? n : int(vShape0.w + 0.5);
-        int k0 = whole ? 0 : -1;
-        int k1 = whole ? m - 1 : m;
+        // A chunk also evaluates its neighbours' segments up to 'reach' along the path on each
+        // side: caps, discs and joins of short segments reach that far across the boundary.
+        float reach = 3.0 * hw + 2.0 * px;
+        int spare = closed ? n - m : 1 << 20; // never wrap round into the chunk's own segments
+        int kb = 0;
+        float c = whole ? 0.0 : vShape1.z;
+        if (!whole)
+        {
+            float acc = 0.0;
+            for (int j = 1; j <= 16; j++)
+            {
+                bool ok;
+                vec4 e = segFetch(first, n, closed, a - j, ok);
+                if (!ok || j > spare / 2) break;
+                kb = j;
+                acc += length(e.zw - e.xy);
+                if (acc >= reach) break;
+            }
+            c -= acc;
+        }
+        int maxNext = whole ? 0 : min(16, spare - kb);
+        int k0 = -kb;
         bool hp;
         bool hc;
         bool hn;
         vec4 ep = segFetch(first, n, closed, a + k0 - 1, hp);
         vec4 ec = segFetch(first, n, closed, a + k0, hc);
-        float c = whole ? 0.0 : vShape1.z;
-        if (k0 < 0) c = a == 0 ? L - length(ec.zw - ec.xy) : c - length(ec.zw - ec.xy);
-        for (int k = k0; k <= k1; k++)
+        float accNext = 0.0;
+        for (int k = k0; k < m + 16; k++)
         {
+            if (k >= m && (k - m >= maxNext || accNext >= reach || !hc)) break;
             vec4 en = segFetch(first, n, closed, a + k + 1, hn);
             if (hc)
             {
@@ -533,15 +562,17 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
                 vec2 dp = segDir(ep);
                 int js = hp ? joinKind(dp, dir, hw, join, limit, px) : -1;
                 int je = hn ? joinKind(dir, segDir(en), hw, join, limit, px) : -1;
-                int ks = js < 0 ? cap0 : (js == 1 ? 1 : 0);
-                int ke = je < 0 ? cap1 : (je == 1 ? 1 : 0);
+                int ks = js < 0 ? cap0 : (js == 1 ? 3 : 0);
+                int ke = je < 0 ? cap1 : 0;
+                // how far the stroke reaches back before this segment
+                float back = closed ? 1e20 : c + (cap0 != 0 ? hw : 0.0);
                 float ej = min(hw, min(len, length(ep.zw - ep.xy)));
                 vec2 w = p - sa;
                 vec2 q = vec2(dot(w, dir), dir.x * w.y - dir.y * w.x);
                 float d = 1e20;
                 if (!dashed)
                 {
-                    d = pieceSD(q, 0.0, len, ks, ke, hw);
+                    d = pieceSD(q, 0.0, len, ks, ke, hw, back);
                     if (js >= 2) d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
                 }
                 else
@@ -555,7 +586,7 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
                         float hi = min(t1, c + len);
                         if (hi < lo || (hi == lo && dash > 0.0)) continue;
                         // a dash cut by a vertex goes on along the next segment: the vertex decides that end
-                        d = min(d, pieceSD(q, lo - c, hi - c, t0 < c ? ks : cap0, t1 > c + len ? ke : cap1, hw));
+                        d = min(d, pieceSD(q, lo - c, hi - c, t0 < c ? ks : cap0, t1 > c + len ? ke : cap1, hw, min(back, c - t0)));
                     }
                     // a dash that runs through the vertex (not one that starts or ends on it) gets the join
                     float ph = mod(c + vDash.z, period);
@@ -571,7 +602,18 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
                 if (k < 0) prevNb = min(prevNb, d);
                 else if (k >= m) nextNb = min(nextNb, d);
                 else own = min(own, d);
+                if (k == 0 && hp)
+                {
+                    v0 = sa;
+                    b0 = dp + dir;
+                }
+                if (k == m && hp)
+                {
+                    v1 = sa;
+                    b1 = dp + dir;
+                }
                 c += len;
+                if (k >= m) accNext += len;
             }
             ep = ec;
             hp = hc;
@@ -579,8 +621,11 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
             hc = hn;
         }
     }
-    // ties go to the earlier chunk
-    if (prevNb <= own || nextNb < own) discard;
+    // A pixel nearer to a neighbour's segment is the neighbour's. Near-ties (the same formula can
+    // round differently in two chunks) go by the side of the bisector at the shared vertex.
+    float tol = 1e-3 * px;
+    if (prevNb < own - tol || (prevNb <= own + tol && dot(p - v0, b0) < 0.0)) discard;
+    if (nextNb < own - tol || (nextNb <= own + tol && dot(p - v1, b1) >= 0.0)) discard;
     return min(own, min(prevNb, nextNb));
 }
 
@@ -781,9 +826,15 @@ void main(void)
     {
         // chunks of one path decide who shades a pixel by comparing distances: they must all see
         // exactly the same position (kept only when it matches vPos, in case of an odd viewport)
-        vec2 ndc = gl_FragCoord.xy / (0.5 * abs(uResolution)) - 1.0;
-        vec2 q = mat2(vInv.xy, vInv.zw) * ndc + vInvT;
-        if (length(q - p) < 0.25 * px) p = q;
+        vec2 hres = 0.5 * abs(uResolution);
+        vec2 q = mat2(vInv.xy, vInv.zw) * (gl_FragCoord.xy / hres - 1.0) + vInvT;
+        if (length(q - p) < 0.25 * px)
+        {
+            p = q;
+            // the pixel size too: joins switch to round below a tenth of a pixel
+            px = max(sqrt(abs(vInv.x * vInv.w - vInv.y * vInv.z) / (hres.x * hres.y)), 1e-7);
+            gPx = px * uSilk.y;
+        }
     }
     int flags = int(vMeta.y + 0.5);
     bool inner = (flags & 32768) != 0;
