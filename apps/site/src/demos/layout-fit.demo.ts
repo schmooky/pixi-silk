@@ -25,24 +25,35 @@ function artwork(): Container {
 export default defineDemo({
     title: 'Fit modes',
     size: [720, 360],
+    // phones: three rows of two boxes, and labels one step larger
+    phone: { size: [440, 520] },
     controls: {
         width: { type: 'range', label: 'box width', min: 60, max: 200, step: 1, value: 170, unit: 'px' },
         height: { type: 'range', label: 'box height', min: 50, max: 120, step: 1, value: 100, unit: 'px' },
         align: { type: 'select', label: 'fitAlign', options: ['center', 'start', 'end'], value: 'center' },
     },
-    setup({ silk, stage, params, tick }) {
-        // two rows of three boxes
+    setup({ silk, stage, params, tick, width, height, phone }) {
+        // two rows of three boxes, or three rows of two on phones
+        const perRow = phone ? 2 : 3;
         const grid = new FlexContainer({
             ticker: silk.app.ticker,
-            layout: { direction: 'column', gap: 18, padding: 24, alignItems: 'center' },
+            layout: {
+                direction: 'column',
+                gap: 18,
+                padding: phone ? 16 : 24,
+                alignItems: 'center',
+                ...(phone ? { justifyContent: 'center' as const } : {}),
+            },
         });
-        const rows = [0, 1].map(() =>
-            grid.add(new FlexContainer({ layout: { gap: 24, justifyContent: 'center', alignItems: 'start' } })),
+        const rows = Array.from({ length: 6 / perRow }, () =>
+            grid.add(
+                new FlexContainer({ layout: { gap: phone ? 16 : 24, justifyContent: 'center', alignItems: 'start' } }),
+            ),
         );
         const boxes: { box: FlexContainer; art: Container }[] = [];
-        const label = (text: string) => new SilkText({ text, fontSize: 13, fill: INK.muted });
+        const label = (text: string) => new SilkText({ text, fontSize: phone ? 14 : 13, fill: INK.muted });
         const makeBox = (title: string) => {
-            const column = rows[boxes.length < 3 ? 0 : 1].add(
+            const column = rows[Math.floor(boxes.length / perRow)].add(
                 new FlexContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
             );
             const box = column.add(new FlexContainer());
@@ -83,7 +94,7 @@ export default defineDemo({
         );
 
         stage.addChild(grid);
-        grid.resize(720, 360);
+        grid.resize(width, height);
 
         let last = '';
 

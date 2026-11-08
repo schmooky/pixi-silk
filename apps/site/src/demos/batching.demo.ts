@@ -9,15 +9,18 @@ enableSilkBatching();
 export default defineDemo({
     title: 'Batching',
     size: [720, 320],
+    // phones: a taller strip with the stats on two lines, a narrower spiral
+    phone: { size: [360, 320] },
     controls: {
         batching: { type: 'toggle', label: 'batching', value: true },
         count: { type: 'range', label: 'objects', min: 200, max: 4000, step: 200, value: 2000 },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, phone }) {
         const layer = new Container();
         // the stats sit in a strip above the drawing
-        const strip = new Graphics().rect(0, 0, 720, 40).fill(INK.surface).rect(0, 40, 720, 1).fill(INK.line);
-        const caption = readout('', 24, 13, { fontSize: 13 });
+        const top = phone ? 58 : 40;
+        const strip = new Graphics().rect(0, 0, width, top).fill(INK.surface).rect(0, top, width, 1).fill(INK.line);
+        const caption = readout('', phone ? 16 : 24, 13, phone ? { fontSize: 13, lineHeight: 18 } : { fontSize: 13 });
 
         stage.addChild(layer, strip, caption);
 
@@ -83,10 +86,13 @@ export default defineDemo({
                 const a = i * 2.399963 + t * 0.3;
                 const r = Math.sqrt(i / n) * 118;
 
-                g.position.set(360 + Math.cos(a) * r * 2.6, 184 + Math.sin(a) * r);
+                g.position.set(
+                    width / 2 + Math.cos(a) * r * (phone ? 1.4 : 2.6),
+                    (phone ? 190 : 184) + Math.sin(a) * r,
+                );
                 g.rotation = t + i;
             });
-            caption.text = `${n} objects   ${calls} draw calls last frame`;
+            caption.text = `${n} objects${phone ? '\n' : '   '}${calls} draw calls last frame`;
         });
 
         return () => {
