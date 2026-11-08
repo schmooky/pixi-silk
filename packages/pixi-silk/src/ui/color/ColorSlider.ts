@@ -4,7 +4,7 @@ import { createIcon } from '../icon';
 import type { InputProfiles } from '../input';
 import { approach, ColorPicker, type ColorPickerOptions } from './ColorPicker';
 import { checker, drawHandle } from './draw';
-import { type ColorModel, hsvToRgb, oklchToRgb, type RGB, rgbToHex, rgbToOklch } from './model';
+import { ColorModel, hsvToRgb, oklchToRgb, type RGB, rgbToHex, rgbToOklch } from './model';
 
 /**
  * Channel a {@link ColorSlider} edits: HSV (`h`, `s`, `v`), RGB (`r`, `g`, `b`),
@@ -218,10 +218,7 @@ export class ColorSlider extends ColorPicker {
 
 /** Options of {@link ChannelSliders}. */
 export interface ChannelSlidersOptions {
-    /**
-     * The colour to edit. Pass one: without it every track creates its own model, so the tracks do
-     * not stay in step.
-     */
+    /** The colour every track edits. Default: one new model that all the tracks share. */
     model?: ColorModel;
     /** Which channels: `hsv`, `rgb` or `oklch`. Default `hsv`. */
     mode?: 'hsv' | 'rgb' | 'oklch';
@@ -251,9 +248,14 @@ const MODES: Record<NonNullable<ChannelSlidersOptions['mode']>, ColorChannel[]> 
 export class ChannelSliders extends Container {
     /** The tracks, top to bottom, alpha last. */
     readonly sliders: ColorSlider[];
+    /** The colour the tracks edit: `options.model`, or the model created for them. */
+    readonly model: ColorModel;
 
     constructor(options: ChannelSlidersOptions = {}) {
         super({ label: 'ChannelSliders' });
+        const model = options.model ?? new ColorModel();
+
+        this.model = model;
         const channels = [...MODES[options.mode ?? 'hsv'], ...(options.alpha === false ? [] : ['a' as const])];
         const h = options.height ?? 16;
         const gap = options.gap ?? 12;
@@ -263,7 +265,7 @@ export class ChannelSliders extends Container {
         this.sliders = channels.map((channel, i) => {
             const slider = new ColorSlider({
                 channel,
-                model: options.model,
+                model,
                 width: options.width ?? 220,
                 height: h,
                 ticker: options.ticker,

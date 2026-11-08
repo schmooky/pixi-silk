@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+    ChannelSliders,
     ColorModel,
     ColorSlider,
     ColorWheel,
@@ -191,6 +192,26 @@ describe('ColorSlider', () => {
         priv(s)._move(190, 10);
         expect(model.s).toBe(1);
         priv(s)._end();
+    });
+});
+
+describe('ChannelSliders', () => {
+    it('shares one model across its tracks when none is passed', () => {
+        const sliders = new ChannelSliders({ ticker: null });
+        const [hue, sat] = sliders.sliders;
+
+        expect(new Set(sliders.sliders.map((s) => s.model)).size).toBe(1);
+        expect(sliders.model).toBe(hue.model);
+        writeChannel(hue.model, 'h', 0.5);
+        expect(readChannel(sat.model, 'h')).toBeCloseTo(0.5, 2);
+    });
+
+    it('uses the model it is given', () => {
+        const model = new ColorModel({ color: 0x336699 });
+        const sliders = new ChannelSliders({ model, mode: 'rgb', ticker: null });
+
+        expect(sliders.model).toBe(model);
+        for (const s of sliders.sliders) expect(s.model).toBe(model);
     });
 });
 
