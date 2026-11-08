@@ -95,6 +95,10 @@
       "types": "./dist/glow.d.ts",
       "default": "./dist/glow.js"
     },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "default": "./dist/text.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

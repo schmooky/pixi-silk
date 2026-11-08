@@ -33,13 +33,13 @@
     "gzip": 1044
   },
   "ui/gizmo": {
-    "gzip": 24459
+    "gzip": 24479
   },
   "ui/outline": {
     "gzip": 19356
   },
   "ui/snap": {
-    "gzip": 19869
+    "gzip": 19890
   },
   "ui/snap (SnapEngine only)": {
     "gzip": 1303
@@ -48,16 +48,16 @@
     "gzip": 27061
   },
   "ui/halo": {
-    "gzip": 21181
+    "gzip": 21203
   },
   "ui/brush": {
-    "gzip": 19977
+    "gzip": 19999
   },
   "ui/modes": {
     "gzip": 24769
   },
   "ui/dial": {
-    "gzip": 21739
+    "gzip": 21765
   },
   "ui/timeline": {
     "gzip": 21060
@@ -74,7 +74,19 @@
   "glow": {
     "gzip": 19587
   },
+  "text": {
+    "gzip": 10342
+  },
+  "text (SilkText)": {
+    "gzip": 10117
+  },
+  "text (layoutText, sdfFromAlpha)": {
+    "gzip": 1434
+  },
+  "ui/pill (ValuePill)": {
+    "gzip": 17798
+  },
   "ui (everything)": {
-    "gzip": 54545
+    "gzip": 54568
   }
 }

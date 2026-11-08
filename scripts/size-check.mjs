@@ -50,6 +50,10 @@ const IMPORTS = {
     'ui/gesture': ['*', ['#version 300 es', 'RadialMenu'], '/ui/gesture'],
     glass: ['*', ['RadialMenu'], '/glass'],
     glow: ['*', ['RadialMenu', 'silk-glass'], '/glow'],
+    text: ['*', ['RadialMenu', 'silk-sdf', 'silk-paths'], '/text'],
+    'text (SilkText)': ['SilkText', ['RadialMenu', 'silk-sdf', 'silk-paths'], '/text'],
+    'text (layoutText, sdfFromAlpha)': ['layoutText, sdfFromAlpha', ['#version 300 es', 'silk-text-atlas'], '/text'],
+    'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
     'ui (everything)': ['*', [], '/ui'],
 };
 

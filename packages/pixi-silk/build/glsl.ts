@@ -1,5 +1,5 @@
 /**
- * Build-time GLSL minification for the `/* glsl *\/` template literals in `src/`.
+ * Build-time shader minification for the `/* glsl *\/` and `/* wgsl *\/` template literals in `src/`.
  *
  * JavaScript minifiers never touch the contents of template literals, so the shader source would
  * ship with its comments and indentation (about a quarter of its size). This removes comments and
@@ -9,8 +9,8 @@
  */
 import type { Rolldown } from 'tsdown';
 
-const MARKER = '/* glsl */';
-const LITERAL = /\/\* glsl \*\/ `([^`]*)`/g;
+const MARKER = /\/\* (?:glsl|wgsl) \*\//;
+const LITERAL = /\/\* (glsl|wgsl) \*\/ `([^`]*)`/g;
 
 /** Removes comments, indentation, repeated spaces and blank lines. Newlines are kept. */
 export function minifyGlsl(source: string): string {
@@ -23,17 +23,17 @@ export function minifyGlsl(source: string): string {
         .join('\n');
 }
 
-/** Rolldown / Vite plugin that minifies the GLSL template literals of the library's modules. */
+/** Rolldown / Vite plugin that minifies the GLSL and WGSL template literals of the library's modules. */
 export function glsl(): Rolldown.Plugin {
     return {
         name: 'pixi-silk:glsl',
         transform: {
             filter: { code: MARKER },
             handler(code, id) {
-                const out = code.replace(LITERAL, (_, body: string) => {
+                const out = code.replace(LITERAL, (_, _lang: string, body: string) => {
                     // interpolations or escapes would change meaning once the text is rewritten
                     if (body.includes('${') || body.includes('\\')) {
-                        this.error(`${id}: GLSL literals must not contain \${} or backslashes`);
+                        this.error(`${id}: shader literals must not contain \${} or backslashes`);
                     }
 
                     return `\`${minifyGlsl(body)}\``;
