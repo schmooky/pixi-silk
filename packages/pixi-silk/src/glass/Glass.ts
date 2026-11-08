@@ -127,6 +127,10 @@ export class Glass extends Container {
         }
         if (!filter || this._fallback) return;
         if (backBuffer && !backBuffer.useBackBuffer) backBuffer.useBackBuffer = true;
+        // The back buffer takes effect from the next frame. Until then the frame draws straight to the
+        // canvas, and an opaque canvas has no alpha channel: copying its backdrop into the filter's RGBA
+        // texture fails with GL_INVALID_OPERATION. Skip the filter for that frame.
+        filter.enabled = !(backBuffer && renderer.renderTarget.rootRenderTarget?.isRoot);
         const m = this._body.worldTransform;
         const k = Math.hypot(m.a, m.b);
         const r = this._r;
