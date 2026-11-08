@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GLASS_DEFAULTS, Glass, lightVector, resolveGlass } from '../src/glass';
+import { glassFragment } from '../src/glass/GlassFilter';
+import { glassWgsl } from '../src/glass/glass-wgsl';
 import { Aurora, auroraBlobs, fan, Glow, hexLabel, neon, rayQuad, SPECTRUM, shadowStack, spectrum } from '../src/glow';
 
 describe('glass options', () => {
@@ -28,6 +30,30 @@ describe('glass options', () => {
         expect([glass.paneWidth, glass.paneHeight]).toEqual([300, 180]);
         expect(glass.style).toMatchObject({ blur: 30, refraction: 4 });
         expect(glass.content.parent).toBe(glass);
+    });
+
+    it('hands the world rotation and the scale of each axis to the filter', () => {
+        const glass = new Glass({ width: 200, height: 100, radius: 20 });
+        const filter = (
+            glass as unknown as { _filter: { resources: Record<string, { uniforms: Record<string, Float32Array> }> } }
+        )._filter;
+        const u = filter.resources.glassUniforms.uniforms;
+
+        glass.rotation = Math.PI / 6;
+        glass.scale.set(2, 0.5);
+        glass.updateLocalTransform();
+        const body = glass.children[1];
+
+        body.worldTransform.copyFrom(glass.localTransform);
+        (glass as unknown as { _sync(r: unknown): void })._sync({ name: 'webgpu', renderTarget: {} });
+        expect(u.uFrame[0]).toBeCloseTo(Math.cos(Math.PI / 6));
+        expect(u.uFrame[1]).toBeCloseTo(Math.sin(Math.PI / 6));
+        expect([...u.uShape.slice(0, 3)]).toEqual([200, 25, 10]);
+    });
+
+    it('rotates the shape in both shader twins', () => {
+        expect(glassFragment).toContain('uniform vec4 uFrame;');
+        expect(glassWgsl).toContain('uFrame: vec4<f32>,');
     });
 });
 

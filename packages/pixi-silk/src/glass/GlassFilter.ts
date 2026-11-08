@@ -44,6 +44,7 @@ uniform vec4 uOptics;
 uniform vec4 uTint;
 uniform vec4 uLight;
 uniform vec4 uSurface;
+uniform vec4 uFrame;
 
 float hash(vec2 p)
 {
@@ -92,7 +93,10 @@ void main(void)
 {
     vec2 size = uOutputFrame.zw;
     vec2 p = vTextureCoord * uInputSize.xy - size * 0.5;
-    float d = sdShape(p);
+    // the pane's own axes: p is in screen pixels, uFrame.xy is the cosine and sine of its rotation
+    vec2 axis = uFrame.xy;
+    vec2 q = vec2(axis.x * p.x + axis.y * p.y, axis.x * p.y - axis.y * p.x);
+    float d = sdShape(q);
     float aa = max(fwidth(d), 1e-3);
     float cover = clamp(0.5 - d / aa, 0.0, 1.0);
 
@@ -103,7 +107,9 @@ void main(void)
     }
 
     vec2 e = vec2(0.75, 0.0);
-    vec2 n = vec2(sdShape(p + e.xy) - sdShape(p - e.xy), sdShape(p + e.yx) - sdShape(p - e.yx));
+    vec2 nq = vec2(sdShape(q + e.xy) - sdShape(q - e.xy), sdShape(q + e.yx) - sdShape(q - e.yx));
+    // back to screen space, where the backdrop is sampled and the light sits
+    vec2 n = vec2(axis.x * nq.x - axis.y * nq.y, axis.y * nq.x + axis.x * nq.y);
 
     n = n / max(length(n), 1e-5);
 
@@ -155,7 +161,8 @@ let gpuProgram: GpuProgram | null = null;
  * in step with the transform and turns on the WebGL back buffer the filter needs.
  *
  * Using it alone, set `filterArea` on the filtered container to the glass rectangle. Pass every
- * distance in screen pixels, so multiply by the world scale yourself. The filter reads the backdrop
+ * distance in screen pixels, so multiply by the world scale yourself, and pass the world rotation
+ * to {@link GlassFilter.setRotation}. The filter reads the backdrop
  * (`blendRequired`), so on WebGL it needs `useBackBuffer: true` on the renderer. Each setter
  * uploads its uniform only when a value changes.
  */
@@ -180,6 +187,7 @@ export class GlassFilter extends Filter {
             uTint: { value: new Float32Array([1, 1, 1, 0.04]), type: 'vec4<f32>' },
             uLight: { value: new Float32Array([-Math.SQRT1_2, -Math.SQRT1_2, 0.8, 0.035]), type: 'vec4<f32>' },
             uSurface: { value: new Float32Array([0.06, 1, 1.15, 0]), type: 'vec4<f32>' },
+            uFrame: { value: new Float32Array([1, 0, 0, 0]), type: 'vec4<f32>' },
         });
 
         super({
@@ -217,6 +225,14 @@ export class GlassFilter extends Filter {
     /** Frost 0 to 1, opacity 0 to 1, saturation (1 keeps colours) and a grain seed. Defaults 0.06, 1, 1.15, 0. */
     setSurface(frost: number, opacity: number, saturation: number, seed: number): void {
         this._set('uSurface', frost, opacity, saturation, seed);
+    }
+
+    /**
+     * Rotation of the pane on screen in radians, clockwise as Pixi's `rotation`. The shape, its rim
+     * and the refraction follow it. The light stays fixed on screen. Default 0.
+     */
+    setRotation(angle: number): void {
+        this._set('uFrame', Math.cos(angle), Math.sin(angle), 0, 0);
     }
 
     private _set(name: string, a: number, b: number, c: number, d: number): void {

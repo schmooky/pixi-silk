@@ -21,6 +21,7 @@ struct GlassUniforms {
     uTint: vec4<f32>,
     uLight: vec4<f32>,
     uSurface: vec4<f32>,
+    uFrame: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
@@ -94,7 +95,10 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     let uv = input.uv;
     let size = gfu.uOutputFrame.zw;
     let p = uv * gfu.uInputSize.xy - size * 0.5;
-    let d = sdShape(p);
+    // the pane's own axes: p is in screen pixels, uFrame.xy is the cosine and sine of its rotation
+    let axis = glassUniforms.uFrame.xy;
+    let q = vec2<f32>(axis.x * p.x + axis.y * p.y, axis.x * p.y - axis.y * p.x);
+    let d = sdShape(q);
     // derivatives first: WGSL only allows them in uniform control flow
     let aa = max(fwidth(d), 1e-3);
     let cover = clamp(0.5 - d / aa, 0.0, 1.0);
@@ -108,7 +112,9 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     let light = glassUniforms.uLight;
     let surface = glassUniforms.uSurface;
     let e = vec2<f32>(0.75, 0.0);
-    var n = vec2<f32>(sdShape(p + e.xy) - sdShape(p - e.xy), sdShape(p + e.yx) - sdShape(p - e.yx));
+    let nq = vec2<f32>(sdShape(q + e.xy) - sdShape(q - e.xy), sdShape(q + e.yx) - sdShape(q - e.yx));
+    // back to screen space, where the backdrop is sampled and the light sits
+    var n = vec2<f32>(axis.x * nq.x - axis.y * nq.y, axis.y * nq.x + axis.x * nq.y);
 
     n = n / max(length(n), 1e-5);
 

@@ -53,8 +53,9 @@ first time it draws, so the first frame shows a plain pane. Pass `useBackBuffer:
 `createSilkApp` to have glass from the first frame. WebGPU reads the backdrop without a back
 buffer. On any other renderer the pane draws a plain frosted fill.
 
-Add the pane after the scene it frosts, since it only sees what is already drawn. It stays axis
-aligned: scale it freely, but do not rotate it.
+Add the pane after the scene it frosts, since it only sees what is already drawn. You can rotate
+and scale it. Under an uneven scale, the corners stay round with the radius of the smaller scale.
+The light stays fixed on screen. Skew is not supported, and the pane keeps its unskewed shape.
 
 ## Make neon with Glow
 
