@@ -86,13 +86,14 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### UI widgets
 
-- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
+- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
 - [Charts](https://pixi-silk.schmooky.dev/docs/charts/): Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots. (Markdown: https://pixi-silk.schmooky.dev/docs/charts.md)
   - Experiment: [Area chart](https://pixi-silk.schmooky.dev/lab/15-area-chart/): Smoothed series, gradient fill, dotted guides, dashed forecast, NOW marker, eased updates.
   - Experiment: [Bar charts](https://pixi-silk.schmooky.dev/lab/16-bar-charts/): Slim bars with a past/future split and chunky stepped bars that grow in.
   - Experiment: [Ranges & levels](https://pixi-silk.schmooky.dev/lab/18-ranges/): Progress bars with markers, range segments and signal bars, all anti-aliased at any size and pixel ratio.
   - Experiment: [Gauges](https://pixi-silk.schmooky.dev/lab/20-gauges/): ISS flyover, car battery, heading dial with ticks, barometer, UV week, dimmer.
   - Experiment: [Sparklines](https://pixi-silk.schmooky.dev/lab/21-sparklines/): Value-coloured strokes, gradient markers, threshold stops, interactive crosshair.
+- [Sharp text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas. Text stays crisp from 0.5x to 100x zoom, with outlines, glows and tabular numbers. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
 - [Hit testing & events](https://pixi-silk.schmooky.dev/docs/hit-testing/): Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded. (Markdown: https://pixi-silk.schmooky.dev/docs/hit-testing.md)
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
   - Experiment: [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.

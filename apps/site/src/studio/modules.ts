@@ -18,6 +18,7 @@ const PACKAGES: Record<string, Loader> = {
     'pixi-silk/signal': () => import('pixi-silk/signal'),
     'pixi-silk/glass': () => import('pixi-silk/glass'),
     'pixi-silk/glow': () => import('pixi-silk/glow'),
+    'pixi-silk/text': () => import('pixi-silk/text'),
     'pixi-silk/ui': () => import('pixi-silk/ui'),
     'pixi-silk/ui/radial': () => import('pixi-silk/ui/radial'),
     'pixi-silk/ui/button': () => import('pixi-silk/ui/button'),

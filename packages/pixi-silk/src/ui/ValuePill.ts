@@ -1,7 +1,8 @@
-import { Container, type Text, type TextStyleOptions } from 'pixi.js';
+import { Container, type TextStyleOptions } from 'pixi.js';
 import { damp } from '../motion';
 import { SilkGraphics } from '../SilkGraphics';
 import { createIcon } from './icon';
+import type { LabelFactory, TextLabel } from './label';
 import { hex } from './paint';
 
 /** Options of {@link ValuePill}. */
@@ -12,9 +13,15 @@ export interface ValuePillOptions {
     color?: number | string;
     /** Default 12. */
     fontSize?: number;
+    /** More text style, passed to the label. */
     textStyle?: TextStyleOptions;
     /** Pill height. Default 22. */
     height?: number;
+    /**
+     * Builds the text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for text that
+     * stays sharp when the pill is zoomed.
+     */
+    label?: LabelFactory;
 }
 
 /**
@@ -25,7 +32,7 @@ export class ValuePill extends Container {
     /** Wanted visibility. `update` fades towards it. */
     shown = false;
     private readonly _bg = new SilkGraphics();
-    private readonly _text: Text;
+    private readonly _text: TextLabel;
     private readonly _fill: number;
     private readonly _h: number;
     private _value = '';
@@ -35,11 +42,16 @@ export class ValuePill extends Container {
         super({ label: 'ValuePill' });
         this._fill = hex(options.fill ?? 0xffffff);
         this._h = options.height ?? 22;
-        this._text = createIcon('', 28, {
-            fontSize: options.fontSize ?? 12,
-            fontWeight: '600',
-            ...options.textStyle,
-        }) as Text;
+        const style: TextStyleOptions = { fontSize: options.fontSize ?? 12, fontWeight: '600', ...options.textStyle };
+
+        this._text = options.label
+            ? options.label({
+                  fill: 0xffffff,
+                  fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+                  ...style,
+              })
+            : (createIcon('', 28, style) as TextLabel);
+        this._text.anchor.set(0.5);
         this._text.tint = hex(options.color ?? 0x1c1c1e);
         this.addChild(this._bg, this._text);
         this.alpha = 0;

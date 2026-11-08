@@ -114,6 +114,7 @@ writeFileSync(
                 'pixi-silk/glass': [join(SRC, 'glass.ts')],
                 'pixi-silk/glow': [join(SRC, 'glow.ts')],
                 'pixi-silk/webgpu': [join(SRC, 'webgpu.ts')],
+                'pixi-silk/text': [join(SRC, 'text.ts')],
             },
         },
         include: ['*.ts'],

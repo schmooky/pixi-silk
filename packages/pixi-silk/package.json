@@ -107,6 +107,10 @@
       "types": "./dist/webgpu.d.ts",
       "default": "./dist/webgpu.js"
     },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "default": "./dist/text.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

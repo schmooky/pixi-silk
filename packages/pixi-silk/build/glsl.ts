@@ -24,7 +24,7 @@ export function minifyGlsl(source: string): string {
         .join('\n');
 }
 
-/** Rolldown / Vite plugin that minifies the GLSL template literals of the library's modules. */
+/** Rolldown / Vite plugin that minifies the GLSL and WGSL template literals of the library's modules. */
 export function glsl(): Rolldown.Plugin {
     return {
         name: 'pixi-silk:glsl',

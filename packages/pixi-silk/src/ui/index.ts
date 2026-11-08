@@ -98,6 +98,7 @@ export {
 export type { IconSource } from './icon';
 export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, modDown, onKey, shiftDown } from './keys';
+export type { LabelFactory, TextLabel } from './label';
 export { Measure, type MeasureOptions, type MeasureRect, type MeasureTarget, type Redline, redlines } from './measure';
 export {
     ModeSwitcher,
