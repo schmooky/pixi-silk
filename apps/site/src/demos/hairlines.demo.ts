@@ -6,16 +6,20 @@ import { defineDemo, INK, label } from './runtime';
 export default defineDemo({
     title: 'Hairlines',
     size: [720, 240],
+    phone: { size: [360, 230] },
     controls: {
         scale: { type: 'range', label: 'width scale', min: 0.05, max: 2, step: 0.01, value: 0.5 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, phone }) {
         const g = new SilkGraphics();
-        const cx = 360;
-        const cy = 210;
-        const r = 180;
-        const thinnest = label('', cx - r - 12, cy - 8, {}, 1);
-        const widest = label('', cx + r + 12, cy - 8);
+        const cx = width / 2;
+        const cy = phone ? 180 : 210;
+        const r = phone ? 150 : 180;
+        // the width readouts sit beside the fan, or under its ends on phones
+        const thinnest = phone ? label('', cx - r, cy + 12) : label('', cx - r - 12, cy - 8, {}, 1);
+        const widest = phone ? label('', cx + r, cy + 12) : label('', cx + r + 12, cy - 8);
+
+        if (phone) widest.anchor.set(1, 0);
 
         stage.addChild(g, thinnest, widest);
         tick((t) => {
