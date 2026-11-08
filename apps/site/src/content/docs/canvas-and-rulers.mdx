@@ -1,0 +1,227 @@
+---
+title: Canvas and rulers
+seoTitle: 'Pan, zoom, grid, rulers and guides for PixiJS'
+description: 'Pan and zoom a PixiJS scene with a camera, then add a grid, rulers, draggable guides, redlines, a marquee and equal-gap markers around it.'
+keywords: ['PixiJS camera', 'infinite canvas', 'pan and zoom', 'PixiJS grid', 'rulers', 'guides', 'marquee selection', 'redlines', 'smart spacing']
+updated: 2026-11-08
+api: [Camera, ZoomControl, Measure, CanvasGrid, Ruler, Guides, Marquee, SpacingMarkers]
+---
+
+<Callout type="note">Experimental in 1.0: the API may change in a minor release.</Callout>
+
+<Demo name="canvas-tools" height={520} caption="Drag on empty canvas to select. Drag layers to move them. Drag guides out of the rulers." />
+
+The camera pans and zooms a world container. The other pieces on this page read the camera and
+draw in screen space around it. Each one is its own `pixi-silk/ui/<name>` entry point, and none of
+them holds a selection. They take plain arrays of containers and report back through callbacks,
+so any selection store can drive them. [Gizmos and selection](/docs/gizmos-and-selection/) adds
+one.
+
+## Pan and zoom with a camera
+
+```ts
+import { Container } from 'pixi.js';
+import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
+
+const world = new Container();
+const overlay = new Container();
+const camera = new Camera({ world, element: app.canvas });
+
+app.stage.addChild(world, overlay);
+overlay.addChild(new ZoomControl(camera));
+camera.fit();
+```
+
+The camera moves and scales `world`. Put overlays beside the world, not inside it: outlines,
+gizmos and redlines on the overlay follow the objects and keep their size on screen.
+
+A trackpad pinch, or ctrl or cmd with the wheel, zooms around the cursor. Scrolling pans, and so
+do middle drag, right drag and Space + drag. On touch screens two fingers pinch and pan, so one
+finger stays with the scene. Pans never reach the scene, so your own clicks and drags keep working.
+
+| Option | Default | What it does |
+|---|---|---|
+| `zoomRange` | `[0.02, 256]` | Smallest and largest zoom. |
+| `wheel` | `'pan'` | `'zoom'` makes the wheel zoom and Shift + wheel pan, like a map. |
+| `panButtons` | `[1, 2]` | Mouse buttons that pan when dragged: 1 is middle, 2 is right. |
+| `spacePan` | `true` | Holding Space turns a left drag into a pan. |
+| `touchPan` | `'two'` | `'one'` pans with one finger. |
+| `inertia` | `true` | A fling keeps gliding and slows down. |
+| `keys` | `true` | `+` and `-` zoom, Shift + 0 is 100% and Shift + 1 fits the content. |
+| `pageScroll` | `'auto'` | In a page that scrolls, a plain scroll keeps scrolling the page until the canvas is clicked. `false` gives the canvas every scroll. |
+| `ignore` | none | Points the camera leaves alone, such as panels drawn over the view. |
+
+`fit()`, `zoomTo()`, `zoomBy()` and `centerOn()` animate unless you pass `false`. `fit()` takes
+padding per side, like `{ left: 280, right: 300 }`, to centre content between docked panels.
+`state.zoom`, `state.x` and `state.y` are signals for readouts and for anything that redraws on
+zoom. `screenToWorld()` and `worldToScreen()` convert points.
+
+## Measure distances
+
+`Measure` draws redlines from one object to another, like holding Alt in Figma. Side by side it
+shows the gap along the band the two share. When one sits inside the other it shows the margin on
+every side. `size()` adds a `W x H` badge.
+
+```ts
+import type { Container } from 'pixi.js';
+import { Measure } from 'pixi-silk/ui/measure';
+
+declare const world: Container, overlay: Container, selected: Container, hovered: Container;
+
+const measure = new Measure({ space: world });
+
+overlay.addChild(measure);
+measure.size(selected);
+measure.between(selected, hovered);
+```
+
+Distances are in `space`, usually the camera's world, so a gap of 24 reads 24 at any zoom.
+Redlines follow their objects every frame. `format` turns a value into a label, for units or
+rounding.
+
+## Draw a grid
+
+```ts
+import { Container } from 'pixi.js';
+import { Camera } from 'pixi-silk/ui/camera';
+import { CanvasGrid } from 'pixi-silk/ui/grid';
+
+const world = new Container();
+const camera = new Camera({ world, element: app.canvas });
+const grid = new CanvasGrid({ camera, style: 'dots', axes: true });
+
+app.stage.addChild(grid, world);
+```
+
+`CanvasGrid` draws an infinite grid behind the world. Levels nest at 1, 10 and 100 world units,
+and each one fades in as its lines spread apart on screen, so zooming never pops a level in.
+A level of lines costs two shapes, whatever the size of the view. Dots take one shape per row.
+
+| Option | Default | What it does |
+|---|---|---|
+| `style` | `'lines'` | `'lines'` or `'dots'`. Change it later through `state.style` and the grid crossfades. |
+| `unit` | `1` | Finest step, in world units. |
+| `ratio` | `10` | How many times each level is the one below. |
+| `fade` | `[6, 120]` | Screen spacing where a level starts to show and where it reaches full strength. |
+| `axes` | `false` | Draws the x = 0 and y = 0 axes. |
+
+`gridLevels()` returns the levels for a zoom, for your own drawing.
+
+## Add rulers and guides
+
+```ts
+import type { Container } from 'pixi.js';
+import type { Camera } from 'pixi-silk/ui/camera';
+import { Guides } from 'pixi-silk/ui/guides';
+import { Ruler } from 'pixi-silk/ui/ruler';
+import { SnapEngine } from 'pixi-silk/ui/snap';
+
+declare const camera: Camera, overlay: Container, selected: Container[];
+
+const ruler = new Ruler({ camera });
+const engine = new SnapEngine();
+const guides = new Guides({ camera, ruler, snap: engine });
+
+overlay.addChild(guides, ruler);
+ruler.highlight(selected);
+guides.bindSnap(engine);
+```
+
+`Ruler` draws a top and a left ruler. Labels step in 1, 2 and 5 times a power of ten. When the
+step changes, the labels the two steps share stay put while the rest fade. `highlight()` bands the
+extent of objects or a world rectangle in the accent colour. `format` turns world values into
+labels, for units such as `pt` or `mm`.
+
+`Guides` lets the reader drag a guide out of a ruler: the top ruler gives a horizontal guide, the
+left one a vertical guide. Dropping a guide back on the ruler removes it. While dragging, a guide
+snaps to the edges and centres of the engine's targets, and Ctrl or Cmd turns snapping off.
+`bindSnap()` feeds the guides back into the engine, so objects snap to them too. `add()`, `move()`,
+`remove()` and `clear()` edit guides from code, and `state.guides` is a signal of all of them.
+
+## Select with a marquee
+
+```ts
+import type { Container } from 'pixi.js';
+import type { Camera } from 'pixi-silk/ui/camera';
+import { Marquee } from 'pixi-silk/ui/marquee';
+
+declare const camera: Camera, overlay: Container, layers: Container[];
+let selected: readonly Container[] = [];
+
+app.stage.eventMode = 'static';
+app.stage.hitArea = app.screen;
+const marquee = new Marquee({
+    camera,
+    surface: app.stage,
+    candidates: () => layers,
+    selection: () => selected,
+    onChange: (next) => {
+        selected = next;
+    },
+});
+
+overlay.addChild(marquee);
+```
+
+A left drag that starts on `surface` itself draws the rectangle. Shift adds to the selection and
+Alt takes away. The camera keeps middle, right, Space and two-finger drags, and a pan that starts
+mid-drag cancels the marquee. Near the edge of the view the camera pans.
+
+`mode: 'intersect'` (the default) picks what the rectangle touches, rotated objects included.
+`mode: 'contain'` picks what is fully inside. For a spatial index or custom shapes, pass
+`hit: (rect, mode) => targets` instead of `candidates`.
+
+## Show equal spacing
+
+<Demo name="smart-spacing" height={380} caption="Drag a card to see equal gaps. Hover the stack to see its spacing." />
+
+`findSpacing()` looks at a box among others. When the gap to a neighbour equals another gap in the
+same row or column, it returns every one of those gaps. It also returns edges and centres that
+line up. `SpacingMarkers` draws them as segments with value pills.
+
+```ts
+import type { Container } from 'pixi.js';
+import { SnapEngine, type SnapRect } from 'pixi-silk/ui/snap';
+import { findSpacing, SpacingMarkers } from 'pixi-silk/ui/spacing';
+
+declare const world: Container, overlay: Container, moving: SnapRect, others: SnapRect[];
+
+const engine = new SnapEngine({ targets: others });
+const markers = new SpacingMarkers({ space: world });
+
+overlay.addChild(markers);
+const snap = engine.snap(moving);
+
+markers.show(findSpacing({ ...moving, x: moving.x + snap.dx, y: moving.y + snap.dy }, others));
+```
+
+Snap first, then report on the snapped box, or the markers show gaps the box is about to leave.
+`gapsBetween()` reads the gaps of a row or a column, so an auto-layout container can show its
+spacing with the same markers.
+
+## Labels
+
+`Measure`, `Ruler`, `Guides` and `ZoomControl` draw their text with PixiJS `Text` by default.
+Pass `label: silkLabel()` from `pixi-silk/text` to draw it with [SilkText](/docs/text/) instead.
+The widgets never import SilkText on their own, so an app that skips the option does not ship it.
+
+```ts
+import type { Container } from 'pixi.js';
+import { silkLabel } from 'pixi-silk/text';
+import { type Camera, ZoomControl } from 'pixi-silk/ui/camera';
+import { Measure } from 'pixi-silk/ui/measure';
+import { Ruler } from 'pixi-silk/ui/ruler';
+
+declare const camera: Camera, world: Container;
+
+const label = silkLabel();
+const measure = new Measure({ space: world, label });
+const ruler = new Ruler({ camera, label });
+const zoom = new ZoomControl(camera, { label });
+```
+
+## Where it stops
+
+The pieces draw and report. They do not keep a document, a layer list or an undo stack.
+[Gizmos and selection](/docs/gizmos-and-selection/) adds a selection store and a history, and
+[Panels](/docs/panels/) adds a layer tree and an inspector.

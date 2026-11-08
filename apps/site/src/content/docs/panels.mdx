@@ -1,103 +1,73 @@
 ---
 title: Panels
 seoTitle: 'PixiJS editor panels: layers, inspector, minimap'
-description: 'Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera.'
+description: 'Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera view.'
 keywords: ['PixiJS editor panels', 'canvas layer tree', 'property inspector', 'PixiJS minimap', 'dockable panel', 'scene editor UI']
 updated: 2026-11-08
+api: [Panel, LayerTree, Inspector, Minimap]
 ---
 
-<Demo name="editor-panels" height={620} caption="Pick a layer in the list or on the canvas. Drag rows to reorder them, scrub a number, open the colour swatch. Cmd or ctrl + Z undoes each step. Drag a panel by its title to float it, and drop it near an edge to dock it." />
+<Callout type="note">Experimental in 1.0: the API may change in a minor release.</Callout>
 
-## A scene editor without DOM
+<Demo name="editor-panels" height={620} caption="Pick a layer in the list or on the canvas. Drag a panel by its title to float or dock it." />
 
-A scene editor needs panels around its canvas: a layer list, an inspector and often a minimap.
-Most apps stack DOM over Pixi for them, and then keep two event systems, two layouts and two
-styles in step. These panels are Pixi containers instead. They take the same pointer events as
-the scene, lay out with the [flex engine](/docs/layout/), and draw their text with
-[SilkText](/docs/text/), so they stay sharp at any scale.
+The panels around an editor canvas, drawn as Pixi containers. They take the same pointer events
+as the scene, lay out with the [flex layout](/docs/layout/) and draw text with
+[SilkText](/docs/text/). You keep one event system and one style instead of DOM over a canvas.
 
-They are widgets, not a framework. Each one has its own entry point:
-
-| Entry | What it has |
+| Entry point | What it holds |
 | --- | --- |
-| `pixi-silk/ui/panel` | `Panel`, `ScrollView`, the panel themes, `dockRect` and `panelHitTest` |
-| `pixi-silk/ui/layers` | `LayerTree`, `pixiTreeAdapter` and the tree functions it uses |
+| `pixi-silk/ui/panel` | `Panel`, `ScrollView`, the themes, `dockRect` and `panelHitTest` |
+| `pixi-silk/ui/layers` | `LayerTree`, `pixiTreeAdapter` and the tree functions |
 | `pixi-silk/ui/inspector` | `Inspector`, its fields, `bindObjects` and `bindSignals` |
 | `pixi-silk/ui/minimap` | `Minimap` and its mapping functions |
 
-## Panel
+## Dock a panel
 
-<Demo name="panel-dock" height={460} caption="Drag a title bar to move a panel. Drop it near an edge or a corner to dock it, and drag it off to float it again. Drag an edge to resize, click the chevron to fold." />
-
-A `Panel` has a title bar, a body and edges to resize. Drag the title bar to move it. While the
-pointer is near a screen edge or corner, a preview shows where it docks, and releasing docks it
-there. Left and right panels span the screen height, top and bottom ones its width. Size,
-position and folding glide on springs.
+<Demo name="panel-dock" height={460} caption="Drag a title bar near an edge to dock. Drag an edge to resize." />
 
 ```ts
-import { Container } from 'pixi.js';
+import type { Container } from 'pixi.js';
 import type { Camera } from 'pixi-silk/ui/camera';
 import { Panel } from 'pixi-silk/ui/panel';
 
-declare const camera: Camera;
-declare const stage: Container;
-declare const rows: Container[];
+declare const camera: Camera, stage: Container, rows: Container[];
 
-const panel = new Panel({
-    title: 'Library',
-    dock: 'left', // or 'right', 'top', 'bottom', 'top-left' and the other corners
-    width: 260,
-    viewport: camera.state, // the screen size, as signals or numbers
-});
+const panel = new Panel({ title: 'Library', dock: 'left', width: 260, viewport: camera.state });
 
 for (const row of rows) panel.content.add(row);
 stage.addChild(panel);
 ```
 
-The body is `panel.content`, a flex column with a gap and a padding. It scrolls when it is taller
-than the panel: wheels and trackpads glide, fingers fling and stretch past the ends, and a slim
-scrollbar fades in while it moves. Widgets that scroll themselves, like the layer tree, take
+A panel has a title bar, a body and edges to resize. While a dragged panel nears a screen edge or
+corner, a preview shows where it docks. Left and right panels span the screen height, top and
+bottom ones its width. `viewport` is the screen size, as numbers or signals. The camera's state
+works.
+
+The body, `panel.content`, is a flex column. It scrolls when it is taller than the panel, with a
+scrollbar that fades in while it moves. A widget that scrolls itself, like the layer tree, wants
 `scroll: false`, and the body is then a flex container as tall as the panel.
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `dock` | floating | An edge or a corner. Needs `viewport` |
-| `margin` | 8 | Gap to the screen edge when docked |
-| `insets` | none | Space kept free along each edge, for a toolbar or another panel |
-| `collapsible`, `collapsed` | true, false | The chevron folds the body away |
-| `draggable`, `resizable`, `dockable` | true | Move, resize and dock by dragging |
-| `minWidth`, `minHeight` | 160, 96 | Smallest size a resize leaves |
-| `scroll` | true | Scroll `content`, or fill the body with it |
-| `theme` | dark | `PANEL_THEME_LIGHT`, or any tokens over the dark theme |
+| `dock` | floating | An edge or a corner, such as `'left'` or `'top-right'`. Needs `viewport`. |
+| `width`, `height` | `260`, `360` | Size when floating. A docked panel spans its edge. |
+| `margin` | `8` | Gap to the screen edge when docked. |
+| `insets` | none | Space kept free along each edge, for a toolbar. |
+| `collapsible`, `collapsed` | `true`, `false` | The chevron folds the body away. |
+| `draggable`, `resizable`, `dockable` | `true` | Move, resize and dock by dragging. |
+| `scroll` | `true` | Scroll `content`, or fill the body with it. |
+| `theme` | dark | `PANEL_THEME_LIGHT`, or tokens over the dark theme. |
 
-`panel.state` holds `collapsed`, `dock`, `dragging`, `resizing` and `rect` as
-[signals](/docs/selection-and-history/). Write `collapsed` or `dock` to fold or dock from code.
-`panel.actions` is a flex row in the title bar for buttons of your own.
+`panel.state.collapsed` and `panel.state.dock` are signals. Write them to fold or dock from code.
+`panel.actions` is a row in the title bar for your own buttons.
 
-### Panels and the camera
+The [camera](/docs/canvas-and-rulers/) listens to the wheel on the whole canvas. Pass
+`ignore: panelHitTest(panels)` to it, and wheels and pan drags over a panel stay with the panel.
 
-The [camera](/docs/canvas-and-measurements/) listens to the wheel on the whole canvas. Pass
-`panelHitTest` as its `ignore` option, and wheels and pan drags over a panel stay with the panel.
+## List layers
 
-```ts
-import type { Application, Container } from 'pixi.js';
-import { Camera } from 'pixi-silk/ui/camera';
-import { type Panel, panelHitTest } from 'pixi-silk/ui/panel';
-
-declare const app: Application;
-declare const world: Container;
-declare const panels: Panel[];
-
-const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(panels) });
-```
-
-## Layer tree
-
-<Demo name="layers-tree" height={460} caption="Two thousand layers in a plain object model, with only the rows in view drawn. Drag rows to reorder them or drop them on a group. Double click a name to rename it." />
-
-`LayerTree` lists any tree. It reads your data through a `TreeAdapter`, a few callbacks such as
-`getChildren` and `getName`, so it can show a Pixi scene graph, a document model or a store. It
-keeps no copy of the data. Call `refresh()` after the data changes elsewhere.
+<Demo name="layers-tree" height={460} caption="Drag rows to reorder them or drop them on a group. Double click a name to rename it." />
 
 ```ts
 import type { Container } from 'pixi.js';
@@ -106,8 +76,7 @@ import { Selection } from 'pixi-silk/selection';
 import { LayerTree, pixiTreeAdapter } from 'pixi-silk/ui/layers';
 import type { Panel } from 'pixi-silk/ui/panel';
 
-declare const world: Container;
-declare const panel: Panel; // created with scroll: false
+declare const world: Container, panel: Panel;
 
 const selection = new Selection<Container>();
 const tree = new LayerTree({ adapter: pixiTreeAdapter(), root: world, selection, history: new History() });
@@ -115,24 +84,17 @@ const tree = new LayerTree({ adapter: pixiTreeAdapter(), root: world, selection,
 panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
 ```
 
-- **Selection.** Click selects, Shift + click selects a range, cmd or ctrl + click toggles. The
-  rows follow a `Selection` store both ways. A pick on the canvas opens its groups and scrolls it
-  into view. Hovering a row sets `selection.state.hovered`, so the canvas can outline it.
-- **Reorder and reparent.** Drag rows between others, or onto the middle of a group to move them
-  inside. Below the last row of a group, the pointer's x picks how far out the drop goes. A line
-  or a box shows where they land. On touch, hold a row to pick it up.
-- **Rename, hide and lock.** Double click a name, or press Enter or F2, to rename it in place with
-  a `TextEditor`. The eye and lock toggles show on hover, and stay while they are off the default.
-- **Keys.** Up and Down move the selection, Shift extends it, Left and Right fold and unfold.
-- **Thousands of nodes.** Only the rows in view exist. A pool of row views is reused as you scroll.
+`LayerTree` reads your data through a `TreeAdapter` and keeps no copy of it, so call `refresh()`
+after the data changes elsewhere. Only the rows in view exist, so two thousand layers scroll like
+twenty. Rows are listed front to back, so the adapter's first child is the top row.
 
-Every rename, toggle and move goes through `history` as one undo step. Rows are listed front to
-back, the way design tools show layers, so the adapter's first child is the top row.
+The rows follow a [`Selection`](/docs/gizmos-and-selection/) both ways. A pick on the canvas opens
+its groups and scrolls the row into view. Hovering a row sets `selection.state.hovered`, so the
+canvas can outline it. Drag rows between others to reorder them, or onto a group to move them
+inside. On touch, hold a row to pick it up. Every rename, toggle and move is one step in `history`.
 
-`pixiTreeAdapter()` maps containers to rows. Names are `label`, the eye sets `visible`, the lock
-turns pointer events off, and moves keep each node in place on screen. Pass `filter` to leave
-children out, and `name` or `icon` for your own labels and icons. For your own model, write the
-adapter:
+`pixiTreeAdapter()` maps containers to rows. The name is `label`, the eye sets `visible`, and the
+lock turns pointer events off. For your own model, write the adapter:
 
 ```ts
 import { LayerTree, type TreeAdapter } from 'pixi-silk/ui/layers';
@@ -160,15 +122,12 @@ const adapter: TreeAdapter<Item> = {
 const tree = new LayerTree({ adapter, root: doc });
 ```
 
-The logic behind the list is exported on its own and has no Pixi in it: `flattenTree`,
-`visibleRange`, `dropTarget`, `applyDrop` and `undoMoves`.
+The tree logic has no Pixi in it and is exported on its own: `flattenTree`, `visibleRange`,
+`dropTarget`, `applyDrop` and `undoMoves`.
 
-## Inspector
+## Edit properties
 
-<Demo name="inspector-schema" height={480} caption="Shift + click a second card: values that differ show as Mixed. Drag a number sideways or click it to type. Open the swatch for the colour picker." />
-
-An `Inspector` builds its rows from a schema. Each entry names a key, a path on the edited
-objects such as `position.x`, and a field type.
+<Demo name="inspector-schema" height={480} caption="Shift + click a second card. Drag a number sideways or click it to type." />
 
 ```ts
 import type { Container } from 'pixi.js';
@@ -177,14 +136,12 @@ import type { Selection } from 'pixi-silk/selection';
 import { Inspector } from 'pixi-silk/ui/inspector';
 import type { Panel } from 'pixi-silk/ui/panel';
 
-declare const selection: Selection<Container>;
-declare const panel: Panel;
+declare const selection: Selection<Container>, panel: Panel;
 
 const inspector = new Inspector({
     schema: [
         { type: 'text', key: 'label', label: 'Name' },
         { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
-        { type: 'vector', keys: ['width', 'height'], label: 'Size', labels: ['W', 'H'], lockAspect: true },
         { type: 'number', key: 'angle', label: 'Rotation', unit: 'deg' },
         {
             type: 'section',
@@ -203,40 +160,33 @@ selection.state.items.subscribe((items) => inspector.bind(items));
 panel.content.add(inspector);
 ```
 
+Each schema entry names a path on the edited objects, such as `position.x`, and a field type.
+
 | Type | Field |
 | --- | --- |
-| `number` | Drag sideways to scrub, Shift for ten times faster, Alt for ten times finer. Click to type. `min`, `max`, `step`, `unit` |
-| `text` | A one-line `TextEditor` |
-| `toggle` | A switch with a springy knob |
-| `choice` | Segmented options with a sliding thumb |
-| `color` | A swatch and its hex code. A click opens a colour picker |
-| `vector` | Two numbers in one row. `lockAspect` adds a link that keeps their ratio |
-| `section` | A titled group that folds |
+| `number` | Drag sideways to scrub, Shift for faster, Alt for finer. Click to type. Takes `min`, `max`, `step` and `unit`. |
+| `text` | A one-line [text editor](/docs/editing-text/). |
+| `toggle` | A switch. |
+| `choice` | Segmented options. |
+| `color` | A swatch and its hex code. A click opens a [colour picker](/docs/color-pickers/). |
+| `vector` | Two numbers in one row. `lockAspect` keeps their ratio. |
+| `section` | A titled group that folds. |
 
-`bind()` takes a list of objects, or an `InspectorBinding` with `read` and `write` for a store of
-your own. `bindSignals()` edits [signals](/docs/selection-and-history/), for a settings panel.
 With several objects bound, values that differ show as Mixed. A scrub moves each value from its
-own start, and a typed value sets them all.
+own start, and a typed value sets them all. Every edit is one step in `history`.
 
-Every drag, toggle or commit is one step in `history`, with the values of each object before
-and after. Call `refresh()` when the objects change elsewhere, such as during a gizmo drag. Colour
-fields open a `HueSquarePicker` by default. Pass `colorPicker` to use another picker from
-[colour pickers](/docs/color-pickers/), and `popoverLayer` for the container it opens in.
+`bind()` also takes an `InspectorBinding` with `read` and `write`, for a store of your own.
+`bindSignals()` edits signals, for a settings panel. The inspector does not watch the objects, so
+call `refresh()` when they change elsewhere, such as during a gizmo drag.
 
-## Minimap
+## Show a minimap
 
-<Demo name="minimap" height={460} caption="Scroll to pan, ctrl + scroll to zoom. Drag the frame on the minimap to pan, click it to jump, scroll over it to zoom." />
-
-A `Minimap` shows a camera's world in small, with the view as a frame. Drag the frame to pan,
-click to jump there, and scroll over it to zoom. It frames the content and the view together, and
-glides as the view moves past the content.
+<Demo name="minimap" height={460} caption="Drag the frame on the minimap to pan, click it to jump, scroll over it to zoom." />
 
 ```ts
-import type { Application } from 'pixi.js';
 import type { Camera } from 'pixi-silk/ui/camera';
 import { Minimap } from 'pixi-silk/ui/minimap';
 
-declare const app: Application;
 declare const camera: Camera;
 
 const map = new Minimap({ camera, width: 220, height: 140 });
@@ -244,6 +194,6 @@ const map = new Minimap({ camera, width: 220, height: 140 });
 app.stage.addChild(map);
 ```
 
-The default `bounds` mode draws the outline of each object, crisp and cheap. `mode: 'texture'`
-renders the content into a small texture every `interval` seconds, for a real thumbnail. It needs
-the `renderer`. Call `refresh()` after the content moves, so the map measures it again.
+The minimap frames the content and the view together. The default `mode: 'bounds'` draws the
+outline of each top-level object. `mode: 'texture'` renders a real thumbnail every `interval`
+seconds (0.5 by default) and needs the `renderer`. Call `refresh()` after the content moves.

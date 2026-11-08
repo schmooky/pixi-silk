@@ -1,70 +1,58 @@
 ---
 title: Lines & paths
-seoTitle: 'Smooth lines, polylines and tapered strokes in PixiJS'
-description: 'Anti-aliased lines and polylines with monotone or Catmull-Rom smoothing, Bezier paths, tapered strokes and translucent joints without double blending.'
-keywords: ['smooth lines PixiJS', 'PixiJS polyline', 'anti-aliased lines WebGL', 'tapered stroke', 'bezier curve PixiJS']
+seoTitle: 'Lines, polylines, Bezier paths and tapers in PixiJS'
+description: 'Lines and polylines with monotone or Catmull-Rom smoothing, miter, bevel and round joins, Bezier and SVG paths that fill and stroke, and tapered strokes.'
+keywords: ['smooth lines PixiJS', 'PixiJS polyline', 'line join miter bevel', 'tapered stroke', 'bezier curve PixiJS', 'SVG path PixiJS']
 updated: 2026-11-08
-api: [SilkGraphics, along]
+api: [SilkGraphics, along, PolylineOptions, LineJoin]
 ---
 
-<Demo name="polyline" height={240} />
+Lines, polylines and paths are the open and free-form shapes of `SilkGraphics`. Stroke them, or
+fill a closed path as one shape.
 
-## Lines and polylines
+<Demo name="polyline" height={240} caption="Lower the alpha and look at the corners. Switch the smoothing." />
+
+```ts
+g.polyline([20, 140, 80, 40, 140, 110, 200, 30], { smooth: 'catmull' })
+    .stroke({ width: 6, color: 0x0a84ff, alpha: 0.6, cap: 'round' });
+```
+
+That draws a translucent curve through four points. Every pixel of the stroke is shaded once, so
+the corners have the same alpha as the straight parts instead of darker blobs.
+
+## Draw lines and polylines
 
 ```ts nocheck
 g.line(x0, y0, x1, y1).stroke({ width: 2, color: 0xffffff });
-g.polyline([x0, y0, x1, y1, x2, y2]).stroke({ width: 3, color: 0x0a84ff, cap: 'round' });
-g.polyline(points, { closed: true }).stroke(...);            // closed loop
-g.polyline(points, { smooth: 'monotone' }).stroke(...);      // charts: never overshoots the data
-g.polyline(points, { smooth: 'catmull' }).stroke(...);       // free curves through every point
+g.polyline(points).stroke(...);
+g.polyline(points, { closed: true }).stroke(...);
 ```
 
-Points can be a flat array `[x0, y0, x1, y1, ...]`, a typed array, or an array of `{ x, y }`.
+Points can be a flat array `[x0, y0, x1, y1, ...]`, a typed array or an array of `{ x, y }`.
 
-A stroked path is one distance field. Every pixel is shaded once, so a translucent polyline has
-uniform alpha at its corners instead of darker blobs.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `closed` | `false` | Connects the last point back to the first |
+| `smooth` | `false` | `'monotone'` draws a curve that never overshoots the data, for charts. `'catmull'` draws a free curve through every point. |
+| `step` | 2 | Sample spacing of the smoothed curve, in local units |
 
-## Joins
+## Choose a join
 
-`join` sets how segments meet: `miter` (the default, as in Canvas and Pixi), `bevel` or `round`.
-A miter longer than `miterLimit` half widths turns into a bevel. The default limit is 10.
-
-<Demo name="joins" height={260} />
+<Demo name="joins" height={260} caption="Switch the join and lower the miter limit." />
 
 ```ts
 g.polyline(points).stroke({ width: 12, join: 'bevel', color: 0x0a84ff, alpha: 0.6 });
 g.rect(0, 0, 80, 60).stroke({ width: 8, join: 'miter', miterLimit: 4 });
 ```
 
-Joins follow Canvas 2D and SVG. Each segment is a butt rectangle, and the join fills the outer
-corner. Caps apply at the open ends and at the ends of every dash. A dash that runs through a
-corner gets the join too. Rects without a radius, triangles and stars without corner rounding
-get sharp corners as well, so a stroked `rect()` looks like a Canvas one. Use `join: 'round'` for
-the rounded outer corners of earlier versions.
+`join` sets how segments meet: `'miter'` (the default, as in Canvas and Pixi), `'bevel'` or
+`'round'`. A miter longer than `miterLimit` half widths turns into a bevel. The default limit is 10.
 
-A path stroke checks every segment of its path per pixel. Subpaths longer than 32 segments are
-split into chunks, so long chart lines stay fast. Tapered strokes keep one capsule per segment.
+Joins follow Canvas 2D and SVG. A dash that runs through a corner gets the join too. Rects without
+a radius, and triangles and polygons without a `cornerRadius`, take the join as well, so a stroked
+`rect()` looks like a Canvas one.
 
-## Crossings, fold-backs and dash caps
-
-A translucent stroke stays one shape in the hard cases too. Zoom in on each of them below.
-
-<Demo name="stroke-edges" height={280} />
-
-- **Crossings.** A path that crosses itself far along its length is still shaded once where it
-  overlaps. Each chunk of a long path also checks the segments of the other chunks that come near
-  it, and the nearest segment decides who shades a pixel.
-- **Fold-backs.** A path that turns by 180 degrees, or nearly, goes back over itself with no dim
-  or doubled pixels. A full reversal has no join, as in Canvas.
-- **Square dash caps.** On a curve, caps that overlap the next dash merge into it. A dash that runs
-  through a round corner keeps its cap's reach, so the corner stays round.
-
-Hairlines seen from far out are the one limit. When a line is thinner than a pixel, crossings of
-far-apart parts of one path can blend twice.
-
-## Paths
-
-The canvas-style path API strokes and fills:
+## Draw Bezier and SVG paths
 
 ```ts
 g.moveTo(10, 80)
@@ -74,36 +62,52 @@ g.moveTo(10, 80)
     .stroke({ width: 3, color: 0xff9f0a, cap: 'round' });
 ```
 
-Silk flattens curves adaptively into segments. A stroke draws the path as one outline. A fill draws the
-whole path as one exact shape, so a bolt, a drop or a logo outline blurs, spreads and takes inner
-shadows like a circle does. Overlapping subpaths follow the even-odd rule, so a square inside a
-square makes a hole.
+The Canvas-style path API has `moveTo`, `lineTo`, `quadraticCurveTo`, `bezierCurveTo` and
+`closePath`. Curves are flattened into segments that adapt to the curve.
+
+Paths fill as well as stroke. A fill draws the whole path as one shape, so a bolt, a drop or a
+logo outline takes blur, spread and inner shadows like a circle. Overlapping subpaths follow the
+even-odd rule: a square inside a square makes a hole.
 
 ```ts
 g.poly([64, 0, 6, 58, 44, 58, 30, 100, 94, 40, 56, 40]).fill({ color: 0xffd60a, blur: 12 });
 g.svgPath('M10 80 Q 60 10 110 80 T 210 80').stroke({ width: 3, color: 0x0a84ff });
 ```
 
-`svgPath(d)` reads an SVG path string into the active path. Combine paths with other shapes in
-[Shape operations](/docs/shape-operations/).
+`poly(points)` adds a closed polygon. `svgPath(d)` reads the `d` attribute of an SVG path. To cut
+paths out of other shapes, see [Shape operations](/docs/shape-operations/).
 
-Each fill checks every edge of its path per pixel. Keep paths to a few hundred points.
+A fill checks every edge of its path for each pixel. Keep filled paths to a few hundred points.
 
-## Tapered strokes
+## Taper a stroke
 
-Pass an array as `width`. With `[start, end]`, Silk interpolates the width along the path length.
-With one value per point, each value sets the width at its vertex. Each segment becomes an uneven
-capsule, so the taper is smooth through joints.
-
-<Demo name="taper" height={240} />
+<Demo name="taper" height={240} caption="Drag the start and end widths." />
 
 ```ts
 g.polyline(points).stroke({ width: [2, 22], cap: 'round', gradient: along([0xff9f0a, 0xbf5af2]) });
 ```
 
-`along()` is a gradient that follows the stroke from its first point to its last.
+Pass an array as `width`. With two values, the width runs from the first to the second along the
+path length. With one value per point, each value sets the width at its vertex. The taper stays
+smooth through the joints. `along()` is a gradient that runs from the first point of the stroke to
+the last.
 
-## Hairlines
+## Crossings, fold-backs and dash caps
 
-Strokes thinner than one device pixel stay one pixel wide and fade in proportion. They do not break
-up into dots. See [Fills & strokes](/docs/fills-and-strokes/#hairlines).
+<Demo name="stroke-edges" height={280} caption="Pick a case and zoom in." />
+
+A translucent stroke stays one shape in the hard cases too.
+
+A path that crosses itself far along its length is shaded once where it overlaps. A path that
+turns back by 180 degrees, or nearly, goes back over itself with no doubled pixels. A full reversal
+has no join, as in Canvas. On a curve, square dash caps that overlap the next dash merge into it.
+
+The limit is lines thinner than a pixel. There, crossings of far-apart parts of one path can blend
+twice.
+
+## Long paths
+
+A path stroke checks the segments of its path for each pixel. Subpaths longer than 32 segments are
+split into chunks, so a long chart line stays fast. Each chunk also checks the segments of other
+chunks that come near it, which keeps crossings shaded once. A tapered stroke keeps one capsule
+per segment.

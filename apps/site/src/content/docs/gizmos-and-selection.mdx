@@ -1,0 +1,224 @@
+---
+title: Gizmos and selection
+seoTitle: 'Transform gizmos, selection and undo for PixiJS'
+description: 'Move, rotate and resize PixiJS objects with a gizmo, snap them to smart guides, track the selection and undo every drag with a history stack.'
+keywords: ['PixiJS gizmo', 'transform handles', 'selection outline', 'smart guides', 'snapping', 'undo redo', 'PixiJS selection', 'canvas editor']
+updated: 2026-11-08
+api: [TransformGizmo, SelectionOutline, SnapEngine, SnapGuides, SelectionGroup, Selection, History]
+---
+
+<Callout type="note">Experimental in 1.0: the API may change in a minor release.</Callout>
+
+<Demo name="gizmo" height={420} caption="Click a shape, then drag a handle. Hold Shift to snap. Switch the mode below." />
+
+A `TransformGizmo` moves, rotates and scales one container. A `SelectionOutline` frames what is
+selected, and a `SnapEngine` says where a moving box should land. A `Selection` store and a
+`History` tie them together. Each piece works alone and has its own entry point.
+
+## Attach a gizmo
+
+```ts
+import { Container } from 'pixi.js';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+
+const overlay = new Container();
+const shape = new Container();
+const gizmo = new TransformGizmo({
+    mode: 'universal',
+    snap: { translate: 10, angle: Math.PI / 12, scale: 0.1 },
+    onChange: (t) => console.log(t.x, t.y, t.rotation, t.scaleX, t.scaleY),
+});
+
+overlay.addChild(gizmo);
+gizmo.attach(shape);
+gizmo.state.mode.set('rotate');
+```
+
+Put the gizmo in an overlay above the scene. It reads the target's transform every frame, so it
+follows the target wherever it sits in the tree. It writes the new transform back into the target
+unless you pass `apply: false`.
+
+| Mode | Handles |
+|---|---|
+| `move` | Arrows lock to one axis, the centre square moves freely. |
+| `rotate` | A ring turns the object about its pivot, with the swept angle in a pill. |
+| `scale` | Cube handles stretch one axis, the centre ring scales evenly. |
+| `box` | Eight handles resize in the object's own frame. Shift keeps the aspect, Alt resizes from the centre. A drag right outside a corner rotates. |
+| `universal` | Move, rotate and scale handles together. This is the default. |
+
+| Option | Default | What it does |
+|---|---|---|
+| `space` | `'local'` | Moves along the object's own axes, or `'world'`. Scale handles always follow the object's axes. |
+| `snap` | `{ translate: 10, angle: 15 degrees, scale: 0.1 }` | Steps Shift snaps to. `snap.enabled: true` snaps by default, and Shift then turns it off. |
+| `snapEngine`, `snapGuides` | none | Smart guides for free moves, below. |
+| `readout` | `true` | Shows the angle, size or offset in a pill while dragging. |
+| `transition` | `'pop'` | When the gizmo moves to another object, the old handles shrink away and the new ones spring in. `'glide'` slides them over. |
+| `apply` | `true` | `false` leaves the target alone, so you apply the change in `onChange`, for undo stacks or networked editors. |
+
+`gizmo.grab(event)` starts a move from a press on the object itself, so one gesture selects and
+drags an unselected shape. The box handles assume the object is not mirrored.
+
+## Outline the selection
+
+```ts
+import { Container } from 'pixi.js';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+
+const [shape, a, b] = [new Container(), new Container(), new Container()];
+const hover = new SelectionOutline();
+const selected = new SelectionOutline({ dash: [5, 4], march: 16, padding: 4 });
+
+shape.on('pointerover', () => hover.hover(shape));
+shape.on('pointerout', () => hover.hover(null));
+selected.select([a, b]);
+```
+
+`hover()` draws a quiet line. `select()` draws marching dashes and corner brackets. A rotated
+object gets a rotated box, and several objects get one box around all of them. `march: 0` keeps
+the dashes still.
+
+## Snap to smart guides
+
+<Demo name="snap" height={380} caption="Drag a card. Ctrl or Cmd turns the guides off." />
+
+```ts
+import { SnapEngine } from 'pixi-silk/ui/snap';
+
+const others = [{ x: 0, y: 0, width: 100, height: 60 }];
+const engine = new SnapEngine({ threshold: 6, targets: others, lines: { x: [320] } });
+const box = { x: 103, y: 40, width: 80, height: 60 };
+const r = engine.snap(box);
+
+box.x += r.dx;
+box.y += r.dy;
+```
+
+`SnapEngine` is maths with no drawing. It aligns edges with edges and centres with centres, and it
+offers equal spacing: centred between two neighbours, or at a gap that already exists in the row.
+`SnapGuides` draws the result as dashed lines with gap sizes in pills. Pass both to a gizmo as
+`snapEngine` and `snapGuides`, and its free moves snap on their own.
+
+## Move several objects at once
+
+```ts
+import type { Container } from 'pixi.js';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { SelectionGroup } from 'pixi-silk/ui/group';
+
+declare const world: Container, overlay: Container, selected: Container[];
+
+const group = new SelectionGroup();
+const gizmo = new TransformGizmo({ mode: 'box', ...group.hooks() });
+
+world.addChild(group);
+overlay.addChild(gizmo);
+group.set(selected);
+gizmo.attach(group.target);
+```
+
+`SelectionGroup` is an invisible box around its objects. Each change of the box applies to every
+object about the common pivot, whatever their parents. With one object selected, `group.target`
+is that object, so it keeps its own turned frame. Call `refit()` after the objects move on their
+own.
+
+## Track the selection
+
+<Demo name="selection-history" height={420} caption="Click and Shift + click shapes, drag the gizmo, press Tint. Cmd or ctrl + Z undoes." />
+
+```ts
+import type { Container } from 'pixi.js';
+import { bindGizmo, bindMeasure, bindOutline, Selection } from 'pixi-silk/selection';
+import type { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import type { Measure } from 'pixi-silk/ui/measure';
+import type { SelectionOutline } from 'pixi-silk/ui/outline';
+
+declare const layers: Container[];
+declare const outline: SelectionOutline, hover: SelectionOutline;
+declare const gizmo: TransformGizmo, measure: Measure;
+
+const selection = new Selection<Container>();
+
+for (const layer of layers) {
+    layer.on('pointerdown', (e) => selection.pick(layer, e.shiftKey ? 'toggle' : 'replace'));
+    layer.on('pointerover', () => selection.state.hovered.set(layer));
+}
+bindOutline(selection, outline, hover);
+bindGizmo(selection, gizmo);
+bindMeasure(selection, measure);
+```
+
+`Selection` keeps the items in the order they were picked, the primary item (the last one picked)
+and the item under the pointer. All three are signals. `pick()` does what a click does,
+`selectWhere(pool, test)` selects by a test and `focus(item)` changes the primary item without
+changing the set. `filter` keeps locked layers out, and `multiple: false` allows one item at most.
+The store takes any item type: containers, ids or your own records.
+
+The `bind*` adapters make the widgets follow the store, and each returns the function that stops
+it. `bindGizmo` attaches the gizmo to the primary item. `bindMeasure` shows its size and the
+distances to the hovered item. The selection module draws nothing itself.
+
+## Undo and redo
+
+```ts
+import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
+import type { TransformGizmo } from 'pixi-silk/ui/gizmo';
+
+declare const gizmo: TransformGizmo, layer: { name: string };
+
+const history = new History();
+
+recordGizmo(gizmo, history);
+bindHistoryKeys(history);
+history.execute({ label: 'Rename', do: () => (layer.name = 'Hero'), undo: () => (layer.name = 'Layer 1') });
+```
+
+`History` is a stack of commands, each with `do()` and `undo()`. `recordGizmo` turns each gizmo
+drag into one step labelled Move, Rotate, Scale or Resize. `bindHistoryKeys` binds the usual
+shortcuts on `window` and leaves keys typed into inputs alone.
+
+| Call | What it does |
+|---|---|
+| `execute(command)` | Runs a command and stores it. |
+| `record(command)` | Stores a change that already happened, such as the end of a drag. |
+| `begin()`, `end()` | Everything recorded in between becomes one step. They nest. |
+| `transaction(label, fn)` | `begin()` and `end()` around `fn`, and reverts the changes if `fn` throws. |
+| `merge(next)` on a command | Folds the next command into this one, so typing or nudges become one step. |
+
+A new change drops the steps you could redo. `maxDepth` caps the stack at 200 steps by default.
+`state.canUndo`, `state.canRedo`, `state.undoLabel` and `state.redoLabel` are signals for buttons
+and menus.
+
+### Record signals instead of commands
+
+```ts
+import { History, recordSignals } from 'pixi-silk/history';
+import { signal } from 'pixi-silk/signal';
+
+const history = new History();
+const doc = { title: signal('Untitled'), zoom: signal(1) };
+
+recordSignals(history, doc);
+doc.title.value = 'Poster';
+history.undo();
+```
+
+You keep writing to the signals and undo works. Changes made in one handler become one step. The
+default `patch` mode stores only the signals that changed, and `snapshot` stores all of them, for
+values that depend on each other.
+
+### Use your own store
+
+Widgets take any `HistoryLike`: an object with `record`, `begin` and `end`. An adapter over your
+own state library sends the same edits there.
+
+```ts
+import type { HistoryLike } from 'pixi-silk/history';
+
+declare const store: { push(entry: { label?: string; undo(): void; redo(): void }): void };
+
+const history: HistoryLike = {
+    record: (c) => store.push({ label: c.label, undo: () => c.undo(), redo: () => c.do() }),
+    begin: () => {},
+    end: () => {},
+};
+```

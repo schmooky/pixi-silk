@@ -1,37 +1,42 @@
 ---
 title: Shape operations
-seoTitle: 'Boolean shape operations in PixiJS'
-description: 'Union, subtract, intersect and exclude shapes and SVG paths in PixiJS. Each result is one exact distance field with sharp edges, strokes, gradients and blur.'
+seoTitle: 'Boolean shape operations and SVG paths in PixiJS'
+description: 'Union, subtract, intersect and exclude shapes and SVG paths in PixiJS with fill({ op }) and boolean(). Results take strokes, gradients, blur and hit tests.'
 keywords: ['PixiJS boolean shapes', 'subtract shape PixiJS', 'shape cutout WebGL', 'SVG path PixiJS', 'SDF boolean operations']
 updated: 2026-11-08
 api: [SilkGraphics, ShapeOp]
 ---
 
-Shape operations combine shapes into one. Cut a hole in a card, make a ring from two circles, or
-build an icon from a few primitives. The result is one distance field. It is painted once, so a
-translucent fill has no darker overlaps, and its outline is exact.
+Shape operations combine several shapes into one: cut a hole in a card, make a ring from two
+circles or build an icon from a few primitives.
 
-<Demo name="shape-ops" height={280} />
+<Demo name="shape-ops" height={280} caption="Pick an operation. Turn on blur to see the result blur as one shape." />
+
+```ts
+g.circle(60, 60, 50).circle(60, 60, 30).fill({ color: 0x30d158, op: 'subtract' });
+```
+
+That draws a ring: the first circle minus the second. The result is painted once, so a
+translucent fill has no darker overlaps.
 
 ## Combine the shapes of a path
 
 Add `op` to `fill()` or `stroke()`. It combines every closed shape on the active path.
 
 ```ts
-g.circle(60, 60, 50).circle(60, 60, 30).fill({ color: 0x30d158, op: 'subtract' }); // a ring
 g.rect(0, 0, 80, 80).circle(80, 80, 40).fill({ color: 0x0a84ff, op: 'intersect' }); // a quarter disc
-g.circle(40, 40, 30).circle(70, 40, 30).fill({ color: 0xff375f, op: 'exclude' }); // two lenses
+g.circle(40, 40, 30).circle(70, 40, 30).fill({ color: 0xff375f, op: 'exclude' });   // two lenses
 ```
 
-| op | result |
-|---|---|
-| `union` | everything any shape covers. The same as `union: true`. |
-| `subtract` | the first shape, minus every later one |
-| `intersect` | only what every shape covers |
-| `exclude` | what an odd number of shapes cover |
+| `op` | Result |
+| --- | --- |
+| `'union'` | Everything any shape covers. The same as `union: true`. |
+| `'subtract'` | The first shape minus every later one |
+| `'intersect'` | Only what every shape covers |
+| `'exclude'` | What an odd number of shapes cover |
 
-A `stroke()` right after the fill follows the outline of the result, in the same instance. A
-stroke with its own `op` strokes the outline without a fill.
+A `stroke()` right after the fill follows the outline of the result. A stroke with its own `op`
+strokes the outline without a fill.
 
 ```ts
 g.roundRect(0, 0, 120, 80, 16)
@@ -40,11 +45,13 @@ g.roundRect(0, 0, 120, 80, 16)
     .stroke({ width: 2, color: 0xffffff });
 ```
 
+Open shapes take no part. Arcs and areas in the path stroke on their own.
+
 ## Nest operations with boolean()
 
-`boolean(op, a, b)` adds one shape to the active path: what callback `a` draws, combined with what
-callback `b` draws. The shapes inside each callback are merged first. A callback can call
-`boolean()` again, so any tree of operations works. Paint the result like any shape.
+`boolean(op, a, b)` adds one shape to the active path: what callback `a` draws, combined by `op`
+with what callback `b` draws. The shapes inside each callback are merged first. A callback can call
+`boolean()` again, so any tree of operations works.
 
 ```ts
 // a ring with a notch, and a dot in the middle
@@ -61,40 +68,36 @@ g.boolean(
 ```
 
 The callbacks only add shapes. Do not call `fill()` or `stroke()` inside them. Up to 8 operands
-can wait on each other at once, which is far more nesting than an icon needs. Deeper trees are
-skipped with a warning.
+can wait on each other at once. A deeper tree is skipped with a warning.
 
-## SVG paths
-
-`svgPath(d)` reads the `d` attribute of an SVG path into the active path. It supports `M`, `L`,
-`H`, `V`, `C`, `S`, `Q`, `T`, `A` and `Z`, absolute and relative. A fill draws it as one
-even-odd shape, so the inner square of `M0 0 H60 V60 H0 Z M20 20 V40 H40 V20 Z` is a hole.
+## Cut with SVG paths
 
 ```ts
 g.svgPath('M12 2 L22 22 H2 Z').fill(0xffd60a);
 g.svgPath('M4 4 H20 V20 H4 Z').circle(12, 12, 4).fill({ color: 0xffffff, op: 'subtract' });
 ```
 
-In a shape operation, a path from `svgPath()` or `moveTo()` is one operand with all its subpaths.
-With `union`, each subpath counts on its own, as it always did.
+`svgPath(d)` reads the `d` attribute of an SVG path into the active path. It supports `M`, `L`,
+`H`, `V`, `C`, `S`, `Q`, `T`, `A` and `Z`, absolute and relative. A fill draws it as one even-odd
+shape, so the inner square of `M0 0 H60 V60 H0 Z M20 20 V40 H40 V20 Z` is a hole.
 
-## Paint and effects
+In a shape operation, a path from `svgPath()` or `moveTo()` is one operand with all its subpaths.
+With `'union'`, each subpath counts on its own.
+
+## Paint, effects and hit tests
 
 Everything that paints a closed shape works on the result: colours, gradients, `blur`, a
-progressive blur, `spread`, inner shadows and `blend: 'add'`. Gradients without explicit units span
-the bounds of the result.
+progressive blur, `spread`, inner shadows and `blend: 'add'`. Gradients in shape units span the
+bounds of the result.
 
-The outline is exact, so anti-aliasing is as sharp as on a circle at any zoom. Inside the shape
-and far outside it, the combined distance is a close bound instead. A blur, a spread or an inner
-shadow wider than a corner can round that corner a little more than an exact field would. Keep
-blurs in proportion to the shape for crisp cutouts.
+The outline of the result is exact. Inside the shape and far outside it, the combined distance is
+a close bound instead. A blur, spread or inner shadow wider than a corner can round that corner a
+little more than on a plain shape. Keep blurs in proportion for crisp cutouts.
 
-## Hit testing
-
-`containsPoint()` follows the result. A ring is hollow, a cutout lets clicks through, and an
+`containsPoint()` follows the result. A ring is hollow, a cutout lets clicks through and an
 intersection only hits where the shapes overlap.
 
 ## Cost
 
-A combined shape is one instance. Each pixel evaluates every shape in it once, so ten shapes cost
-about what ten separate shapes do, in one draw call. Paths in an operation cost one step per edge.
+A combined shape is one instance. Each pixel evaluates every shape in it once, so ten shapes in an
+operation cost about what ten separate shapes cost. A path in an operation costs one step per edge.

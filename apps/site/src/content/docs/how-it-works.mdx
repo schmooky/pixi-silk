@@ -1,81 +1,116 @@
 ---
 title: How it works
 seoTitle: 'How SDF anti-aliasing works in pixi-silk'
-description: 'One instanced quad per primitive, exact signed distance functions per pixel, analytic coverage from screen-space derivatives and dithered OKLab ramps.'
+description: 'One instanced quad per primitive, an exact signed distance per pixel, coverage from screen-space derivatives and dithered OKLab gradient ramps.'
 keywords: ['SDF rendering', 'signed distance field anti-aliasing', 'analytic anti-aliasing', 'fwidth antialiasing', 'shader anti-aliasing']
 updated: 2026-11-08
+api: [SilkGraphics, SilkGeometry]
 ---
+
+This page walks through the shader, from the instance buffer to the colour of one pixel. You do not
+need it to use pixi-silk. Read it when you want to know why an edge, a join or a gradient looks the
+way it does. [Anti-aliasing compared](/docs/anti-aliasing-compared/) sets the approach next to MSAA
+and the other options.
 
 ## One instance per primitive
 
-`SilkGraphics` is a Pixi `Mesh` with an instanced unit quad. Each primitive you draw is one
-instance of 40 floats: its bounds, shape parameters, paints, gradient geometry and dash pattern.
-The vertex shader expands the quad to the primitive's bounds plus an anti-aliasing margin. The
-margin is measured in device pixels, using the smallest singular value of the local-to-pixel
-Jacobian. That keeps it right at any zoom and for rotated or skewed objects.
+`SilkGraphics` is a Pixi `Mesh` that draws an instanced unit quad. Each primitive you add is one
+instance of 44 floats, eleven `vec4` attributes:
+
+| Attribute | Holds |
+|---|---|
+| `aBounds` | local bounds, including the stroke outset and three sigma of blur |
+| `aShape0` to `aShape2` | the shape's parameters |
+| `aMeta` | primitive type, flags, stroke width, blur sigma |
+| `aFill`, `aStroke` | premultiplied colours |
+| `aGrad`, `aPaint` | gradient geometry, kind, atlas row and extend mode |
+| `aDash` | dash, gap, offset and stroke alignment |
+| `aFx` | spread, progressive blur, and the object index when batched |
+
+The vertex shader expands the quad to the bounds plus an anti-aliasing margin. The margin is in
+device pixels. It uses the smallest singular value of the local-to-pixel Jacobian, so it stays right
+at any zoom and for rotated or skewed objects.
 
 ## Exact distance, analytic coverage
 
 For every pixel, the fragment shader computes the signed distance `d` from the pixel centre to the
-shape (negative inside). It supports rounded boxes with per-corner radii and superellipse corners,
-ellipses (trig-free Newton iterations), arcs, sectors, capsules, hearts, stars and triangles. It
-turns the distance into coverage with a one-pixel box filter:
+shape, negative inside. Each primitive kind has its own exact function: rounded boxes with
+per-corner radii and superellipse corners, ellipses, arcs, sectors, capsules, hearts, stars,
+triangles and free paths. The shader turns the distance into coverage with a box filter one device
+pixel wide:
 
 ```glsl
 float px = sqrt(abs(dFdx(p).x * dFdy(p).y - dFdx(p).y * dFdy(p).x)); // one device pixel, in local units
 float coverage = clamp(0.5 - d / px, 0.0, 1.0);
 ```
 
-The filter is exactly one device pixel wide, because `px` comes from screen-space derivatives. This
-holds at 1000x zoom, when rotated, and inside filters and render textures. With `blur`, the box
-filter becomes a gaussian: `0.5 - 0.5 * erf(d / (σ√2))`.
+The one detail that matters is `px`. It comes from screen-space derivatives, so the filter is one
+device pixel wide at 1000x zoom, when rotated, and inside filters and render textures. With `blur`,
+the box filter becomes a gaussian, `0.5 - 0.5 * erf(d / (sigma * sqrt(2)))`. `spread` moves the
+distance before the blur, which grows or shrinks the shape.
 
-## Fill and stroke without seams
+## Fill and stroke in one pass
 
 A primitive with both a fill and a stroke is shaded once. The shader computes the coverage of the
-whole shape and of the stroke band. It splits each pixel exactly into "stroke" and "fill outside the
-stroke", so no anti-aliased fill edge shows through an inner stroke.
+whole shape and of the stroke band, and splits each pixel into stroke and fill outside the stroke.
+No anti-aliased fill edge shows through an inner stroke.
 
-## Polylines
+## Paths
 
-A stroked path is one instance. Its segments sit in a float texture, and the shader takes the
-nearest of their butt rectangles, caps and joins, as Canvas 2D defines a stroke. Every pixel is
-shaded once, so translucent lines never double-blend. A join polygon reaches a little way back
-along both segments, so no seam shows where two rectangles meet.
+A stroked path is one distance field. Its segments sit in a float texture, and the shader takes the
+nearest of their segments, caps and joins, the way Canvas 2D defines a stroke. Joins are miter (the
+default, cut to a bevel past `miterLimit`), bevel or round. Every pixel is shaded once, so a
+translucent path never blends twice where it overlaps itself.
 
-Long subpaths are split into chunks of 32 segments. Each chunk also looks at the segments of the
-other chunks that come near its own, found on the CPU. A pixel goes to the chunk with the nearest
-segment, so it is shaded once even where the path crosses itself. Tapered strokes keep one
-instance per segment, with the exact distance to an uneven capsule.
+Long subpaths are split into chunks of 32 segments. Each chunk also checks the segments of other
+chunks that come near it, found on the CPU. A pixel goes to the chunk with the nearest segment, so
+it is shaded once even where the path crosses itself.
 
-## Unions
+A filled path stores its edges the same way. The distance is the nearest edge, and the sign comes
+from even-odd crossings. Tapered strokes keep one instance per segment, with the exact distance to
+a capsule whose ends have different radii.
 
-`union: true` on a fill or stroke stores every shape of the path as a record in the same texture.
-The shader takes the nearest of their distances, so overlapping shapes paint as one.
+## Unions and shape operations
+
+`union: true` on a fill or stroke stores every shape of the path as a record in the path texture.
+The shader takes the nearest distance, so overlapping shapes paint as one.
 
 [Shape operations](/docs/shape-operations/) use the same records, each with an op. The shader folds
-them on a small stack: the minimum of two distances is a union, the maximum an intersection,
+them on a small stack. The minimum of two distances is a union and the maximum an intersection.
 `max(a, -b)` subtracts b from a, and `max(min(a, b), -max(a, b))` excludes. All four are exact on
 the outline.
 
 ## Areas
 
-Filled chart areas are split into vertical columns that tile exactly. Shared column edges get no
-anti-aliasing margin, only the top and bottom edges do. That keeps translucent fills uniform, with
-no seams between columns.
+Chart areas are split into vertical columns that tile exactly. Shared column edges get no
+anti-aliasing margin. Only the top and bottom edges do, so a translucent fill has no seams.
 
 ## Hairlines
 
-A stroke thinner than a device pixel is widened to one pixel, with its alpha scaled by the ratio.
-The amount of "ink" stays the same, and thin lines never break apart.
+A stroke thinner than `minStrokePx` (one device pixel by default) is drawn at that width, with its
+alpha scaled down by the ratio. The amount of ink stays the same, and thin lines never break into
+dots.
 
 ## Gradients
 
-Stops are interpolated (premultiplied, in OKLab by default) and baked into a shared 256x256 RGBA16F
-atlas, one reference-counted row per ramp. Sampling adds ±0.5 LSB of interleaved gradient noise,
-which removes 8-bit banding but leaves exact 8-bit colours untouched.
+Stops are interpolated premultiplied, in OKLab by default, and baked into a shared 256x256 RGBA16F
+atlas, one reference-counted row per ramp. The shader adds plus or minus half an 8-bit step of
+interleaved gradient noise to gradients and blurs. That removes banding and leaves exact 8-bit
+colours alone. `dither: 0` turns it off.
+
+## Batching
+
+With `enableSilkBatching()`, consecutive objects copy their instances into one buffer. Each
+instance carries its object index in `aFx.w`. The vertex shader reads that object's matrix, tint and
+path texel base from a small table texture. [Performance](/docs/performance/) covers when a batch
+breaks.
 
 ## Hit testing
 
-The same distance functions run on the CPU, so `containsPoint` tests the real shape, including
-holes and stroke widths.
+The same distance functions run on the CPU. `containsPoint` tests the real shape, holes and stroke
+widths included. [Interaction and motion](/docs/interaction-and-motion/) shows it in use.
+
+## WebGPU
+
+The WGSL shader is a line-for-line port of the GLSL one. [Renderers](/docs/renderers/) lists the
+small differences.

@@ -1,67 +1,101 @@
 ---
 title: Gradients
-seoTitle: 'Smooth gradients without banding in PixiJS (OKLab)'
-description: 'Linear, radial, conic and along-the-path gradients in OKLab, with smooth easing. Half-float ramps and dithering keep dark gradients free of banding.'
-keywords: ['PixiJS gradient', 'gradient banding fix', 'OKLab gradient', 'conic gradient WebGL', 'dithering gradients']
-updated: 2026-09-26
-api: [linear, vertical, horizontal, radial, conic, along, Gradient]
+seoTitle: 'Gradients without banding in PixiJS, in OKLab'
+description: 'Linear, radial, conic, mesh and along-the-path gradients in OKLab with smooth easing, and half-float ramps with dither that stop dark gradients banding.'
+keywords: ['PixiJS gradient', 'gradient banding fix', 'OKLab gradient', 'conic gradient WebGL', 'gradient mesh', 'dithering gradients']
+updated: 2026-11-08
+api: [linear, vertical, horizontal, radial, conic, along, mesh, Gradient, MeshGradient]
 ---
 
-<Demo name="gradients" height={260} />
+A gradient goes anywhere a colour goes: `fill(gradient)`, `stroke({ gradient })`, or
+`fill({ gradient, color })`, where `color` tints the ramp.
 
-## Kinds
+<Demo name="gradients" height={260} caption="Switch the colour space and the easing." />
 
 ```ts
-import { linear, vertical, horizontal, radial, conic, along } from 'pixi-silk';
+const SUNSET = linear([0xff375f, 0xffd60a, 0x0a84ff], { from: [0, 0], to: [1, 1], easing: 'smooth' });
 
+g.roundRect(0, 0, 240, 120, 24, 0.6).fill(SUNSET);
+```
+
+That fills a card with a diagonal three-colour ramp. Build a gradient once and reuse it: each new
+gradient object bakes a new ramp.
+
+## Pick a kind
+
+```ts
 linear(stops, { from: [0, 0], to: [1, 1] });       // diagonal across the shape's box
 vertical(stops);                                    // top to bottom of the shape
 horizontal(stops);                                  // left to right
 radial(stops, { center: [0.3, 0.3], radius: 0.8, innerRadius: 0.2 });
-conic(stops, { startAngle, sweep });                // around a centre (on an arc, it spans the arc)
+conic(stops, { startAngle, sweep });                // around a centre
 along(stops);                                       // along a stroke, first point to last
 ```
 
-Use a gradient anywhere a colour goes: `fill(gradient)`, `stroke({ gradient })`, or
-`fill({ gradient, color })`, where `color` tints the ramp.
+On an arc or a sector, `conic()` spans the arc by default, so a ring's ramp runs from cap to cap.
+`along()` works on strokes of lines, polylines and paths.
 
-## Stops
+## Write the stops
 
 ```ts
 linear([0xff375f, 0x0a84ff]);                           // spread evenly
 linear([[0, 0xff375f], [0.3, 0xffd60a], [1, 0x0a84ff]]);
 linear([[0, 0xffffff, 1], [1, 0xffffff, 0]]);            // [offset, color, alpha]
 linear([{ offset: 0.5, color: '#30d158', alpha: 0.5 }]);
-linear([[0, RED], [0.5, RED], [0.5, BLUE], [1, BLUE]]);  // hard stop
+linear([[0, RED], [0.5, RED], [0.5, BLUE], [1, BLUE]]);  // a hard stop
 ```
 
-Silk clamps offsets to 0..1 and makes them non-decreasing, like CSS.
+Offsets are clamped to 0 to 1 and made non-decreasing, as in CSS.
 
-## Colour space
+## Options
 
-By default, stops interpolate in **OKLab**, a perceptual space. A red-to-green ramp passes through
-a bright yellow, not a muddy brown. Lightness also changes evenly. Pass `space: 'linear'` for
-physically linear light (glows, light falloff) or `space: 'srgb'` for CSS-like results.
-Interpolation is premultiplied, so fading a colour to transparent never darkens it.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `space` | `'oklab'` | Interpolation space: `'oklab'`, `'linear'` or `'srgb'` |
+| `easing` | `'linear'` | `'smooth'` runs a monotone spline through the stops. A function `(t) => number` remaps the ramp. |
+| `extend` | `'pad'` | Outside 0 to 1: hold the end colours (`'pad'`), tile (`'repeat'`) or mirror (`'reflect'`) |
+| `units` | `'shape'` | `'shape'` measures points in fractions of each shape's box. `'local'` uses the graphics' local units. |
 
-## Easing
+OKLab is a perceptual space. A red-to-green ramp passes through yellow instead of a muddy brown,
+and lightness changes evenly. Use `'linear'` for light falloff and `'srgb'` to match CSS.
+Interpolation is premultiplied, so a colour fading to transparent never darkens.
 
-`easing: 'smooth'` runs a monotone cubic spline through the stops, with flat ends. It removes the
-Mach bands at every stop of a linear ramp. It never overshoots. A function `(t) => t` remaps the
-ramp parameter for custom falloffs.
+`easing: 'smooth'` removes the bright and dark lines the eye sees at each stop of a linear ramp. It
+never overshoots the stop colours.
 
-## Units and extend
+With `units: 'shape'`, one gradient fits every shape it paints. With `units: 'local'`, one ramp
+spans many shapes, such as the bars of a chart or a row of pills.
 
-- With `units: 'shape'` (default), coordinates are fractions of the shape's bounding box. One
-  gradient object then fits every shape it paints.
-- With `units: 'local'`, coordinates are in the graphics' local space. One continuous ramp then
-  spans many shapes (a chart's bars, a row of pills).
-- `extend: 'pad' | 'repeat' | 'reflect'` controls what happens outside 0..1.
+## Mesh gradients
 
-## No banding
+<Demo name="effects-mesh" height={340} caption="Switch between mesh and linear. Drag a yellow handle up or down." />
 
-Dark, wide gradients stay smooth on 8-bit displays. Silk bakes each ramp once into a shared
-256-wide half-float atlas. The shader samples it per pixel with ±½ LSB dither (interleaved gradient
-noise). Try both toggles below. The reveal toggle multiplies the contrast by 8 to show the steps.
+```ts
+import { mesh } from 'pixi-silk';
 
-<Demo name="dither" height={220} />
+const beam = mesh(3, 3, [
+    [0xffd9ec, 0], [0xffd9ec, 0], [0xffd9ec, 0],
+    [0xffd9ec, 0.1], [0xffd9ec, 0.4], [0xffd9ec, 0.1],
+    [0xffd9ec, 0.5], [0xffd9ec, 1], [0xffd9ec, 0.5],
+]);
+g.rect(0, 0, 380, 220).fill(beam);
+```
+
+`mesh(cols, rows, colors)` takes a grid of control colours, row by row from the top left. Each is
+a colour or `[color, alpha]`. The grid blends into one smooth surface in OKLab that passes through
+every control colour. A grid has at most 16 by 16 colours.
+
+The beam above fades towards the top and towards both sides, which no linear gradient can do. Pass
+`from` and `to` with `units: 'local'` to share one mesh across several shapes.
+
+## Banding
+
+<Demo name="dither" height={220} caption="Turn dither off, then on. Reveal multiplies the contrast by 8." />
+
+A dark, wide gradient has only a few 8-bit steps to cover a lot of pixels, so you see bands. Silk
+bakes each ramp into a shared 256-wide half-float atlas and adds about half a step of noise per
+pixel when it samples. The noise breaks the bands up below what the eye picks out.
+
+Dither applies to gradients and blurs, never to flat colours. Its strength is the per-object
+`dither` setting, in 8-bit steps: 1 by default, 0 to turn it off. Turn it off when you read pixels
+back and need exact values.

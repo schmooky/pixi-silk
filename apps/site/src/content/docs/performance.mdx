@@ -1,34 +1,34 @@
 ---
 title: Performance
-seoTitle: 'PixiJS vector graphics performance: one draw call'
-description: 'One instanced draw call per SilkGraphics and about 12 ms of CPU to rebuild 50,000 primitives, plus tips for static layers, gradients and fill rate.'
-keywords: ['PixiJS performance', 'instanced rendering', 'draw calls', 'WebGL 2D performance']
+seoTitle: 'PixiJS vector graphics performance with pixi-silk'
+description: 'What a SilkGraphics costs on the CPU and GPU, how batching joins objects into one draw, and how to keep static layers and large canvases cheap.'
+keywords: ['PixiJS performance', 'instanced rendering', 'draw calls', 'WebGL 2D performance', 'PixiJS batching']
 updated: 2026-11-08
-api: [SilkGraphics]
+api: [SilkGraphics, SilkGraphicsOptions, enableSilkBatching]
 ---
 
-<Demo name="stress" height={280} />
+A `SilkGraphics` is one instanced draw call, whatever it contains. What you pay for is the CPU
+work to rebuild it and the GPU work per covered pixel.
+
+<Demo name="stress" height={280} caption="Drag the slider to add primitives." />
 
 ## The cost model
 
-- Each `SilkGraphics` is one **draw call**, whatever it contains. With batching on, a run of
-  them shares one.
-- The **CPU** writes 44 floats per primitive into a reusable buffer. Rebuilding 50,000 primitives
-  every frame takes about 12 ms on a laptop. Typical UIs (hundreds of primitives) cost well under
-  0.5 ms.
-- The **GPU** shades each primitive as one quad sized to its bounds plus a one-pixel margin, once
-  per covered pixel. Cost scales with covered area, like any 2D renderer. Large blurs grow the quad
-  by 3σ.
-- Buffers grow to the largest frame and stay in **memory**. Gradients share rows in one 256x256
-  half-float atlas.
+| Cost | What it is |
+|---|---|
+| Draw calls | One per `SilkGraphics`. With batching on, a run of them shares one |
+| CPU | 44 floats per primitive, written into a reusable buffer when you redraw. Rebuilding 50,000 primitives every frame takes about 12 ms on a laptop. A UI with hundreds of primitives costs well under 0.5 ms |
+| GPU | Each primitive is one quad sized to its bounds plus a one-pixel margin, shaded once per covered pixel. A blur grows the quad by three sigma |
+| Memory | Buffers grow to the largest frame and stay. Gradients share one 256x256 half-float atlas, one row per ramp |
 
-## Batching across objects
+GPU cost follows covered area, like any 2D renderer. A full-screen blurred shape costs more than a
+thousand small dots.
 
-`enableSilkBatching()` turns on batching. Consecutive `SilkGraphics` with the same blend mode and
-the same `dither`, `aaWidth` and `minStrokePx` then render in one instanced draw. A filter, a
-mask, another kind of display object or a different blend mode in between starts a new batch.
+## Batch many objects
 
-<Demo name="batching" height={320} />
+Batching is off by default. `enableSilkBatching()` turns it on for objects created after the call.
+
+<Demo name="batching" height={320} caption="Turn batching off and watch the draw count." />
 
 ```ts
 import { enableSilkBatching, SilkGraphics } from 'pixi-silk';
@@ -38,18 +38,28 @@ const dot = new SilkGraphics().circle(0, 0, 4).fill(0x0a84ff); // batched
 const alone = new SilkGraphics({ batch: false }); // its own draw call
 ```
 
-Objects created after the call take part. A batch copies the instances and path data of its
-objects into one buffer. When none of them was redrawn since the last frame, only their matrices
-and tints are copied. Batching works on WebGL. On WebGPU every object keeps its own draw.
+Consecutive `SilkGraphics` with the same blend mode and the same `dither`, `aaWidth` and
+`minStrokePx` render in one draw. A filter, a mask, another kind of display object or a different
+blend mode in between starts a new batch. Batching works on WebGL2 and on WebGPU.
 
-## Tips
+A batch copies the instances and path data of its objects into one buffer. When none of them was
+redrawn since the last frame, it copies only their matrices and tints.
 
-- Split static and dynamic parts. Draw backgrounds and label shapes once, in one object. Redraw only
-  the animated parts every frame.
-- Move objects instead of rebuilding them. Animating `position`, `rotation`, `scale` or `alpha` of a
-  `SilkGraphics` changes one matrix.
-- Reuse gradients. Create them at module scope. Identical ramps share an atlas row anyway, but
-  reusing the object avoids re-parsing stops.
-- Group primitives that share a layer into one `SilkGraphics` to save draw calls.
-- Cap the resolution on large canvases: `createSilkApp({ maxResolution: 2 })`.
-- Stop redrawing when idle. Check `Spring.settled`, or redraw only on data changes.
+## Keep frames cheap
+
+Split static and dynamic parts. Draw backgrounds and fixed shapes once, and redraw only the parts
+that change.
+
+Move objects instead of redrawing them. Changing `position`, `rotation`, `scale` or `alpha` of a
+`SilkGraphics` updates one matrix and costs nothing on the CPU side.
+
+Create gradients once, at module scope. Identical ramps share an atlas row anyway, but reusing the
+object skips parsing the stops again. The atlas has 256 rows. Past that, pixi-silk warns and reuses
+row 0.
+
+Put primitives that share a layer into one `SilkGraphics`, or turn on batching.
+
+Cap the resolution of large canvases with `createSilkApp({ maxResolution: 2 })`. Fill rate grows
+with the square of the resolution.
+
+Stop redrawing when nothing moves. Check `Spring.settled`, or redraw only when the data changes.
