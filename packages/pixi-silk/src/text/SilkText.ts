@@ -15,7 +15,18 @@ import { GradientAtlas } from '../atlas';
 import { parseColor } from '../color';
 import { Gradient } from '../gradient';
 import { type FontSpec, SdfAtlas } from './atlas';
-import { type LayoutLine, layoutText, type TextAlign, type TextLayout } from './layout';
+import {
+    type CaretHit,
+    type CaretRect,
+    caretAtPoint,
+    caretRect,
+    type LayoutLine,
+    layoutText,
+    rangeRects,
+    type TextAlign,
+    type TextLayout,
+    type TextRect,
+} from './layout';
 import { createTextShader } from './shader';
 
 /** Floats per glyph instance: rect, atlas cell, meta. */
@@ -214,6 +225,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     private readonly _uniforms: UniformGroup;
     private _gradKey: string | null = null;
     private readonly _scratch = new Float32Array(4);
+    private _ox = 0;
+    private _oy = 0;
 
     constructor(options: SilkTextOptions | string = {}) {
         const opts = typeof options === 'string' ? { text: options } : options;
@@ -443,6 +456,52 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._set('aaWidth', v);
     }
 
+    /**
+     * The whole layout: glyphs, lines and the caret stops of each line. Its units are local, but its
+     * origin is the top left of the text box. Add {@link SilkText.layoutOffset} to place it.
+     */
+    get layout(): TextLayout {
+        this.updateText();
+
+        return this._layout as TextLayout;
+    }
+
+    /** Where the anchor puts the top left of the text box, in local units. */
+    get layoutOffset(): PointData {
+        this.updateText();
+
+        return { x: this._ox, y: this._oy };
+    }
+
+    /**
+     * The caret position nearest to a local point, for clicks. `isStop` limits the offsets a caret may
+     * take, for example to grapheme cluster boundaries.
+     */
+    caretAt(point: PointData, isStop?: (index: number) => boolean): CaretHit {
+        const layout = this.layout;
+
+        return caretAtPoint(layout, point.x - this._ox, point.y - this._oy, isStop);
+    }
+
+    /** Where a caret at `index` sits, in local units. `upstream` picks the end of a wrapped line. */
+    caretRect(index: number, upstream = false): CaretRect {
+        const r = caretRect(this.layout, index, upstream);
+
+        return { x: r.x + this._ox, top: r.top + this._oy, bottom: r.bottom + this._oy, line: r.line };
+    }
+
+    /** Highlight boxes of the text from `from` to `to`, one per line, in local units. */
+    rangeRects(from: number, to: number): TextRect[] {
+        const rects = rangeRects(this.layout, from, to);
+
+        for (const r of rects) {
+            r.x += this._ox;
+            r.y += this._oy;
+        }
+
+        return rects;
+    }
+
     /** The laid-out lines: text, width and baseline of each. */
     get lines(): readonly LayoutLine[] {
         this.updateText();
@@ -554,6 +613,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         const layers = shadow ? 2 : 1;
 
         this._layout = layout;
+        this._ox = ox;
+        this._oy = oy;
         this._ensure(glyphs.length * layers);
         const f = this._f;
         let n = 0;
