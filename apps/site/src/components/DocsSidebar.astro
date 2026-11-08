@@ -1,59 +1,73 @@
 ---
-interface Props {
-    nav: { title: string; items: { label: string; href: string }[] }[];
-    pathname: string;
-    /** The docs areas, shown as a switcher above the current area's pages. */
-    areas?: { label: string; href: string; active: boolean }[];
+/**
+ * The docs sidebar: the current section's groups (its areas), each with its pages.
+ * On narrow screens the same list folds into a menu above the article.
+ */
+export interface SidebarItem {
+    label: string;
+    href: string;
 }
-const { nav, pathname, areas = [] } = Astro.props;
+export interface SidebarGroup {
+    title: string;
+    /** The group's hub page, linked from its title. */
+    href?: string;
+    badge?: string;
+    items: SidebarItem[];
+}
+interface Props {
+    /** Label above the groups: the section name. */
+    heading?: string;
+    headingHref?: string;
+    groups: SidebarGroup[];
+    pathname: string;
+}
+const { heading, headingHref, groups, pathname } = Astro.props;
 const isActive = (href: string) => pathname === href || pathname === href.replace(/\/$/, '');
-const current = nav.flatMap((s) => s.items).find((i) => isActive(i.href));
-const activeArea = areas.find((a) => a.active);
+const current = groups.flatMap((g) => g.items).find((i) => isActive(i.href)) ?? groups.find((g) => g.href && isActive(g.href));
+const currentLabel = current ? ('label' in current ? current.label : current.title) : undefined;
+const summary = [heading, currentLabel].filter(Boolean).join(': ') || 'Menu';
 ---
 
-<aside class="md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:self-start md:overflow-y-auto md:pb-8">
-    <details class="group md:hidden" data-pagefind-ignore>
-        <summary class="cursor-pointer rounded-md border px-3 py-2 text-sm">
-            {activeArea && current ? `${activeArea.label}: ${current.label}` : (current?.label ?? activeArea?.label ?? 'Menu')}
+<aside class="md:sticky md:top-14 md:max-h-[calc(100vh-3.5rem)] md:self-start md:overflow-y-auto md:pb-10 md:pt-10" data-pagefind-ignore>
+    <details class="group rounded-lg border md:hidden">
+        <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-sm font-medium marker:hidden">
+            <span class="truncate">{summary}</span>
+            <svg class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
         </summary>
-        <div class="mt-2"><slot name="mobile" /></div>
+        <div class="border-t px-3 pb-3 pt-1"><slot name="mobile" /></div>
     </details>
-    <div class="hidden text-sm md:block" data-pagefind-ignore>
-        {areas.length > 0 && (
-            <nav aria-label="Docs areas" class="mb-6 border-b pb-5">
-                <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Areas</div>
-                <ul class="grid gap-0.5">
-                    {areas.map((a) => (
+    <nav aria-label="Docs" class="hidden text-sm md:block">
+        {heading && (
+            headingHref
+                ? <a href={headingHref} class="eyebrow mb-5 block hover:underline">{heading}</a>
+                : <div class="eyebrow mb-5">{heading}</div>
+        )}
+        {groups.map((group) => (
+            <div class="mb-7">
+                {group.href ? (
+                    <a href={group.href} aria-current={isActive(group.href) ? 'page' : undefined} class:list={[
+                        'mb-2 flex items-center gap-2 font-semibold transition-colors',
+                        isActive(group.href) ? 'text-silk-text' : 'text-foreground hover:text-silk-text',
+                    ]}>
+                        {group.title}
+                        {group.badge && <span class="badge">{group.badge}</span>}
+                    </a>
+                ) : (
+                    <div class="mb-2 font-semibold text-foreground">{group.title}</div>
+                )}
+                <ul class="border-l">
+                    {group.items.map((item) => (
                         <li>
-                            <a href={a.href} aria-current={a.active ? 'true' : undefined} class:list={[
-                                'block rounded-md px-2 py-1 transition-colors',
-                                a.active ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                            <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} class:list={[
+                                '-ml-px block border-l py-[5px] pl-3.5 leading-snug transition-colors',
+                                isActive(item.href) ? 'border-silk font-medium text-foreground' : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground',
                             ]}>
-                                {a.label}
+                                {item.label}
                             </a>
                         </li>
                     ))}
                 </ul>
-            </nav>
-        )}
-        <nav aria-label="Docs">
-            {nav.map((section) => (
-                <div class="mb-6">
-                    <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section.title}</div>
-                    <ul class="space-y-0.5 border-l">
-                        {section.items.map((item) => (
-                            <li>
-                                <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} class:list={[
-                                    '-ml-px block border-l py-1 pl-3 transition-colors',
-                                    isActive(item.href) ? 'border-silk font-medium text-foreground' : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                                ]}>
-                                    {item.label}
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            ))}
-        </nav>
-    </div>
+            </div>
+        ))}
+    </nav>
 </aside>

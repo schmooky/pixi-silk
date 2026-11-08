@@ -8,20 +8,22 @@ interface Props {
     caption?: string;
 }
 const { name, height = 280, caption } = Astro.props;
-const sources = import.meta.glob('../demos/*.demo.ts');
+const sources = import.meta.glob<string>('../demos/*.demo.ts', { query: '?raw', import: 'default' });
+const load = sources[`../demos/${name}.demo.ts`];
 
-if (!sources[`../demos/${name}.demo.ts`]) {
+if (!load) {
     const known = Object.keys(sources).map((k) => k.replace('../demos/', '').replace('.demo.ts', ''));
 
     throw new Error(`<Demo name="${name}"> not found. Known demos: ${known.join(', ')}`);
 }
+// the bar under the canvas exists only for demos with controls; knowing it now keeps the page from jumping
+const hasControls = /\bcontrols\s*:\s*\{\s*[\w'"]/.test(await load());
+const label = caption ?? `Live pixi-silk demo: ${name.replace(/-/g, ' ')}`;
 ---
 
-<figure class="demo not-prose my-7 overflow-hidden rounded-xl border bg-card" data-demo={name} id={`demo-${name}`}>
-    <DemoRunner client:visible={{ rootMargin: '300px' }} name={name} height={height} label={caption ?? `Live pixi-silk demo: ${name.replace(/-/g, ' ')}`} />
-    <figcaption class="flex items-center gap-4 border-t px-4 py-2.5 text-xs text-muted-foreground">
-        <span class="mr-auto">{caption}</span>
-        <a href={`/studio/?demo=${name}`} class="shrink-0 font-medium text-foreground no-underline hover:underline">Open in Studio</a>
-    </figcaption>
+<figure class="demo not-prose my-8" data-demo={name} id={`demo-${name}`}>
+    <div class="overflow-hidden rounded-xl border bg-card">
+        <DemoRunner client:visible={{ rootMargin: '300px' }} name={name} height={height} label={label} hasControls={hasControls} studio={`/studio/?demo=${name}`} />
+    </div>
+    {caption && <figcaption class="mt-2.5 px-1 text-[13px] leading-relaxed text-muted-foreground">{caption}</figcaption>}
 </figure>
-

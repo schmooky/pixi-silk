@@ -1,14 +1,33 @@
 ---
-import Studio, { type StudioGroup } from '@/components/react/Studio';
+import Studio, { type StudioEntry, type StudioSection } from '@/components/react/Studio';
+import { docsSections } from '@/components/sections';
 import Base from '@/layouts/Base.astro';
-import { docsAreas } from '@/lib/docs';
 import { breadcrumbLd } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 
-// every demo and lab experiment, grouped the way the docs read: area, then page
-const words = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
-// a reference sheet opens as its widgets, one entry each, instead of one page of twenty
+// every demo and lab experiment, grouped the way the docs read: section, area, page
+const demoSources = import.meta.glob<string>('../../demos/*.demo.ts', { query: '?raw', import: 'default', eager: true });
 const cardSources = import.meta.glob<string>('../../lab/_cards/*.ts', { query: '?raw', import: 'default', eager: true });
+const sheetSources = import.meta.glob<string>('../../lab/_sheets/sheet[1-5].ts', { query: '?raw', import: 'default', eager: true });
+
+// words a file name spells in lower case
+const ACRONYMS: Record<string, string> = { sdf: 'SDF', hud: 'HUD', oklch: 'OKLCH', oklab: 'OKLab', ui: 'UI', dpr: 'DPR', api: 'API', ops: 'operations', fx: 'effects' };
+const words = (name: string) =>
+    name
+        .replace(/^\d+-/, '')
+        .split('-')
+        .map((w) => ACRONYMS[w] ?? w)
+        .join(' ')
+        .replace(/^./, (c) => c.toUpperCase());
+// `title` on defineDemo when the demo names itself, else a cleaned file name
+const demoTitle = (name: string) => {
+    const source = demoSources[`../../demos/${name}.demo.ts`] ?? '';
+    const head = source.slice(source.indexOf('defineDemo('), source.indexOf('setup(') >>> 0);
+    const own = /^\s{4}title:\s*(['"`])((?:(?!\1).)+)\1/m.exec(head)?.[2];
+
+    return own ?? words(name);
+};
+// a reference sheet opens as its widgets, one entry each, under the sheet
 const SHEET_CARDS: Record<string, string> = {
     '30-sheet-health': 's1',
     '31-sheet-complications': 's2',
@@ -16,9 +35,7 @@ const SHEET_CARDS: Record<string, string> = {
     '33-sheet-live-activities': 's4',
     '34-sheet-watch': 's5',
 };
-const sheetSources = import.meta.glob<string>('../../lab/_sheets/sheet[1-5].ts', { query: '?raw', import: 'default', eager: true });
-// in the order the sheet lays them out
-const cardsOf = (prefix: string) => {
+const cardsOf = (prefix: string): StudioEntry[] => {
     const sheet = sheetSources[`../../lab/_sheets/sheet${prefix.slice(1)}.ts`] ?? '';
 
     return Object.entries(cardSources)
@@ -29,37 +46,47 @@ const cardsOf = (prefix: string) => {
             id: `card:${c.name}`,
             kind: 'card' as const,
             name: c.name,
-            title: /name: '((?:[^'\\]|\\.)*)'/.exec(c.code)?.[1].replace(/\\'/g, "'") ?? words(c.name),
+            title: /name: '((?:[^'\\]|\\.)*)'/.exec(c.code)?.[1].replace(/\\'/g, "'") ?? words(c.name.replace(/^s\d-/, '')),
         }));
 };
-const groups: StudioGroup[] = (await docsAreas())
-    .map((a) => ({
-        area: a.title,
-        pages: a.pages.flatMap((p) => {
-            const sheets = p.lab.filter((l) => SHEET_CARDS[l.slug]);
-            const page = {
-                title: p.title,
-                href: p.href,
-                entries: [
-                    ...p.demos.map((name) => ({ id: `demo:${name}`, kind: 'demo' as const, name, title: words(name) })),
-                    ...p.lab
-                        .filter((l) => !SHEET_CARDS[l.slug])
-                        .map((l) => ({ id: `lab:${l.slug}`, kind: 'lab' as const, name: l.slug, title: l.name })),
-                ],
-            };
 
-            return [page, ...sheets.map((l) => ({ title: l.name, href: p.href, entries: cardsOf(SHEET_CARDS[l.slug]) }))].filter(
-                (x) => x.entries.length > 0,
-            );
-        }),
+const hidden: StudioEntry[] = [];
+const sections: StudioSection[] = (await docsSections())
+    .map((s) => ({
+        title: s.title,
+        areas: s.areas
+            .map((a) => ({
+                title: a.title,
+                pages: a.pages.map((p) => {
+                    // lab experiments are listed under Examples only; elsewhere they still open by URL
+                    const labs = p.lab.filter((l) => !SHEET_CARDS[l.slug]).map((l) => ({ id: `lab:${l.slug}`, kind: 'lab' as const, name: l.slug, title: l.name }));
+                    const listed = s.id === 'examples';
+
+                    if (!listed) hidden.push(...labs);
+
+                    return {
+                        title: p.title,
+                        href: p.href,
+                        entries: [
+                            ...p.demos.map((name) => ({ id: `demo:${name}`, kind: 'demo' as const, name, title: demoTitle(name) })),
+                            ...(listed ? labs : []),
+                        ],
+                        sheets: p.lab
+                            .filter((l) => SHEET_CARDS[l.slug])
+                            .map((l) => ({ title: l.name, href: l.href, entries: cardsOf(SHEET_CARDS[l.slug]) }))
+                            .filter((sheet) => sheet.entries.length > 0),
+                    };
+                }).filter((p) => p.entries.length > 0 || p.sheets.length > 0),
+            }))
+            .filter((a) => a.pages.length > 0),
     }))
-    .filter((g) => g.pages.length > 0);
+    .filter((s) => s.areas.length > 0);
 const description = `Every ${SITE.name} demo and experiment as code next to its canvas. Edit the source and it runs again as you type.`;
 ---
 
 <Base title={`Studio: live pixi-silk code and canvas | ${SITE.name}`} description={description} path="/studio/" jsonLd={[breadcrumbLd([{ name: SITE.name, url: '/' }, { name: 'Studio', url: '/studio/' }])]}>
     <h1 class="sr-only">Studio</h1>
-    <Studio client:only="react" groups={groups}>
+    <Studio client:only="react" sections={sections} hidden={hidden}>
         <div slot="fallback" class="fixed inset-x-0 bottom-0 top-14 z-30 flex items-center justify-center bg-background font-mono text-xs uppercase tracking-wider text-muted-foreground">Loading Studio</div>
     </Studio>
 </Base>

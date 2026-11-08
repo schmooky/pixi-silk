@@ -14,7 +14,8 @@
     "typecheck": "astro check && node scripts/check-snippets.mjs",
     "astro": "astro",
     "indexnow": "node scripts/indexnow.mjs",
-    "check:seo": "node scripts/check-seo.mjs"
+    "check:seo": "node scripts/check-seo.mjs",
+    "thumbs": "node scripts/capture-thumbs.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^8.0.0",

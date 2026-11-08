@@ -1,10 +1,11 @@
 ---
 import type { MarkdownHeading } from 'astro';
-import DocsSidebar from '@/components/DocsSidebar.astro';
-import { DOCS_LINKS } from '@/content/nav.mjs';
+import DocsSidebar, { type SidebarGroup } from '@/components/DocsSidebar.astro';
+import { docsSections, labThumb, type SectionId } from '@/components/sections';
+import ThumbCard from '@/components/ThumbCard.astro';
 import Base from '@/layouts/Base.astro';
 import { apiNav } from '@/lib/api';
-import { docsAreas, docsInOrder } from '@/lib/docs';
+import { docsInOrder } from '@/lib/docs';
 import { articleLd, breadcrumbLd, isoDate, pageTitle } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 import { SILK_VERSION } from '@/lib/version';
@@ -27,136 +28,162 @@ interface Props {
     jsonLd?: unknown[];
     /** Set on an area hub (`/docs/<area>/`): the area it introduces. */
     area?: string;
+    /** Set on a section hub (`/docs/<section>/`): the section it introduces. */
+    hubSection?: SectionId;
+    /** Open Graph image, when the path has no card of its own. */
+    image?: string;
+    /** Keep the page out of search indexes. */
+    noIndex?: boolean;
 }
 const props = Astro.props;
 const fm = props.frontmatter ?? {};
 const title = props.title ?? fm.title ?? SITE.name;
-const section = props.section ?? fm.section ?? 'docs';
+const kind = props.section ?? fm.section ?? 'docs';
 const description = props.description ?? fm.description ?? `${title}: ${SITE.tagline}.`;
-const eyebrow = props.eyebrow ?? fm.eyebrow;
 const pathname = Astro.url.pathname;
 const headings = (props.headings ?? []).filter((h) => h.depth === 2 || h.depth === 3);
-const sectionLabel = section === 'api' ? 'API reference' : 'Docs';
-const fullTitle = pageTitle(props.seoTitle ?? (section === 'api' ? `${title} (${eyebrow ?? 'API'}) API reference` : title));
+const fullTitle = pageTitle(props.seoTitle ?? (kind === 'api' ? `${title} (${props.eyebrow ?? fm.eyebrow ?? 'API'}) API reference` : title));
 const modified = props.updated ? isoDate(props.updated) : undefined;
 
 const docs = await docsInOrder();
-const areas = await docsAreas();
-const current = docs.find((d) => d.href === pathname);
-const area = areas.find((a) => a.id === (props.area ?? current?.area));
-const nav = section === 'api'
-    ? apiNav()
-    : area
-      ? [
-            {
-                title: area.title,
-                items: [
-                    { label: 'Overview', href: area.href },
-                    ...area.pages.map((p) => ({ label: p.title, href: p.href })),
-                    ...area.links.map((l) => ({ label: l.label, href: l.href })),
-                ],
-            },
-            ...(area.id === 'reference' ? [] : [{ title: 'More', items: DOCS_LINKS.map((l) => ({ label: l.label, href: l.href })) }]),
-        ]
-      : [];
-// One reading path through the docs: each area's hub, then its pages, then the next area.
-const sequence = areas.flatMap((a) => [
-    { href: a.href, title: a.title, label: 'Area' },
-    ...a.pages.map((p) => ({ href: p.href, title: p.title, label: a.title })),
-]);
-const index = section === 'api' ? -1 : sequence.findIndex((s) => s.href === pathname);
+const sections = await docsSections();
+const page = docs.find((d) => d.href === pathname);
+const areaId = props.area ?? page?.area;
+const section =
+    kind === 'api'
+        ? sections.find((s) => s.id === 'reference')
+        : (sections.find((s) => s.id === props.hubSection) ?? sections.find((s) => s.areas.some((a) => a.id === areaId)));
+const area = section?.areas.find((a) => a.id === areaId);
+
+const groups: SidebarGroup[] =
+    kind === 'api'
+        ? apiNav()
+        : (section?.areas ?? []).map((a) => ({
+              title: a.title,
+              href: a.href,
+              badge: a.experimental ? 'Experimental' : undefined,
+              items: [...a.pages.map((p) => ({ label: p.title, href: p.href })), ...a.links.map((l) => ({ label: l.label, href: l.href }))],
+          }));
+
+// one reading path through the docs: each area's hub, then its pages, then the next area
+const sequence = sections.flatMap((s) =>
+    s.areas.flatMap((a) => [
+        { href: a.href, title: a.title, label: `${s.title} overview` },
+        ...a.pages.map((p) => ({ href: p.href, title: p.title, label: a.title })),
+    ]),
+);
+const index = kind === 'api' ? -1 : sequence.findIndex((s) => s.href === pathname);
 const prev = index > 0 ? sequence[index - 1] : null;
 const next = index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : null;
 const crumbs = [
     { name: SITE.name, url: '/' },
-    { name: sectionLabel, url: section === 'api' ? '/api/' : '/docs/' },
+    { name: kind === 'api' ? 'API reference' : 'Docs', url: kind === 'api' ? '/api/' : '/docs/' },
+    ...(section && kind !== 'api' ? [{ name: section.title, url: section.href }] : []),
     ...(area ? [{ name: area.title, url: area.href }] : []),
     { name: title, url: pathname },
 ].filter((c, i, all) => i === 0 || c.url !== all[i - 1].url);
-const sectionName = area?.title ?? sectionLabel;
-const tabs = section === 'api' ? [] : areas.map((a) => ({ label: a.title, href: a.href, active: a.id === area?.id }));
+const sectionName = area?.title ?? section?.title ?? 'Docs';
+// a page names its area, a hub its section; a hub that is its own section (Learn) says Docs
+const autoEyebrow = area && !props.area ? { label: area.title, href: area.href } : { label: section?.title, href: section?.href };
+const plain = !autoEyebrow.label || autoEyebrow.label === title;
+const eyebrow = props.eyebrow ?? fm.eyebrow ?? (kind === 'api' ? 'API reference' : plain ? 'Docs' : autoEyebrow.label);
+const eyebrowHref = kind === 'api' ? '/api/' : plain ? '/docs/' : autoEyebrow.href;
+const lab = page?.lab ?? [];
 const jsonLd = [
     articleLd({ title, description, path: pathname, section: sectionName, keywords: props.keywords, published: SITE.published, modified }),
     breadcrumbLd(crumbs),
     ...(props.jsonLd ?? []),
 ];
+const arrow = 'M5 12h14M13 6l6 6-6 6';
 ---
 
 <Base
     title={fullTitle}
     description={description}
     path={pathname}
+    image={props.image}
+    noIndex={props.noIndex}
     type="article"
     article={{ section: sectionName, tags: props.keywords, published: SITE.published, modified }}
     keywords={props.keywords}
     markdown={props.markdown}
     jsonLd={jsonLd}
 >
-    <div class="container-page grid gap-10 py-10 md:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_200px]">
-        <DocsSidebar nav={nav} pathname={pathname} areas={tabs}>
-            <nav slot="mobile" aria-label="Docs" class="space-y-4 text-sm">
-                {tabs.length > 0 && (
+    <div class="container-page grid gap-x-12 gap-y-6 pt-6 md:grid-cols-[216px_minmax(0,1fr)] md:pt-0 xl:grid-cols-[216px_minmax(0,1fr)_196px]">
+        <DocsSidebar heading={kind === 'api' ? 'API reference' : section?.title} headingHref={kind === 'api' ? '/api/' : section?.href} groups={groups} pathname={pathname}>
+            <nav slot="mobile" aria-label="Docs" class="space-y-4 pt-2 text-sm">
+                {groups.map((g) => (
                     <div>
-                        <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Areas</div>
-                        {tabs.map((t) => <a href={t.href} class:list={['block py-1', t.active ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground']}>{t.label}</a>)}
-                    </div>
-                )}
-                {nav.map((s) => (
-                    <div>
-                        <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.title}</div>
-                        {s.items.map((i) => <a href={i.href} class="block py-1 text-muted-foreground hover:text-foreground">{i.label}</a>)}
+                        {g.href ? <a href={g.href} class="mb-1 block font-semibold">{g.title}</a> : <div class="mb-1 font-semibold">{g.title}</div>}
+                        {g.items.map((i) => (
+                            <a href={i.href} aria-current={i.href === pathname ? 'page' : undefined} class:list={['block border-l py-1 pl-3', i.href === pathname ? 'border-silk text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground']}>{i.label}</a>
+                        ))}
                     </div>
                 ))}
             </nav>
         </DocsSidebar>
-        <article class="prose-docs min-w-0 max-w-3xl animate-fade-in" data-pagefind-body data-pagefind-filter={`section:${sectionLabel}`} data-area={area?.id}>
-            <nav aria-label="Breadcrumb" class="not-prose mb-3 text-xs text-muted-foreground" data-pagefind-ignore>
-                <ol class="flex flex-wrap items-center gap-1.5">
-                    {crumbs.slice(0, -1).map((c) => (
-                        <li class="flex items-center gap-1.5"><a href={c.url} class="hover:text-foreground">{c.name}</a><span aria-hidden="true">/</span></li>
-                    ))}
-                </ol>
-            </nav>
-            {area && !props.area ? (
-                <a href={area.href} class="mb-2 inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-silk no-underline hover:underline" data-pagefind-ignore>{area.title}</a>
-            ) : (
-                (eyebrow ?? (props.area ? 'Docs' : undefined)) && <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-silk" data-pagefind-ignore>{eyebrow ?? 'Docs'}</div>
-            )}
-            <h1 class="!mt-0 mb-4 text-4xl font-semibold tracking-tight">{title}</h1>
-            {props.description && <p class="!mt-0 text-lg !text-muted-foreground">{props.description}</p>}
-            {modified && (
-                <p class="!mt-0 flex flex-wrap gap-x-4 !text-xs !text-muted-foreground" data-pagefind-ignore>
-                    <span>Updated <time datetime={modified}>{new Date(modified).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</time></span>
-                    <span>pixi-silk {SILK_VERSION}</span>
-                </p>
-            )}
+        <article class="prose-docs min-w-0 max-w-[46rem] pb-6 md:pt-10" data-pagefind-body data-pagefind-filter={`section:${kind === 'api' ? 'API reference' : 'Docs'}`} data-area={area?.id}>
+            <header class="not-prose mb-8">
+                {eyebrowHref ? (
+                    <a href={eyebrowHref} class="eyebrow inline-block hover:underline" data-pagefind-ignore>{eyebrow}</a>
+                ) : (
+                    <div class="eyebrow" data-pagefind-ignore>{eyebrow}</div>
+                )}
+                <h1 class="display-3 mt-3">{title}</h1>
+                {props.description && <p class="lead mt-4 max-w-2xl">{props.description}</p>}
+                {(modified || props.markdown) && (
+                    <p class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-pagefind-ignore>
+                        {modified && <span>Updated <time datetime={modified}>{new Date(modified).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</time></span>}
+                        {modified && <span>pixi-silk {SILK_VERSION}</span>}
+                        {props.markdown && <a href={props.markdown} class="hover:text-foreground xl:hidden">View as Markdown</a>}
+                    </p>
+                )}
+            </header>
             <slot />
+            {lab.length > 0 && (
+                <section class="not-prose mt-16" data-pagefind-ignore>
+                    <div class="eyebrow">Go deeper</div>
+                    <h2 class="heading-4 mt-2">{lab.length === 1 ? 'An experiment on this page' : 'Experiments on this page'}</h2>
+                    <p class="mt-1.5 text-sm text-muted-foreground">Full-screen scenes. Each one also opens in Studio with its source.</p>
+                    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                        {lab.map((l) => (
+                            <ThumbCard href={l.href} title={l.name} description={l.description} thumb={labThumb(l.slug)} />
+                        ))}
+                    </div>
+                </section>
+            )}
             {(prev || next) && (
-                <nav aria-label="Previous and next page" class="not-prose mt-16 grid gap-3 sm:grid-cols-2" data-pagefind-ignore>
+                <nav aria-label="Previous and next page" class="not-prose mt-16 grid gap-3 border-t pt-8 sm:grid-cols-2" data-pagefind-ignore>
                     {prev ? (
-                        <a href={prev.href} rel="prev" class="group rounded-xl border bg-card p-4 no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Previous{prev.label === 'Area' ? ' area' : ''}</div>
-                            <div class="mt-1 font-semibold text-foreground">{prev.title}</div>
+                        <a href={prev.href} rel="prev" class="card-link group p-4">
+                            <div class="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">Previous</div>
+                            <div class="mt-1.5 flex items-center gap-1.5 font-semibold text-foreground">
+                                <svg class="h-3.5 w-3.5 rotate-180 text-muted-foreground transition-transform group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                                {prev.title}
+                            </div>
                         </a>
-                    ) : <div />}
+                    ) : <div class="hidden sm:block" />}
                     {next && (
-                        <a href={next.href} rel="next" class="group rounded-xl border bg-card p-4 text-right no-underline transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Next{next.label === 'Area' ? ' area' : ''}</div>
-                            <div class="mt-1 font-semibold text-foreground">{next.title}</div>
+                        <a href={next.href} rel="next" class="card-link group p-4 text-right">
+                            <div class="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">Next</div>
+                            <div class="mt-1.5 flex items-center justify-end gap-1.5 font-semibold text-foreground">
+                                {next.title}
+                                <svg class="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                            </div>
                         </a>
                     )}
                 </nav>
             )}
         </article>
         <aside class="hidden xl:block" data-pagefind-ignore>
-            <div class="sticky top-20 text-sm">
+            <div class="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto pb-10 pt-10 text-[13px]">
                 {headings.length > 0 && (
                     <>
-                        <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">On this page</div>
-                        <ul class="space-y-1.5">
+                        <div class="mb-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">On this page</div>
+                        <ul class="toc space-y-2 border-l">
                             {headings.map((h) => (
-                                <li class:list={[h.depth === 3 && 'pl-3']}>
-                                    <a href={`#${h.slug}`} class="text-muted-foreground hover:text-foreground">{h.text.replace(/#$/, '')}</a>
+                                <li>
+                                    <a href={`#${h.slug}`} data-toc={h.slug} class:list={['-ml-px block border-l border-transparent leading-snug text-muted-foreground transition-colors hover:text-foreground', h.depth === 3 ? 'pl-6' : 'pl-3']}>{h.text.replace(/#$/, '')}</a>
                                 </li>
                             ))}
                         </ul>
@@ -169,3 +196,62 @@ const jsonLd = [
         </aside>
     </div>
 </Base>
+<script>
+    // copy buttons on code blocks, and the on-this-page entry of the heading in view
+    for (const pre of document.querySelectorAll<HTMLPreElement>('.prose-docs pre')) {
+        if (pre.closest('.not-prose')) continue;
+        const wrap = document.createElement('div');
+        const button = document.createElement('button');
+
+        wrap.className = 'code-wrap';
+        button.type = 'button';
+        button.className = 'code-copy';
+        button.textContent = 'Copy';
+        button.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(pre.innerText);
+                button.textContent = 'Copied';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 1200);
+            } catch {
+                button.textContent = 'Select and copy';
+            }
+        });
+        pre.replaceWith(wrap);
+        wrap.append(pre, button);
+        // a block wider than the column fades at its right edge until scrolled to the end
+        const edge = () => {
+            pre.classList.toggle('scrolls', pre.scrollWidth > pre.clientWidth + 1);
+            pre.classList.toggle('at-end', pre.scrollLeft + pre.clientWidth >= pre.scrollWidth - 2);
+        };
+
+        pre.addEventListener('scroll', edge, { passive: true });
+        new ResizeObserver(edge).observe(pre);
+    }
+
+    const links = new Map([...document.querySelectorAll<HTMLAnchorElement>('[data-toc]')].map((a) => [a.dataset.toc, a]));
+
+    if (links.size > 0) {
+        const mark = (id: string) => {
+            for (const [key, a] of links) {
+                const on = key === id;
+
+                a.classList.toggle('text-foreground', on);
+                a.classList.toggle('border-silk', on);
+                a.classList.toggle('text-muted-foreground', !on);
+                a.classList.toggle('border-transparent', !on);
+            }
+        };
+        const targets = [...links.keys()].map((id) => document.getElementById(id ?? '')).filter((el) => el !== null);
+        const update = () => {
+            let active = targets[0]?.id;
+
+            for (const el of targets) if (el.getBoundingClientRect().top < 120) active = el.id;
+            if (active) mark(active);
+        };
+
+        addEventListener('scroll', update, { passive: true });
+        update();
+    }
+</script>
