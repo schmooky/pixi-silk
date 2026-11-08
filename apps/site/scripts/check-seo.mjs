@@ -55,8 +55,8 @@ for (const file of html) {
     const page = rel;
     const doc = fs.readFileSync(file, 'utf8');
 
-    // redirect stubs for moved URLs (astro.config.mjs `redirects`) are not pages
-    if (/<meta http-equiv="refresh"/i.test(doc)) {
+    // redirect stubs for moved URLs (astro.config.mjs `redirects`) and Studio's preview frame are not pages
+    if (/<meta http-equiv="refresh"/i.test(doc) || rel === '/studio/run/') {
         noindexed.add(rel);
         continue;
     }

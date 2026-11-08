@@ -5,6 +5,8 @@ export default defineConfig({
     entry: [
         'src/index.ts',
         'src/signal.ts',
+        'src/glass.ts',
+        'src/glow.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',
         'src/ui/SilkButton.ts',

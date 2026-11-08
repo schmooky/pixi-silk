@@ -1,0 +1,33 @@
+---
+// Studio's preview frame. Not a page of its own: never indexed, never in the sitemap.
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="noindex" />
+        <title>Studio preview</title>
+        <style is:global>
+            html, body { margin: 0; height: 100%; background: #0b0b0d; color: #f2f2f7; font: 12px/1.4 system-ui, -apple-system, sans-serif; }
+            body[data-kind='demo'] { display: flex; flex-direction: column; }
+            #studio-stage { position: relative; flex: 1; min-height: 0; }
+            #studio-controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 14px; border-top: 1px solid #ffffff1a; }
+            #studio-controls[hidden] { display: none; }
+            #studio-controls label { display: inline-flex; gap: 8px; align-items: center; color: #a1a1aa; }
+            #studio-controls output { font-family: ui-monospace, monospace; color: #f2f2f7; min-width: 3ch; }
+            #studio-controls select { background: #1c1c1e; color: #f2f2f7; border: 1px solid #ffffff26; border-radius: 6px; padding: 2px 6px; }
+            body[data-kind='lab'] #studio-stage, body[data-kind='lab'] #studio-controls { display: none; }
+            /* a lab page's back link would navigate the preview frame */
+            body .chrome a.back { display: none; }
+        </style>
+    </head>
+    <body>
+        <div id="studio-stage"></div>
+        <div id="studio-controls" hidden></div>
+        <script>
+            import '@/studio/runner';
+        </script>
+    </body>
+</html>

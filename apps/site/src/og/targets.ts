@@ -41,6 +41,12 @@ export async function ogTargets(): Promise<OgTarget[]> {
             title: 'Questions & answers',
             subtitle: 'Smooth PixiJS graphics, squircles, gradients without banding, retina canvases.',
         },
+        {
+            id: 'section/studio',
+            eyebrow: 'Studio',
+            title: 'Code next to canvas',
+            subtitle: 'Every demo and experiment, editable, running as you type.',
+        },
         { id: 'section/changelog', eyebrow: 'Changelog', title: 'Release notes' },
         {
             id: 'section/search',

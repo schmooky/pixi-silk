@@ -81,6 +81,8 @@ The docs are grouped into areas. Each area overview tours its features with live
   - Experiment: [Banding](https://pixi-silk.schmooky.dev/lab/13-banding/): Half-float ramps with ±0.5 LSB dither. Toggle dither and "reveal x8" to watch the contour lines disappear.
 - [Blur, glows & shadows](https://pixi-silk.schmooky.dev/docs/blur-and-shadows/): A gaussian blur applied to each shape's distance field gives neon glows, soft drop shadows and motion blur without filters or extra passes. (Markdown: https://pixi-silk.schmooky.dev/docs/blur-and-shadows.md)
   - Experiment: [Glows & soft shadows](https://pixi-silk.schmooky.dev/lab/14-glow/): Analytic gaussian blur on the distance field: neon glows, elevation shadows, bokeh. No extra passes.
+- [Inner shadows, spread and mesh](https://pixi-silk.schmooky.dev/docs/effects/): Figma-style inner shadows, blur spread, progressive blur, plus-lighter blending and gradient meshes in PixiJS, drawn from the same distance field. (Markdown: https://pixi-silk.schmooky.dev/docs/effects.md)
+- [Glass and glow](https://pixi-silk.schmooky.dev/docs/glass-and-glow/): Frosted glass that blurs and bends what is behind it, and light that adds up to white: auroras, neon, beams and a prism, with pixi-silk/glass and pixi-silk/glow. (Markdown: https://pixi-silk.schmooky.dev/docs/glass-and-glow.md)
 
 ### UI widgets
 
@@ -120,6 +122,7 @@ The docs are grouped into areas. Each area overview tours its features with live
   - Experiment: [Journeys](https://pixi-silk.schmooky.dev/lab/24-journeys/): Flight progress, train stations, delivery route, ride pickup, race track.
   - Experiment: [Sky](https://pixi-silk.schmooky.dev/lab/25-sky/): Sunset pills with a glowing sun and stars, golden-hour curve, daylight bar.
   - Experiment: [Dashboard](https://pixi-silk.schmooky.dev/lab/26-dashboard/): Thirty live widgets in a masonry layout with smooth, frame-rate independent scrolling.
+- [Gallery](https://pixi-silk.schmooky.dev/docs/gallery/): Whole screens rebuilt with pixi-silk: a monochrome weather dashboard, a finance bento board and a sci-fi spectra HUD. Open any of them in Studio. (Markdown: https://pixi-silk.schmooky.dev/docs/gallery.md)
 - [Slot HUD examples](https://pixi-silk.schmooky.dev/docs/slot-hud/): Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy. (Markdown: https://pixi-silk.schmooky.dev/docs/slot-hud.md)
 
 ### Rendering
@@ -149,6 +152,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Gradient](https://pixi-silk.schmooky.dev/api/classes/Gradient/): Class. Base class of all gradients. Stops are interpolated premultiplied (OKLab by default), baked into a shared half-float atlas and dithered when sampled, so...
 - [GradientAtlas](https://pixi-silk.schmooky.dev/api/classes/GradientAtlas/): Class. All gradient ramps live in one RGBA16F texture (one ramp per row), shared by every SilkGraphics.
 - [LinearGradient](https://pixi-silk.schmooky.dev/api/classes/LinearGradient/): Class. A straight ramp between two points. Create it with linear, vertical or horizontal.
+- [MeshGradient](https://pixi-silk.schmooky.dev/api/classes/MeshGradient/): Class. A smooth colour surface through a grid of control colours, like a gradient mesh in Illustrator.
 - [PathGradient](https://pixi-silk.schmooky.dev/api/classes/PathGradient/): Class. A ramp that follows a stroke from its first point (t = 0) to its last (t = 1). Create it with along.
 - [RadialGradient](https://pixi-silk.schmooky.dev/api/classes/RadialGradient/): Class. A ramp from a centre outwards, optionally starting at an inner radius. Create it with radial.
 - [SilkGeometry](https://pixi-silk.schmooky.dev/api/classes/SilkGeometry/): Class. Geometry behind every SilkGraphics: one unit quad plus an interleaved instance buffer (40 floats per primitive). You rarely need it directly.
@@ -163,6 +167,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [horizontal](https://pixi-silk.schmooky.dev/api/functions/horizontal/): Function. Left-to-right linear gradient across the painted shape. Function horizontal of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [linear](https://pixi-silk.schmooky.dev/api/functions/linear/): Function. Linear gradient. from / to default to top and bottom of the shape's box (units: 'shape').
 - [linearToOklab](https://pixi-silk.schmooky.dev/api/functions/linearToOklab/): Function. Converts linear-light sRGB to OKLab (Björn Ottosson's perceptual colour space), used to interpolate gradients evenly.
+- [mesh](https://pixi-silk.schmooky.dev/api/functions/mesh/): Function. Gradient mesh: cols x rows control colours (row by row, top-left first) spread over the painted shape's box, blended into one smooth surface.
 - [monotoneX](https://pixi-silk.schmooky.dev/api/functions/monotoneX/): Function. Monotone cubic interpolation in x (Steffen's method, same family as d3's monotoneX).
 - [oklabToLinear](https://pixi-silk.schmooky.dev/api/functions/oklabToLinear/): Function. Converts OKLab back to linear-light sRGB. Out-of-gamut colours fall outside 0..1, so callers clamp.
 - [parseColor](https://pixi-silk.schmooky.dev/api/functions/parseColor/): Function. Any Pixi ColorSource as straight sRGB [r, g, b, a] (0..1), with alpha multiplied in. Memoised.
@@ -171,10 +176,13 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [vertical](https://pixi-silk.schmooky.dev/api/functions/vertical/): Function. Top-to-bottom linear gradient across the painted shape. Function vertical of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [AreaOptions](https://pixi-silk.schmooky.dev/api/interfaces/AreaOptions/): Interface. Options of area(): monotone smoothing of the series and its sample spacing.
 - [ConicGradientOptions](https://pixi-silk.schmooky.dev/api/interfaces/ConicGradientOptions/): Interface. Options of conic: stops plus centre, start angle and sweep. Interface ConicGradientOptions of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
-- [FillStyle](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/): Interface. How a fill is painted: a colour, a gradient, opacity and an optional gaussian blur for glows and soft shadows.
+- [FillStyle](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/): Interface. How a fill is painted: colour or gradient, opacity, blur with spread, blend mode and inner shadows.
 - [GradientOptions](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/): Interface. Options shared by every gradient: colour stops, interpolation space, easing, extend mode and units.
+- [InnerShadow](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/): Interface. A shadow drawn inside the shape from its own distance field, with Figma's semantics. The shape is moved by x and y, shrunk by spread and blurred.
 - [LinearGradientOptions](https://pixi-silk.schmooky.dev/api/interfaces/LinearGradientOptions/): Interface. Options of linear: stops plus the start and end points of the ramp. Interface LinearGradientOptions of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
+- [MeshGradientOptions](https://pixi-silk.schmooky.dev/api/interfaces/MeshGradientOptions/): Interface. Options of mesh: where the grid sits, its units and its interpolation space.
 - [PolylineOptions](https://pixi-silk.schmooky.dev/api/interfaces/PolylineOptions/): Interface. Options of polyline(): closed loops and monotone or Catmull-Rom smoothing of the points.
+- [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/): Interface. A blur that changes across the shape, like Figma's progressive layer blur.
 - [RadialGradientOptions](https://pixi-silk.schmooky.dev/api/interfaces/RadialGradientOptions/): Interface. Options of radial: stops plus centre, outer radius and inner radius. Interface RadialGradientOptions of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [SilkApp](https://pixi-silk.schmooky.dev/api/interfaces/SilkApp/): Interface. What createSilkApp returns: the Pixi application, its CSS size and resolution, and helpers to change or destroy it.
 - [SilkAppOptions](https://pixi-silk.schmooky.dev/api/interfaces/SilkAppOptions/): Interface. Options of createSilkApp: Pixi application options plus the element to fill, DPR limits and touch behaviour.
@@ -186,6 +194,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [FillInput](https://pixi-silk.schmooky.dev/api/types/FillInput/): Type. What fill() accepts: any Pixi colour, a gradient or a FillStyle. Type FillInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [GradientUnits](https://pixi-silk.schmooky.dev/api/types/GradientUnits/): Type. Gradient coordinates: shape = fractions of each painted shape's box, local = the graphics' local units (one ramp across many shapes).
 - [LineCap](https://pixi-silk.schmooky.dev/api/types/LineCap/): Type. Shape of the ends of open paths and of every dash: flat, round or square.
+- [MeshColorInput](https://pixi-silk.schmooky.dev/api/types/MeshColorInput/): Type. A mesh control colour: any Pixi colour, or [color, alpha]. Type MeshColorInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [PointsInput](https://pixi-silk.schmooky.dev/api/types/PointsInput/): Type. Points as a flat [x0, y0, x1, y1, ...] array, a typed array, or an array of { x, y } objects.
 - [RGBA](https://pixi-silk.schmooky.dev/api/types/RGBA/): Type. Straight (non-premultiplied) sRGB colour with alpha, all channels 0..1, as returned by parseColor.
 - [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/): Type. A color stop: a bare color (stops are spread evenly), [offset, color], [offset, color, alpha] or { offset, color, alpha }.

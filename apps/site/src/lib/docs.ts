@@ -15,6 +15,8 @@ export interface DocLink {
     lab: LabLink[];
     /** The page's first live demo, shown with its pitch on the area hub. */
     demo?: { name: string; height: number; caption?: string };
+    /** Every live demo on the page, in order. */
+    demos: string[];
 }
 
 export interface LabLink {
@@ -103,6 +105,7 @@ export async function docsInOrder(): Promise<DocLink[]> {
                 area: area.id,
                 lab,
                 demo: firstDemo(entry.body ?? ''),
+                demos: [...new Set([...(entry.body ?? '').matchAll(/<Demo\b[^>]*\bname="([^"]+)"/g)].map((m) => m[1]))],
             };
         }),
     );

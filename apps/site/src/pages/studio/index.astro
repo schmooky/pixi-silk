@@ -1,0 +1,33 @@
+---
+import Studio, { type StudioGroup } from '@/components/react/Studio';
+import Base from '@/layouts/Base.astro';
+import { docsAreas } from '@/lib/docs';
+import { breadcrumbLd } from '@/lib/seo';
+import { SITE } from '@/lib/site';
+
+// every demo and lab experiment, grouped the way the docs read: area, then page
+const words = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+const groups: StudioGroup[] = (await docsAreas())
+    .map((a) => ({
+        area: a.title,
+        pages: a.pages
+            .map((p) => ({
+                title: p.title,
+                href: p.href,
+                entries: [
+                    ...p.demos.map((name) => ({ id: `demo:${name}`, kind: 'demo' as const, name, title: words(name) })),
+                    ...p.lab.map((l) => ({ id: `lab:${l.slug}`, kind: 'lab' as const, name: l.slug, title: l.name })),
+                ],
+            }))
+            .filter((p) => p.entries.length > 0),
+    }))
+    .filter((g) => g.pages.length > 0);
+const description = `Every ${SITE.name} demo and experiment as code next to its canvas. Edit the source and it runs again as you type.`;
+---
+
+<Base title={`Studio: live pixi-silk code and canvas | ${SITE.name}`} description={description} path="/studio/" jsonLd={[breadcrumbLd([{ name: SITE.name, url: '/' }, { name: 'Studio', url: '/studio/' }])]}>
+    <h1 class="sr-only">Studio</h1>
+    <Studio client:only="react" groups={groups}>
+        <div slot="fallback" class="fixed inset-x-0 bottom-0 top-14 z-30 flex items-center justify-center bg-background font-mono text-xs uppercase tracking-wider text-muted-foreground">Loading Studio</div>
+    </Studio>
+</Base>

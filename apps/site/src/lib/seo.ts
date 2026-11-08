@@ -38,7 +38,7 @@ export function ogUrlForPath(pathname: string | undefined): string {
     const lab = p.match(/^\/lab\/([^/]+)$/);
 
     if (lab) return `/og/lab/${lab[1]}.png`;
-    for (const section of ['docs', 'api', 'faq', 'changelog', 'search']) {
+    for (const section of ['docs', 'api', 'faq', 'studio', 'changelog', 'search']) {
         if (p === `/${section}` || p.startsWith(`/${section}/`)) return `/og/section/${section}.png`;
     }
 

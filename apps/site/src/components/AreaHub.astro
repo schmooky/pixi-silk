@@ -29,17 +29,17 @@ const html = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').repla
         <div class="font-mono text-xs text-silk">{String(i + 1).padStart(2, '0')}</div>
         <h2 class="mt-1 text-2xl font-semibold tracking-tight"><a href={p.href} class="no-underline hover:underline">{p.title}</a></h2>
         <p class="mt-2 leading-relaxed text-muted-foreground">{p.description}</p>
-        {p.demo && <Demo name={p.demo.name} height={p.demo.height} caption={p.demo.caption} compact />}
+        {p.demo && <Demo name={p.demo.name} height={p.demo.height} caption={p.demo.caption} />}
         <div class:list={['flex flex-wrap items-center gap-2', p.demo ? 'mt-0' : 'mt-5']}>
             <a href={p.href} class="group inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-sm font-semibold text-background no-underline">
                 Read the guide
                 <svg class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
             </a>
-            {p.lab.map((l) => (
-                <a href={l.href} title={l.description} class="rounded-lg border px-3 py-2 text-sm text-muted-foreground no-underline transition-colors hover:border-foreground/30 hover:text-foreground">
-                    <span class="font-mono text-[11px] text-silk">Lab {l.slug.slice(0, 2)}</span> {l.name}
+            {(p.demos.length > 0 || p.lab.length > 0) && (
+                <a href={p.demos.length > 0 ? `/studio/?demo=${p.demos[0]}` : `/studio/?lab=${p.lab[0].slug}`} class="rounded-lg border px-3.5 py-2 text-sm font-semibold text-foreground no-underline transition-colors hover:border-foreground/30">
+                    Open in Studio
                 </a>
-            ))}
+            )}
         </div>
     </section>
 ))}
