@@ -156,6 +156,8 @@ const llms = fs.readFileSync(path.join(DIST, 'llms.txt'), 'utf8');
 for (const f of html.filter((f) => /[\\/]docs[\\/][^\\/]+[\\/]index\.html$/.test(f))) {
     const p = `/${path.relative(DIST, path.dirname(f)).replace(/\\/g, '/')}/`;
 
+    // redirect stubs of moved docs pages have no twin and no llms.txt entry
+    if (noindexed.has(p)) continue;
     if (!llms.includes(`${SITE_URL}${p}`)) err('/llms.txt', `missing ${p}`);
     if (!fs.existsSync(path.join(DIST, `${p.slice(0, -1)}.md`))) err(p, 'missing Markdown twin');
 }
