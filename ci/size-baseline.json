@@ -1,12 +1,12 @@
 {
   "everything": {
-    "gzip": 30277
+    "gzip": 30274
   },
   "SilkGraphics": {
-    "gzip": 26362
+    "gzip": 26359
   },
   "SilkGraphics + gradients": {
-    "gzip": 26812
+    "gzip": 26809
   },
   "createSilkApp": {
     "gzip": 932
@@ -36,52 +36,52 @@
     "gzip": 3670
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 31674
+    "gzip": 31671
   },
   "ui/button (SilkButton)": {
-    "gzip": 29403
+    "gzip": 29399
   },
   "ui/dock (ButtonDock)": {
     "gzip": 1044
   },
   "ui/gizmo": {
-    "gzip": 33649
+    "gzip": 33645
   },
   "ui/outline": {
-    "gzip": 28524
+    "gzip": 28520
   },
   "ui/pathgizmo": {
-    "gzip": 33483
+    "gzip": 33479
   },
   "ui/snap": {
-    "gzip": 29096
+    "gzip": 29093
   },
   "ui/camera": {
-    "gzip": 30077
+    "gzip": 30258
   },
   "ui/camera (Camera only)": {
-    "gzip": 3161
+    "gzip": 3346
   },
   "ui/measure": {
-    "gzip": 28747
+    "gzip": 28743
   },
   "ui/grid": {
-    "gzip": 27883
+    "gzip": 27880
   },
   "ui/ruler": {
-    "gzip": 29126
+    "gzip": 29119
   },
   "ui/guides": {
-    "gzip": 29648
+    "gzip": 29645
   },
   "ui/marquee": {
-    "gzip": 28856
+    "gzip": 28853
   },
   "ui/group": {
     "gzip": 1117
   },
   "ui/spacing": {
-    "gzip": 28981
+    "gzip": 28978
   },
   "ui/spacing (findSpacing)": {
     "gzip": 899
@@ -90,22 +90,22 @@
     "gzip": 1303
   },
   "ui/color": {
-    "gzip": 36257
+    "gzip": 36253
   },
   "ui/halo": {
-    "gzip": 30341
+    "gzip": 30337
   },
   "ui/brush": {
-    "gzip": 29193
+    "gzip": 29190
   },
   "ui/modes": {
-    "gzip": 33939
+    "gzip": 33935
   },
   "ui/dial": {
-    "gzip": 30927
+    "gzip": 30924
   },
   "ui/timeline": {
-    "gzip": 30251
+    "gzip": 30247
   },
   "ui/odometer": {
     "gzip": 2159
@@ -114,10 +114,10 @@
     "gzip": 940
   },
   "glass": {
-    "gzip": 29745
+    "gzip": 29774
   },
   "glow": {
-    "gzip": 28796
+    "gzip": 28793
   },
   "text": {
     "gzip": 11900
@@ -129,25 +129,25 @@
     "gzip": 1795
   },
   "ui/textedit (TextEditor)": {
-    "gzip": 43028
+    "gzip": 43025
   },
   "ui/pill (ValuePill)": {
-    "gzip": 27011
+    "gzip": 27007
   },
   "ui/panel (Panel)": {
-    "gzip": 45961
+    "gzip": 45957
   },
   "ui/layers (LayerTree)": {
-    "gzip": 57625
+    "gzip": 57622
   },
   "ui/layers (tree math)": {
     "gzip": 890
   },
   "ui/inspector (Inspector)": {
-    "gzip": 58361
+    "gzip": 58358
   },
   "ui/minimap (Minimap)": {
-    "gzip": 29305
+    "gzip": 29301
   },
   "layout": {
     "gzip": 3643
@@ -159,9 +159,9 @@
     "gzip": 6017
   },
   "ui/layout (layoutDebug)": {
-    "gzip": 10066
+    "gzip": 10080
   },
   "ui (everything)": {
-    "gzip": 131249
+    "gzip": 131437
   }
 }
