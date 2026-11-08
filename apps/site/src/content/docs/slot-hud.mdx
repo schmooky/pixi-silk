@@ -1,34 +1,79 @@
 ---
-title: Slot HUD examples
+title: Slot HUD
 seoTitle: 'Slot HUD controls for PixiJS: spin, autoplay, meters'
-description: 'Copyable slot HUD controls built from pixi-silk atoms: a spin button with autoplay, win meters, multiplier badges, free-spin pips, feature paths and hold-to-buy.'
-keywords: ['slot HUD PixiJS', 'spin button', 'autoplay', 'win meter', 'casino game UI']
-updated: 2026-11-07
+description: 'Copyable slot HUD controls from pixi-silk widgets: a spin button with autoplay, an odometer balance, win meters, free-spin pips and a dock that steps aside.'
+keywords: ['slot HUD PixiJS', 'spin button', 'autoplay', 'win meter', 'odometer counter', 'casino game UI']
+updated: 2026-11-08
+api: [Odometer, SilkButton, ButtonDock, JogDial]
 ---
 
-These controls are examples, not part of the library. Each demo is one file: open its source,
-copy it into your game and restyle it. They are built from the same atoms as the library widgets:
-`SilkGraphics`, `Spring` and `damp`, signals, `trackGesture` and `RadialMenu`.
+The odometer, the dial, the buttons and the dock on this page are library widgets. The spin
+button, the meters and the pips are examples, built from `SilkGraphics`, `Spring` and `damp`,
+signals, `trackGesture` and `RadialMenu`. Each demo is one file: open it in Studio, copy it into
+your game and restyle it.
 
 ## Spin button and autoplay
 
 <Demo name="slot-spin" height={320} caption="Tap to spin, tap again to stop. Hold for the autoplay picker and drag to a count." />
 
-The arrow morphs into a stop square while the reels run. The yellow ring shows the autoplay spins
-left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release picks a
-count in one gesture.
+The arrow turns into a stop square while the reels run, and the yellow ring shows the autoplay
+spins left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release
+pick a count in one gesture.
 
 ## Balance, win and bet
 
-<Demo name="slot-wallet" height={340} caption="Turn the dial to pick a bet, press SPIN. Tap a counting win to skip it." />
+<Demo name="slot-wallet" height={340} caption="Turn the dial to pick a bet and press SPIN. Tap a counting win to skip it." />
 
-Built on the library's `Odometer` and `JogDial`. The dial's detents are positions on a bet
+The balance and the win are two `Odometer`s, and the bet is a `JogDial` from
+[Dials and timeline](/docs/dials-and-timeline/). The dial's detents are positions on a bet
 ladder, and its readout shows the bet at that position.
+
+## Roll a number with an odometer
+
+<Demo name="odometer" height={240} caption="Tap to add an amount. Tap again while it counts to skip to the end." />
+
+```ts
+import { Odometer } from 'pixi-silk/ui/odometer';
+
+const balance = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+
+balance.set(9800); // counts up, longer for bigger jumps
+balance.skip(); // straight to the end
+balance.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
+```
+
+Every digit column rolls on its own. A column moves only while the one below it passes from 9 to
+0, so carries ripple like a mechanical counter. Glyphs come from a bitmap font made from the text
+style, so a frame only moves them, and one mask clips them all. `format(value)` returns the same
+text without rolling, for labels and screen readers.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `value` | 0 | Start value |
+| `decimals` | 0 | Digits after the point |
+| `prefix`, `suffix` | none | Text around the number, such as a currency |
+| `thousands`, `point` | `,` and `.` | Separators. `''` turns thousands off |
+| `minDigits` | 1 | Smallest number of whole digits |
+| `fontSize`, `color`, `textStyle` | 32, white | The look of the digits |
+| `duration` | 0.9 | Count-up time in seconds for a small change |
+| `speedUp` | true | Bigger jumps count for longer, up to three times |
+| `easing` | `outCubic` | Easing of the count |
+| `onDone` | none | Called with the value when the count ends |
 
 ## Meters, badges and pips
 
 <Demo name="slot-meters" height={360} caption="Press WIN to feed the meters. Hold BUY until the bar fills." />
 
+Each piece is one SilkGraphics with its state in a signal: a win meter with tiers, a multiplier
+badge, free-spin pips, a feature path and a hold-to-buy button.
+
 ## A dock that steps aside
 
-<Demo name="spin-dock" height={340} caption="Pick a speed, then spin. Side buttons leave and the speed switch locks while the reels run." />
+<Demo name="spin-dock" height={340} caption="Tap SPIN once, or hold it for five spins." />
+
+The bar is a `ButtonDock` of `SilkButton`s. While the reels run, the side buttons hide, the speed
+switch locks and the spin button turns busy, so nothing can be pressed twice. The dock closes the
+gaps as buttons leave. [Radial menus and buttons](/docs/radial-menus-and-buttons/#make-a-button-that-waits)
+explains the button states.
+
+To place a HUD like this on phones and desktops, see [Layout](/docs/layout/).

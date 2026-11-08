@@ -1,26 +1,18 @@
 ---
 title: Radial menus and buttons
 seoTitle: 'Radial pie menus and animated buttons for PixiJS'
-description: 'Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable.'
+description: 'RadialMenu is a marking menu with nested rings and per-device tuning. SilkButton animates in and out and ignores input while it moves or is busy.'
 keywords: ['PixiJS radial menu', 'pie menu', 'marking menu', 'PixiJS button', 'canvas UI', 'signals']
-updated: 2026-11-07
+updated: 2026-11-08
+api: [RadialMenu, bindRadialTrigger, SilkButton, ButtonDock]
 ---
 
+A radial menu puts its items in a ring around the pointer, so a press, a drag towards an item and
+a release pick it in one gesture. A button here is a widget that knows when it should not take a press.
+
+## Open a radial menu
+
 <Demo name="radial-menu" height={400} caption="Press anywhere and drag to an item, or tap to keep the menu open. MOVE and ROTATE open a second ring." />
-
-## Import only what you use
-
-Each widget has its own entry point. Nothing else comes along: the menu does not pull in the button,
-and `pixi-silk/signal` has no Pixi code at all.
-
-```ts
-import { RadialMenu, bindRadialTrigger } from 'pixi-silk/ui/radial';
-import { SilkButton } from 'pixi-silk/ui/button';
-import { ButtonDock } from 'pixi-silk/ui/dock';
-import { signal, computed, batch } from 'pixi-silk/signal';
-```
-
-## Radial menus
 
 ```ts
 import { bindRadialTrigger, RadialMenu } from 'pixi-silk/ui/radial';
@@ -40,27 +32,34 @@ app.stage.addChild(menu);
 bindRadialTrigger(toolButton, menu); // or menu.openAt(x, y, event)
 ```
 
-How it behaves:
+A press on `toolButton` opens the menu at the pointer. `onSelect` gets the item and the path to it
+through the rings, so a pick in the second ring logs `move > axis`.
 
-- **Marking.** Press, drag towards an item, release: picked in one gesture. A tap opens the menu
-  and leaves it up for a second tap.
-- **Angle, not hit boxes.** Past the dead zone the whole wedge counts, out to the falloff
-  distance. A fast flick lands on its item even when the pointer overshoots the ring.
-- **Hysteresis.** The current item holds until the pointer is clearly past its edge, so a shaky
-  finger on a boundary does not flicker between two items.
-- **It stays.** Moving away does not close the menu. Set `closeOnLeave` to close it after the
-  pointer stays outside the falloff area for a grace delay.
-- **Nested rings.** Items with `children` open the next ring around themselves, to any depth.
-- **Edges.** Full rings slide inside `bounds`. Partial rings turn to face the inside instead.
-- **Per device.** Dead zone, falloff, size, tap time and hysteresis come from an input profile per
-  pointer kind. Touch gets bigger targets and more forgiveness. Override any of it with `profiles`.
+The menu picks by angle. Past a small dead zone the whole wedge counts, out to the falloff
+distance, so a fast flick lands on its item even when the pointer overshoots the ring. The current
+item holds until the pointer is clearly past its edge, so a shaky finger on a boundary does not
+flicker between two items.
 
-Icons are a string, a texture, a container or a function that draws with `SilkGraphics` in white.
-The menu tints them, so hover colours cost no redraw.
+Items with `children` open the next ring around themselves, to any depth. A full ring slides to
+stay inside `bounds`, and a partial ring turns to face the inside instead.
 
-## Buttons that know when to stay still
+| Option | Default | What it does |
+| --- | --- | --- |
+| `innerRadius`, `outerRadius` | 40, 100 | The first ring |
+| `sweep` | full turn | Angle of the first ring, `Math.PI` for a half |
+| `direction` | up | Where the ring faces, in radians |
+| `closeOnLeave` | false | Close once the pointer stays outside the falloff area. By default the menu stays |
+| `closeOnSelect` | true | Close after a pick |
+| `selectParents` | false | Items with children can be picked too |
+| `profiles` | per pointer kind | Dead zone, falloff, scale, tap time and hysteresis for mouse, pen and touch |
+| `hub` | true | Draw the centre disc |
 
-<Demo name="spin-dock" height={340} caption="Tap SPIN once, or hold it for five spins. Side buttons leave while the reels run." />
+Touch gets bigger targets and more forgiveness than a mouse. Override any of it with `profiles`.
+
+Icons are a string, a texture, a container or a function that draws with SilkGraphics in white.
+The menu tints them, so a hover colour costs no redraw.
+
+## Make a button that waits
 
 ```ts
 import { SilkButton } from 'pixi-silk/ui/button';
@@ -73,18 +72,20 @@ spin.state.busy.set(true); // spinner, input off
 spin.state.active.subscribe((on) => console.log('accepts input', on));
 ```
 
-A button only accepts input when it is shown, settled, enabled and not busy. `show()` and `hide()`
-return promises that resolve `false` if the animation was reversed half way. A press that slides a
-little off the button still counts on release.
+A button accepts input only when it is shown, settled, enabled and not busy. That is what keeps a
+spin button from being pressed twice. `show()` and `hide()` return promises that resolve `false`
+if the animation was reversed half way. A press that slides a little off the button still counts
+on release, within `hitPadding` (6 by default).
 
-`ButtonDock` lines buttons up and closes the gap when one hides. Slot sizes follow each button's
-animated appearance, so the reflow and the fade move together.
+`ButtonDock` from `pixi-silk/ui/dock` lines buttons up and closes the gap when one hides. Slot
+sizes follow each button's animated appearance, so the reflow and the fade move together. The
+[slot HUD](/docs/slot-hud/#a-dock-that-steps-aside) page shows a dock in a game bar.
 
 ## State in signals
 
-Every widget keeps its state in `state`: small signals you can read, write and subscribe to. A
-signal is a value with `subscribe`. There is no tracking magic, so it plugs into React, MobX or
-plain callbacks.
+Every widget keeps its state in `state`: small signals you can read, write and subscribe to.
+`pixi-silk/signal` has no Pixi code in it. A signal is a value with `subscribe`, with no
+dependency tracking, so it plugs into React, MobX or plain callbacks.
 
 ```ts
 import { batch, computed, signal } from 'pixi-silk/signal';
@@ -99,5 +100,6 @@ batch(() => {
 }); // one notification
 ```
 
-Widgets animate on `Ticker.shared` and leave the ticker once nothing moves. Pass `ticker` to use
-your application's ticker, or `null` to step them yourself with `tick(dt)`.
+`computed` takes its sources as a list, so it recomputes only when one of them changes. Widgets
+animate on `Ticker.shared` and leave the ticker once nothing moves. Pass `ticker` to use your
+application's ticker, or `null` to step them yourself with `tick(dt)`.

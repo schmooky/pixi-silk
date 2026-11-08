@@ -1,0 +1,115 @@
+---
+title: Layout engine
+seoTitle: 'A headless flexbox layout engine in TypeScript'
+description: 'pixi-silk/layout is the flex engine under SmartContainer and FlexContainer: plain nodes, CSS flexbox styles, measure functions and incremental passes.'
+keywords: ['flexbox engine', 'headless layout', 'TypeScript flex layout', 'yoga alternative', 'LayoutNode']
+updated: 2026-11-08
+api: [LayoutNode]
+---
+
+`pixi-silk/layout` lays out a tree of plain nodes with CSS flexbox. It has no Pixi in it, so it
+runs in tests, workers and on a server. [Layout](/docs/layout/) wraps it in Pixi containers.
+Read this page when you want the engine without Pixi, or need to know why a box ended up where it did.
+
+## Lay out a tree
+
+```ts
+import { LayoutNode } from 'pixi-silk/layout';
+
+const root = new LayoutNode({ direction: 'row', gap: 8, padding: 16 });
+const icon = new LayoutNode({ width: 100 });
+const label = new LayoutNode({ grow: 1 });
+
+root.add(icon).add(label);
+root.calculate(400, 120);
+
+label.layout; // { x: 124, y: 16, width: 260, height: 88 }
+```
+
+The label starts after the padding, the icon and the gap (16 + 100 + 8), takes the rest of the
+width and stretches to the content height. `calculate(width, height)` lays out the whole tree, and
+each node's `layout` holds its box relative to its parent. Leave a size out to fit that axis to
+the content.
+
+A node has a style, children and an optional `measure` function. `setStyle()` replaces the style
+and `updateStyle()` merges into it. `add()`, `remove()` and `clear()` change the children.
+
+## Styles
+
+The style follows CSS flexbox, with `box-sizing: border-box` everywhere and shorter names.
+Alignment values are `start`, `center`, `end`, `stretch` and, for items, `baseline`.
+
+| Group | Fields |
+| --- | --- |
+| Container | `direction` (`row`, `column` and their `-reverse`), `wrap`, `gap`, `rowGap`, `columnGap`, `padding`, `justifyContent`, `alignItems`, `alignContent` |
+| Item | `grow` (0), `shrink` (1), `basis` (`auto`), `alignSelf`, `margin` |
+| Size | `width`, `height`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `aspectRatio` |
+| Position | `position: 'absolute'` with `top`, `right`, `bottom`, `left` or `inset`, and `display: 'none'` |
+
+Sizes are pixels, a percent of the parent's content box such as `'50%'`, or `'auto'`. Padding and
+margin take one value, or two, three or four as in CSS. An `auto` margin takes the free space,
+which centres an item or pushes it to the far end. Anchors of absolute items may be percents.
+
+## How a pass computes
+
+Each container first works out the basis of its items: the `basis`, else the `width` or `height`,
+else the measured content. It breaks items into lines when `wrap` is on, then shares out the free
+space of each line.
+
+Grow and shrink run the CSS loop. Items that hit their `min` or `max` freeze there, and the rest
+of the space goes round again until nothing changes. Shrinking is weighted by the basis, as in a
+browser, so a wide item gives up more than a narrow one.
+
+Then the cross axis. Lines are placed by `alignContent`, and items in a line by `alignItems` or
+their `alignSelf`. A stretched item gets the line's cross size and lays out its own children
+again at that size.
+
+## Measure content
+
+A leaf with content, such as text or a sprite, gets a `measure` function. It receives the space
+offered and returns the content size, without padding. Either argument is `Infinity` when that
+axis is free.
+
+```ts
+import { LayoutNode } from 'pixi-silk/layout';
+
+const charWidth = 9;
+const lineHeight = 20;
+const copy = 'Free spins start on three scatters';
+
+const text = new LayoutNode({}, (availableWidth) => {
+    const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
+    const lines = Math.ceil(copy.length / perLine);
+
+    return { width: Math.min(copy.length, perLine) * charWidth, height: lines * lineHeight };
+});
+
+new LayoutNode({ direction: 'column', width: 160 }).add(text).calculate();
+```
+
+In a 160-wide column the copy wraps at 17 characters a line, so the function returns 153 by 40.
+The column then stretches the node to its full width of 160. Return a
+`baseline` too, the distance from the top to the first baseline, and `alignItems: 'baseline'`
+lines up text in a row.
+
+## Incremental passes
+
+Changing a style, adding or removing a child, or calling `markDirty()` marks the node and its
+ancestors dirty. The next `calculate()` skips every clean subtree whose space did not change. A
+measured leaf caches its size per available space, so it is measured again only after
+`markDirty()`. Call it when the text or texture behind a leaf changes.
+
+## Differences from CSS
+
+The engine follows CSS where results differ in practice. A few things are simpler.
+
+| Topic | What the engine does |
+| --- | --- |
+| Minimum size | An item's default minimum is 0, not its content size. Set `minWidth` or `shrink: 0` to keep it from shrinking below its content |
+| Aspect ratio | A stretched cross size wins over `aspectRatio`, as in CSS. Set `alignSelf` to keep the ratio |
+| Baseline | A container's baseline is its first item's. Only measured leaves report one of their own |
+| Absolute items | Without anchors they sit where `justifyContent` and `alignItems` put them, not at their static position |
+| Not there | `order`, `overflow`, borders and `flex-basis: content` |
+
+The engine knows nothing about transforms. FlexContainer measures rotated children unrotated and
+gives them their slot as if they were not rotated.
