@@ -1,38 +1,50 @@
 ---
 title: Charts
-seoTitle: 'Smooth line and area charts in PixiJS'
-description: 'Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots.'
+seoTitle: 'Line and area charts in PixiJS with SilkGraphics'
+description: 'Build area and line charts with monotone smoothing that never overshoots, fading gradient fills, dashed guides, bars and dots in SilkGraphics.'
 keywords: ['PixiJS charts', 'area chart WebGL', 'smooth line chart', 'monotone interpolation', 'canvas charts']
-updated: 2026-09-26
-api: [SilkGraphics, monotoneX, vertical]
+updated: 2026-11-08
+api: [SilkGraphics, AreaOptions, monotoneX, vertical]
 ---
 
-<Demo name="area-chart" height={240} />
+pixi-silk has no chart component. It gives you the pieces a chart is drawn with: filled areas,
+smoothed series, dashed guides and bars. The experiments at the end of this page are complete chart
+widgets built from them.
 
-## Areas
+<Demo name="area-chart" height={240} caption="Turn smoothing and dots on and off." />
 
-```ts
-g.area(points, baseline, { smooth: 'monotone' });          // between a series and a y baseline
-g.area(upperPoints, lowerPoints);                           // band between two series
-```
-
-`area()` fills the region under a series (or between two) with vertical columns. The columns tile
-exactly and share edges without seams, so translucent fills stay uniform. The top and bottom edges
-get analytic anti-aliasing.
-
-Call `stroke()` right after to draw the series line on top:
+## Fill the area under a series
 
 ```ts
-const FILL = vertical([[0, 0x0a84ff, 0.55], [1, 0x0a84ff, 0]], { easing: 'smooth' });
+const FILL = vertical(
+    [
+        [0, 0x0a84ff, 0.55],
+        [1, 0x0a84ff, 0],
+    ],
+    { easing: 'smooth' },
+);
 
 g.area(points, 190, { smooth: 'monotone' }).fill(FILL).stroke({ width: 2.5, color: 0x0a84ff, cap: 'round' });
 ```
 
-## Smoothing that respects the data
+`area(points, lower)` fills the region between a series and a y baseline. Pass a second series as
+`lower` to fill the band between two series. The `stroke()` right after it draws the series line on
+top, from the same smoothed points.
+
+The area is split into vertical columns that share their edges exactly. A translucent fill stays
+even, with no seams between columns.
+
+| Option | Default | What it does |
+|---|---|---|
+| `smooth` | `false` | `'monotone'` draws a smooth curve through the points |
+| `step` | `2` | Sample spacing of the smoothed curve, in local units |
+
+## Smoothing that keeps the data
 
 `smooth: 'monotone'` never overshoots. It uses Steffen's method, like d3's `curveMonotoneX`. Peaks
-stay on the data points, and flat runs stay flat. Use `'catmull'` only for decorative curves. Silk
-exports the `monotoneX()` helper if you need the resampled points.
+stay on the data points and flat runs stay flat. `polyline()` also takes `smooth: 'catmull'`, which
+overshoots, so keep it for decorative curves. `monotoneX()` returns the resampled points if you need
+them for hit testing or labels.
 
 ## Guides, bars and dots
 
@@ -42,16 +54,31 @@ for (const [i, v] of values.entries()) g.roundRect(20 + i * 12, 190 - v, 8, v, 3
 for (const [x, y] of points) g.circle(x, y, 3.5).fill(0xffffff).stroke({ width: 2, color: 0x0a84ff });
 ```
 
-## One gradient across many shapes
+Guides are dashed lines, bars are rounded rects and dots are circles with a stroke. All of them go
+into the same `SilkGraphics` as the series.
 
-With `units: 'local'`, a gradient uses the graphics' coordinates instead of each shape's box. A row
-of bars then samples one continuous ramp:
+## One gradient across many bars
+
+By default a gradient fits each shape's box. With `units: 'local'` it uses the coordinates of the
+graphics instead, so a row of bars samples one continuous ramp:
 
 ```ts
-const HEAT = linear([[0, 0x30d158], [0.5, 0xffd60a], [1, 0xff453a]], { units: 'local', from: [0, 190], to: [0, 40] });
+const HEAT = linear(
+    [
+        [0, 0x30d158],
+        [0.5, 0xffd60a],
+        [1, 0xff453a],
+    ],
+    { units: 'local', from: [0, 190], to: [0, 40] },
+);
 
-for (const [i, v] of values.entries()) g.roundRect(x(i), 190 - v, 8, v, 3).fill(HEAT);
+for (const [i, v] of values.entries()) g.roundRect(20 + i * 12, 190 - v, 8, v, 3).fill(HEAT);
 ```
 
-The experiments at the end of this page are complete chart widgets built from these pieces: area charts, bar charts,
-sparklines, heart-rate pills, ranges and gauges.
+A tall bar then reaches the red end and a short one stays green. [Gradients](/docs/gradients/)
+covers the other gradient kinds and options.
+
+## Where it stops
+
+There are no axes, scales, tick generation or tooltips. Map your data to pixels yourself, or with a
+scale library such as d3-scale, and draw labels with [text](/docs/text/).

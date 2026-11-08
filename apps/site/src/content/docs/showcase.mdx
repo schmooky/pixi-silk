@@ -1,14 +1,55 @@
 ---
 title: Showcase
-seoTitle: 'Smooth PixiJS widgets, rebuilt pixel for pixel'
-description: 'Five design sheets, from Health cards to Live Activities, rebuilt pixel for pixel with smooth, anti-aliased pixi-silk graphics. 81 live widgets.'
-keywords: ['PixiJS widgets', 'canvas UI', 'design rebuild', 'anti-aliased widgets']
-updated: 2026-11-07
+seoTitle: 'PixiJS widget showcase: design sheets rebuilt 1:1'
+description: 'Five design sheets rebuilt pixel for pixel, three dashboard scenes and four light scenes, all drawn with pixi-silk. Open any of them in Studio.'
+keywords: ['PixiJS widgets', 'canvas UI examples', 'design rebuild', 'PixiJS dashboard', 'glow effects PixiJS']
+updated: 2026-11-08
+api: [SilkGraphics]
 ---
 import ShowcaseSheets from '@/components/ShowcaseSheets.astro';
 
+Whole screens built with pixi-silk. They are site code, not library code, so copy the parts you
+need. Each demo opens in Studio with its source.
+
+## Design sheets, rebuilt 1:1
+
 Each pair shows the reference image and a still frame of the live render. Open a sheet to drag a
-compare slider over it. The widget viewer and the single-widget experiments listed with this page
-open any widget full screen.
+compare slider over it. The widget viewer and the experiments listed at the end of this page open
+any single widget full screen.
 
 <ShowcaseSheets />
+
+## Dashboards
+
+<Demo name="weather-mono" height={720} caption="Switch the theme." />
+
+A weather board in two tones. It uses hairlines, discs and one monospace face. The needle, the
+compass and the sunrise arrow move on their own layer, so the rest is drawn once.
+
+<Demo name="finance-bento" height={720} caption="Hover a tile." />
+
+Each tile is a small container with its own drawing. Lift any one of them into your app as it is.
+
+<Demo name="spectra-hud" height={460} />
+
+The heatmap is about 700 cells in one `SilkGraphics`. It redraws at half the frame rate.
+
+## Light scenes
+
+These use `pixi-silk/glow` and `pixi-silk/glass`. [Glass and glow](/docs/glass-and-glow/) explains
+the pieces.
+
+<Demo name="glass-prism" height={440} caption="Drag to move the light. Change the spread and the frost." />
+
+<Demo name="glow-sunrise" height={440} />
+
+A red disc under a large blur, and a yellow shape whose blur fades out towards a crisp horizon.
+The fade is a progressive blur, covered in [shadows and effects](/docs/shadows-and-effects/).
+
+<Demo name="glow-beams" height={520} />
+
+The beam is a pinched path drawn three times with less blur each time. The wave is a white stroke
+with red, orange and blue copies a few pixels off. The bolt is one shape cut into strips, each
+moved sideways.
+
+<Demo name="glow-aurora" height={470} caption="Change how high the light rises and how fast it drifts." />
