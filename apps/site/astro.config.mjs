@@ -35,7 +35,7 @@ export default defineConfig({
                 { find: /^pixi-silk$/, replacement: resolve(repoRoot, 'packages/pixi-silk/src/index.ts') },
                 { find: /^pixi-silk\/signal$/, replacement: resolve(repoRoot, 'packages/pixi-silk/src/signal.ts') },
                 {
-                    find: /^pixi-silk\/(glass|glow)$/,
+                    find: /^pixi-silk\/(glass|glow|text)$/,
                     replacement: `${resolve(repoRoot, 'packages/pixi-silk/src')}/$1.ts`,
                 },
                 { find: /^pixi-silk\/ui$/, replacement: resolve(repoRoot, 'packages/pixi-silk/src/ui/index.ts') },

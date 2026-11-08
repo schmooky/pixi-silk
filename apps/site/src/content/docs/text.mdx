@@ -1,0 +1,133 @@
+---
+title: Sharp text
+seoTitle: 'Sharp SDF text at any zoom in PixiJS'
+description: 'SilkText draws labels and readouts from a runtime SDF glyph atlas. Text stays crisp from 0.5x to 100x zoom, with outlines, glows and tabular numbers.'
+keywords: ['PixiJS text', 'SDF text', 'signed distance field font', 'crisp text zoom', 'PixiJS Text blurry', 'text outline', 'tabular numbers']
+updated: 2026-11-08
+---
+
+<Demo name="sdf-text" height={320} caption="Both sides zoom from 1x to 100x around the same point. Text is a bitmap and blurs. SilkText stays sharp." />
+
+## Why text blurs
+
+PixiJS `Text` draws the string once into a canvas and shows it as a texture. Scale it up past its
+resolution and you see the pixels. That is fine for a HUD, but not for labels on an infinite
+canvas, where the reader zooms in to 300% and beyond.
+
+`SilkText` from `pixi-silk/text` stores each glyph as a **signed distance field** instead: for every
+texel, how far it is from the glyph's edge. The shader turns that distance into coverage for
+every screen pixel, the same way SilkGraphics draws its shapes. The edge is computed, not
+stretched, so it stays sharp at any zoom, rotation and device pixel ratio.
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const label = new SilkText({
+    text: 'Frame 1',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontSize: 13,
+    fontWeight: 600,
+    fill: 0xffffff,
+    anchor: 0.5,
+});
+
+app.stage.addChild(label);
+label.text = 'Frame 2'; // laid out again before the next frame
+```
+
+A text is one instanced draw call however long it is. Every text shares one atlas texture.
+
+## Styles
+
+<Demo name="sdf-text-styles" height={380} caption="Outline, glow and weight read the same distance field. The readout uses tabular numbers." />
+
+Outlines, glows and shadows are cheap with distance fields: they are the same field read at a
+different distance. No filters and no extra passes.
+
+```ts
+import { horizontal } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+
+const title = new SilkText({
+    text: 'BIG WIN',
+    fontSize: 48,
+    fontWeight: 900,
+    fill: horizontal(['#ffd60a', '#ff9f0a']),
+    outline: { width: 3, color: 0x3a1c00 },
+    shadow: { color: 0x000000, alpha: 0.6, blur: 6, offsetY: 4 },
+});
+const readout = new SilkText({ text: '72.4', fontSize: 32, tabularNumbers: true });
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `fontFamily`, `fontSize`, `fontWeight`, `fontStyle` | system UI font, 16, 400, normal | Any CSS font. Size is free, glyphs are baked once |
+| `fill` | white | A colour, or a linear, radial or conic gradient over the text box |
+| `letterSpacing`, `lineHeight` | 0, font | Spacing in local units. Line height 0 uses the font's own |
+| `align`, `wordWrap`, `wordWrapWidth`, `breakWords` | left, off, 100, off | Line layout, like PixiJS `Text` |
+| `anchor` | 0 | Point of the text box at the position |
+| `outline` | none | `{ width, color, alpha }`, outside the glyph edge |
+| `shadow` | none | `{ color, alpha, blur, offsetX, offsetY }`. Without an offset it is a glow |
+| `dilate` | 0 | Grows or thins the glyphs, in local units |
+| `tabularNumbers` | off | Digits share one width, so changing numbers do not jitter |
+| `kerning` | on | Pair kerning measured from Canvas |
+
+Change one field with its setter (`label.fontSize = 18`) or several with `label.set({ ... })`.
+Width, height, bounds and hit tests use the text box, as with PixiJS `Text`.
+
+Outlines and glows can reach about a quarter of the font size. Past that, the distance field
+runs out and the effect is clamped. For a wider halo, put a blurred SilkGraphics shape behind the text.
+
+## Small sizes
+
+At 11 to 13 px a texel of the atlas is smaller than a screen pixel. SilkText then averages four
+samples per pixel instead of one, so thin strokes do not flicker or break up. The bottom left of the
+demo above shows PixiJS `Text` and SilkText at 11, 12 and 13 px.
+
+Weight and width match PixiJS `Text`, because the glyphs come from the same Canvas font and the
+layout from the same `measureText`. Canvas text can be hinted to the pixel grid on some platforms,
+so at 1x its stems can look a touch crisper. From 2x, and whenever the camera zooms, SilkText is the
+sharper of the two.
+
+## Widgets
+
+`ValuePill` from `pixi-silk/ui/pill` takes a `label` option: a function that builds its text. Pass
+`silkLabel()` for pills that sit under a zooming camera. The widget never imports SilkText on
+its own, so apps that do not use it do not ship it.
+
+```ts
+import { silkLabel } from 'pixi-silk/text';
+import { ValuePill } from 'pixi-silk/ui/pill';
+
+const pill = new ValuePill({ label: silkLabel({ tabularNumbers: true }) });
+
+pill.show('42 px');
+```
+
+## Fonts and the atlas
+
+Glyphs are drawn with Canvas2D at 48 px the first time they appear, then turned into a distance
+field. The atlas is one 8-bit texture, 1024 texels wide, that doubles in height up to 4096 as glyphs
+arrive. When it is full it starts over, and every text bakes what it needs again.
+
+Load web fonts before the first text uses them, for example with `document.fonts.load('600 16px Inter')`.
+Glyphs baked while a font was still loading are baked again once it is ready.
+
+For a different trade-off, make your own atlas and pass it to the texts that should use it:
+
+```ts
+import { SdfAtlas, SilkText } from 'pixi-silk/text';
+
+const big = new SdfAtlas({ size: 64, radius: 24 }); // sharper corners when zoomed far in, longer glows
+const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
+```
+
+## Limits
+
+- **Corners** round off slightly at extreme zoom. A single-channel distance field cannot hold a
+  sharp corner. At 48 px the rounding is about a fiftieth of the font size.
+- **Emoji and colour fonts** come out as one-colour silhouettes. Use PixiJS `Text` for them.
+- **Shaping**: no ligatures, no right-to-left text and no combining marks. Each code point is one glyph.
+  Latin, Greek and Cyrillic UI text works. Arabic and Indic scripts need PixiJS `Text`.
+- **Kerning** is per pair, measured with `measureText`. It matches Canvas for Latin text.
+- **Renderers**: WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.

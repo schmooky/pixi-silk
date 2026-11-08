@@ -80,14 +80,16 @@ export const DOCS_AREAS = [
     {
         id: 'ui',
         title: 'UI widgets',
-        summary: 'Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
+        summary: 'Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
         intro: [
             'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
+            'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera.',
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
             'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
         ],
         items: [
             { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
+            'text',
             'hit-testing',
             { page: 'animation', lab: ['23-timers'] },
             'radial-menus-and-buttons',
