@@ -301,8 +301,20 @@ export default defineDemo({
         });
 
         selection.pick(cards.children[0] as Container);
-        camera.fit({ x: -60, y: -40, width: 980, height: 700 }, 0, false);
-        camera.centerOn({ x: 430, y: 300 }, camera.zoom * 0.62, false);
+        // frame the artboards in the space the panels leave free, again when the canvas gets its size
+        const frame = () => {
+            camera.fit(world, { left: 248 + 32, right: 272 + 32, top: 32, bottom: 32 }, false);
+            ui?.minimap.refresh();
+        };
+        let framed = camera.state.width.value > 0;
+        const stopFrame = camera.state.width.subscribe((w) => {
+            if (framed || w <= 0) return;
+            framed = true;
+            frame();
+        });
+
+        stops.push(stopFrame);
+        frame();
 
         return () => {
             for (const stop of stops) stop();

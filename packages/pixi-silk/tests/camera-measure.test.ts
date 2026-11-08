@@ -71,6 +71,47 @@ describe('camera', () => {
         expect(camera.zoom).toBeGreaterThan(1);
     });
 
+    it('leaves plain scrolls to the page until the canvas is clicked', () => {
+        const world = new Container();
+        const element = fakeElement();
+        const camera = new Camera({ world, element, ticker: null, pageScroll: true });
+        const wheel = (props: Record<string, unknown>) => {
+            const e = event('wheel', { deltaX: 0, deltaY: 30, deltaMode: 0, clientX: 0, clientY: 0, ...props });
+
+            element.dispatchEvent(e);
+
+            return e.defaultPrevented;
+        };
+
+        expect(wheel({})).toBe(false);
+        expect(world.position.y).toBe(0);
+        // pinch and ctrl + wheel zoom at once
+        expect(wheel({ ctrlKey: true, deltaY: -10 })).toBe(true);
+        window.dispatchEvent(
+            event('pointerdown', {
+                pointerId: 1,
+                pointerType: 'mouse',
+                button: 0,
+                clientX: 5,
+                clientY: 5,
+                target: element,
+            }),
+        );
+        expect(wheel({})).toBe(true);
+        element.dispatchEvent(event('pointerleave', {}));
+        expect(wheel({})).toBe(false);
+        camera.destroy();
+    });
+
+    it('fits a rectangle into the space panels leave free', () => {
+        const { camera } = make();
+
+        camera.fit({ x: 0, y: 0, width: 100, height: 100 }, { left: 200, right: 0, top: 0, bottom: 0 }, false);
+        // 600 x 600 free on the right of the panel: the box is centred there
+        expect(camera.zoom).toBeCloseTo(6, 6);
+        expect(camera.worldToScreen({ x: 50, y: 50 })).toEqual({ x: 500, y: 300 });
+    });
+
     it('fits a rectangle with padding and clamps to the zoom range', () => {
         const { camera } = make();
 

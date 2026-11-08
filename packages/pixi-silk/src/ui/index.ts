@@ -73,6 +73,7 @@ export { ButtonDock, type ButtonDockOptions } from './ButtonDock';
 export { BrushCursor, type BrushCursorOptions, type BrushState } from './brush';
 export {
     Camera,
+    type CameraInsets,
     type CameraOptions,
     type CameraState,
     type WorldRect,

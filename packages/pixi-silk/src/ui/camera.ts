@@ -13,6 +13,14 @@ export interface WorldRect {
     height: number;
 }
 
+/** Space to keep free on each side of the view, in element pixels. */
+export interface CameraInsets {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+}
+
 /** Options of {@link Camera}. */
 export interface CameraOptions {
     /** The container the camera moves and scales. Put overlays (outlines, measures) beside it, not inside. */
@@ -39,6 +47,13 @@ export interface CameraOptions {
      * {@link Camera.content}. Default true.
      */
     keys?: boolean;
+    /**
+     * Who gets a plain scroll while the canvas sits in a page that scrolls. With `auto` (default) or
+     * `true` the page keeps scrolling until the canvas is clicked, then the camera pans until the
+     * pointer leaves. Pinch and ctrl / cmd + wheel always zoom. `auto` only applies when the page
+     * can scroll, so a full-screen canvas pans at once. `false` always pans.
+     */
+    pageScroll?: boolean | 'auto';
     /** How fast animated zooms settle, about 1 / seconds. Default 16. */
     smoothing?: number;
     /**
@@ -225,16 +240,30 @@ export class Camera {
         return this._go(animate, true);
     }
 
-    /** Frames a world rectangle or a container (default {@link Camera.content}) with `padding` pixels around it. */
-    fit(target: WorldRect | Container = this.content, padding = 48, animate = true): this {
+    /**
+     * Frames a world rectangle or a container (default {@link Camera.content}) with `padding`
+     * pixels around it. Padding per side (`{ left: 260 }`) keeps the content clear of docked panels.
+     */
+    fit(target: WorldRect | Container = this.content, padding: number | CameraInsets = 48, animate = true): this {
         const r = 'width' in target && 'x' in target && !('children' in target) ? target : this._boundsOf(target);
-        const w = Math.max(1, this._el.clientWidth - padding * 2);
-        const h = Math.max(1, this._el.clientHeight - padding * 2);
+        const p =
+            typeof padding === 'number' ? { top: padding, right: padding, bottom: padding, left: padding } : padding;
+        const left = p.left ?? 0;
+        const top = p.top ?? 0;
+        const w = Math.max(1, this._el.clientWidth - left - (p.right ?? 0));
+        const h = Math.max(1, this._el.clientHeight - top - (p.bottom ?? 0));
+        const k = r.width > 0 && r.height > 0 ? this._clamp(Math.min(w / r.width, h / r.height)) : this._k;
+        const cx = left + w / 2;
+        const cy = top + h / 2;
 
-        if (r.width <= 0 || r.height <= 0) return this.centerOn({ x: r.x, y: r.y }, this._k, animate);
-        const k = Math.min(w / r.width, h / r.height);
+        // the middle of the free area, not of the element, shows the middle of the target
+        this._k = k;
+        this._tx = cx - (r.x + r.width / 2) * k;
+        this._ty = cy - (r.y + r.height / 2) * k;
+        this._fx = cx;
+        this._fy = cy;
 
-        return this.centerOn({ x: r.x + r.width / 2, y: r.y + r.height / 2 }, k, animate);
+        return this._go(animate, true);
     }
 
     /** Back to 100% with the world's origin at the top left. */
@@ -399,6 +428,7 @@ export class Camera {
             el,
             'wheel',
             (e) => {
+                if (!this._engaged && !e.ctrlKey && !e.metaKey && this._pageScrolls()) return;
                 e.preventDefault();
                 const p = this._local(e);
 
@@ -425,6 +455,7 @@ export class Camera {
             window,
             'pointerdown',
             (e) => {
+                this._engaged = inside(e);
                 if (!inside(e) || o.ignore?.(this._local(e))) return;
                 if (e.pointerType === 'touch') {
                     this._touches.set(e.pointerId, this._local(e));
@@ -499,6 +530,9 @@ export class Camera {
 
         on(window, 'pointerup', up, { capture: true });
         on(window, 'pointercancel', up, { capture: true });
+        on(el, 'pointerleave', () => {
+            this._engaged = false;
+        });
         on(el, 'contextmenu', (e) => {
             if (panButtons.includes(2)) e.preventDefault();
         });
@@ -556,6 +590,18 @@ export class Camera {
     }
 
     private _lastMove = 0;
+    /** The pointer clicked the canvas and has not left it since: plain scrolls pan. */
+    private _engaged = false;
+
+    private _pageScrolls(): boolean {
+        const mode = this._opts.pageScroll ?? 'auto';
+
+        if (mode === false) return false;
+        if (mode === true) return true;
+        const doc = typeof document === 'undefined' ? null : document.scrollingElement;
+
+        return !!doc && doc.scrollHeight > doc.clientHeight + 1;
+    }
 
     private _release(): void {
         // a pause before letting go means no fling
