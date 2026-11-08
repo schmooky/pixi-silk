@@ -263,7 +263,7 @@ export interface BindMeasureOptions {
  */
 export function bindMeasure<T>(
     selection: Selection<T>,
-    measure: MeasureLike<T>,
+    measure: MeasureLike<NoInfer<T>>,
     options: BindMeasureOptions = {},
 ): { sync: () => void; stop: () => void } {
     const sync = () => {

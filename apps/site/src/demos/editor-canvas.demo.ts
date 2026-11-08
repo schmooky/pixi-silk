@@ -43,7 +43,7 @@ export default defineDemo({
         app.stage.on('pointerdown', (e) => e.target === app.stage && !e.shiftKey && selection.clear());
 
         const redlines = () => params.redlines === 'on hover' || altDown();
-        const measured = bindMeasure<Container>(selection, measure, { between: redlines });
+        const measured = bindMeasure(selection, measure, { between: redlines });
         // while measuring, the hovered layer gets the red outline instead of the blue one
         const syncHover = () => {
             const over = selection.state.hovered.value;
