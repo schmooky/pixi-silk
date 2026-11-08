@@ -1,141 +1,144 @@
 ---
-import { Picture } from 'astro:assets';
+import { Code } from 'astro:components';
 import CopyCommand from '@/components/CopyCommand.astro';
-import Demo from '@/components/Demo.astro';
-import FeatureGrid from '@/components/FeatureGrid.astro';
 import HeroCanvas from '@/components/react/HeroCanvas';
-import { FAQ } from '@/content/faq.mjs';
+import { areaThumb, docsSections, pageThumb, siteThumb } from '@/components/sections';
+import ThumbCard from '@/components/ThumbCard.astro';
 import Base from '@/layouts/Base.astro';
 import { breadcrumbLd, softwareApplicationLd, softwareLd, webSiteLd } from '@/lib/seo';
-import { SHEETS } from '@/lib/showcase';
 import { SITE } from '@/lib/site';
+import { SILK_VERSION } from '@/lib/version';
 
-const live = SHEETS.find((s) => s.n === 4)!;
+const sections = await docsSections();
+const learn = sections.find((s) => s.id === 'learn');
+const features = sections.find((s) => s.id === 'features');
+const examples = sections.find((s) => s.id === 'examples');
+const start = learn?.areas[0]?.pages[0]?.href ?? learn?.href ?? '/docs/';
+const examplePages = (examples?.areas ?? []).flatMap((a) => a.pages);
 
-const facts = [
-    ['1', 'draw call per SilkGraphics'],
-    ['1:1', 'canvas to device pixels'],
-    ['16-bit', 'dithered gradient ramps'],
-    ['0', 'MSAA, filters or extra passes'],
+const code = `import { createSilkApp, SilkGraphics, conic } from 'pixi-silk';
+
+const stage = document.getElementById('stage')!;
+const { app } = await createSilkApp({ parent: stage });
+const gauge = conic([0x30d158, 0xffd60a, 0xff453a]);
+const g = new SilkGraphics();
+
+// a squircle card, and a ring whose gradient follows the arc
+g.roundRect(10, 10, 340, 140, 22, 0.6).fill(0x1c1c1e);
+g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 1.5)
+    .stroke({ width: 12, cap: 'round', gradient: gauge });
+
+app.stage.addChild(g);`;
+
+const points = [
+    ['Reads like Graphics', 'Add shapes to the path, then fill or stroke them. Calls chain.'],
+    ['Edges from distance', 'Coverage comes from the exact distance to the shape, per pixel.'],
+    ['Paint on any shape', 'Gradients in OKLab, blur, glows and inner shadows on fills and strokes.'],
+    ['UI on top', 'Text, layout, widgets and editor tools ship as separate entry points.'],
 ];
+const arrow = 'M5 12h14M13 6l6 6-6 6';
 ---
 
 <Base title={`${SITE.name}: smooth, anti-aliased graphics for PixiJS v8`} description={SITE.description} path="/" jsonLd={[webSiteLd(), softwareApplicationLd(), softwareLd(), breadcrumbLd([{ name: SITE.name, url: '/' }])]}>
-    <section class="relative overflow-hidden border-b">
-        <div class="grid-bg pointer-events-none absolute inset-0"></div>
-        <div class="container-page relative py-16 sm:py-24" data-pagefind-body data-pagefind-filter="section:Home">
-            <h1 class="max-w-4xl text-5xl font-semibold tracking-tight sm:text-6xl">
-                Smooth, anti-aliased graphics<br class="hidden sm:block" /> for PixiJS v8, <span class="silk-text whitespace-nowrap">smooth as silk.</span>
+    <section class="relative overflow-hidden border-b" data-pagefind-body data-pagefind-filter="section:Home">
+        <div class="grid-bg pointer-events-none absolute inset-0 opacity-70"></div>
+        <div class="container-page relative pb-14 pt-16 sm:pb-20 sm:pt-24">
+            <div class="eyebrow">Version {SILK_VERSION} for PixiJS v8</div>
+            <h1 class="display-1 mt-5 max-w-[15ch] sm:max-w-none">
+                Anti-aliased graphics<br class="hidden sm:block" /> for PixiJS v8, <span class="silk-text">smooth as silk.</span>
             </h1>
-            <p class="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-                <strong class="text-foreground">pixi-silk</strong> draws each PixiJS shape as an exact signed distance field.
-                Every edge is anti-aliased per pixel, so it stays smooth at any zoom, rotation and pixel ratio.
-                You don't need MSAA or extra triangles, and each object is one draw call.
-                Gradients mix in OKLab, so they don't band, and any shape can glow.
+            <p class="lead mt-6 max-w-2xl">
+                pixi-silk draws PixiJS shapes as exact distance fields, so every edge is anti-aliased per pixel at any zoom.
+                You use it like Graphics, with gradients, glows, text and UI widgets on top.
             </p>
-            <div class="mt-8 flex flex-wrap items-center gap-3">
-                <a href="/docs/quick-start/" class="rounded-lg bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90">Get started</a>
-                <a href="/docs/examples/" class="rounded-lg border px-5 py-2.5 text-sm font-semibold hover:bg-accent">See the examples</a>
+            <div class="mt-9 flex flex-wrap items-center gap-3">
+                <a href={start} class="btn btn-primary">
+                    Get started
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                </a>
+                {examples && <a href={examples.href} class="btn btn-outline">See the examples</a>}
                 <CopyCommand command="npm i pixi-silk pixi.js" />
             </div>
         </div>
-        <div class="container-page relative pb-16">
-            <div class="h-[280px] overflow-hidden rounded-2xl border bg-[#070708] max-[900px]:h-[380px]">
+        <div class="container-page relative pb-16 sm:pb-20">
+            <div class="h-[300px] overflow-hidden rounded-2xl border bg-[#070708] shadow-[0_30px_80px_-40px_rgba(124,58,237,0.45)] max-[900px]:h-[400px]">
                 <HeroCanvas client:idle />
             </div>
         </div>
     </section>
 
-    <section class="container-page grid gap-10 pt-14 lg:grid-cols-[1.1fr_1fr]" data-pagefind-body data-pagefind-filter="section:Home">
-        <div>
-            <h2 class="text-3xl font-semibold tracking-tight">What is pixi-silk?</h2>
-            <p class="mt-4 leading-relaxed text-muted-foreground">
-                pixi-silk is an open-source TypeScript library that adds <strong class="text-foreground">smooth, anti-aliased vector graphics</strong>
-                to PixiJS v8. Its <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">SilkGraphics</code> object has the same
-                shape, fill and stroke API as Pixi's Graphics. It does not cut shapes into triangles. For every pixel, it computes the exact
-                signed distance to the shape and turns it into coverage over one device pixel. This is
-                <a class="underline underline-offset-4" href="/docs/antialiasing-in-pixijs/">analytic anti-aliasing</a>. It is exact at any scale,
-                in filters and render textures, and on retina screens with fractional pixel ratios.
-            </p>
-        </div>
-        <ul class="grid gap-2 self-center text-sm text-muted-foreground">
-            <li><a class="underline underline-offset-4 hover:text-foreground" href="/docs/antialiasing-in-pixijs/">Anti-aliasing in PixiJS v8: MSAA vs SDF</a></li>
-            <li><a class="underline underline-offset-4 hover:text-foreground" href="/docs/smooth-graphics-pixijs/">Fix jagged, blurry or flickering PixiJS graphics</a></li>
-            <li><a class="underline underline-offset-4 hover:text-foreground" href="/docs/graphics-smooth-v8/">@pixi/graphics-smooth and PixiJS v8</a></li>
-            <li><a class="underline underline-offset-4 hover:text-foreground" href="/docs/how-it-works/">How SDF anti-aliasing works</a></li>
-            <li><a class="underline underline-offset-4 hover:text-foreground" href="/docs/glossary/">Glossary: MSAA, SDF, DPR, squircle, OKLab</a></li>
-        </ul>
-    </section>
-
-    <section class="container-page py-14">
-        <dl class="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {facts.map(([value, label]) => (
-                <div>
-                    <dt class="sr-only">{label}</dt>
-                    <dd class="text-3xl font-semibold tracking-tight">{value}</dd>
-                    <dd class="mt-1 text-sm text-muted-foreground">{label}</dd>
+    {features && (
+        <section class="border-b">
+            <div class="container-page py-20 sm:py-24">
+                <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+                    <div>
+                        <div class="eyebrow">{features.title}</div>
+                        <h2 class="display-2 mt-3 max-w-2xl">What you can draw with it.</h2>
+                    </div>
+                    <p class="max-w-sm text-muted-foreground">{features.summary} Each page opens on live demos with their source.</p>
                 </div>
-            ))}
-        </dl>
-    </section>
+                <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {features.areas.map((a) => (
+                        <ThumbCard size="lg" href={a.href} title={a.title} description={a.summary} thumb={areaThumb(a)} badge={a.experimental ? 'Experimental' : undefined} />
+                    ))}
+                    <a href={features.href} class="card-link group flex min-h-40 flex-col justify-between p-6">
+                        <div class="eyebrow">All features</div>
+                        <div>
+                            <div class="heading-4">{features.areas.reduce((n, a) => n + a.pages.length, 0)} pages, one per feature</div>
+                            <span class="link-arrow mt-3">
+                                Browse them
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                            </span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+    )}
 
-    <section class="container-page grid items-start gap-10 py-10 lg:grid-cols-2">
-        <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Graphics-like API, per-pixel precision</h2>
-            <p class="mt-4 leading-relaxed text-muted-foreground">
-                <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">SilkGraphics</code> reads like Pixi's
-                <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">Graphics</code>: add shapes to the path, then fill or stroke them.
-                Each primitive is one instanced quad. Its fragment shader computes the exact distance to the shape for every pixel.
-            </p>
-            <ul class="mt-5 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-                <li>Works for UI, charts, icons and widgets</li>
-                <li>Clearing and redrawing every frame is cheap</li>
-                <li>Every guide has live demos with their source</li>
-            </ul>
-            <a href="/docs/introduction/" class="mt-6 inline-block text-sm font-semibold underline underline-offset-4">Read the introduction</a>
+    <section class="border-b" data-pagefind-body data-pagefind-filter="section:Home">
+        <div class="container-page grid items-center gap-12 py-20 sm:py-24 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <div>
+                <div class="eyebrow">API</div>
+                <h2 class="display-2 mt-3">One object draws the scene.</h2>
+                <dl class="mt-8 divide-y border-y">
+                    {points.map(([term, text]) => (
+                        <div class="py-3.5">
+                            <dt class="inline font-semibold">{term}.</dt>
+                            <dd class="inline text-muted-foreground"> {text}</dd>
+                        </div>
+                    ))}
+                </dl>
+                <a href={start} class="btn btn-outline mt-8">Draw your first scene</a>
+            </div>
+            <div class="min-w-0 overflow-hidden rounded-xl border border-[hsl(var(--code-border))] bg-[hsl(var(--code-bg))]">
+                <div class="flex items-center gap-2 border-b border-[hsl(var(--code-border))] px-4 py-2.5 font-mono text-xs text-white/55">
+                    <span class="h-2.5 w-2.5 rounded-full bg-white/15"></span>
+                    first-scene.ts
+                </div>
+                <Code code={code} lang="ts" theme="github-dark-dimmed" class="home-code overflow-x-auto px-5 py-4 text-[13px] leading-[1.7]" />
+            </div>
         </div>
-        <Demo name="quick-start" height={220} />
     </section>
 
-    <section class="container-page py-14">
-        <h2 class="mb-6 text-3xl font-semibold tracking-tight">Everything is smooth</h2>
-        <FeatureGrid />
-    </section>
-
-    <section class="container-page grid items-start gap-10 py-10 lg:grid-cols-2">
-        <Demo name="versus" height={260} />
-        <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Why v8 stopped looking smooth</h2>
-            <p class="mt-4 leading-relaxed text-muted-foreground">
-                PixiJS v8 turns <code class="font-mono text-sm">Graphics</code> into triangles once, when you draw. Scale it up and curves show facets.
-                Thin lines crawl between pixel rows. Anti-aliasing is MSAA on the main canvas only: filters and render textures stay aliased
-                unless you opt each one in, and filters render at resolution 1. Silk computes coverage per pixel, so none of this applies.
-            </p>
-            <a href="/docs/how-it-works/" class="mt-6 inline-block text-sm font-semibold underline underline-offset-4">How it works</a>
-        </div>
-    </section>
-
-    <section class="container-page py-14">
-        <div class="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 class="text-3xl font-semibold tracking-tight">Rebuilt pixel for pixel</h2>
-            <a href="/docs/showcase/" class="text-sm text-muted-foreground hover:text-foreground">All five sheets</a>
-        </div>
-        <p class="mt-3 max-w-3xl text-muted-foreground">Five design reference sheets and 81 widgets, measured against the originals. Left is the reference, right is the live render.</p>
-        <a href="/docs/showcase/" class="mt-6 block overflow-hidden rounded-xl border">
-            <Picture src={live.image} alt={live.alt} formats={['avif', 'webp']} widths={[800, 1200, 1600]} sizes="(min-width: 1240px) 1192px, 100vw" loading="lazy" class="h-auto w-full" />
-        </a>
-    </section>
-
-    <section class="container-page max-w-3xl py-14">
-        <h2 class="text-3xl font-semibold tracking-tight">Questions</h2>
-        <div class="mt-6 divide-y border-y">
-            {FAQ.slice(0, 5).map((item) => (
-                <details class="group py-4">
-                    <summary class="cursor-pointer list-none font-medium">{item.q}</summary>
-                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a.replace(/`/g, '')}</p>
-                </details>
-            ))}
-        </div>
-        <a href="/faq/" class="mt-6 inline-block text-sm font-semibold underline underline-offset-4">All questions</a>
-    </section>
+    {examples && examplePages.length > 0 && (
+        <section>
+            <div class="container-page py-20 sm:py-24">
+                <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+                    <div>
+                        <div class="eyebrow">{examples.title}</div>
+                        <h2 class="display-2 mt-3 max-w-2xl">Whole screens, with the source.</h2>
+                    </div>
+                    <a href={examples.href} class="link-arrow">
+                        All examples
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={arrow} /></svg>
+                    </a>
+                </div>
+                <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    {examplePages.slice(0, 3).map((p) => <ThumbCard href={p.href} title={p.title} description={p.description} thumb={pageThumb(p)} />)}
+                    <ThumbCard href="/studio/" title="Studio" description="Every demo as code next to its canvas. Edit the source and it runs again." thumb={siteThumb('studio')} />
+                </div>
+            </div>
+        </section>
+    )}
 </Base>
