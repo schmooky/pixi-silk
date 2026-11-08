@@ -70,7 +70,7 @@ const programs = [
 programs.push({
     ...programs[0],
     name: 'canary',
-    source: programs[0].source.replace('let p = input.vPos;', 'let p: vec2<f32> = input.vProg;'),
+    source: programs[0].source.replace('var p = input.vPos;', 'var p: vec2<f32> = input.vProg;'),
 });
 
 const server = createServer((_, res) => res.end('<!doctype html><title>wgsl</title>'));

@@ -77,7 +77,7 @@ describe('WGSL port of the uber program', () => {
 
         expect(fields.sort()).toEqual(outs);
         // flat in GLSL, flat in WGSL
-        const flat = [...strip(vertex).matchAll(/flat out vec4 (\w+);/g)].map((m) => m[1]).sort();
+        const flat = [...strip(vertex).matchAll(/flat out (?:float|vec\d) (\w+);/g)].map((m) => m[1]).sort();
 
         expect([...vsOut.matchAll(/@interpolate\(flat\) (\w+):/g)].map((m) => m[1]).sort()).toEqual(flat);
     });
@@ -92,13 +92,18 @@ describe('WGSL port of the uber program', () => {
             '2/0 silkUniforms',
             '2/1 uGradients',
             '2/2 uPolys',
+            '2/3 uBatch',
         ]);
         expect(program.autoAssignGlobalUniforms).toBe(true);
         expect(program.autoAssignLocalUniforms).toBe(true);
         // RGBA32F is not filterable on WebGPU without an optional feature
         const textures = program.gpuLayout[2].filter((e) => e.texture);
 
-        expect(textures.map((e) => e.texture?.sampleType)).toEqual(['unfilterable-float', 'unfilterable-float']);
+        expect(textures.map((e) => e.texture?.sampleType)).toEqual([
+            'unfilterable-float',
+            'unfilterable-float',
+            'unfilterable-float',
+        ]);
         // the uniform names match the GLSL ones
         for (const name of [...strip(glsl).matchAll(/uniform (?:mat3|vec\d) (\w+);/g)].map((m) => m[1])) {
             expect(wgsl).toMatch(new RegExp(`\\b${name}: `));
@@ -150,7 +155,7 @@ describe('WebGPU installation', () => {
         expect(shader.glProgram).toBe(before.glProgram);
         // no resource falls into Pixi's catch-all group 99: all of them have a WGSL binding
         expect(Object.keys(shader.groups)).toEqual(['2']);
-        expect(Object.keys(shader.groups[2].resources)).toEqual(['0', '1', '2']);
+        expect(Object.keys(shader.groups[2].resources)).toEqual(['0', '1', '2', '3']);
 
         // a SilkGraphics made now carries both programs and still finds its uniforms
         const g = new SilkGraphics().circle(0, 0, 10).fill(0xffffff);

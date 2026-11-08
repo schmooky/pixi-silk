@@ -7,12 +7,16 @@ import { GpuProgram } from 'pixi.js';
  * Bindings (Pixi's mesh layout):
  *   group 0  globalUniforms  (set by the renderer)
  *   group 1  localUniforms   (set by the mesh pipe)
- *   group 2  silkUniforms, uGradients, uPolys (the SilkGraphics' own resources)
+ *   group 2  silkUniforms, uGradients, uPolys, uBatch (the SilkGraphics' own resources)
  *
  * Differences from GLSL that are forced by WGSL:
  *   - GLSL `mod` floors, WGSL `%` truncates: `fmod` below is the GLSL one.
  *   - helpers cannot read stage inputs, so the fragment entry copies them to private globals.
  *   - derivatives need uniform control flow, so dpdx / dpdy run first, before any branch.
+ *   - the framebuffer y axis points down (gl_FragCoord's points up): dither and the local
+ *     position rebuilt from @builtin(position) account for it.
+ *   - Pixi batches SilkGraphics only on WebGL, so here aFx.w is always 0. The object table is
+ *     still bound and read the same way, so both programs take the same resources.
  *   - the gradient ramp is read with textureLoad and blended by hand (the same bilinear tap as
  *     textureLod on the linear atlas), so the program needs no sampler.
  */
@@ -41,6 +45,8 @@ struct SilkUniforms {
 @group(2) @binding(0) var<uniform> silkUniforms: SilkUniforms;
 @group(2) @binding(1) var uGradients: texture_2d<f32>;
 @group(2) @binding(2) var uPolys: texture_2d<f32>;
+// batched draws: 3 texels per object (a, b, c, d), (tx, ty, path texel base, 0), premultiplied tint
+@group(2) @binding(3) var uBatch: texture_2d<f32>;
 
 struct VSOut {
     @builtin(position) position: vec4<f32>,
@@ -56,7 +62,10 @@ struct VSOut {
     @location(9) @interpolate(flat) vDash: vec4<f32>,
     @location(10) @interpolate(flat) vFx: vec4<f32>,
     @location(11) @interpolate(flat) vTint: vec4<f32>,
-    @location(12) vProg: f32,
+    @location(12) @interpolate(flat) vBase: f32,
+    @location(13) @interpolate(flat) vInv: vec4<f32>, // inverse of the local -> clip map: 2x2 part
+    @location(14) @interpolate(flat) vInvT: vec2<f32>, // and its translation
+    @location(15) vProg: f32,
 }
 
 const PI: f32 = 3.14159265358979;
@@ -77,7 +86,20 @@ fn mainVertex(
     @location(10) aDash: vec4<f32>,
     @location(11) aFx: vec4<f32>,
 ) -> VSOut {
-    let m = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
+    var obj = localUniforms.uTransformMatrix;
+    var tint = localUniforms.uColor;
+    var base = 0.0;
+    let idx = i32(aFx.w + 0.5) - 1;
+    if (idx >= 0) {
+        let bw = i32(textureDimensions(uBatch, 0).x);
+        let t = idx * 3;
+        let r0 = textureLoad(uBatch, vec2<i32>(t % bw, t / bw), 0);
+        let r1 = textureLoad(uBatch, vec2<i32>((t + 1) % bw, (t + 1) / bw), 0);
+        tint = textureLoad(uBatch, vec2<i32>((t + 2) % bw, (t + 2) / bw), 0);
+        obj = mat3x3<f32>(r0.x, r0.y, 0.0, r0.z, r0.w, 0.0, r1.x, r1.y, 1.0);
+        base = r1.z;
+    }
+    let m = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * obj;
     let uSilk = silkUniforms.uSilk;
 
     // Jacobian local -> device pixels; its smallest singular value tells how many
@@ -89,7 +111,7 @@ fn mainVertex(
     let det = abs(jx.x * jy.y - jx.y * jy.x);
     let smin = sqrt(max(0.5 * (a2 - sqrt(max(a2 * a2 - 4.0 * det * det, 0.0))), 1e-12));
     let lpx = 1.0 / smin;
-    let pad = (0.5 * uSilk.y + 1.0) * lpx;
+    var pad = (0.5 * uSilk.y + 1.0) * lpx;
 
     let prim = i32(aMeta.x + 0.5);
     let flags = i32(aMeta.y + 0.5);
@@ -110,6 +132,10 @@ fn mainVertex(
 
         pos = select(b + dir * ext, a - dir * ext, aCorner.x < 0.5) + nrm * select(ext, -ext, aCorner.y < 0.5);
     } else {
+        // stroked paths: hairlines are drawn wider than their bounds say
+        if (prim == 10) {
+            pad += 0.5 * lpx * uSilk.z;
+        }
         var pl = pad;
         var pr = pad;
 
@@ -127,6 +153,13 @@ fn mainVertex(
     var out: VSOut;
 
     out.vPos = pos;
+    out.vBase = base;
+    // Every instance of an object computes the same inverse, so the local position rebuilt from
+    // @builtin(position) is bit-identical across instances (an interpolated vPos is not).
+    let idet = 1.0 / (m[0].x * m[1].y - m[1].x * m[0].y);
+    let ai = mat2x2<f32>(m[1].y, -m[0].y, -m[1].x, m[0].x) * idet;
+    out.vInv = vec4<f32>(ai[0], ai[1]);
+    out.vInvT = -(ai * m[2].xy);
     out.position = vec4<f32>((m * vec3<f32>(pos, 1.0)).xy, 0.0, 1.0);
 
     // progressive blur: 0 at the shape's start edge along the angle, 1 at its far edge
@@ -150,7 +183,7 @@ fn mainVertex(
     out.vPaint = aPaint;
     out.vDash = aDash;
     out.vFx = aFx;
-    out.vTint = localUniforms.uColor * globalUniforms.uWorldColorAlpha;
+    out.vTint = tint * globalUniforms.uWorldColorAlpha;
 
     return out;
 }
@@ -175,6 +208,13 @@ var<private> gU: f32;
 var<private> gL: f32;
 var<private> gHwEff: f32;
 var<private> gAlign: f32;
+var<private> gBase: i32; // first path texel of this object in uPolys (non-zero in batched draws)
+
+fn polyTexel(i0: i32) -> vec4<f32> {
+    let w = i32(textureDimensions(uPolys, 0).x);
+    let i = i0 + gBase;
+    return textureLoad(uPolys, vec2<i32>(i % w, i / w), 0);
+}
 
 // GLSL mod: x - y * floor(x / y)
 fn fmod(x: f32, y: f32) -> f32 {
@@ -294,12 +334,10 @@ fn sdTriangle(p: vec2<f32>, p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>) -> f32 
 // Filled path: exact distance to the nearest edge, sign from even-odd crossings.
 // Edges are texels (ax, ay, bx, by) of uPolys, starting at texel 'start'.
 fn sdPoly(p: vec2<f32>, start: i32, n: i32) -> f32 {
-    let w = i32(textureDimensions(uPolys, 0).x);
     var dd = 1e20;
     var inside = false;
     for (var i = 0; i < n; i++) {
-        let t = start + i;
-        let e = textureLoad(uPolys, vec2<i32>(t % w, t / w), 0);
+        let e = polyTexel(start + i);
         let a = e.xy;
         let ab = e.zw - a;
         let ap = p - a;
@@ -377,6 +415,276 @@ fn dashSD(u: f32, v: f32, L: f32, hw: f32, cap: i32, closed: bool) -> f32 {
     return best;
 }
 
+// Signed distance to a simple polygon of up to 6 points (any winding).
+fn sdPolygon6(p: vec2<f32>, v0: array<vec2<f32>, 6>, n: i32) -> f32 {
+    var v = v0;
+    var d = dot(p - v[0], p - v[0]);
+    var s = 1.0;
+    for (var i = 0; i < 6; i++) {
+        if (i >= n) {
+            break;
+        }
+        let j = select(i - 1, n - 1, i == 0);
+        let e = v[j] - v[i];
+        let w = p - v[i];
+        let b = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+        d = min(d, dot(b, b));
+        let c = vec3<bool>(p.y >= v[i].y, (p.y < v[j].y), (e.x * w.y > e.y * w.x));
+        if (all(c) || !any(c)) {
+            s = -s;
+        }
+    }
+    return s * sqrt(d);
+}
+
+// One straight stroke piece in its own frame (q.x along, q.y across) covering [s0, s1].
+// End kinds: 0 butt, 1 round, 2 square, and at the start 3: the round join of an inner vertex.
+// That disc is cut to the stroke: at most 'back' before s0 and no further than the piece's end.
+// Only the piece after a vertex owns its disc, so two chunks never see the same shape twice.
+fn pieceSD(q: vec2<f32>, s0: f32, s1: f32, k0: i32, k1: i32, hw: f32, back: f32) -> f32 {
+    let lo = s0 - select(0.0, hw, k0 == 2);
+    let hi = s1 + select(0.0, hw, k1 == 2);
+    let b = vec2<f32>(abs(q.x - 0.5 * (lo + hi)) - 0.5 * (hi - lo), abs(q.y) - hw);
+    var d = length(max(b, vec2<f32>(0.0))) + min(max(b.x, b.y), 0.0);
+    let disc = length(vec2<f32>(q.x - s0, q.y)) - hw;
+    if (k0 == 1) {
+        d = min(d, disc);
+    }
+    if (k0 == 3) {
+        d = min(d, max(disc, max(s0 - back - q.x, q.x - hi)));
+    }
+    if (k1 == 1) {
+        d = min(d, length(vec2<f32>(q.x - s1, q.y)) - hw);
+    }
+    return d;
+}
+
+// How two pieces meet at a vertex: 0 butt ends only (the path folds back), 1 round ends (round
+// joins, and miters or bevels that differ from round by under a tenth of a pixel), 2 miter, 3 bevel.
+fn joinKind(d0: vec2<f32>, d1: vec2<f32>, hw: f32, join: i32, limit: f32, px: f32) -> i32 {
+    if (join == 0) {
+        return 1;
+    }
+    let ch = sqrt(max(0.5 * (1.0 + dot(d0, d1)), 0.0)); // cos of half the turn
+    if (ch < 1e-4) {
+        return 0;
+    }
+    let miter = join == 1 && 1.0 / ch <= limit;
+    let diff = select(hw * (1.0 - ch), hw * (1.0 / ch - 1.0), miter);
+    if (diff < 0.1 * px) {
+        return 1;
+    }
+    return select(3, 2, miter);
+}
+
+// Miter (kind 2) or bevel (kind 3) at v between directions d0 and d1. The polygon also reaches e
+// back along both butt pieces, so it overlaps them and no seam shows where they meet. Its inner
+// side runs through the inner corners of the two butt ends, which keeps it inside the stroke.
+fn joinSD(p: vec2<f32>, v: vec2<f32>, d0: vec2<f32>, d1: vec2<f32>, hw: f32, e0: f32, kind: i32) -> f32 {
+    let cr = d0.x * d1.y - d0.y * d1.x;
+    let sg = select(1.0, -1.0, cr > 0.0);
+    let n0 = sg * vec2<f32>(-d0.y, d0.x);
+    let n1 = sg * vec2<f32>(-d1.y, d1.x);
+    let m = normalize(n0 + n1);
+    let ch = dot(n0, m);
+    let th = dot(d0, m) / max(ch, 1e-6); // tan of half the turn
+    let e = min(e0, hw / max(th, 1e-6));
+    let inner = e * th - hw;
+    var P: array<vec2<f32>, 6>;
+    P[0] = v - d0 * e + n0 * hw;
+    var k = 1;
+    if (kind == 2) {
+        P[1] = v + m * (hw / ch);
+        k = 2;
+    } else {
+        P[1] = v + n0 * hw;
+        P[2] = v + n1 * hw;
+        k = 3;
+    }
+    P[k] = v + d1 * e + n1 * hw;
+    P[k + 1] = v + d1 * e + n1 * inner;
+    P[k + 2] = v - d0 * e + n0 * inner;
+    return sdPolygon6(p, P, k + 3);
+}
+
+// Segment i of a subpath with n segments starting at texel 'first'. ok = false past an open end.
+fn segFetch(first: i32, n: i32, closed: bool, i0: i32, ok: ptr<function, bool>) -> vec4<f32> {
+    *ok = true;
+    var i = i0;
+    if (i < 0 || i >= n) {
+        if (!closed) {
+            *ok = false;
+            return vec4<f32>(0.0);
+        }
+        i = (i % n + n) % n;
+    }
+    return polyTexel(first + i);
+}
+
+fn segDir(e: vec4<f32>) -> vec2<f32> {
+    let ab = e.zw - e.xy;
+    let len = length(ab);
+    if (len > 1e-9) {
+        return ab / len;
+    }
+    return vec2<f32>(1.0, 0.0);
+}
+
+// Stroke of a path (Prim 10): butt pieces, caps at open ends, a join at every inner vertex.
+// A chunk of a long subpath also evaluates the segment on each side of it: a pixel nearer to a
+// neighbour belongs to the neighbour's instance and is discarded here, so it is shaded once.
+fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) -> f32 {
+    var hdr = i32(vShape0.x + 0.5);
+    let nSub = i32(vShape0.y + 0.5);
+    let whole = vShape0.w < 0.0;
+    let join = i32(vShape1.x + 0.5);
+    let limit = vShape1.y;
+    let dash = vDash.x;
+    let period = max(vDash.x + vDash.y, 1e-5);
+    var own = 1e20;
+    var prevNb = 1e20;
+    var nextNb = 1e20;
+    var best = 1e20;
+    // the vertices a chunk shares with its neighbours, and the bisectors there
+    var v0 = vec2<f32>(0.0);
+    var b0 = vec2<f32>(0.0);
+    var v1 = vec2<f32>(0.0);
+    var b1 = vec2<f32>(0.0);
+    gU = 0.0;
+    gL = 1.0;
+    for (var sp = 0; sp < nSub; sp++) {
+        let h = polyTexel(hdr);
+        let n = i32(h.x + 0.5);
+        let closed = h.y > 0.5;
+        let L = h.z;
+        let first = hdr + 1;
+        hdr += 1 + n;
+        let a = select(i32(vShape0.z + 0.5), 0, whole);
+        let m = select(i32(vShape0.w + 0.5), n, whole);
+        // A chunk also evaluates its neighbours' segments up to 'reach' along the path on each
+        // side: caps, discs and joins of short segments reach that far across the boundary.
+        let reach = 3.0 * hw + 2.0 * px;
+        let spare = select(1 << 20u, n - m, closed); // never wrap round into the chunk's own segments
+        var kb = 0;
+        var c = select(vShape1.z, 0.0, whole);
+        if (!whole) {
+            var acc = 0.0;
+            for (var j = 1; j <= 16; j++) {
+                var ok: bool;
+                let e = segFetch(first, n, closed, a - j, &ok);
+                if (!ok || j > spare / 2) {
+                    break;
+                }
+                kb = j;
+                acc += length(e.zw - e.xy);
+                if (acc >= reach) {
+                    break;
+                }
+            }
+            c -= acc;
+        }
+        let maxNext = select(min(16, spare - kb), 0, whole);
+        let k0 = -kb;
+        var hp: bool;
+        var hc: bool;
+        var hn: bool;
+        var ep = segFetch(first, n, closed, a + k0 - 1, &hp);
+        var ec = segFetch(first, n, closed, a + k0, &hc);
+        var accNext = 0.0;
+        for (var k = k0; k < m + 16; k++) {
+            if (k >= m && (k - m >= maxNext || accNext >= reach || !hc)) {
+                break;
+            }
+            let en = segFetch(first, n, closed, a + k + 1, &hn);
+            if (hc) {
+                let sa = ec.xy;
+                let len = length(ec.zw - sa);
+                let dir = segDir(ec);
+                let dp = segDir(ep);
+                var js = -1;
+                if (hp) {
+                    js = joinKind(dp, dir, hw, join, limit, px);
+                }
+                var je = -1;
+                if (hn) {
+                    je = joinKind(dir, segDir(en), hw, join, limit, px);
+                }
+                let ks = select(select(0, 3, js == 1), cap0, js < 0);
+                let ke = select(0, cap1, je < 0);
+                // how far the stroke reaches back before this segment
+                let back = select(c + select(0.0, hw, cap0 != 0), 1e20, closed);
+                let ej = min(hw, min(len, length(ep.zw - ep.xy)));
+                let w = p - sa;
+                let q = vec2<f32>(dot(w, dir), dir.x * w.y - dir.y * w.x);
+                var d = 1e20;
+                if (!dashed) {
+                    d = pieceSD(q, 0.0, len, ks, ke, hw, back);
+                    if (js >= 2) {
+                        d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
+                    }
+                } else {
+                    let kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
+                    for (var j = -1; j <= 1; j++) {
+                        let t0 = (kk + f32(j)) * period - vDash.z;
+                        let t1 = t0 + dash;
+                        let lo = max(t0, c);
+                        let hi = min(t1, c + len);
+                        if (hi < lo || (hi == lo && dash > 0.0)) {
+                            continue;
+                        }
+                        // a dash cut by a vertex goes on along the next segment: the vertex decides that end
+                        d = min(d, pieceSD(q, lo - c, hi - c, select(cap0, ks, t0 < c), select(cap1, ke, t1 > c + len), hw, min(back, c - t0)));
+                    }
+                    // a dash that runs through the vertex (not one that starts or ends on it) gets the join
+                    let ph = fmod(c + vDash.z, period);
+                    let inDash = min(ph, dash - ph);
+                    if (js >= 2 && inDash > 1e-4 * period) {
+                        d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
+                    }
+                }
+                if (d < best) {
+                    best = d;
+                    gU = c + clamp(q.x, 0.0, len);
+                    gL = L;
+                }
+                if (k < 0) {
+                    prevNb = min(prevNb, d);
+                } else if (k >= m) {
+                    nextNb = min(nextNb, d);
+                } else {
+                    own = min(own, d);
+                }
+                if (k == 0 && hp) {
+                    v0 = sa;
+                    b0 = dp + dir;
+                }
+                if (k == m && hp) {
+                    v1 = sa;
+                    b1 = dp + dir;
+                }
+                c += len;
+                if (k >= m) {
+                    accNext += len;
+                }
+            }
+            ep = ec;
+            hp = hc;
+            ec = en;
+            hc = hn;
+        }
+    }
+    // A pixel nearer to a neighbour's segment is the neighbour's. Near-ties (the same formula can
+    // round differently in two chunks) go by the side of the bisector at the shared vertex.
+    let tol = 1e-3 * px;
+    if (prevNb < own - tol || (prevNb <= own + tol && dot(p - v0, b0) < 0.0)) {
+        discard;
+    }
+    if (nextNb < own - tol || (nextNb <= own + tol && dot(p - v1, b1) >= 0.0)) {
+        discard;
+    }
+    return min(own, min(prevNb, nextNb));
+}
+
 // Catmull-Rom weights for the four samples around fraction f
 fn crWeights(f: f32) -> vec4<f32> {
     let f2 = f * f;
@@ -448,9 +756,10 @@ fn gradientColor(p: vec2<f32>, u: f32, L: f32, kind: i32) -> vec4<f32> {
     return rampAt(t, i32(vPaint.y + 0.5));
 }
 
-// Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle, path) at p.
-// Sets gFillScale, and gU / gL (position and length along the outline, for dashes and path gradients).
-fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
+// Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle, path fill) at p,
+// with its parameters in s0, s1, s2. Sets gFillScale, and gU / gL (position and length along the
+// outline, for dashes and path gradients).
+fn shapeSD(p: vec2<f32>, prim: i32, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>, px: f32) -> f32 {
     var d = 1e6;
     var fillScale = 1.0;
     var u = 0.0;
@@ -459,21 +768,21 @@ fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
     let align = gAlign;
 
     if (prim == 0) {
-        let b = vShape0.zw;
+        let b = s0.zw;
         let bi = max(b, vec2<f32>(0.5 * px));
         fillScale = (b.x / bi.x) * (b.y / bi.y);
-        var q = p - vShape0.xy;
-        if (vShape2.w != 0.0) {
-            q = rotate(q, -vShape2.w);
+        var q = p - s0.xy;
+        if (s2.w != 0.0) {
+            q = rotate(q, -s2.w);
         }
-        d = sdRoundBox(q, bi, vShape1, vShape2.x);
+        d = sdRoundBox(q, bi, s1, s2.x);
     } else if (prim == 1) {
-        let ab = vShape0.zw;
+        let ab = s0.zw;
         let abi = max(ab, vec2<f32>(0.5 * px));
         fillScale = (ab.x / abi.x) * (ab.y / abi.y);
-        var q = p - vShape0.xy;
-        if (vShape2.w != 0.0) {
-            q = rotate(q, -vShape2.w);
+        var q = p - s0.xy;
+        if (s2.w != 0.0) {
+            q = rotate(q, -s2.w);
         }
         if (abs(abi.x - abi.y) <= 1e-4 * max(abi.x, abi.y)) {
             d = length(q) - abi.x;
@@ -484,19 +793,19 @@ fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
         u = fmod(atan2(q.y, q.x) + 0.5 * PI, TAU) * rm;
         L = TAU * rm;
     } else if (prim == 3) {
-        let q = p - vShape0.xy;
-        let sweep = vShape1.x;
+        let q = p - s0.xy;
+        let sweep = s1.x;
         let h = min(abs(sweep) * 0.5, PI);
-        let mid = vShape0.w + 0.5 * sweep;
+        let mid = s0.w + 0.5 * sweep;
         let cm = cos(mid);
         let sm = sin(mid);
         let qr = vec2<f32>(sm * q.x - cm * q.y, cm * q.x + sm * q.y); // arc middle -> +y
         let len = length(q);
         let full = h >= PI - 1e-4;
         // annular sector with rounded corners
-        let r1 = vShape0.z;
-        let r0 = vShape1.y;
-        let rc = vShape1.z;
+        let r1 = s0.z;
+        let r0 = s1.y;
+        let rc = s1.z;
         var dA = len - (r1 - rc);
         if (r0 > 0.0) {
             dA = max(dA, (r0 + rc) - len);
@@ -508,28 +817,47 @@ fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
         let w = vec2<f32>(dA, dW);
         d = length(max(w, vec2<f32>(0.0))) + min(max(w.x, w.y), 0.0) - rc;
     } else if (prim == 6) {
-        let s = vShape0.z;
-        var q = p - vShape0.xy;
-        if (vShape2.w != 0.0) {
-            q = rotate(q, -vShape2.w);
+        let s = s0.z;
+        var q = p - s0.xy;
+        if (s2.w != 0.0) {
+            q = rotate(q, -s2.w);
         }
         q /= s;
-        d = (sdHeart(vec2<f32>(q.x, 0.552 - q.y)) - vShape0.w) * s;
+        d = (sdHeart(vec2<f32>(q.x, 0.552 - q.y)) - s0.w) * s;
     } else if (prim == 7) {
-        var q = rotate(p - vShape0.xy, -vShape0.w);
+        var q = rotate(p - s0.xy, -s0.w);
         q.y = -q.y;
-        let rc = vShape1.z;
-        d = sdStar(q, vShape0.z - rc, vShape1.x, vShape1.y) - rc;
+        let rc = s1.z;
+        d = sdStar(q, s0.z - rc, s1.x, s1.y) - rc;
     } else if (prim == 8) {
-        d = sdTriangle(p, vShape0.xy, vShape0.zw, vShape1.xy) - vShape1.z;
+        d = sdTriangle(p, s0.xy, s0.zw, s1.xy) - s1.z;
     } else if (prim == 9) {
-        d = sdPoly(p, i32(vShape0.x + 0.5), i32(vShape0.y + 0.5)) - vShape0.z;
+        d = sdPoly(p, i32(s0.x + 0.5), i32(s0.y + 0.5)) - s0.z;
     }
 
     gFillScale = fillScale;
     gU = u;
     gL = L;
     return d;
+}
+
+// Closed shape of this instance. A union (Prim 11) is the nearest of its member shapes, whose
+// parameters are records of 4 texels (type, s0, s1, s2) in uPolys: one shape, painted once.
+fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
+    if (prim == 11) {
+        let start = i32(vShape0.x + 0.5);
+        let n = i32(vShape0.y + 0.5);
+        var d = 1e6;
+        for (var i = 0; i < n; i++) {
+            let t = start + i * 4;
+            d = min(d, shapeSD(p, i32(polyTexel(t).x + 0.5), polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px));
+        }
+        gFillScale = 1.0;
+        gU = 0.0;
+        gL = 1.0;
+        return d;
+    }
+    return shapeSD(p, prim, vShape0, vShape1, vShape2, px);
 }
 
 fn ign(p: vec2<f32>) -> f32 {
@@ -539,10 +867,10 @@ fn ign(p: vec2<f32>) -> f32 {
 @fragment
 fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     // derivatives first: WGSL only allows them in uniform control flow
-    let p = input.vPos;
-    let ddx = dpdx(p);
-    let ddy = dpdy(p);
-    let px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
+    var p = input.vPos;
+    let ddx = dpdx(input.vPos);
+    let ddy = dpdy(input.vPos);
+    var px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
 
     vShape0 = input.vShape0;
     vShape1 = input.vShape1;
@@ -561,8 +889,25 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
 
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
+    gBase = i32(input.vBase + 0.5);
 
     let prim = i32(vMeta.x + 0.5);
+    if (prim == 10) {
+        // chunks of one path decide who shades a pixel by comparing distances: they must all see
+        // exactly the same position (kept only when it matches vPos, in case of an odd viewport).
+        // Clip space from the framebuffer position, whose y goes down.
+        let hres = 0.5 * abs(globalUniforms.uResolution);
+        let fc = input.position.xy;
+        let clip = vec2<f32>(fc.x / hres.x - 1.0, 1.0 - fc.y / hres.y);
+        let vInv = input.vInv;
+        let q = mat2x2<f32>(vInv.xy, vInv.zw) * clip + input.vInvT;
+        if (length(q - p) < 0.25 * px) {
+            p = q;
+            // the pixel size too: joins switch to round below a tenth of a pixel
+            px = max(sqrt(abs(vInv.x * vInv.w - vInv.y * vInv.z) / (hres.x * hres.y)), 1e-7);
+            gPx = px * uSilk.y;
+        }
+    }
     let flags = i32(vMeta.y + 0.5);
     let inner = (flags & 32768) != 0;
     if ((flags & 65536) != 0) {
@@ -664,6 +1009,11 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
                 sd = dSelf;
             }
         }
+    } else if (prim == 10) {
+        isOpen = true;
+        sd = pathSD(p, hwEff, cap0, cap1, dashed, px);
+        u = gU;
+        L = gL;
     } else if (prim == 5) {
         let a = vShape0.xy;
         let b = vShape0.zw;
