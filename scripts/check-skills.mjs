@@ -4,7 +4,7 @@
  * llms files (apps/site/src/content/facts.mjs).
  *
  * - Every subpath export in package.json has an entry in the facts file's ENTRY_POINTS, and the
- *   router skill (skills/pixi-silk/SKILL.md) lists it in its entry point table. No stale extras.
+ *   router skill (skills/pixi-silk/SKILL.md) and AGENTS.md list it. No stale extras.
  * - Every skill has frontmatter (name = folder, description with "Triggers on:", license MIT), the
  *   sections Quick Start, Core Patterns (the router has a Skill router instead), Common Mistakes
  *   with [CRITICAL], [HIGH] or [MEDIUM] entries that each name a symptom, and API Reference.
@@ -56,6 +56,11 @@ for (const key of Object.keys(ENTRY_POINTS))
         fail('apps/site/src/content/facts.mjs', `"${key}" is not in package.json exports`);
 for (const s of listed)
     if (!entries.some((e) => e.specifier === s)) fail('skills/pixi-silk/SKILL.md', `\`${s}\` is not an entry point`);
+const agents = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8');
+
+for (const e of entries)
+    if (!agents.includes(`\`${e.specifier}\``))
+        fail('AGENTS.md', `the entry point table does not list \`${e.specifier}\``);
 if (!pkg.files?.includes('skills')) fail('packages/pixi-silk/package.json', '`files` does not ship "skills"');
 
 // ---------------------------------------------------------------------------------- skills
