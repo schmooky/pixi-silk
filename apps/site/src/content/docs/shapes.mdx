@@ -3,7 +3,7 @@ title: Shapes
 seoTitle: 'Smooth shapes and squircles in PixiJS v8'
 description: 'Rects, squircles with per-corner radii, pills, circles, ellipses, hearts, stars, polygons and rounded triangles, each an exact anti-aliased distance field.'
 keywords: ['PixiJS shapes', 'PixiJS squircle', 'rounded rectangle PixiJS', 'smooth circle WebGL', 'superellipse corners']
-updated: 2026-09-26
+updated: 2026-11-08
 api: [SilkGraphics]
 ---
 
@@ -47,6 +47,21 @@ g.triangle(x0, y0, x1, y1, x2, y2, cornerRadius);
 ```
 
 Rounded corners on polygons, stars and triangles are exact, not approximations.
+
+## Unions
+
+Add `union: true` to paint every shape of the path as one. Overlaps are painted once, and blur,
+anti-aliasing and opacity show no seam where the shapes meet. A shaft and its arrowhead, or a
+handle and its line, become one shape.
+
+```ts
+g.rect(0, -2, 40, 4)
+    .triangle(36, -8, 50, 0, 36, 8)
+    .fill({ color: 0x0a84ff, alpha: 0.6, union: true });
+```
+
+Let the shapes overlap a little. A `stroke()` right after a union fill follows the outline of the
+union. With `stroke({ union: true })`, separate lines and paths become one stroke.
 
 ## Rotated shapes
 

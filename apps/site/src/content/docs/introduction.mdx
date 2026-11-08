@@ -3,7 +3,7 @@ title: Introduction
 seoTitle: 'What is pixi-silk? Smooth anti-aliased PixiJS v8 graphics'
 description: 'pixi-silk is a Graphics-like object for PixiJS v8. It draws shapes as exact signed distance fields, so edges stay smooth and anti-aliased at any zoom and DPR.'
 keywords: ['pixi-silk', 'smooth graphics PixiJS', 'PixiJS anti-aliasing', 'PixiJS v8 Graphics', 'signed distance field', 'vector graphics library']
-updated: 2026-09-26
+updated: 2026-11-08
 api: [SilkGraphics, createSilkApp]
 ---
 
@@ -35,7 +35,7 @@ limits:
 | Thin lines | break up below 1 px | keep 1 px and fade (energy conserving) |
 | Inside filters and render textures | aliased unless each target opts into MSAA | same quality everywhere |
 | Gradients | sRGB, 8-bit | OKLab, half-float ramps, dithered |
-| Draw calls | batched geometry | one instanced draw call per object |
+| Draw calls | batched geometry | one instanced draw call per object, or per run with batching on |
 
 ## Key facts
 

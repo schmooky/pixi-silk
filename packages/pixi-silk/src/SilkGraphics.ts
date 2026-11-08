@@ -7,8 +7,11 @@ import {
     type ColorSource,
     type DestroyOptions,
     Geometry,
+    type InstructionSet,
     Mesh,
     type PointData,
+    type Renderer,
+    type RenderLayer,
     type Shader,
     type UniformGroup,
 } from 'pixi.js';
@@ -174,6 +177,11 @@ export interface SilkGraphicsOptions {
     minStrokePx?: number;
     /** Pixi label of the object, for debugging. Default `SilkGraphics`. */
     label?: string;
+    /**
+     * Set false to keep this object out of batches: it gets a draw call of its own. Only matters
+     * after `enableSilkBatching()`. Default true.
+     */
+    batch?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -563,7 +571,16 @@ export class SilkGeometry extends Geometry {
  */
 export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     /** Settings for new objects. Change them before you create any SilkGraphics. */
-    static defaults: Required<Omit<SilkGraphicsOptions, 'label'>> = { dither: 1, aaWidth: 1, minStrokePx: 1 };
+    static defaults: Required<Omit<SilkGraphicsOptions, 'label' | 'batch'>> = { dither: 1, aaWidth: 1, minStrokePx: 1 };
+
+    /** @internal Render pipe of new objects: `silk` once batching is on (see `enableSilkBatching`). */
+    static _pipeId = 'mesh';
+
+    /** @internal Adds the batching pipe to a renderer that lacks it (set by `enableSilkBatching`). */
+    static _installPipe: ((renderer: Renderer) => void) | null = null;
+
+    /** @internal Bumped on every change a batch has to copy again. */
+    _version = 0;
 
     private _f: Float32Array;
     private _count = 0;
@@ -601,6 +618,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const shader = createSilkShader(settings, polys);
 
         super({ geometry, shader, label: options.label ?? 'SilkGraphics' });
+        (this as { renderPipeId: string }).renderPipeId = options.batch === false ? 'mesh' : SilkGraphics._pipeId;
         this._polySource = polys;
         this._f = geometry.instanceBuffer.data as Float32Array;
         this._uniforms = shader.resources.silkUniforms as UniformGroup;
@@ -642,9 +660,22 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._setting(2, v);
     }
 
+    /** @internal Dither, AA width and hairline settings, as the shader reads them. */
+    get _settings(): Float32Array {
+        return this._silk;
+    }
+
+    /** @internal What a batch copies: instances and path texels. */
+    get _batchSource(): { f: Float32Array; count: number; poly: Float32Array; polyCount: number } {
+        return { f: this._f, count: this._count, poly: this._poly, polyCount: this._polyCount };
+    }
+
     private _setting(i: number, v: number): void {
         this._silk[i] = v;
+        this._version++;
         this._uniforms.update();
+        // batches group objects by settings: regroup
+        if (this.parentRenderGroup) this.parentRenderGroup.structureDidChange = true;
     }
 
     // -------------------------------------------------------------------------------- transform
@@ -1227,6 +1258,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
+    /** @internal Gives a renderer the batching pipe the first time it meets a batched object. */
+    override collectRenderablesSimple(set: InstructionSet, renderer: Renderer, layer: RenderLayer): void {
+        if (!(this.renderPipeId in renderer.renderPipes)) SilkGraphics._installPipe?.(renderer);
+        super.collectRenderablesSimple(set, renderer, layer);
+    }
+
     /**
      * Hit test against the real shapes (local coordinates): rings are hollow, lines count only
      * within their stroke. Used by Pixi's event system when `eventMode` is set.
@@ -1299,6 +1336,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
     private _commit(): void {
         const geometry = this.geometry;
+
+        this._version++;
 
         geometry.instanceCount = this._count;
         geometry.instanceBuffer.update(Math.max(this._count, 1) * STRIDE * 4);

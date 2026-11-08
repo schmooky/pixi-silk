@@ -157,6 +157,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [RadialGradient](https://pixi-silk.schmooky.dev/api/classes/RadialGradient/): Class. A ramp from a centre outwards, optionally starting at an inner radius. Create it with radial.
 - [SilkGeometry](https://pixi-silk.schmooky.dev/api/classes/SilkGeometry/): Class. Geometry behind every SilkGraphics: one unit quad plus an interleaved instance buffer (40 floats per primitive). You rarely need it directly.
 - [SilkGraphics](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/): Class. A PixiJS display object with a Graphics-like API. Every primitive is a signed distance field evaluated per pixel, so edges are smooth at any scale,...
+- [SilkPipe](https://pixi-silk.schmooky.dev/api/classes/SilkPipe/): Class. Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call. enableSilkBatching installs it.
 - [Spring](https://pixi-silk.schmooky.dev/api/classes/Spring/): Class. Damped harmonic spring (semi-implicit Euler with fixed sub-steps). stiffness / damping follow the usual UI spring convention (e.g. 170 / 26).
 - [along](https://pixi-silk.schmooky.dev/api/functions/along/): Function. Gradient that follows a stroke from its first point (t = 0) to its last (t = 1).
 - [catmullRom](https://pixi-silk.schmooky.dev/api/functions/catmullRom/): Function. Centripetal Catmull-Rom spline through the points (no cusps or self-loops).
@@ -164,6 +165,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/): Function. Creates a Pixi application tuned for smooth vector output:. Function createSilkApp of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [damp](https://pixi-silk.schmooky.dev/api/functions/damp/): Function. Exponential approach: moves current towards target. lambda is about 1/seconds, higher is snappier.
 - [dampAngle](https://pixi-silk.schmooky.dev/api/functions/dampAngle/): Function. Damped angle approach along the shortest path. Function dampAngle of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
+- [enableSilkBatching](https://pixi-silk.schmooky.dev/api/functions/enableSilkBatching/): Function. Turns on batching across objects: runs of consecutive SilkGraphics with the same blend mode and settings render in one draw call.
 - [horizontal](https://pixi-silk.schmooky.dev/api/functions/horizontal/): Function. Left-to-right linear gradient across the painted shape. Function horizontal of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [linear](https://pixi-silk.schmooky.dev/api/functions/linear/): Function. Linear gradient. from / to default to top and bottom of the shape's box (units: 'shape').
 - [linearToOklab](https://pixi-silk.schmooky.dev/api/functions/linearToOklab/): Function. Converts linear-light sRGB to OKLab (Björn Ottosson's perceptual colour space), used to interpolate gradients evenly.
@@ -194,6 +196,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [FillInput](https://pixi-silk.schmooky.dev/api/types/FillInput/): Type. What fill() accepts: any Pixi colour, a gradient or a FillStyle. Type FillInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [GradientUnits](https://pixi-silk.schmooky.dev/api/types/GradientUnits/): Type. Gradient coordinates: shape = fractions of each painted shape's box, local = the graphics' local units (one ramp across many shapes).
 - [LineCap](https://pixi-silk.schmooky.dev/api/types/LineCap/): Type. Shape of the ends of open paths and of every dash: flat, round or square.
+- [LineJoin](https://pixi-silk.schmooky.dev/api/types/LineJoin/): Type. Shape of the corners where two segments of a stroke meet. Type LineJoin of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [MeshColorInput](https://pixi-silk.schmooky.dev/api/types/MeshColorInput/): Type. A mesh control colour: any Pixi colour, or [color, alpha]. Type MeshColorInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [PointsInput](https://pixi-silk.schmooky.dev/api/types/PointsInput/): Type. Points as a flat [x0, y0, x1, y1, ...] array, a typed array, or an array of { x, y } objects.
 - [RGBA](https://pixi-silk.schmooky.dev/api/types/RGBA/): Type. Straight (non-premultiplied) sRGB colour with alpha, all channels 0..1, as returned by parseColor.

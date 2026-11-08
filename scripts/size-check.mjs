@@ -23,7 +23,7 @@ const TOLERANCE = 0.1;
 /** name: [what the app imports, markers that must NOT end up in that bundle, subpath (default the root)] */
 const IMPORTS = {
     everything: ['*', []],
-    SilkGraphics: ['SilkGraphics', []],
+    SilkGraphics: ['SilkGraphics', ['silk-batch-paths']],
     'SilkGraphics + gradients': ['SilkGraphics, linear, vertical, radial, conic, along', []],
     createSilkApp: ['createSilkApp', ['#version 300 es', 'silk-gradient-atlas']],
     gradients: ['linear, radial, conic', ['#version 300 es', 'silk-gradient-atlas']],
