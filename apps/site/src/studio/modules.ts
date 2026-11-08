@@ -49,6 +49,7 @@ const PACKAGES: Record<string, Loader> = {
     'pixi-silk/ui/arc': () => import('pixi-silk/ui/arc'),
     'pixi-silk/ui/keys': () => import('pixi-silk/ui/keys'),
     'pixi-silk/ui/pill': () => import('pixi-silk/ui/pill'),
+    'pixi-silk/ui/textedit': () => import('pixi-silk/ui/textedit'),
     './runtime': () => import('@/demos/runtime'),
 };
 
