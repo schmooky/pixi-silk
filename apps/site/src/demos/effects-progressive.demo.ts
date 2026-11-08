@@ -4,8 +4,8 @@ import { defineDemo } from './runtime';
 // Progressive blur: the violet hill is sharp at its bottom edge and melts at the top. The white
 // bloom under it is painted plus-lighter, so where they overlap the violet lifts towards white.
 export default defineDemo({
+    title: 'Progressive blur',
     size: [560, 380],
-    background: 0x111111,
     controls: {
         top: { type: 'range', label: 'blur at top', min: 0, max: 80, step: 1, value: 48 },
         bottom: { type: 'range', label: 'blur at bottom', min: 0, max: 20, step: 1, value: 1 },

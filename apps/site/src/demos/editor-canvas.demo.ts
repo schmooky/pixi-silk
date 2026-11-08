@@ -9,14 +9,14 @@ import { TransformGizmo } from 'pixi-silk/ui/gizmo';
 import { altDown } from 'pixi-silk/ui/keys';
 import { Measure } from 'pixi-silk/ui/measure';
 import { SelectionOutline } from 'pixi-silk/ui/outline';
-import { defineDemo } from './runtime';
+import { defineDemo, INK } from './runtime';
 
 // Scroll to pan, pinch or ctrl + scroll to zoom, right drag or Space + drag to pan.
 // Click a layer to select it, Shift + click to add more. Hover another to measure the distance
 // to it. Drag the arrows to move a layer, cmd or ctrl + Z undoes and Shift + cmd + Z redoes.
 export default defineDemo({
-    size: [760, 480],
-    background: 0x151517,
+    title: 'Editor canvas',
+    size: [720, 480],
     touchAction: 'none',
     ownsCamera: true,
     controls: {
@@ -70,7 +70,7 @@ export default defineDemo({
             text: 'Home',
             fontFamily: 'Inter, system-ui, sans-serif',
             fontSize: 13,
-            fill: 0x8e8e93,
+            fill: INK.muted,
         });
 
         title.position.set(0, -20);
@@ -103,7 +103,7 @@ export default defineDemo({
         layer(24, 24, (g) =>
             g.roundRect(0, 0, 342, 180, 24, 0.6).fill(linear([0x5e5ce6, 0xbf5af2], { from: [0, 0], to: [1, 1] })),
         );
-        const card = layer(24, 228, (g) =>
+        layer(24, 228, (g) =>
             g
                 .roundRect(0, 0, 160, 120, 18, 0.6)
                 .fill({ color: 0xffffff, innerShadow: { color: 0x000000, alpha: 0.06, y: -1, blur: 1 } }),
@@ -119,7 +119,6 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        selection.pick(card);
         camera.fit(board, 40, false);
 
         // Alt shows the redlines without moving the pointer

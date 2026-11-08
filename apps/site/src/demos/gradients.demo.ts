@@ -3,6 +3,7 @@ import { conic, linear, radial, SilkGraphics } from 'pixi-silk';
 import { defineDemo } from './runtime';
 
 export default defineDemo({
+    title: 'Gradients',
     size: [480, 240],
     controls: {
         space: { type: 'select', label: 'space', options: ['oklab', 'linear', 'srgb'], value: 'oklab' },

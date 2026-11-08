@@ -3,6 +3,7 @@ import { defineDemo } from './runtime';
 
 // A squircle keeps curvature continuous where the side meets the corner (iOS icons, cards).
 export default defineDemo({
+    title: 'Squircle corners',
     size: [420, 220],
     controls: {
         radius: { type: 'range', label: 'radius', min: 0, max: 80, step: 1, value: 48, unit: 'px' },

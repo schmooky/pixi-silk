@@ -1,8 +1,8 @@
 import { Container, Text } from 'pixi.js';
-import type { SilkGraphics } from 'pixi-silk';
+import { SilkGraphics } from 'pixi-silk';
 import { SilkButton } from 'pixi-silk/ui/button';
 import { bindRadialTrigger, type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
-import { defineDemo } from './runtime';
+import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
 
 // Vector icons: drawn once in white around (0, 0); the menu tints them.
 type Icon = (g: SilkGraphics, s: number) => void;
@@ -75,9 +75,11 @@ const tools: RadialItem[] = [
 ];
 
 // Press anywhere (or the round button) and drag to an item, or tap to keep the menu open.
-// The `+` button opens a half ring that turns away from the edge it sits on.
+// The `+` button opens a half ring that turns away from the edge it sits on. The artboard
+// on the right is only scenery: the menus pick tools, they do not edit it.
 export default defineDemo({
-    size: [640, 400],
+    title: 'Radial menu',
+    size: [720, 400],
     touchAction: 'none',
     controls: {
         closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
@@ -87,9 +89,9 @@ export default defineDemo({
         const surface = new Container();
         const status = new Text({
             text: 'press, drag, release, or tap',
-            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+            style: { fill: INK.muted, fontFamily: FONT, fontSize: 13 },
         });
-        const bounds = { x: 0, y: 0, width: 640, height: 400 };
+        const bounds = { x: 0, y: 0, width: 720, height: 400 };
         const report = (_item: RadialItem, path: readonly RadialItem[]) => {
             status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
         };
@@ -111,12 +113,37 @@ export default defineDemo({
         const hub = new SilkButton({ shape: 'circle', height: 64, icon: gear, iconSize: 28, ticker });
         const add = new SilkButton({ shape: 'circle', height: 52, icon: plus, iconSize: 22, ticker });
 
+        // scenery: an artboard with a few layers, as in a drawing app
+        const board = new SilkGraphics()
+            .roundRect(330, 70, 300, 250, 16, 0.6)
+            .fill(INK.surface)
+            .stroke({ width: 1, color: INK.line, alignment: 'inside' })
+            .roundRect(360, 104, 120, 84, 14, 0.6)
+            .fill(PALETTE.blue)
+            .circle(550, 150, 44)
+            .fill(PALETTE.pink)
+            .star(420, 258, 5, 40, undefined, 0, 4)
+            .fill(PALETTE.yellow)
+            .roundRect(500, 224, 100, 64, 32)
+            .fill(PALETTE.green);
+
         surface.eventMode = 'static';
-        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 640 && y <= 400 };
-        status.position.set(20, 18);
-        hub.position.set(200, 210);
-        add.position.set(586, 346);
-        stage.addChild(surface, status, hub, add, menu, quick);
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 720 && y <= 400 };
+        status.position.set(24, 20);
+        hub.position.set(170, 200);
+        add.position.set(670, 350);
+        stage.addChild(
+            surface,
+            board,
+            label('Artboard', 330, 46),
+            label('tools', 170, 244, {}, 0.5),
+            label('quick add', 634, 342, {}, 1),
+            status,
+            hub,
+            add,
+            menu,
+            quick,
+        );
 
         bindRadialTrigger(surface, menu, { at: 'pointer' });
         bindRadialTrigger(hub, menu);

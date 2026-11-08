@@ -19,6 +19,7 @@ const pick: Icon = (g, s) => {
 // Hold Space over the canvas (or long-press it) for the mode ring, release on a mode.
 // Tap Space to swap back to the previous mode. The pill below is a SegmentedSwitch.
 export default defineDemo({
+    title: 'Mode ring',
     size: [640, 360],
     touchAction: 'none',
     setup({ silk, stage, width, height }) {

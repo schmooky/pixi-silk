@@ -19,8 +19,8 @@ import { defineDemo } from './runtime';
 // them: pink markers show equal gaps. Drag guides out of the rulers, drop them back to remove.
 // Scroll to pan, pinch or ctrl + scroll to zoom.
 export default defineDemo({
+    title: 'Canvas tools',
     size: [760, 520],
-    background: 0x151517,
     touchAction: 'none',
     ownsCamera: true,
     controls: {

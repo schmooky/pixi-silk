@@ -8,6 +8,7 @@ const LIGHT = 0xffd9ec;
 const BOX = { x0: 150, y0: 40, x1: 450, y1: 262 };
 
 export default defineDemo({
+    title: 'Mesh gradient',
     size: [600, 340],
     background: 0x2e2f7a,
     touchAction: 'none',

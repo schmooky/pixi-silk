@@ -2,13 +2,13 @@ import { Container, Text } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { Glass } from 'pixi-silk/glass';
 import { trackGesture } from 'pixi-silk/ui/gesture';
-import { defineDemo } from './runtime';
+import { defineDemo, FONT, PAD, SERIES } from './runtime';
 
-const BLOBS = [0xff2d55, 0xff9f0a, 0x30d158, 0x0a84ff, 0xbf5af2];
+const BLOBS = SERIES.slice(0, 5);
 
 export default defineDemo({
+    title: 'Glass playground',
     size: [720, 460],
-    background: 0x0a0a0c,
     touchAction: 'none',
     controls: {
         blur: { type: 'range', label: 'blur', min: 0, max: 48, step: 1, value: 18 },
@@ -26,7 +26,7 @@ export default defineDemo({
         const glass = new Glass({ width: 300, height: 190, radius: 34 });
         const hint = new Text({
             text: 'drag me',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fill: 0xffffff, fontWeight: '600' },
+            style: { fontFamily: FONT, fontSize: 14, fill: 0xffffff, fontWeight: '600' },
             alpha: 0.85,
         });
         let grab: { x: number; y: number } | null = null;
@@ -34,14 +34,17 @@ export default defineDemo({
         blobs.blendMode = 'add';
         back.rect(0, 0, 720, 460).fill({ color: 0x000000, alpha: 0.001 });
         for (let i = 0; i < 9; i++) lines.rect(0, 40 + i * 48, 720, 1.5).fill({ color: 0xffffff, alpha: 0.18 });
-        ['PIXI', 'SILK', 'GLASS'].forEach((w, i) => {
-            const t = new Text({
-                text: w,
-                style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 96, fontWeight: '800', fill: 0xffffff },
-            });
+        // three words spread across the width, inside the padding
+        const texts = ['PIXI', 'SILK', 'GLASS'].map(
+            (w) => new Text({ text: w, style: { fontFamily: FONT, fontSize: 88, fontWeight: '800', fill: 0xffffff } }),
+        );
+        const gap = (720 - 2 * PAD - texts.reduce((sum, t) => sum + t.width, 0)) / 2;
+        let x = PAD;
 
+        texts.forEach((t, i) => {
             t.alpha = 0.9;
-            t.position.set(40 + i * 230, 150 + (i % 2) * 70);
+            t.position.set(x, 130 + (i % 2) * 90);
+            x += t.width + gap;
             words.addChild(t);
         });
         hint.anchor.set(0.5);

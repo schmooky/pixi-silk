@@ -9,8 +9,8 @@ import { defineDemo } from './runtime';
 // Click a text to edit it, drag to select, double click a word. Pinch or ctrl + scroll to zoom in
 // and keep typing: the caret, the selection and the glyphs stay sharp. Scroll pans.
 export default defineDemo({
+    title: 'Text editing on the canvas',
     size: [760, 440],
-    background: 0x151517,
     touchAction: 'none',
     ownsCamera: true,
     setup({ silk }) {

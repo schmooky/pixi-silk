@@ -1,6 +1,6 @@
 import { Text } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
-import { defineDemo } from './runtime';
+import { defineDemo, INK, MONO } from './runtime';
 
 // Blur versus blur with spread, the white-square glow from the design tutorials.
 // Spread grows the shape before the blur, so the glow keeps a bright core.
@@ -8,14 +8,14 @@ const STEPS = [
     { label: 'shape', glows: [] },
     { label: 'blur 8', glows: [{ blur: 8, spread: 0 }] },
     {
-        label: 'blur 32, spread 8',
+        label: 'blur 32\nspread 8',
         glows: [
             { blur: 8, spread: 0 },
             { blur: 32, spread: 8 },
         ],
     },
     {
-        label: 'blur 128, spread 32',
+        label: 'blur 128\nspread 32',
         glows: [
             { blur: 8, spread: 0 },
             { blur: 32, spread: 8 },
@@ -25,8 +25,8 @@ const STEPS = [
 ];
 
 export default defineDemo({
-    size: [640, 300],
-    background: 0x111111,
+    title: 'Blur and spread',
+    size: [720, 300],
     controls: {
         scale: { type: 'range', label: 'glow', min: 0, max: 1.5, step: 0.01, value: 1 },
     },
@@ -38,11 +38,11 @@ export default defineDemo({
         STEPS.forEach((step, i) => {
             const t = new Text({
                 text: step.label,
-                style: { fill: 0x8e8e93, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
+                style: { fill: INK.muted, fontFamily: MONO, fontSize: 13, align: 'center', lineHeight: 18 },
             });
 
             t.anchor.set(0.5, 0);
-            t.position.set(95 + i * 150, 222);
+            t.position.set(135 + i * 150, 222);
             stage.addChild(t);
         });
         tick(() => {
@@ -50,7 +50,7 @@ export default defineDemo({
             last = params.scale;
             g.clear();
             STEPS.forEach((step, i) => {
-                const x = 60 + i * 150;
+                const x = 100 + i * 150;
                 const k = params.scale;
 
                 for (const glow of step.glows) {

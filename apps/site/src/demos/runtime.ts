@@ -1,5 +1,9 @@
 import { Container } from 'pixi.js';
 import { createSilkApp, type SilkApp } from 'pixi-silk';
+import { BG } from './_theme';
+
+// the shared look (background, palette, label helpers): demos import it from here, so Studio resolves it
+export * from './_theme';
 
 /*
  * Tiny runtime for the live demos embedded in the docs. A demo is a plain module:
@@ -56,8 +60,11 @@ export interface DemoContext<C extends Controls> {
 }
 
 export interface Demo<C extends Controls = Controls> {
+    /** Readable name of the demo, for Studio and page lists. Sentence case, no period. */
+    title?: string;
     /** Design size in CSS pixels; the scene is scaled to fit the frame. */
     size: [number, number];
+    /** Canvas colour. Default `BG`, the docs card colour. Showcase scenes may pick their own. */
     background?: number;
     controls?: C;
     /** The demo pans and zooms itself, so Studio leaves its own camera off. */
@@ -141,7 +148,7 @@ async function mountOne(
 ): Promise<MountedDemo> {
     const silk = await createSilkApp({
         parent: host,
-        background: demo.background ?? 0x0b0b0d,
+        background: demo.background ?? BG,
         touchAction: demo.touchAction,
         preference,
     });

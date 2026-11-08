@@ -5,6 +5,7 @@ import { defineDemo } from './runtime';
 // Three pickers bound to one model: drag any of them and the others follow. Releasing a drag
 // commits the colour into the recent row at the bottom.
 export default defineDemo({
+    title: 'Colour rings',
     size: [740, 330],
     touchAction: 'none',
     setup({ silk, stage, tick }) {

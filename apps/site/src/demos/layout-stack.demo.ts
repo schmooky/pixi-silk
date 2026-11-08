@@ -3,17 +3,18 @@ import { SilkGraphics } from 'pixi-silk';
 import type { AlignItems, FlexDirection, JustifyContent } from 'pixi-silk/layout';
 import { SilkText } from 'pixi-silk/text';
 import { FlexContainer, layoutDebug } from 'pixi-silk/ui/layout';
-import { defineDemo } from './runtime';
+import { defineDemo, INK, PAD, SERIES } from './runtime';
 
 // An auto-layout stack, like a Figma frame. Change the item count, direction, gap, padding and
-// alignment: cards glide to their new slots on springs. The debug overlay draws the boxes and
-// slots (blue), the padding (green), the gaps (pink) and real bounds (white). Hover a card.
+// alignment: cards glide to their new places on springs. The debug overlay draws the boxes and
+// cells (blue), the padding (green), the gaps (pink) and real bounds (white). Tick debug, then
+// hover a card.
 
-const COLORS = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff, 0xffd60a];
-const W = 860;
+const COLORS = SERIES;
+const W = 720;
 const H = 420;
 
-/** A card of its own size that redraws at its slot size, so `align: stretch` shows. */
+/** A card of its own size that redraws at its cell size, so `align: stretch` shows. */
 function card(frame: FlexContainer, i: number): Container {
     const c = new Container();
     const g = new SilkGraphics();
@@ -22,8 +23,8 @@ function card(frame: FlexContainer, i: number): Container {
     c.addChild(g, t);
 
     return frame.add(c, {
-        minWidth: 70 + ((i * 37) % 4) * 18,
-        minHeight: 56 + ((i * 53) % 3) * 22,
+        minWidth: 92 + (i % 3) * 16,
+        minHeight: 64 + (i % 2) * 16,
         onSize: (w, h) => {
             g.clear()
                 .roundRect(0, 0, w, h, 14, 0.6)
@@ -34,10 +35,10 @@ function card(frame: FlexContainer, i: number): Container {
 }
 
 export default defineDemo({
+    title: 'Flex stack',
     size: [W, H],
-    background: 0x151517,
     controls: {
-        items: { type: 'range', label: 'items', min: 1, max: 14, step: 1, value: 6 },
+        items: { type: 'range', label: 'items', min: 1, max: 14, step: 1, value: 8 },
         direction: {
             type: 'select',
             label: 'direction',
@@ -51,25 +52,26 @@ export default defineDemo({
             type: 'select',
             label: 'justify',
             options: ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'],
-            value: 'start',
+            value: 'center',
         },
-        align: { type: 'select', label: 'align', options: ['start', 'center', 'end', 'stretch'], value: 'start' },
-        debug: { type: 'toggle', label: 'debug', value: true },
+        align: { type: 'select', label: 'align', options: ['start', 'center', 'end', 'stretch'], value: 'center' },
+        debug: { type: 'toggle', label: 'debug', value: false },
     },
     setup({ silk, stage, params, tick }) {
         const frame = new FlexContainer({ ticker: silk.app.ticker, transition: true });
-        // the layout debug overlay: boxes, padding, gaps, slots against real bounds. Hover a card.
-        const debug = layoutDebug(silk.app, { enabled: true });
+        // the layout debug overlay: boxes, padding, gaps, cells against real bounds. Hover a card.
+        const debug = layoutDebug(silk.app, { enabled: false });
         const bg = new SilkGraphics();
         const cards: Container[] = [];
         let last = '';
 
-        frame.resize(W, H);
+        frame.resize(W - 2 * PAD, H - 2 * PAD);
+        frame.position.set(PAD, PAD);
         frame.add(bg, {
             position: 'absolute',
             inset: 0,
             animate: false,
-            onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 20, 0.6).fill(0x1c1c1e),
+            onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 20, 0.6).fill(INK.surface),
         });
         stage.addChild(frame);
 
@@ -87,7 +89,7 @@ export default defineDemo({
                 padding: params.padding,
                 justifyContent: params.justify as JustifyContent,
                 alignItems: params.align as AlignItems,
-                alignContent: 'start',
+                alignContent: 'center',
             });
             if (debug.enabled !== params.debug) debug.toggle();
         });

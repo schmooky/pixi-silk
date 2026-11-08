@@ -10,6 +10,7 @@ const FILL = vertical(
 );
 
 export default defineDemo({
+    title: 'Area chart',
     size: [480, 220],
     controls: {
         smooth: { type: 'toggle', label: 'monotone smoothing', value: true },

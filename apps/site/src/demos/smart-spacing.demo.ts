@@ -7,8 +7,8 @@ import { defineDemo } from './runtime';
 // Drag a card: it snaps to equal gaps and shared edges, and pink markers show every equal gap.
 // Hover the stack on the right to see its spacing, the way an auto-layout frame shows it.
 export default defineDemo({
+    title: 'Smart spacing',
     size: [760, 380],
-    background: 0x151517,
     touchAction: 'none',
     controls: {
         snap: { type: 'toggle', label: 'snap', value: true },

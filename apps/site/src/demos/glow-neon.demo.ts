@@ -7,7 +7,8 @@ const YELLOW = 0xffd60a;
 const font = 'Inter, system-ui, sans-serif';
 
 export default defineDemo({
-    size: [760, 440],
+    title: 'Neon bolt',
+    size: [720, 440],
     background: 0x0b0b09,
     controls: {
         intensity: { type: 'range', label: 'glow', min: 0, max: 2, step: 0.05, value: 1 },
@@ -16,21 +17,22 @@ export default defineDemo({
         const room = new SilkGraphics();
 
         // warm light spilling into the room, like the reference backdrop
-        room.rect(0, 0, 760, 440).fill(
+        // taller than the canvas, so a wide frame shows no band above or below
+        room.rect(0, -220, 720, 880).fill(
             radial(
                 [
                     [0, 0x3a3410, 1],
                     [0.55, 0x15140c, 1],
                     [1, 0x0b0b09, 1],
                 ],
-                { center: [0.28, 0.4], radius: 0.75 },
+                { center: [0.28, 0.45], radius: 0.75 },
             ),
         );
 
         // the bolt alone: about 120 wide, so the recipe runs at size 120
         const big = new Glow({ draw: (g) => bolt(g, -60, -84, 120, 168), layers: neon(YELLOW, { size: 120 }) });
 
-        big.position.set(190, 220);
+        big.position.set(180, 220);
 
         // the ticket card
         const card = new Container();
@@ -91,14 +93,14 @@ export default defineDemo({
         });
         const sub = new Text({
             text: 'Experience network speed\nlike never before',
-            style: { fontFamily: font, fontSize: 11.5, fill: 0x52525b, lineHeight: 16 },
+            style: { fontFamily: font, fontSize: 12.5, fill: 0x52525b, lineHeight: 17 },
         });
 
         title.position.set(22, 222);
-        sub.position.set(22, 252);
+        sub.position.set(22, 250);
         ring.position.set(206, 172);
         card.addChild(back, small, ticket, ring, title, sub);
-        card.position.set(445, 60);
+        card.position.set(414, 62);
         stage.addChild(room, big, card);
 
         let last = -1;

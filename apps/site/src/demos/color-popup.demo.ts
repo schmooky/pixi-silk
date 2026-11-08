@@ -22,6 +22,7 @@ const pipette = (g: SilkGraphics, s: number) => {
 };
 
 export default defineDemo({
+    title: 'Colour popup',
     size: [W, H],
     touchAction: 'none',
     setup({ silk, stage }) {

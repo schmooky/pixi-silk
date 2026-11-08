@@ -59,6 +59,7 @@ const hair = (color: number, alpha = 1) => ({ width: 1.25, color, alpha });
 type Role = 'ink' | 'onDisc' | 'faint';
 
 export default defineDemo({
+    title: 'Weather card',
     size: [W, H],
     controls: {
         theme: { type: 'select', label: 'theme', options: ['light', 'dark'], value: 'dark' },

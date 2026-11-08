@@ -4,10 +4,11 @@ import { defineDemo } from './runtime';
 
 // Left: Pixi v8 Graphics (tessellated, no MSAA). Right: SilkGraphics (distance fields).
 export default defineDemo({
+    title: 'Graphics and SilkGraphics',
     size: [480, 240],
     controls: {
         zoom: { type: 'range', label: 'zoom', min: 1, max: 6, step: 0.01, value: 1 },
-        spin: { type: 'toggle', label: 'rotate', value: true },
+        rotate: { type: 'toggle', label: 'rotate', value: true },
     },
     setup({ stage, params, tick }) {
         const sides = [new Container(), new Container()];
@@ -30,7 +31,7 @@ export default defineDemo({
         let angle = 0;
 
         tick((_t, dt) => {
-            if (params.spin) angle += dt * 0.15;
+            if (params.rotate) angle += dt * 0.15;
             for (const [i, side] of sides.entries()) {
                 side.pivot.set(120, 130);
                 side.position.set(i * 240 + 120, 130);

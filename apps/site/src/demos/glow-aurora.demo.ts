@@ -1,7 +1,7 @@
 import { Color, Container, Text } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { Aurora, hexLabel } from 'pixi-silk/glow';
-import { defineDemo } from './runtime';
+import { defineDemo, PAD } from './runtime';
 
 /** The palette colour itself, lifted towards white when it is too dark to read on the chip. */
 const readable = (c: number) => {
@@ -18,13 +18,20 @@ const PALETTES: [number, number, number][] = [
 ];
 
 export default defineDemo({
-    size: [760, 470],
-    background: 0x1c1d22,
+    title: 'Aurora',
+    size: [720, 470],
     controls: {
         rise: { type: 'range', label: 'rise', min: 0.3, max: 0.9, step: 0.01, value: 0.62 },
         speed: { type: 'range', label: 'speed', min: 0, max: 3, step: 0.1, value: 1 },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage: frame, params, tick }) {
+        // the phones span x 30 to 750 and y 20 to 434: fit that inside the shared padding
+        const stage = new Container();
+        const fit = (720 - 2 * PAD) / 720;
+
+        stage.scale.set(fit);
+        stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        frame.addChild(stage);
         const auroras = PALETTES.map((colors, i) => {
             const x = 40 + i * 240;
             const phone = new Container();
@@ -46,13 +53,13 @@ export default defineDemo({
                 const bg = new SilkGraphics();
                 const label = new Text({
                     text: hexLabel(c),
-                    style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: 11, fill: readable(c) },
+                    style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: 13, fill: readable(c) },
                 });
 
                 label.anchor.set(0.5);
-                bg.roundRect(-33, -12, 66, 24, 7).fill({ color: c, alpha: 0.12 });
+                bg.roundRect(-35, -13, 70, 26, 7).fill({ color: c, alpha: 0.12 });
                 chip.addChild(bg, label);
-                chip.position.set(x + 34 + j * 70, 422);
+                chip.position.set(x + 26 + j * 74, 420);
                 stage.addChild(chip);
             });
 

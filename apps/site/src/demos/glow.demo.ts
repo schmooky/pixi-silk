@@ -3,6 +3,7 @@ import { defineDemo } from './runtime';
 
 // `blur` is a gaussian applied to the distance field: no filters, no extra passes.
 export default defineDemo({
+    title: 'Glow',
     size: [480, 220],
     background: 0x050507,
     controls: {

@@ -5,7 +5,7 @@ import { fan, ray, spectrum } from 'pixi-silk/glow';
 import { trackGesture } from 'pixi-silk/ui/gesture';
 import { defineDemo } from './runtime';
 
-const mono = (text: string, size = 10, alpha = 0.7) =>
+const mono = (text: string, size = 12, alpha = 0.75) =>
     new Text({
         text,
         style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: size, fill: 0xffffff },
@@ -14,6 +14,7 @@ const mono = (text: string, size = 10, alpha = 0.7) =>
 const COLORS = spectrum(8);
 
 export default defineDemo({
+    title: 'Glass prism',
     size: [720, 440],
     background: 0x000000,
     touchAction: 'none',
@@ -41,9 +42,13 @@ export default defineDemo({
         beam.blendMode = 'add';
         rainbow.blendMode = 'add';
         glass.position.set(centre.x - 115, centre.y - 100);
-        glass.content.addChild(mono('2025 Edition'), Object.assign(mono('Reflect wealth'), { x: 140 }));
-        for (const t of glass.content.children) t.position.y = 16;
-        glass.content.children[0].x = 18;
+        const edition = mono('2025 Edition');
+        const motto = mono('Reflect wealth');
+
+        edition.position.set(18, 16);
+        motto.anchor.set(1, 0);
+        motto.position.set(212, 16);
+        glass.content.addChild(edition, motto);
         const brand = mono('F1', 54, 0.55);
 
         brand.position.set(150, 120);

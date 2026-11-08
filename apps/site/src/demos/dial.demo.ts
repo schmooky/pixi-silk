@@ -2,9 +2,10 @@ import { JogDial, Scrubber } from 'pixi-silk/ui/dial';
 import { defineDemo } from './runtime';
 
 // Drag around a dial: the value keeps adding up over full turns, and further out turns slower.
-// Flick it to spin. The right dial clicks through steps and stretches past its limits.
+// Flick it and it keeps turning. The right dial clicks through steps and stretches past its limits.
 // Scrub the fields sideways. Shift is fine, Ctrl or Cmd snaps, a tap on either end steps.
 export default defineDemo({
+    title: 'Dials and number fields',
     size: [600, 300],
     touchAction: 'none',
     setup({ silk, stage }) {

@@ -3,6 +3,7 @@ import { defineDemo } from './runtime';
 
 // containsPoint() evaluates the real distance field: the ring is hollow, the line is only its stroke.
 export default defineDemo({
+    title: 'Hit testing',
     size: [480, 220],
     setup({ stage, tick }) {
         const items = [

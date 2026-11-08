@@ -10,10 +10,9 @@ import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
 import { altDown } from 'pixi-silk/ui/keys';
 import { LayerTree, pixiTreeAdapter } from 'pixi-silk/ui/layers';
 import { Measure } from 'pixi-silk/ui/measure';
-import { Minimap } from 'pixi-silk/ui/minimap';
 import { SelectionOutline } from 'pixi-silk/ui/outline';
 import { PANEL_THEME, PANEL_THEME_LIGHT, Panel, type PanelTheme, panelHitTest } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { BG, defineDemo } from './runtime';
 
 /** A layer with a fill, a size and a corner radius the inspector can edit. */
 class Shape extends Container {
@@ -113,13 +112,14 @@ const schema: InspectorField[] = [
     },
 ];
 
-// A small editor drawn entirely on the canvas: layers on the left, the inspector on the right,
-// a minimap at the bottom right and the scene in the middle. Pick a layer in the list or on the
-// canvas, drag rows to reorder them, scrub a number, or open the colour swatch. Cmd or ctrl + Z
-// undoes every step. Drag a panel by its title to float it, and drop it near an edge to dock it.
+// A small editor drawn entirely on the canvas: layers on the left, the inspector on the right and
+// the scene in the middle. Pick a layer in the list or on the canvas, drag rows to reorder them,
+// scrub a number, or open the colour swatch. Cmd or ctrl + Z undoes every step. Drag a panel by
+// its title to float it, and drop it near an edge to dock it. On a narrow canvas both panels start
+// folded: click a chevron to open one.
 export default defineDemo({
-    size: [1100, 660],
-    background: 0x111113,
+    title: 'Editor panels',
+    size: [720, 620],
     touchAction: 'none',
     ownsCamera: true,
     controls: {
@@ -201,36 +201,31 @@ export default defineDemo({
 
         // ------------------------------------------------------------------ the panels
         let ui: ReturnType<typeof buildPanels> | null = null;
-        const synced = () => {
-            ui?.inspector.refresh();
-            ui?.minimap.refresh();
-        };
+        const synced = () => ui?.inspector.refresh();
+        // panel widths for the canvas the demo got: a phone gets two folded title bars
+        const narrow = silk.width < 560;
+        const sizes = narrow ? { layers: 140, inspector: 176 } : { layers: 196, inspector: 244 };
         // the light theme builds the panels again with the other tokens
         const buildPanels = (theme: Partial<PanelTheme>) => {
             const layersPanel = new Panel({
                 title: 'Layers',
-                dock: 'left',
-                width: 248,
+                dock: narrow ? 'top-left' : 'left',
+                width: sizes.layers,
+                minWidth: sizes.layers,
+                height: 360,
+                collapsed: narrow,
                 viewport,
                 scroll: false,
                 theme,
             });
             const inspectorPanel = new Panel({
                 title: 'Inspector',
-                dock: 'right',
-                width: 272,
+                dock: narrow ? 'top-right' : 'right',
+                width: sizes.inspector,
+                minWidth: sizes.inspector,
+                height: 420,
+                collapsed: narrow,
                 viewport,
-                insets: { bottom: 196 },
-                theme,
-            });
-            const mapPanel = new Panel({
-                title: 'Map',
-                dock: 'bottom-right',
-                width: 272,
-                height: 188,
-                viewport,
-                scroll: false,
-                layout: { padding: 8 },
                 theme,
             });
             const tree = new LayerTree({
@@ -242,13 +237,11 @@ export default defineDemo({
                 theme,
             });
             const inspector = new Inspector({ schema, history, element: app.canvas, popoverLayer: panelLayer, theme });
-            const minimap = new Minimap({ camera, background: false, theme });
 
             layersPanel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
             inspectorPanel.content.add(inspector);
-            mapPanel.content.add(minimap, { grow: 1, onSize: (w, h) => minimap.resize(w, h) });
             panels.length = 0;
-            panels.push(layersPanel, inspectorPanel, mapPanel);
+            panels.push(layersPanel, inspectorPanel);
             panelLayer.addChild(...panels);
             const stops = [
                 watch(selection.state.items, (items) => {
@@ -264,7 +257,6 @@ export default defineDemo({
 
             return {
                 inspector,
-                minimap,
                 destroy: () => {
                     for (const stop of stops) stop();
                     for (const p of panels) p.destroy({ children: true });
@@ -295,17 +287,21 @@ export default defineDemo({
         tick(() => {
             if (params.theme === theme) return;
             theme = params.theme;
-            app.renderer.background.color = theme === 'light' ? 0xe4e4ea : 0x111113;
+            app.renderer.background.color = theme === 'light' ? 0xe4e4ea : BG;
             ui?.destroy();
             ui = buildPanels(theme === 'light' ? PANEL_THEME_LIGHT : PANEL_THEME);
         });
 
         selection.pick(cards.children[0] as Container);
-        // frame the artboards in the space the panels leave free, again when the canvas gets its size
-        const frame = () => {
-            camera.fit(world, { left: 248 + 32, right: 272 + 32, top: 32, bottom: 32 }, false);
-            ui?.minimap.refresh();
-        };
+        // frame the first artboard in the space the panels leave free, again when the canvas gets its size
+        const frame = () =>
+            camera.fit(
+                home,
+                narrow
+                    ? { left: 24, right: 24, top: 64, bottom: 24 }
+                    : { left: sizes.layers + 20, right: sizes.inspector + 20, top: 24, bottom: 24 },
+                false,
+            );
         let framed = camera.state.width.value > 0;
         const stopFrame = camera.state.width.subscribe((w) => {
             if (framed || w <= 0) return;
