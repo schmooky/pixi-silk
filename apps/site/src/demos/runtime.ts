@@ -64,6 +64,8 @@ export interface Demo<C extends Controls = Controls> {
 export const defineDemo = <C extends Controls = Record<string, never>>(demo: Demo<C>): Demo<C> => demo;
 
 export interface MountedDemo {
+    /** The app the demo runs in. */
+    silk: SilkApp;
     setParam(key: string, value: unknown): void;
     pause(paused: boolean): void;
     destroy(): void;
@@ -103,6 +105,7 @@ export async function mountDemo(demo: Demo, host: HTMLElement, values: Record<st
     const cleanup = demo.setup({ silk, stage, width, height, params, tick: (fn) => ticks.push(fn) });
 
     return {
+        silk,
         setParam(key, value) {
             (params as Record<string, unknown>)[key] = value;
         },

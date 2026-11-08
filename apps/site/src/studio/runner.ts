@@ -4,6 +4,7 @@
  * document (the parent reloads the frame), so WebGL contexts, listeners and globals never leak.
  */
 import { type Control, type Demo, initialValues, mountDemo } from '@/demos/runtime';
+import { attachCamera } from './camera';
 import { runModule } from './modules';
 
 type Message = { type: 'run'; kind: 'demo' | 'lab'; code: string };
@@ -70,6 +71,9 @@ async function runDemo(code: string) {
     const bar = document.getElementById('studio-controls')!;
     const values = initialValues(demo.controls);
     const mounted = await mountDemo(demo, host, values);
+
+    // SDF shapes stay sharp at any zoom, so the preview can pan and zoom without limit
+    attachCamera(mounted.silk.app.stage, host);
     const entries = Object.entries(demo.controls ?? {});
 
     for (const [key, control] of entries) {

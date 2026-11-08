@@ -18,6 +18,14 @@
             #studio-controls label { display: inline-flex; gap: 8px; align-items: center; color: #a1a1aa; }
             #studio-controls output { font-family: ui-monospace, monospace; color: #f2f2f7; min-width: 3ch; }
             #studio-controls select { background: #1c1c1e; color: #f2f2f7; border: 1px solid #ffffff26; border-radius: 6px; padding: 2px 6px; }
+            .studio-zoom { position: absolute; right: 10px; bottom: 10px; z-index: 1; display: flex; border: 1px solid #ffffff26; border-radius: 999px; background: #0b0b0dcc; backdrop-filter: blur(8px); opacity: 0.55; transition: opacity 0.15s; }
+            .studio-zoom:hover, .studio-zoom.moved { opacity: 1; }
+            .studio-zoom button { min-width: 26px; padding: 4px 8px; border: 0; background: none; color: #f2f2f7; font: 11px/1.3 ui-monospace, monospace; cursor: pointer; }
+            .studio-zoom button:hover { color: #fff; background: #ffffff14; }
+            .studio-zoom button:first-child { border-radius: 999px 0 0 999px; }
+            .studio-zoom button:last-child { border-radius: 0 999px 999px 0; }
+            #studio-stage.studio-panning, #studio-stage.studio-panning canvas { cursor: grab !important; }
+            #studio-stage.studio-panning:active, #studio-stage.studio-panning:active canvas { cursor: grabbing !important; }
             body[data-kind='lab'] #studio-stage, body[data-kind='lab'] #studio-controls { display: none; }
             /* a lab page's back link would navigate the preview frame */
             body .chrome a.back { display: none; }
