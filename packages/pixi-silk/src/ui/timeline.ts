@@ -13,6 +13,7 @@ import { clamp, rubberBand, snapTo } from './arc';
 import { Driver } from './driver';
 import { type InputProfiles, inputKind, inputProfile } from './input';
 import { shiftDown } from './keys';
+import type { LabelFactory, TextLabel } from './label';
 import { hex, mix } from './paint';
 
 /** One key on a {@link MiniTimeline}. */
@@ -95,8 +96,17 @@ export interface MiniTimelineOptions {
     minSpan?: number;
     /** Frame numbers on the ruler. Default true. */
     labels?: boolean;
-    /** Style of the frame numbers. */
+    /** Font size of the frame numbers in local units. Default 9. */
+    fontSize?: number;
+    /** Font family of the frame numbers. Default `system-ui, -apple-system, Segoe UI, Roboto, sans-serif`. */
+    fontFamily?: string;
+    /** Style of the frame numbers. Its fields win over `fontSize` and `fontFamily`. The colour is the theme's `text`. */
     textStyle?: TextStyleOptions;
+    /**
+     * Builds the frame number labels from their style. Default a PixiJS `BitmapText` tinted with
+     * the theme's `text`. Pass `silkLabel()` from `pixi-silk/text` to draw them as SDF text.
+     */
+    label?: LabelFactory;
     /** Colours that replace parts of {@link TIMELINE_THEME}. */
     theme?: Partial<TimelineTheme>;
     /** Per pointer kind overrides of `slop`, the movement a tap may have. */
@@ -151,7 +161,7 @@ export class MiniTimeline extends Container {
     private _hoverKey: string | null = null;
     private _lastRulerTap = 0;
     private _dirty = true;
-    private _pool: BitmapText[] = [];
+    private _pool: TextLabel[] = [];
 
     constructor(options: MiniTimelineOptions = {}) {
         super({ label: 'MiniTimeline' });
@@ -619,18 +629,9 @@ export class MiniTimeline extends Container {
 
     private _drawLabels(labels: [number, number][]): void {
         while (this._pool.length < labels.length) {
-            const text = new BitmapText({
-                text: '0',
-                style: {
-                    fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-                    fontSize: 9,
-                    fill: 0xffffff,
-                    ...this._opts.textStyle,
-                },
-            });
+            const text = this._makeLabel();
 
             text.anchor.set(0, 0.5);
-            text.tint = this._theme.text;
             this._pool.push(text);
             this._labels.addChild(text);
         }
@@ -642,5 +643,22 @@ export class MiniTimeline extends Container {
             text.text = String(Math.round(item[0]));
             text.position.set(item[1] + 3, 6);
         });
+    }
+
+    private _makeLabel(): TextLabel {
+        const o = this._opts;
+        const style: TextStyleOptions = {
+            fontFamily: o.fontFamily ?? 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+            fontSize: o.fontSize ?? 9,
+            fill: o.label ? this._theme.text : 0xffffff,
+            ...o.textStyle,
+        };
+
+        if (o.label) return o.label(style);
+        const text = new BitmapText({ text: '0', style });
+
+        text.tint = this._theme.text;
+
+        return text;
     }
 }

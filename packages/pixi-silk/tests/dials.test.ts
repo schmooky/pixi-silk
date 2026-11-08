@@ -1,3 +1,4 @@
+import { Container, type TextStyleOptions } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
 import { JogDial, rubberBand, Scrubber } from '../src/ui/dial';
 import { countDuration, digitCount, Odometer, odometerColumns } from '../src/ui/odometer';
@@ -193,6 +194,32 @@ describe('MiniTimeline', () => {
             ],
             ...o,
         });
+    const fakeLabel = (styles: TextStyleOptions[]) => (style: TextStyleOptions) => {
+        styles.push(style);
+
+        return Object.assign(new Container(), { text: '', anchor: { set: () => {} } });
+    };
+
+    it('builds ruler labels through the label factory with the default font', () => {
+        const styles: TextStyleOptions[] = [];
+        const tl = make({ labels: true, label: fakeLabel(styles), theme: { text: 0x123456 } });
+
+        settle(tl);
+        expect(styles.length).toBeGreaterThan(0);
+        expect(styles[0]).toMatchObject({ fontSize: 9, fill: 0x123456 });
+        expect(String(styles[0].fontFamily)).toContain('system-ui');
+    });
+
+    it('takes fontSize and fontFamily, and textStyle wins over them', () => {
+        const styles: TextStyleOptions[] = [];
+
+        settle(make({ labels: true, label: fakeLabel(styles), fontSize: 12, fontFamily: 'Inter' }));
+        expect(styles[0]).toMatchObject({ fontSize: 12, fontFamily: 'Inter' });
+        const more: TextStyleOptions[] = [];
+
+        settle(make({ labels: true, label: fakeLabel(more), fontSize: 12, textStyle: { fontSize: 14 } }));
+        expect(more[0].fontSize).toBe(14);
+    });
 
     it('scrubs the playhead, snapped and clamped, with a stretch past the end', () => {
         const onScrub = vi.fn();

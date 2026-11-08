@@ -110,6 +110,8 @@ zooms in and another zooms back out. `zoomBy()`, `panBy()` and `showAll()` do th
 | `fps` | `30` | Playback speed. |
 | `snap` | `1` | Keys and the playhead snap to multiples of this many frames. 0 turns it off. |
 | `minSpan` | `8` | Fewest frames the view zooms in to. |
+| `fontSize` | `9` | Size of the frame numbers on the ruler. `fontFamily` and `textStyle` set the rest. |
+| `label` | `BitmapText` | Builds the frame numbers. Pass `silkLabel()` from `pixi-silk/text` for SDF text. |
 
 The timeline holds keys and a playhead, not animation curves. Use `state.time` to drive your own
 tweens or a Spine track.
