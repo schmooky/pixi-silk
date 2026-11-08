@@ -4,14 +4,17 @@ import type { SilkGraphics } from '../SilkGraphics';
 const BOLT = [0.64, 0, 0.06, 0.58, 0.44, 0.58, 0.3, 1, 0.94, 0.4, 0.56, 0.4];
 
 /**
- * Adds a lightning bolt filling the box (x, y, w, h) to `g` as one polygon. Fill it once and
- * blur, spread and inner shadows treat it as a single shape.
+ * Adds a lightning bolt filling the box (x, y, w, h) to `g` as one polygon and returns `g`. Fill it
+ * once and blur, spread and inner shadows treat it as a single shape.
  */
 export function bolt(g: SilkGraphics, x: number, y: number, w: number, h: number): SilkGraphics {
     return g.poly(BOLT.map((v, i) => (i % 2 === 0 ? x + v * w : y + v * h)));
 }
 
-/** Adds a drop with its tip up: a circle of radius `r` around (cx, cy) pulled into a point `tip` above. */
+/**
+ * Adds a drop with its tip up as one closed path and returns `g`. It is a circle of radius `r` around
+ * (cx, cy), pulled into a point `tip` above the centre (default `1.6 * r`).
+ */
 export function drop(g: SilkGraphics, cx: number, cy: number, r: number, tip: number = r * 1.6): SilkGraphics {
     const k = 0.5523 * r;
     const ty = cy - tip;

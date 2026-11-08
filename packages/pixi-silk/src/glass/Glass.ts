@@ -3,26 +3,36 @@ import { SilkGraphics } from '../SilkGraphics';
 import { GlassFilter } from './GlassFilter';
 import { type GlassStyle, lightVector, type ResolvedGlass, resolveGlass } from './options';
 
-/** Options of {@link Glass}: its size plus a {@link GlassStyle}. */
+/** Options of {@link Glass}: the pane size plus every {@link GlassStyle} field. */
 export interface GlassOptions extends GlassStyle {
-    /** Default 240. */
+    /** Pane width in local units. Default 240. */
     width?: number;
-    /** Default 160. */
+    /** Pane height in local units. Default 160. */
     height?: number;
 }
 
 /**
- * A pane of frosted glass. It blurs and bends whatever is drawn behind it, splits colours at its
- * curved rim, and catches light on the edge that faces the light.
+ * A pane of frosted glass from `pixi-silk/glass`. It blurs and bends whatever is drawn behind it,
+ * splits colours at its curved rim, and catches light on the edge that faces the light.
  *
- * Put labels and icons in {@link Glass.content}: they sit on top of the glass, sharp. The pane's
- * top-left corner is at (0, 0). It reads the canvas behind it, so on WebGL it turns on the
- * renderer's back buffer the first time it draws. Pass `useBackBuffer: true` to the application
- * to have it from the first frame. WebGPU reads the backdrop without a back buffer. On any other
- * renderer it draws a plain frosted fill instead.
+ * Put labels and icons in {@link Glass.content}. They sit on top of the glass, unblurred. The pane's
+ * top-left corner is at (0, 0). It only sees what was drawn before it in the same frame, so add it
+ * after its backdrop.
+ *
+ * On WebGL the pane reads the canvas through the renderer's back buffer. It sets
+ * `renderer.backBuffer.useBackBuffer = true` the first time it draws and shows no glass on that one
+ * frame. Pass `useBackBuffer: true` to the application to have glass from the first frame. The back
+ * buffer costs a full-screen copy each frame for the whole app. WebGPU reads the backdrop without a
+ * back buffer. Any other renderer gets a plain frosted fill instead.
+ *
+ * ```ts
+ * const pane = new Glass({ width: 320, height: 200, radius: 32 });
+ * pane.content.addChild(label);
+ * app.stage.addChild(backdrop, pane);
+ * ```
  */
 export class Glass extends Container {
-    /** Children drawn on top of the glass. */
+    /** Children drawn on top of the glass, unfiltered, in the pane's local space. */
     readonly content: Container = new Container({ label: 'GlassContent' });
     private readonly _shadow = new SilkGraphics({ label: 'GlassShadow' });
     private readonly _body = new Container({ label: 'GlassBody' });
@@ -50,22 +60,22 @@ export class Glass extends Container {
         this._redraw();
     }
 
-    /** Pane width in local units. */
+    /** Pane width in local units. Change it with {@link Glass.resize}. */
     get paneWidth(): number {
         return this._w;
     }
 
-    /** Pane height in local units. */
+    /** Pane height in local units. Change it with {@link Glass.resize}. */
     get paneHeight(): number {
         return this._h;
     }
 
-    /** The current style, as given. */
+    /** The style as given, before defaults. Change it with {@link Glass.set}. */
     get style(): Readonly<GlassStyle> {
         return this._style;
     }
 
-    /** Resizes the pane. */
+    /** Resizes the pane, in local units, and redraws its outline and shadow. Returns this. */
     resize(width: number, height: number): this {
         this._w = width;
         this._h = height;
@@ -74,7 +84,11 @@ export class Glass extends Container {
         return this;
     }
 
-    /** Changes any part of the style. Fields left out keep their value. */
+    /**
+     * Merges `style` into the current style. Fields left out keep their value. Only a change of
+     * radius, smoothing, shadow or opacity redraws the outline (frost and tint too in the fallback fill).
+     * The rest goes to the filter on the next frame. Returns this.
+     */
     set(style: GlassStyle): this {
         const before = this._r;
 

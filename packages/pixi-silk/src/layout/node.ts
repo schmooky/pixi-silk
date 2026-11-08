@@ -37,7 +37,7 @@ export class LayoutNode<T = unknown> {
         return this._style;
     }
 
-    /** Replaces the style. */
+    /** Replaces the whole style. Keys left out go back to their defaults. Marks the node dirty. */
     setStyle(style: LayoutStyle): this {
         this._style = { ...style };
 
@@ -51,7 +51,7 @@ export class LayoutNode<T = unknown> {
         return this.markDirty();
     }
 
-    /** Measures leaf content. A node with in-flow children ignores it. */
+    /** Measures leaf content. A node with in-flow children ignores it. Setting it marks the node dirty. */
     get measure(): MeasureFunction | undefined {
         return this._measure;
     }
@@ -96,7 +96,7 @@ export class LayoutNode<T = unknown> {
         return this.markDirty();
     }
 
-    /** Removes every child. */
+    /** Removes every child. The children become roots of their own. */
     clear(): this {
         for (const child of this._children) child._parent = null;
         this._children.length = 0;

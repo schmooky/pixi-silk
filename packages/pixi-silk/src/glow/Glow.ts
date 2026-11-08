@@ -6,34 +6,43 @@ import { type FillInput, SilkGraphics, type StrokeInput } from '../SilkGraphics'
  * scaled and blended additively. Stack a few and a flat shape starts to emit light.
  */
 export interface GlowLayer {
-    /** Fill of this pass (colour, gradient, alpha, blur). */
+    /** Fill of this pass: colour, gradient, alpha and blur, as in `SilkGraphics.fill`. Left out, the pass is not filled. */
     fill?: FillInput;
-    /** Stroke of this pass. */
+    /** Stroke of this pass, as in `SilkGraphics.stroke`. Left out, the pass is not stroked. */
     stroke?: StrokeInput;
-    /** `add` is Figma's Plus lighter: light adds up and burns towards white. Default `normal`. */
+    /** Blend mode of the pass. `add` sums light, so overlaps burn towards white. Default `normal`. */
     blend?: BLEND_MODES;
-    /** Scale around the glow's centre. Default 1. */
+    /** Scale of the pass around {@link GlowOptions.center}. Default 1. */
     scale?: number;
-    /** Offset. Default 0. */
+    /** Horizontal offset of the pass in local units. Default 0. */
     x?: number;
+    /** Vertical offset of the pass in local units. Default 0. */
     y?: number;
-    /** Opacity of the whole pass. Default 1. */
+    /** Opacity of the whole pass, 0 to 1. Default 1. */
     alpha?: number;
 }
 
 /** Options of {@link Glow}. */
 export interface GlowOptions {
-    /** Adds the shape's outline to `g` (no fill or stroke call): `(g) => g.circle(0, 0, 40)`. */
+    /**
+     * Adds the shape to `g` without a fill or stroke call, for example `(g) => g.circle(0, 0, 40)`. It runs
+     * once per pass on every redraw, with the pass transform already set.
+     */
     draw: (g: SilkGraphics) => void;
-    /** Passes, back to front. See {@link neon} for a ready recipe. */
+    /** Passes, back to front. See {@link neon} for a ready recipe. An empty array draws nothing. */
     layers: GlowLayer[];
-    /** Point the layers scale around. Default (0, 0). */
+    /** Point in local units that each pass scales around. Default `[0, 0]`. */
     center?: [number, number];
 }
 
 /**
- * A shape drawn as a stack of passes: blurred blooms behind, a solid core, hot highlights on top.
- * Each pass is one {@link SilkGraphics}, so a whole glow costs a few draw calls.
+ * A shape drawn as a stack of passes from `pixi-silk/glow`: blurred blooms behind, a solid core,
+ * hot highlights on top. Each pass is one child {@link SilkGraphics}, so a glow costs one draw call
+ * per pass unless batching merges them.
+ *
+ * ```ts
+ * const glow = new Glow({ draw: (g) => g.circle(0, 0, 40), layers: neon(0xff3df5) });
+ * ```
  */
 export class Glow extends Container {
     private _draw: (g: SilkGraphics) => void;
@@ -49,26 +58,26 @@ export class Glow extends Container {
         this.redraw();
     }
 
-    /** The passes, back to front (one graphics each). */
+    /** One graphics per pass, back to front. Read-only, rebuilt by {@link Glow.redraw}. */
     get passes(): readonly SilkGraphics[] {
         return this._passes;
     }
 
-    /** Replaces the shape and redraws. */
+    /** Replaces the draw function and redraws every pass. Returns this. */
     setDraw(draw: (g: SilkGraphics) => void): this {
         this._draw = draw;
 
         return this.redraw();
     }
 
-    /** Replaces the passes and redraws. */
+    /** Replaces the passes and redraws. Adds or destroys pass graphics to match the new count. Returns this. */
     setLayers(layers: GlowLayer[]): this {
         this._layers = layers;
 
         return this.redraw();
     }
 
-    /** Draws every pass again, for shapes that change over time. */
+    /** Clears and draws every pass again. Call it when the shape drawn by `draw` changes. Returns this. */
     redraw(): this {
         while (this._passes.length < this._layers.length) {
             const g = new SilkGraphics({ label: 'GlowPass' });
