@@ -5,17 +5,17 @@ import { maxChroma, type OKLCH, oklchToRgb, rgbToHex, rgbToOklch } from './model
 
 /** Options of {@link OklchPicker}. */
 export interface OklchPickerOptions extends ColorPickerOptions {
-    /** Width of the lightness / chroma plane. Default 240. */
+    /** Width of the lightness / chroma plane, local units. Default 240. */
     width?: number;
-    /** Height of the plane. Default 160. */
+    /** Height of the plane, local units. Default 160. */
     height?: number;
     /** Highest chroma shown. Default 0.37 (the most saturated sRGB colours). */
     maxChroma?: number;
-    /** Height of the hue strip under the plane. `0` hides it. Default 16. */
+    /** Height of the hue strip under the plane, local units. `0` hides it. Default 16. */
     stripHeight?: number;
-    /** Space between plane and strip. Default 12. */
+    /** Space between plane and strip, local units. Default 12. */
     gap?: number;
-    /** Rows the plane is drawn with. More is smoother, each costs one gradient. Default 48. */
+    /** Rows the plane is drawn with, at least 8. More is smoother, each costs one gradient. Default 48. */
     rows?: number;
 }
 
@@ -49,7 +49,7 @@ export class OklchPicker extends ColorPicker {
         this._shown = [...this._lch];
     }
 
-    /** Current OKLCH as this picker sees it (chroma may exceed what sRGB shows). */
+    /** Current OKLCH as this picker sees it (chroma may exceed what sRGB shows). A copy. */
     get lch(): OKLCH {
         return [...this._lch];
     }

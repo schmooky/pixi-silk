@@ -3,8 +3,8 @@ import { Spring } from '../../motion';
 import { FlexContainer, type FlexContainerOptions, type SmartLayout } from './flex-container';
 
 /**
- * Where a SmartContainer sits on screen and how it scales, for one breakpoint. The names match
- * the SmartContainer many slot games use, so a game can bring its layout records over as they are.
+ * Where a SmartContainer sits on screen and how it scales, for one breakpoint. The box is in design
+ * units, and the reference resolution sets how design units map to the window.
  */
 export interface LayoutData {
     /** Horizontal anchor of the design box in the window. Default `center`. */
@@ -19,9 +19,9 @@ export interface LayoutData {
     viewportWidth?: number;
     /** Reference resolution height. Default 1920 in portrait, 1080 in landscape. */
     viewportHeight?: number;
-    /** Scale the x axis so the box spans the window width. Distorts the content. Default false. */
+    /** Scale the x axis so the box spans the window width. Distorts the content. Needs a nonzero `width`. Default false. */
     stretchWidth?: boolean;
-    /** Scale the y axis so the box spans the window height. Distorts the content. Default false. */
+    /** Scale the y axis so the box spans the window height. Distorts the content. Needs a nonzero `height`. Default false. */
     stretchHeight?: boolean;
     /** Keep the uniform scale and widen the box to the window instead. Flex children spread out. Default false. */
     extendWidth?: boolean;
@@ -45,15 +45,19 @@ export interface LayoutData {
 
 /** A named layout record that applies when `when` returns true for the window size. */
 export interface Breakpoint {
+    /** Reported by {@link SmartContainer.breakpoint} while this record is active. */
     name: string;
     /** Tested in order with the full window size. The first match wins. */
     when: (width: number, height: number) => boolean;
+    /** The record to apply. Missing values default as in landscape. */
     data: LayoutData;
 }
 
 /** A window rectangle in screen pixels. */
 export interface ViewportRect {
+    /** Left edge. Default 0. */
     x?: number;
+    /** Top edge. Default 0. */
     y?: number;
     width: number;
     height: number;
@@ -89,13 +93,13 @@ export interface SmartContainerOptions extends FlexContainerOptions {
     landscapeData?: LayoutData;
     /** Named records tested before portrait and landscape. */
     breakpoints?: readonly Breakpoint[];
-    /** The window to follow. */
+    /** The window to follow. Without one the container does not place itself. Set it later with {@link SmartContainer.setViewport}. */
     viewport?: ViewportSource;
     /** Keeps boxes clear of these window insets, unless a record sets `ignoreSafeArea`. */
     safeArea?: Insets;
-    /** Glide to the new place and scale when the breakpoint changes. Default false. */
+    /** Glide to the new place and scale when the breakpoint changes. Pass an object to tune the spring. Default false. */
     switchTransition?: boolean | { stiffness?: number; damping?: number };
-    /** Default true. */
+    /** Initial `visible` of the container. Default true. */
     visible?: boolean;
 }
 
@@ -130,9 +134,13 @@ const resolveData = (data: LayoutData | undefined, viewportWidth: number, viewpo
 
 /** Where {@link placeBox} put a design box: position and scale in the window's space, and the box size. */
 export interface Placement {
+    /** Left of the design box, window units. */
     x: number;
+    /** Top of the design box, window units. */
     y: number;
+    /** Window units per design unit, horizontally. */
     scaleX: number;
+    /** Window units per design unit, vertically. */
     scaleY: number;
     /** The design box after `extend`, in design units. */
     width: number;
@@ -142,7 +150,7 @@ export interface Placement {
 /**
  * Where a record puts its box in a window: the fit scale of the window to the reference
  * resolution, then stretch per axis, then the corrections, then the alignment. Pure, so you can
- * check a layout record without a renderer.
+ * check a layout record without a renderer. Writes into `out` when given, else returns a new object.
  */
 export function placeBox(data: LayoutData, window: ViewportRect, out?: Placement): Placement {
     const d = data as Resolved;
@@ -178,8 +186,8 @@ export function placeBox(data: LayoutData, window: ViewportRect, out?: Placement
 }
 
 /**
- * A container that places and scales itself in the window from layout records, the way slot
- * games lay out a HUD. A record has a design box, a reference resolution it fits or covers, an
+ * A responsive container for portrait and landscape screens. It places and scales itself in the
+ * window from layout records against a reference resolution. A record has a design box, a reference resolution it fits or covers, an
  * alignment, and optional stretch and corrections. It picks `portraitData` when the window is taller than wide,
  * `landscapeData` otherwise, or the first matching named breakpoint.
  *
@@ -188,6 +196,7 @@ export function placeBox(data: LayoutData, window: ViewportRect, out?: Placement
  * and text shrink-to-fit, as in a {@link FlexContainer}.
  *
  * It follows a viewport source, not the global window, and keeps clear of safe-area insets.
+ * Without a `viewport` it does nothing: it stays where it is at scale 1.
  */
 export class SmartContainer extends FlexContainer {
     /** @internal */
@@ -261,7 +270,7 @@ export class SmartContainer extends FlexContainer {
         return { width: this._place.width, height: this._place.height };
     }
 
-    /** Follows a new window source. */
+    /** Follows a new window source and places the container at once. `null` stops following and leaves it where it is. */
     setViewport(source: ViewportSource | null): this {
         this._unsubscribe?.();
         this._unsubscribe = null;
@@ -343,6 +352,7 @@ export class SmartContainer extends FlexContainer {
         if (switched) this.invalidate();
     }
 
+    /** Stops following the viewport. */
     override destroy(options?: Parameters<FlexContainer['destroy']>[0]): void {
         this._unsubscribe?.();
         this._unsubscribe = null;

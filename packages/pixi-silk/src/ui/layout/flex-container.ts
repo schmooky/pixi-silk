@@ -68,7 +68,7 @@ export interface FlexContainerOptions {
     transition?: boolean | { stiffness?: number; damping?: number };
     /** Checks the children's bounds every frame and lays out again when they change. Default false. */
     watch?: boolean;
-    /** Called after every layout pass. */
+    /** Called after every layout pass, on the container that ran it. */
     onLayout?: (container: FlexContainer) => void;
     /** `ticker` defaults to `Ticker.shared`. Pass `null` to call {@link FlexContainer.tick} yourself. */
     ticker?: Ticker | null;
@@ -135,7 +135,7 @@ export function paddingOf(s: LayoutStyle): (number | `${number}%` | undefined)[]
 
 const same = (a: object, b: object): boolean => JSON.stringify(a) === JSON.stringify(b);
 
-/** The scale of a child of natural size `w` by `h` in a slot, for a fit mode. */
+/** The [x, y] scale of a child of natural size `w` by `h` in a slot, for a fit mode. [1, 1] for `none` or an empty child. */
 export function fitScale(fit: FitMode, w: number, h: number, slotWidth: number, slotHeight: number): [number, number] {
     if (fit === 'none' || w <= 0 || h <= 0) return [1, 1];
     const kx = slotWidth / w;
@@ -149,7 +149,8 @@ export function fitScale(fit: FitMode, w: number, h: number, slotWidth: number, 
 
 /**
  * A `measure` that wraps a text child to the width offered: Pixi `Text` (through its style) or
- * `SilkText`. Long copy then breaks into lines instead of overflowing its slot.
+ * `SilkText`. Long copy then breaks into lines instead of overflowing its slot. It turns on the
+ * child's `wordWrap` and sets `wordWrapWidth`. Other children are measured by their bounds.
  */
 export function wrapText(child: Container, availableWidth: number): Size {
     type Wrappable = { wordWrap?: boolean; wordWrapWidth?: number };
@@ -210,21 +211,21 @@ export class FlexContainer extends Container {
         return this._style;
     }
 
-    /** Replaces the container's own flex style. */
+    /** Replaces the container's own flex style and lays out on the next frame. */
     setStyle(style: SmartLayout): this {
         this._style = style;
 
         return this.invalidate();
     }
 
-    /** Gives `child` a layout style. It need not be a child yet. */
+    /** Gives `child` a layout style, replacing the old one. It need not be a child yet. */
     setLayout(child: Container, style: SmartLayout): this {
         this._entry(child).style = style;
 
         return this.invalidate();
     }
 
-    /** The layout style of `child`. */
+    /** The layout style of `child`, or `{}` when it has none. */
     getLayout(child: Container): SmartLayout {
         return this._entries.get(child)?.style ?? {};
     }
@@ -237,7 +238,7 @@ export class FlexContainer extends Container {
         return child;
     }
 
-    /** The slot `child` got in the last pass, in this container's space. */
+    /** A copy of the slot `child` got in the last pass, in this container's space. Undefined for a child without a style. */
     slotOf(child: Container): { x: number; y: number; width: number; height: number } | undefined {
         const e = this._entries.get(child);
 
@@ -256,7 +257,7 @@ export class FlexContainer extends Container {
         return this;
     }
 
-    /** Root only: lays out in an area of this size, in local units. */
+    /** Root only: lays out in an area of this size, in local units. Without it the root sizes to its content. */
     resize(width: number, height: number): this {
         if (this._area && this._area.width === width && this._area.height === height) return this;
         this._area = { width, height };
@@ -271,7 +272,7 @@ export class FlexContainer extends Container {
         return root._area ?? { width: root.node.layout.width, height: root.node.layout.height };
     }
 
-    /** The orientation of the root's layout area. */
+    /** The orientation of the root's layout area. A square counts as landscape. */
     get orientation(): 'portrait' | 'landscape' {
         const a = this.area;
 
@@ -308,7 +309,7 @@ export class FlexContainer extends Container {
         };
     }
 
-    /** Lays out now, instead of on the next frame. */
+    /** Lays out the whole tree now, from its root, instead of on the next frame. */
     updateLayout(): this {
         const root = this._root();
 
@@ -318,11 +319,12 @@ export class FlexContainer extends Container {
         return this;
     }
 
-    /** Advances layout and transitions by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances layout and transitions by `dt` seconds (only needed with `ticker: null`). Returns true while busy. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the layout loop. Pass `{ children: true }` to destroy the children too. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         this.off('childAdded', this._onChild, this);

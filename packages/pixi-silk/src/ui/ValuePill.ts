@@ -7,26 +7,27 @@ import { hex } from './paint';
 
 /** Options of {@link ValuePill}. */
 export interface ValuePillOptions {
-    /** Background. Default white. */
+    /** Background colour. Default white. */
     fill?: number | string;
-    /** Text colour. Default near black. */
+    /** Text colour, applied as a tint. Default 0x1c1c1e. */
     color?: number | string;
-    /** Default 12. */
+    /** Font size in px. Default 12, semibold. */
     fontSize?: number;
     /** More text style, passed to the label. */
     textStyle?: TextStyleOptions;
-    /** Pill height. Default 22. */
+    /** Pill height in local units. The width follows the text, at least the height. Default 22. */
     height?: number;
     /**
-     * Builds the text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for text that
-     * stays sharp when the pill is zoomed.
+     * Builds the text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
+     * distance-field text, which scales with a zooming camera without re-rasterising.
      */
     label?: LabelFactory;
 }
 
 /**
  * A small rounded label for live readouts: angles while rotating, sizes while resizing, distances
- * between snapped objects. Centred on its position. Call {@link ValuePill.update} each frame to fade.
+ * between snapped objects. Centred on its position. It has no ticker: call {@link ValuePill.update}
+ * each frame, or `show` and `hide` change nothing on screen. It ignores pointer events.
  */
 export class ValuePill extends Container {
     /** Wanted visibility. `update` fades towards it. */
@@ -59,7 +60,7 @@ export class ValuePill extends Container {
         this.eventMode = 'none';
     }
 
-    /** Current text. */
+    /** Current text. Setting it resizes the pill at once. */
     get text(): string {
         return this._value;
     }
@@ -71,17 +72,18 @@ export class ValuePill extends Container {
         this._redraw();
     }
 
-    /** Sets the text and shows the pill. */
+    /** Sets the text, when given, and fades the pill in on the next `update` calls. */
     show(text?: string): void {
         if (text !== undefined) this.text = text;
         this.shown = true;
     }
 
+    /** Fades the pill out on the next `update` calls. */
     hide(): void {
         this.shown = false;
     }
 
-    /** Fades towards `shown`. Returns true while fading. */
+    /** Fades and scales towards `shown` by `dt` seconds. Returns true while fading. */
     update(dt: number): boolean {
         const target = this.shown ? 1 : 0;
 

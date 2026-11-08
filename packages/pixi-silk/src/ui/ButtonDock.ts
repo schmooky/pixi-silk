@@ -7,19 +7,21 @@ import type { SilkButton } from './SilkButton';
 export interface ButtonDockOptions {
     /** Default `row`. */
     direction?: 'row' | 'column';
-    /** Space between buttons. Default 12. */
+    /** Space between buttons, local units. Default 12. */
     gap?: number;
-    /** Where the row sits relative to the dock's origin. Default `center`. */
+    /** Where the row sits on the dock's origin: `start` begins there, `end` ends there. Default `center`. */
     align?: 'start' | 'center' | 'end';
     /** Delay between buttons in `showAll` / `hideAll`, seconds. Default 0.04. */
     stagger?: number;
+    /** Ticker that runs the reflow. Default `Ticker.shared`. With `null`, call {@link ButtonDock.tick} yourself. */
     ticker?: Ticker | null;
 }
 
 /**
  * A row or column of {@link SilkButton}s that closes the gap when one hides and opens it when it
  * comes back, gliding the others into place. Slot sizes follow each button's animated appearance,
- * so the reflow and the fade are one motion.
+ * so the reflow and the fade are one motion. The dock sets each button's `x` (row) or `y` (column),
+ * so do not position them yourself.
  */
 export class ButtonDock extends Container {
     private readonly _buttons: SilkButton[] = [];
@@ -39,12 +41,12 @@ export class ButtonDock extends Container {
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
     }
 
-    /** Buttons in order. */
+    /** Buttons in order, hidden ones included. */
     get buttons(): readonly SilkButton[] {
         return this._buttons;
     }
 
-    /** Appends buttons. */
+    /** Appends buttons and adds them as children. A button already in the dock is skipped. */
     add(...buttons: SilkButton[]): this {
         for (const b of buttons) {
             if (this._buttons.includes(b)) continue;
@@ -60,7 +62,7 @@ export class ButtonDock extends Container {
         return this;
     }
 
-    /** Removes a button (it is not destroyed). */
+    /** Removes a button from the dock and from its children. It is not destroyed. */
     remove(button: SilkButton): this {
         const i = this._buttons.indexOf(button);
 
@@ -75,21 +77,22 @@ export class ButtonDock extends Container {
         return this;
     }
 
-    /** Shows every button, one after another. */
+    /** Shows every button, first to last, `stagger` seconds apart. Resolves with each button's `show()` result. */
     showAll(): Promise<boolean[]> {
         return this._cascade(this._buttons, true);
     }
 
-    /** Hides every button, last first. */
+    /** Hides every button, last to first, `stagger` seconds apart. Resolves with each button's `hide()` result. */
     hideAll(): Promise<boolean[]> {
         return this._cascade([...this._buttons].reverse(), false);
     }
 
-    /** Advances the layout by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the layout by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the reflow. Pass `{ children: true }` to destroy the buttons too. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         for (const stop of this._stops.values()) stop();

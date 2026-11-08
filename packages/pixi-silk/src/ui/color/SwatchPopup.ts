@@ -10,14 +10,17 @@ import { ColorModel } from './model';
 
 /** Options of {@link SwatchPopup}. */
 export interface SwatchPopupOptions {
+    /** The colour a pick writes to. Default: a new model. */
     model?: ColorModel;
-    /** Colours on the ring. Leave out to use the model's recent colours. */
+    /** Colours on the ring, 0xRRGGBB. Leave out to use the model's recent colours. At most 16 are shown. */
     colors?: number[];
-    /** Radius to the swatch centres. Default 62. */
+    /** Radius to the swatch centres, local units. Scaled by the pointer profile. Default 62. */
     radius?: number;
-    /** Swatch diameter. Default 30. */
+    /** Swatch diameter, local units. Scaled by the pointer profile. Default 30. */
     size?: number;
+    /** Ticker that runs the animation. Default `Ticker.shared`. With `null`, call {@link SwatchPopup.tick} yourself. */
     ticker?: Ticker | null;
+    /** Per pointer kind overrides of size, falloff and tap timing. */
     profiles?: InputProfiles;
     /** A colour was picked (already written to the model and committed). */
     onPick?: (color: number) => void;
@@ -29,9 +32,11 @@ export type SwatchPointer = Pick<FederatedPointerEvent, 'pointerId' | 'pointerTy
 /**
  * A ring of swatches that pops up around a point, for quick colour changes mid-stroke. Press,
  * drag towards a colour and release, or tap to keep it open and tap a colour. The centre shows the
- * colour under the pointer and cancels. Picks by angle, like the radial menu.
+ * colour under the pointer and cancels. Picks by angle, like the radial menu. It starts closed:
+ * add it to the stage, then call {@link SwatchPopup.openAt}.
  */
 export class SwatchPopup extends Container {
+    /** The colour this popup writes to. */
     readonly model: ColorModel;
     /** True while open. */
     readonly open: Signal<boolean> = signal(false);
@@ -71,7 +76,10 @@ export class SwatchPopup extends Container {
         return (this._opts.size ?? 30) * this._profile.scale;
     }
 
-    /** Opens centred on (x, y) in the parent's coordinates. */
+    /**
+     * Opens centred on (x, y) in the parent's coordinates and moves to the top of the parent. Pass the
+     * pointer event that opened it so a press-drag-release picks in one gesture.
+     */
     openAt(x: number, y: number, event?: SwatchPointer): void {
         this._profile = inputProfile(event ? inputKind(event) : preferredInputKind(), this._opts.profiles);
         this._colors = [...(this._opts.colors ?? this.model.history.value)].slice(0, 16);
@@ -94,7 +102,7 @@ export class SwatchPopup extends Container {
         this._driver.wake();
     }
 
-    /** Closes without picking. */
+    /** Closes without picking. Does nothing when closed. */
     close(): void {
         if (!this.open.value) return;
         this.open.set(false);
@@ -103,12 +111,12 @@ export class SwatchPopup extends Container {
         this._driver.wake();
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
-    /** Steers the popup with a point in its own coordinates (centre at 0, 0). */
+    /** Steers the popup with a point in its own coordinates (centre at 0, 0). Pointer events call this. Call it yourself for gamepads or tests. */
     pointerAt(x: number, y: number): void {
         const d = Math.hypot(x, y);
         const a = Math.atan2(y, x);

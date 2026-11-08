@@ -15,22 +15,26 @@ export type ColorSampler = (x: number, y: number) => number | null;
 
 /** Options of {@link Eyedropper}. */
 export interface EyedropperOptions {
+    /** Receives the picked colour (alpha unchanged) and a `commit()`. */
     model: ColorModel;
+    /** Reads the scene colour as 0xRRGGBB under a canvas point. */
     sample: ColorSampler;
+    /** Ticker that runs the loupe animation. Default `Ticker.shared`. With `null`, call {@link Eyedropper.tick} yourself. */
     ticker?: Ticker | null;
-    /** Finished: the picked colour, or null when cancelled. */
+    /** Finished: the picked colour, or null when cancelled or when the sampler returned null. */
     onDone?: (color: number | null) => void;
 }
 
 /**
  * Pick a colour from the scene. `start()` turns the canvas into a sampling surface: a loupe follows
  * the pointer showing the colour under it, a click or tap picks it, Escape or a right click cancels.
- * Add it last to the stage so it sits on top.
+ * Add it to the stage first. `start()` moves it to the top of its parent, and while active it
+ * takes every pointer press on the canvas.
  */
 export class Eyedropper extends Container {
     /** True while sampling. */
     readonly active: Signal<boolean> = signal(false);
-    /** Colour under the pointer, or null. */
+    /** Colour under the pointer as 0xRRGGBB, or null. */
     readonly sampled: Signal<number | null> = signal<number | null>(null);
     private readonly _opts: EyedropperOptions;
     private readonly _g = new SilkGraphics();
@@ -53,7 +57,7 @@ export class Eyedropper extends Container {
         this.on('pointerup', this._onUp, this);
     }
 
-    /** Starts sampling. */
+    /** Starts sampling. Does nothing when already active. */
     start(): void {
         if (this.active.value) return;
         this.parent?.addChild(this);
@@ -65,23 +69,24 @@ export class Eyedropper extends Container {
         this._driver.wake();
     }
 
-    /** Stops without picking. */
+    /** Stops without picking. `onDone` gets null. */
     cancel(): void {
         this._finish(null);
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation and the Escape listener. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         this._stopKeys?.();
         super.destroy(options ?? { children: true });
     }
 
-    /** Samples at a global point and moves the loupe there. */
+    /** Samples at a global (canvas) point, updates `sampled` and moves the loupe there. Works while inactive too. */
     sampleAt(globalX: number, globalY: number): number | null {
         const p = this.toLocal({ x: globalX, y: globalY });
 

@@ -13,6 +13,7 @@ export interface ColorPickerOptions {
     model?: ColorModel;
     /** Ticker driving the handle motion. Default `Ticker.shared`, `null` for manual {@link ColorPicker.tick}. */
     ticker?: Ticker | null;
+    /** Per pointer kind overrides. Touch gets bigger handles through the profile's `scale`. */
     profiles?: InputProfiles;
 }
 
@@ -27,10 +28,13 @@ export interface ColorPickerState {
 /**
  * Base of the pickers. It binds to a {@link ColorModel} and turns presses into edits of one part
  * at a time: a drag keeps editing that part even outside it. Handles animate towards the model.
- * The colour field redraws only when it changes, the handles every frame they move.
+ * The colour field redraws only when it changes, the handles every frame they move. A drag writes
+ * to the model continuously and calls `model.commit()` on release.
  */
 export abstract class ColorPicker extends Container {
+    /** The colour this picker edits. Share it to link pickers. */
     readonly model: ColorModel;
+    /** Signals to read. See {@link ColorPickerState}. */
     readonly state: ColorPickerState = {
         dragging: signal<string | null>(null),
         kind: signal<InputKind>('mouse'),
@@ -76,6 +80,7 @@ export abstract class ColorPicker extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation and unsubscribes from the model. The model stays usable. Destroys children by default. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         this._unsubscribe();
@@ -155,7 +160,10 @@ export abstract class ColorPicker extends Container {
     }
 }
 
-/** Moves `current` towards `target`, snapping when close. Returns [value, stillMoving]. */
+/**
+ * Moves `current` towards `target` by exponential smoothing at `lambda` (about 1 / seconds) over
+ * `dt` seconds. Snaps to `target` when closer than `eps`. Returns [value, stillMoving].
+ */
 export function approach(current: number, target: number, lambda: number, dt: number, eps = 1e-4): [number, boolean] {
     const next = damp(current, target, lambda, dt);
 
