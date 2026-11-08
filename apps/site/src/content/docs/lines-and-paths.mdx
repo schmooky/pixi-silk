@@ -81,7 +81,11 @@ square makes a hole.
 
 ```ts
 g.poly([64, 0, 6, 58, 44, 58, 30, 100, 94, 40, 56, 40]).fill({ color: 0xffd60a, blur: 12 });
+g.svgPath('M10 80 Q 60 10 110 80 T 210 80').stroke({ width: 3, color: 0x0a84ff });
 ```
+
+`svgPath(d)` reads an SVG path string into the active path. Combine paths with other shapes in
+[Shape operations](/docs/shape-operations/).
 
 Each fill checks every edge of its path per pixel. Keep paths to a few hundred points.
 

@@ -55,6 +55,7 @@ export const DOCS_AREAS = [
         ],
         items: [
             { page: 'shapes', lab: ['07-rounded-rects', '11-icons'] },
+            'shape-operations',
             { page: 'arcs-and-rings', lab: ['08-activity-rings'] },
             { page: 'lines-and-paths', lab: ['09-lines'] },
             'fills-and-strokes',

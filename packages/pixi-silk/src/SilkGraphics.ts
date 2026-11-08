@@ -34,6 +34,7 @@ import {
 import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput, toFlat } from './curves';
 import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
+import { drawPath, parseSvgPath } from './path';
 import { createSilkShader } from './shader';
 import { joinPolygon, type NearWindow, nearWindows, type StrokeWindow } from './stroke';
 
@@ -105,7 +106,22 @@ export interface FillStyle {
      * Default false.
      */
     union?: boolean;
+    /**
+     * Combines the closed shapes of the active path into one shape, exact on its outline.
+     * `subtract` takes every later shape out of the first one, `intersect` keeps what they all
+     * cover, and `exclude` keeps what an odd number of them cover. `union` is the same as
+     * `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd.
+     * With `stroke()`, the stroke follows the outline of the result. See {@link SilkGraphics.boolean}
+     * for nested operations. Default none: every shape is painted on its own.
+     */
+    op?: ShapeOp;
 }
+
+/**
+ * A shape operation: `union` merges, `subtract` cuts the later shapes out of the first,
+ * `intersect` keeps the overlap, and `exclude` keeps what is covered an odd number of times.
+ */
+export type ShapeOp = 'union' | 'subtract' | 'intersect' | 'exclude';
 
 /** What `fill()` accepts: any Pixi colour, a gradient or a {@link FillStyle}. */
 export type FillInput = ColorSource | Gradient | FillStyle;
@@ -218,6 +234,7 @@ type Shape = { k: number } & (
           ri: number;
       }
     | { kind: 'triangle'; pts: number[]; corner: number }
+    | { kind: 'boolean'; op: number; a: Shape[]; b: Shape[] }
 );
 
 interface Affine {
@@ -254,9 +271,18 @@ interface Paint {
     add: boolean;
     inner: Inner[];
     union: boolean;
+    /** Shape operation (an {@link OP} id) of the shapes it paints, or -1 to paint each on its own. */
+    op: number;
 }
 
-const NO_FX = { blurTo: -1, blurAngle: 0, spread: 0, add: false, inner: [] as Inner[], union: false };
+const NO_FX = { blurTo: -1, blurAngle: 0, spread: 0, add: false, inner: [] as Inner[], union: false, op: -1 };
+/** Shape operation ids in the records of a Prim.Union instance. PUSH starts a new operand. */
+const OP: Record<ShapeOp, number> = { union: 0, subtract: 1, intersect: 2, exclude: 3 };
+const PUSH = 4;
+/** Record type that combines the two topmost operands with its op. */
+const POP = 255;
+/** Operands a shape operation can hold at once: the shader's stack. */
+const OP_STACK = 8;
 
 interface Stroke extends Paint {
     width: number;
@@ -323,6 +349,7 @@ const FILL_KEYS = [
     'join',
     'miterLimit',
     'union',
+    'op',
 ];
 const CAPS: Record<LineCap, Cap> = { butt: Cap.Butt, round: Cap.Round, square: Cap.Square };
 const JOINS: Record<LineJoin, Join> = { miter: Join.Miter, bevel: Join.Bevel, round: Join.Round };
@@ -331,6 +358,7 @@ const HEART_W = 1.2071; // width of the unit heart (height 1.1036)
 const HEART_H = 1.1036;
 
 let warnedAreaRotation = false;
+let warnedOpDepth = false;
 
 function scalePaint<T extends Paint>(p: T, k: number): T {
     if (k === 1) return p;
@@ -379,11 +407,11 @@ function resolveInner(s: InnerShadow): Inner {
 
 function resolvePaint(
     input: FillInput | StrokeInput | undefined,
-): Paint & Omit<StrokeStyle, 'gradient' | 'blur' | 'spread' | 'blend' | 'innerShadow' | 'union'> {
+): Paint & Omit<StrokeStyle, 'gradient' | 'blur' | 'spread' | 'blend' | 'innerShadow' | 'union' | 'op'> {
     if (input instanceof Gradient) return { rgba: [1, 1, 1, 1], gradient: input, blur: 0, ...NO_FX };
     if (input === undefined || input === null) return { rgba: [1, 1, 1, 1], gradient: null, blur: 0, ...NO_FX };
     if (isStyleObject(input)) {
-        const { blur, spread, blend, innerShadow, union, ...rest } = input;
+        const { blur, spread, blend, innerShadow, union, op, ...rest } = input;
         const progressive = typeof blur === 'object' && blur !== null;
         const shadows = innerShadow === undefined ? [] : Array.isArray(innerShadow) ? innerShadow : [innerShadow];
 
@@ -397,7 +425,8 @@ function resolvePaint(
             spread: spread ?? 0,
             add: blend === 'add',
             inner: shadows.map(resolveInner),
-            union: union === true,
+            union: union === true || op === 'union',
+            op: op !== undefined ? (OP[op] ?? -1) : union === true ? OP.union : -1,
         };
     }
 
@@ -430,6 +459,7 @@ function resolveStroke(input: StrokeInput | undefined): Stroke {
         add: p.add,
         inner: [],
         union: p.union,
+        op: p.op,
         width: widths ? Math.max(...widths) : Math.max(0, (p.width as number | undefined) ?? 1),
         widths,
         align: Math.max(-1, Math.min(1, align)),
@@ -1153,6 +1183,63 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this;
     }
 
+    /**
+     * Adds an SVG path (the `d` attribute) to the active path: M, L, H, V, C, S, Q, T, A and Z, in
+     * absolute and relative form. Fill it as one even-odd shape, stroke it, or combine it with
+     * other shapes. The current transform applies.
+     *
+     * @example
+     * ```ts
+     * g.svgPath('M12 2 L22 22 H2 Z M12 8 L17 18 H7 Z').fill(0xff9f0a);
+     * ```
+     */
+    svgPath(d: string): this {
+        for (const path of parseSvgPath(d)) drawPath(this, path);
+
+        return this;
+    }
+
+    /**
+     * Adds one shape to the active path: what `a` draws combined with what `b` draws by `op`. The
+     * shapes each callback adds are merged first, and a callback can call `boolean()` again to nest.
+     * Paint the result with `fill()` or `stroke()` like any shape. The callbacks only add shapes:
+     * do not paint inside them.
+     *
+     * The outline is exact, so anti-aliasing is as sharp as on a circle. Inside the shape the
+     * distance is a close bound, not exact: a large blur, spread or inner shadow can round its
+     * inner corners slightly.
+     *
+     * @example
+     * ```ts
+     * // a ring with a notch: a circle minus a smaller circle and a bar
+     * g.boolean('subtract', (g) => g.circle(50, 50, 40), (g) => g.circle(50, 50, 24).rect(46, 0, 8, 30))
+     *     .fill(0x30d158)
+     *     .stroke({ width: 2, color: 0xffffff });
+     * ```
+     */
+    boolean(op: ShapeOp, a: (g: this) => unknown, b: (g: this) => unknown): this {
+        const pending = this._pending;
+        const consumed = this._consumed;
+        const cursor = this._cursor;
+        const collect = (fn: (g: this) => unknown) => {
+            this._pending = [];
+            this._consumed = false;
+            this._last = null;
+            this._cursor = null;
+            fn(this);
+
+            return this._pending;
+        };
+        const sa = collect(a);
+        const sb = collect(b);
+
+        this._pending = pending;
+        this._consumed = consumed;
+        this._cursor = cursor;
+
+        return this._begin({ kind: 'boolean', op: OP[op] ?? OP.union, a: sa, b: sb, k: this._k });
+    }
+
     private _pathShape(): Extract<Shape, { kind: 'path' }> {
         const last = this._pending[this._pending.length - 1];
 
@@ -1189,10 +1276,13 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const start = this._count;
         const polyStart = this._polyCount;
 
-        if (paint.union) this._emitUnion(shapes, scalePaint(paint, shapes[0].k), null);
+        const ops = paint.op >= 0;
+
+        if (ops) this._emitOps(shapes, paint.op, scalePaint(paint, shapes[0].k), null);
         for (const shape of shapes) {
             if (shape.kind === 'area') this._emitArea(shape, scalePaint(paint, shape.k));
-            else if (paint.union) continue;
+            else if (ops) continue;
+            else if (shape.kind === 'boolean') this._emitOps([shape], OP.union, scalePaint(paint, shape.k), null);
             else if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, scalePaint(paint, shape.k), null);
             else if (shape.kind === 'path') this._emitClosed(shape, scalePaint(paint, shape.k), null);
         }
@@ -1215,28 +1305,41 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         this._consumed = true;
         if (stroke.width <= 0) return this;
 
-        const unionFill = last?.fill.union === true && shapes.every((sh) => sh.kind !== 'area');
+        const opFill = last !== null && last.fill.op >= 0 && shapes.every((sh) => sh.kind !== 'area');
+        const closedLike = (sh: Shape) => CLOSED_KINDS.has(sh.kind) || sh.kind === 'boolean';
         const merge =
             last &&
             last.shapes === shapes &&
             last.start + last.count === this._count &&
-            (unionFill || (last.count === shapes.length && shapes.every((sh) => CLOSED_KINDS.has(sh.kind))));
+            (opFill || (last.count === shapes.length && shapes.every(closedLike)));
 
-        if (merge && unionFill) {
-            // a union fill and its stroke: one instance, the stroke follows the union's outline
+        if (merge && opFill) {
+            // a combined fill and its stroke: one instance, the stroke follows the result's outline
             this._rewind(last);
-            this._emitUnion(shapes, scalePaint(last.fill, shapes[0].k), scaleStroke(stroke, shapes[0].k));
+            this._emitOps(shapes, last.fill.op, scalePaint(last.fill, shapes[0].k), scaleStroke(stroke, shapes[0].k));
         } else if (merge) {
             // rewind the fill-only instances and re-emit them with both paints
             this._rewind(last);
-            for (const shape of shapes)
-                this._emitClosed(shape, scalePaint(last.fill, shape.k), scaleStroke(stroke, shape.k));
+            for (const shape of shapes) {
+                const fill = scalePaint(last.fill, shape.k);
+
+                if (shape.kind === 'boolean') this._emitOps([shape], OP.union, fill, scaleStroke(stroke, shape.k));
+                else this._emitClosed(shape, fill, scaleStroke(stroke, shape.k));
+            }
+        } else if (stroke.op > OP.union) {
+            // the outline of the combined shape; arcs and areas are not closed and stroke on their own
+            this._emitOps(shapes, stroke.op, null, scaleStroke(stroke, shapes[0].k));
+            for (const shape of shapes) {
+                if (shape.kind === 'arc') this._emitArc(shape, scaleStroke(stroke, shape.k));
+                else if (shape.kind === 'area')
+                    this._strokeSubpaths([{ pts: shape.top, closed: false }], scaleStroke(stroke, shape.k));
+            }
         } else if (stroke.union) {
             const st = scaleStroke(stroke, shapes[0].k);
-            const closed = shapes.filter((sh) => CLOSED_KINDS.has(sh.kind));
+            const closed = shapes.filter(closedLike);
             const paths = shapes.flatMap((sh) => (sh.kind === 'path' ? sh.subpaths : []));
 
-            if (closed.length) this._emitUnion(closed, null, st);
+            if (closed.length) this._emitOps(closed, OP.union, null, st);
             if (paths.length) this._strokeSubpaths(paths, st);
             for (const shape of shapes) {
                 if (shape.kind === 'arc') this._emitArc(shape, scaleStroke(stroke, shape.k));
@@ -1246,7 +1349,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             for (const shape of shapes) {
                 const st = scaleStroke(stroke, shape.k);
 
-                if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, null, st);
+                if (shape.kind === 'boolean') this._emitOps([shape], OP.union, null, st);
+                else if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, null, st);
                 else if (shape.kind === 'arc') this._emitArc(shape, st);
                 else if (shape.kind === 'path') this._strokeSubpaths(shape.subpaths, st);
                 else if (shape.kind === 'area') this._strokeSubpaths([{ pts: shape.top, closed: false }], st);
@@ -1691,10 +1795,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     }
 
     /**
-     * One instance for every closed shape of `shapes`: a union of their distance fields, so the
-     * overlaps are painted once. Polygons join in one record per subpath. Other shapes are skipped.
+     * One instance for the closed shapes of `shapes` combined by `op` (an {@link OP} id): a
+     * Prim.Union whose records the shader folds into one distance field. Overlaps are painted once
+     * and the outline is exact. A union takes every subpath of a path on its own, as it always did.
+     * The other operations take a path as one even-odd shape. Arcs and areas are skipped.
      */
-    private _emitUnion(shapes: Shape[], fill: Paint | null, stroke: Stroke | null): void {
+    private _emitOps(shapes: Shape[], op: number, fill: Paint | null, stroke: Stroke | null): void {
         if (
             fill &&
             stroke &&
@@ -1705,25 +1811,102 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                 fill.add !== stroke.add ||
                 fill.inner.length > 0)
         ) {
-            this._emitUnion(shapes, fill, null);
-            this._emitUnion(shapes, null, stroke);
+            this._emitOps(shapes, op, fill, null);
+            this._emitOps(shapes, op, null, stroke);
 
             return;
         }
         const records: number[] = [];
-        const b = [Infinity, Infinity, -Infinity, -Infinity];
         const o = this._alloc();
         const at = o + 4;
+        const depth = { now: 0, max: 0 };
+        const box = this._opRecords(shapes, op, op === OP.union, records, at, depth);
+
+        if (!box || depth.max > OP_STACK) {
+            if (box && !warnedOpDepth) {
+                warnedOpDepth = true;
+                console.warn(`pixi-silk: shape operations nest deeper than ${OP_STACK} levels and are skipped`);
+            }
+            this._count--;
+
+            return;
+        }
+        const start = this._pushTexels(records);
+        const frame = { x: box[0], y: box[1], w: Math.max(box[2] - box[0], 0), h: Math.max(box[3] - box[1], 0) };
+
+        this._f.fill(0, at, at + 12);
+        this._set4(at, start, records.length / 16, 0, 0);
+        this._paintClosed(o, Prim.Union, frame, box, fill, stroke, null);
+    }
+
+    /**
+     * Appends the records (4 texels each) of `shapes` combined by `op`. The first operand is
+     * pushed and each later one folds into it. A boolean shape pushes both its sides and pops them
+     * with its own op. Returns the bounds of the result, or null when it has no closed shape.
+     * `at` is scratch space for the parameters of one shape.
+     */
+    private _opRecords(
+        shapes: Shape[],
+        op: number,
+        perSubpath: boolean,
+        out: number[],
+        at: number,
+        depth: { now: number; max: number },
+    ): number[] | null {
+        let box: number[] | null = null;
+        // a shape: pushed as the first operand, folded in by its op after that
+        const leaf = (rec: number[], b: number[]) => {
+            if (box) {
+                rec[1] = op;
+                box = opBox(op, box, b);
+            } else {
+                rec[1] = PUSH;
+                depth.now++;
+                depth.max = Math.max(depth.max, depth.now);
+                box = [...b];
+            }
+            out.push(...rec);
+        };
 
         for (const shape of shapes) {
+            if (shape.kind === 'boolean') {
+                const mark = out.length;
+                const before = depth.now;
+                const ba = this._opRecords(shape.a, OP.union, false, out, at, depth);
+
+                if (!ba) continue;
+                const bb = this._opRecords(shape.b, OP.union, false, out, at, depth);
+                let b = ba;
+
+                if (bb) {
+                    out.push(POP, shape.op, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    depth.now--;
+                    b = opBox(shape.op, ba, bb);
+                } else if (shape.op === OP.intersect) {
+                    // nothing to intersect with: nothing is left
+                    out.length = mark;
+                    depth.now = before;
+                    continue;
+                }
+                // its result is a new operand on the stack: fold it into the result so far
+                if (box) {
+                    out.push(POP, op, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    depth.now--;
+                    box = opBox(op, box, b);
+                } else box = [...b];
+                continue;
+            }
             if (shape.kind === 'path') {
-                for (const sp of shape.subpaths) {
-                    if (sp.pts.length < 6) continue;
-                    const [start, n] = this._pushEdges([sp]);
+                const lists = perSubpath ? shape.subpaths.map((sp) => [sp]) : [shape.subpaths];
+
+                for (const list of lists) {
+                    const [start, n] = this._pushEdges(list);
 
                     if (n === 0) continue;
-                    records.push(Prim.Poly, 0, 0, 0, start, n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-                    pointsBox(sp.pts, b);
+                    const b = [Infinity, Infinity, -Infinity, -Infinity];
+
+                    for (const sp of list) if (sp.pts.length >= 6) pointsBox(sp.pts, b);
+                    leaf([Prim.Poly, 0, 0, 0, start, n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], b);
                 }
                 continue;
             }
@@ -1732,21 +1915,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             const type = this._shapeParams(shape, at);
 
             if (type === -1) continue;
-            records.push(type, 0, 0, 0, ...this._f.subarray(at, at + 12));
             const fr = this._frame(shape);
 
-            pointsBox([fr.x, fr.y, fr.x + fr.w, fr.y + fr.h], b);
+            leaf([type, 0, 0, 0, ...this._f.subarray(at, at + 12)], [fr.x, fr.y, fr.x + fr.w, fr.y + fr.h]);
         }
-        if (!records.length) {
-            this._count--;
 
-            return;
-        }
-        const start = this._pushTexels(records);
-
-        this._f.fill(0, at, at + 12);
-        this._set4(at, start, records.length / 16, 0, 0);
-        this._paintClosed(o, Prim.Union, { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] }, b, fill, stroke, null);
+        return box;
     }
 
     /**
@@ -2290,4 +2464,13 @@ function strokeRadius(stroke: Stroke): number {
     );
 
     return hw * corner + 3 * Math.max(stroke.blur, stroke.blurTo) + Math.max(stroke.spread, 0) + 1;
+}
+
+/** Bounds of `a op b` for boxes [minX, minY, maxX, maxY]: the first box for a subtraction, the overlap for an intersection. */
+function opBox(op: number, a: number[], b: number[]): number[] {
+    if (op === OP.subtract) return a;
+    if (op === OP.intersect)
+        return [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
+
+    return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }

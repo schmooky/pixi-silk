@@ -77,6 +77,69 @@ const cases = {
 
         return { scene: g, kind: 'alpha', alpha: 0.5 };
     },
+    // the same seen at 4x, opaque: coverage follows the exact distance across chunk boundaries
+    ...Object.fromEntries(
+        ['miter', 'bevel', 'round'].map((join) => [
+            `cross-zoom-${join}`,
+            () => {
+                const pts = [];
+
+                for (let i = 0; i <= 400; i++) {
+                    const u = (i / 400) * Math.PI * 2;
+
+                    pts.push(240 + 200 * Math.sin(3 * u + 0.3), 140 + 120 * Math.sin(2 * u));
+                }
+                const g = new SilkGraphics().polyline(pts).stroke({ width: 14, join });
+
+                g.scale.set(4);
+                g.position.set(128 - 240 * 4, 128 - 140 * 4);
+
+                return { scene: g, kind: 'exact', hit: g, scale: 4 };
+            },
+        ]),
+    ),
+    // and on the screen canvas, which rebuilds pixel positions differently than a texture
+    'cross-zoom-screen': () => {
+        const pts = [];
+
+        for (let i = 0; i <= 400; i++) {
+            const u = (i / 400) * Math.PI * 2;
+
+            pts.push(240 + 200 * Math.sin(3 * u + 0.3), 140 + 120 * Math.sin(2 * u));
+        }
+        const g = new SilkGraphics().polyline(pts).stroke({ width: 14 });
+
+        g.scale.set(4);
+        g.position.set(128 - 240 * 4, 128 - 140 * 4);
+
+        return { scene: g, kind: 'exact', hit: g, scale: 4, screen: true };
+    },
+    // the docs demo: a fitted stage scale on top of the zoom, translucent
+    ...Object.fromEntries(
+        [false, true].map((screen) => [
+            `cross-demo${screen ? '-screen' : ''}`,
+            () => {
+                const pts = [];
+
+                // closed: an open path that ends where it starts has two butt ends meeting in a seam
+                for (let i = 0; i < 400; i++) {
+                    const u = (i / 400) * Math.PI * 2;
+
+                    pts.push(240 + 200 * Math.sin(3 * u + 0.3), 140 + 120 * Math.sin(2 * u));
+                }
+                const g = new SilkGraphics().polyline(pts, { closed: true }).stroke({ width: 14, alpha: 0.5 });
+                const stage = new Container();
+
+                g.scale.set(4);
+                g.position.set(240 - 240 * 4, 140 - 140 * 4);
+                stage.addChild(g);
+                stage.scale.set(1.4375);
+                stage.position.set(-200 - 245, -120);
+
+                return { scene: stage, kind: 'alpha', alpha: 0.5, min: true, screen };
+            },
+        ]),
+    ),
     // the same loop closed, dashed, and two long subpaths with short ones across them
     'cross-closed': () => {
         const g = new SilkGraphics()
@@ -219,6 +282,85 @@ const cases = {
             },
         ]),
     ),
+    // shape operations: exact outlines match the shapes they make
+    'op-ring-exact': () => {
+        const g = new SilkGraphics().circle(128, 128, 100).circle(128, 128, 61.3).fill({ op: 'subtract' });
+
+        return {
+            scene: g,
+            kind: 'same',
+            ref: new SilkGraphics().sector(128, 128, 100, 0, Math.PI * 2, 61.3).fill(),
+            tolerance: 3,
+        };
+    },
+    'op-intersect-exact': () => {
+        const g = new SilkGraphics().rect(20.3, 30.6, 150, 160).rect(60.1, 10.2, 170, 120).fill({ op: 'intersect' });
+
+        // the max of two edges is exact along the edges; at the four corner pixels it is a box, not a disc
+        return { scene: g, kind: 'same', ref: new SilkGraphics().rect(60.1, 30.6, 110.2, 99.6).fill(), tolerance: 16 };
+    },
+    'op-exclude-exact': () => {
+        const g = new SilkGraphics().rect(20.5, 20.5, 200, 200).rect(70.25, 60.75, 90, 80).fill({ op: 'exclude' });
+        const ref = new SilkGraphics()
+            .svgPath('M20.5 20.5 H220.5 V220.5 H20.5 Z M70.25 60.75 H160.25 V140.75 H70.25 Z')
+            .fill();
+
+        return { scene: g, kind: 'same', ref, tolerance: 3 };
+    },
+    'op-translucent': () => {
+        const g = new SilkGraphics()
+            .circle(100, 128, 70)
+            .circle(156, 128, 70)
+            .star(128, 128, 5, 60, 25)
+            .fill({ alpha: 0.5, op: 'exclude' });
+
+        g.circle(128, 60, 40).roundRect(80, 40, 96, 40, 12).fill({ alpha: 0.5, op: 'union' });
+
+        return { scene: g, kind: 'alpha', alpha: 0.75 };
+    },
+    'op-icon': () => {
+        const g = new SilkGraphics();
+
+        // a ring with a notch and a dot, at 2x: deep pixels follow the hit test
+        g.boolean(
+            'union',
+            (g) =>
+                g.boolean(
+                    'subtract',
+                    (g) => g.circle(64, 64, 56),
+                    (g) => g.circle(64, 64, 36).rect(58, 0, 12, 40),
+                ),
+            (g) => g.heart(64, 66, 34).star(64, 64, 5, 14, 6),
+        ).fill();
+        g.scale.set(2);
+
+        return { scene: g, kind: 'interior', hit: g, scale: 2 };
+    },
+    'op-stroke': () => {
+        const g = new SilkGraphics()
+            .circle(128, 128, 90)
+            .circle(128, 128, 50)
+            .rect(118, 20, 20, 120)
+            .stroke({ width: 10, alpha: 0.5, op: 'subtract' });
+
+        return { scene: g, kind: 'alpha', alpha: 0.5 };
+    },
+    'op-effects': () => {
+        const g = new SilkGraphics();
+
+        g.circle(80, 80, 60)
+            .circle(110, 70, 36)
+            .fill({ color: 0x30d158, op: 'subtract', blur: { from: 0, to: 8 }, spread: 2 })
+            .rect(140, 140, 100, 100)
+            .svgPath('M150 230 L190 150 L230 230 Z')
+            .fill({
+                color: 0x0a84ff,
+                op: 'exclude',
+                innerShadow: { x: 3, y: 4, blur: 4, color: 0xffffff, alpha: 0.6 },
+            });
+
+        return { scene: g, kind: 'none' };
+    },
 };
 
 export const extraCases = cases;
@@ -234,7 +376,37 @@ async function renderer() {
     return app.renderer;
 }
 
-async function draw(scene) {
+/** Renders to the screen canvas instead of a texture, and reads it back through a 2D canvas. */
+async function drawScreen(scene) {
+    const r = await renderer();
+    const root = new Container();
+
+    root.addChild(scene);
+    r.background.alpha = 0;
+    r.render({ container: root, clear: true, clearColor: [0, 0, 0, 0] });
+    const c = document.createElement('canvas');
+
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+
+    ctx.drawImage(r.canvas, 0, 0);
+    root.removeChild(scene);
+    const px = new Uint8ClampedArray(ctx.getImageData(0, 0, W, H).data);
+
+    for (let i = 0; i < px.length; i += 4) {
+        const a = px[i + 3] / 255;
+
+        px[i] = Math.round(px[i] * a);
+        px[i + 1] = Math.round(px[i + 1] * a);
+        px[i + 2] = Math.round(px[i + 2] * a);
+    }
+
+    return px;
+}
+
+async function draw(scene, screen = false) {
+    if (screen) return drawScreen(scene);
     const r = await renderer();
     const rt = RenderTexture.create({ width: W, height: H, resolution: 1 });
     const root = new Container();
@@ -312,8 +484,28 @@ function toBase64(px) {
     return btoa(s);
 }
 
-function checkAlpha(px, alpha) {
+/** No pixel darker than `alpha`. With `holes`, also no pixel lighter inside: a dim pixel between two full ones. */
+function checkAlpha(px, alpha, holes = false) {
     const limit = Math.round(alpha * 255) + 1;
+    const full = Math.round(alpha * 255) - 1;
+    let dim = 0;
+    let dimAt = '';
+
+    if (holes) {
+        for (let y = 1; y < H - 1; y++) {
+            for (let x = 1; x < W - 1; x++) {
+                const a = (k) => px[k * 4 + 3];
+                const i = y * W + x;
+
+                if (a(i) >= full) continue;
+                // full on both sides, horizontally or vertically: a seam
+                if ((a(i - 1) >= full && a(i + 1) >= full) || (a(i - W) >= full && a(i + W) >= full)) {
+                    if (!dim) dimAt = `${x},${y} (alpha ${a(i)})`;
+                    dim++;
+                }
+            }
+        }
+    }
     let max = 0;
     let over = 0;
     let at = '';
@@ -326,10 +518,11 @@ function checkAlpha(px, alpha) {
         }
     }
 
-    return {
-        note: `max alpha ${max}`,
-        failures: over ? [`${over} pixels darker than alpha ${alpha} (max ${max}, first at ${at})`] : [],
-    };
+    const failures = over ? [`${over} pixels darker than alpha ${alpha} (max ${max}, first at ${at})`] : [];
+
+    if (dim) failures.push(`${dim} dim pixels between full ones, first at ${dimAt}`);
+
+    return { note: `max alpha ${max}`, failures };
 }
 
 function checkInterior(px, g, scale) {
@@ -470,12 +663,13 @@ window.renderCases = async ({ only, png }) => {
     for (const [name, make] of Object.entries(cases)) {
         if (only && !name.includes(only)) continue;
         const c = make();
-        const px = await draw(c.scene);
+        const px = await draw(c.scene, c.screen);
         let res;
 
-        if (c.kind === 'alpha') res = checkAlpha(px, c.alpha);
+        if (c.kind === 'alpha') res = checkAlpha(px, c.alpha, c.min);
         else if (c.kind === 'interior') res = checkInterior(px, c.hit, c.scale);
         else if (c.kind === 'exact') res = checkExact(px, c.hit, c.scale);
+        else if (c.kind === 'none') res = { note: 'compared between renderers', failures: [] };
         else {
             const ref = await draw(c.ref);
 

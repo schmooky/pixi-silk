@@ -540,7 +540,7 @@ fn comp(v: vec4<f32>, i: i32) -> f32 {
 // owns its first windows and also evaluates the windows of other instances of the path that come
 // near its own. A pixel is shaded by the instance with the nearest segment, the lower key winning a
 // tie, so it is shaded once even where a long path crosses itself. Every instance computes a
-// segment's distance from the same texels in the same loop, so they agree to the bit.
+// segment's distance from the same texels in the same loop, so they agree.
 fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) -> f32 {
     let win = i32(vShape0.x + 0.5);
     let nOwn = i32(vShape0.y + 0.5);
@@ -549,8 +549,8 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
     let join = i32(vShape1.x + 0.5);
     let limit = vShape1.y;
     var own = 1e20;
-    var other = 1e20;
-    var otherKey = 0.0;
+    // distances closer than this count as a tie, which the key settles the same way everywhere
+    let tol = 1e-3 * px;
     gU = 0.0;
     gL = 1.0;
     for (var w = 0; w < nAll; w++) {
@@ -630,13 +630,10 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
             hp = true;
             ec = en;
         }
-        if (w >= nOwn && (wmin < other || (wmin == other && wt.w < otherKey))) {
-            other = wmin;
-            otherKey = wt.w;
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
+        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) {
+            discard;
         }
-    }
-    if (other < own || (other == own && otherKey < key)) {
-        discard;
     }
     return own;
 }
@@ -797,21 +794,54 @@ fn shapeSD(p: vec2<f32>, prim: i32, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>,
     return d;
 }
 
-// Closed shape of this instance. A union (Prim 11) is the nearest of its member shapes, whose
-// parameters are records of 4 texels (type, s0, s1, s2) in uPolys: one shape, painted once.
+// Two operands combined: 0 union, 1 subtract (a minus b), 2 intersect, 3 exclude. Exact on the
+// outline. Inside, max and min of distances are a bound, not the exact distance.
+fn combineSD(a: f32, b: f32, op: i32) -> f32 {
+    if (op == 1) {
+        return max(a, -b);
+    }
+    if (op == 2) {
+        return max(a, b);
+    }
+    if (op == 3) {
+        return max(min(a, b), -max(a, b));
+    }
+    return min(a, b);
+}
+
+// Closed shape of this instance. A union (Prim 11) is several shapes combined into one: records of
+// 4 texels, (type, op, 0, 0) then s0, s1, s2, in uPolys, folded on a small stack. Op 4 pushes the
+// shape as a new operand and ops 0 to 3 fold it into the top one. Type 255 folds the top operand
+// into the one below it with its op. One shape, painted once.
 fn closedSD(p: vec2<f32>, prim: i32, px: f32) -> f32 {
     if (prim == 11) {
         let start = i32(vShape0.x + 0.5);
         let n = i32(vShape0.y + 0.5);
-        var d = 1e6;
+        var st: array<f32, 8>;
+        var sp = 0;
+        st[0] = 1e6;
         for (var i = 0; i < n; i++) {
             let t = start + i * 4;
-            d = min(d, shapeSD(p, i32(polyTexel(t).x + 0.5), polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px));
+            let h = polyTexel(t);
+            let rt = i32(h.x + 0.5);
+            let op = i32(h.y + 0.5);
+            if (rt == 255) {
+                sp = max(sp - 1, 1);
+                st[sp - 1] = combineSD(st[sp - 1], st[sp], op);
+            } else {
+                let d = shapeSD(p, rt, polyTexel(t + 1), polyTexel(t + 2), polyTexel(t + 3), px);
+                if (op == 4) {
+                    st[min(sp, 7)] = d;
+                    sp = min(sp + 1, 8);
+                } else {
+                    st[max(sp - 1, 0)] = combineSD(st[max(sp - 1, 0)], d, op);
+                }
+            }
         }
         gFillScale = 1.0;
         gU = 0.0;
         gL = 1.0;
-        return d;
+        return st[0];
     }
     return shapeSD(p, prim, vShape0, vShape1, vShape2, px);
 }

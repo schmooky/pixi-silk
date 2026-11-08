@@ -28,12 +28,12 @@ export default defineDemo({
                 // 400 segments: the second lobe crosses the first one far along the path
                 const pts: number[] = [];
 
-                for (let i = 0; i <= 400; i++) {
+                for (let i = 0; i < 400; i++) {
                     const u = (i / 400) * Math.PI * 2;
 
                     pts.push(240 + 200 * Math.sin(3 * u + 0.3), 140 + 120 * Math.sin(2 * u));
                 }
-                g.polyline(pts).stroke({ width: 14, join, color: 0x0a84ff, alpha: 0.5 });
+                g.polyline(pts, { closed: true }).stroke({ width: 14, join, color: 0x0a84ff, alpha: 0.5 });
                 focus = [240, 140];
             } else if (params.scene === 'fold-back') {
                 // turns of 179 to 180 degrees: the stroke goes back over itself
