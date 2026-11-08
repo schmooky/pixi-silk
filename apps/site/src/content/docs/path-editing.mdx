@@ -1,21 +1,23 @@
 ---
 title: Path editing
 seoTitle: 'Bezier path editor and pen tool for PixiJS'
-description: 'Edit bezier paths in PixiJS like a design tool: drag anchors and handles, add and delete points, and draw with a pen tool. Every edit is undoable.'
+description: 'Edit bezier paths in PixiJS: drag anchors and handles, add and delete points, draw new paths with a pen tool, and undo every edit as one step.'
 keywords: ['PixiJS path editor', 'bezier', 'pen tool', 'vector editing', 'anchor points', 'de Casteljau']
 updated: 2026-11-08
+api: [PathGizmo, PenTool, BezierPath, drawPath]
 ---
 
-<Demo name="path-editing" height={480} caption="Drag points and handles, click the outline to add a point. Pen draws a new path. Cmd or ctrl + Z undoes." />
+<Callout type="note">Experimental in 1.0: the API may change in a minor release.</Callout>
 
-## Paths as data
+<Demo name="path-editing" height={480} caption="Drag points and handles, click the outline to add a point. Pen draws a new path." />
 
-A path is plain data: anchors in order and a closed flag. Each anchor has a position, optional
-`in` and `out` handles (offsets from the anchor) and a type.
+`pixi-silk/path` holds bezier paths as plain data and the helpers that edit them.
+`pixi-silk/ui/pathgizmo` edits a path on screen with anchors, handles and a pen.
 
-- `corner`: each handle moves on its own. Without handles it is a sharp corner.
-- `smooth`: the handles stay on one line, each with its own length.
-- `mirrored`: the handles stay on one line and have the same length.
+## Describe a path
+
+A path is a list of anchors and a `closed` flag. Each anchor has a position, optional `in` and
+`out` handles (offsets from the anchor) and a type.
 
 ```ts
 import type { BezierPath } from 'pixi-silk/path';
@@ -30,11 +32,15 @@ const drop: BezierPath = {
 };
 ```
 
-It fits in JSON, in a signal and in an undo step as it is. The helpers in `pixi-silk/path`
-never change their input. Each one returns a new path.
+| Type | Handles |
+|---|---|
+| `corner` | Each handle moves on its own. With no handles the anchor is a sharp corner. |
+| `smooth` | The two handles stay on one line, each with its own length. |
+| `mirrored` | The two handles stay on one line and have the same length. |
 
-`drawPath(g, path)` draws it into a `SilkGraphics` with `moveTo`, `bezierCurveTo` and `closePath`.
-The fill is one exact shape, so it stays sharp at any zoom.
+The path fits in JSON, in a signal and in an undo step as it is.
+
+## Draw it
 
 ```ts
 import { linear, SilkGraphics } from 'pixi-silk';
@@ -47,22 +53,25 @@ const g = new SilkGraphics();
 drawPath(g, drop).fill(linear([0x64d2ff, 0x0a84ff])).stroke({ width: 2, color: 0xffffff });
 ```
 
-### Editing helpers
+`drawPath(g, path)` calls `moveTo`, `bezierCurveTo` and `closePath` on the graphics and returns
+it, so `fill()` and `stroke()` chain on. A free path fills even-odd. See
+[Lines and paths](/docs/lines-and-paths/).
 
-- `insertAnchor(path, segment, t)` splits a segment with de Casteljau's construction. The curve
-  keeps its exact shape.
-- `removeAnchors`, `moveAnchors` and `setHandle` edit points. `setHandle` keeps the twin handle in
-  line for smooth and mirrored anchors.
-- `setAnchorType` and `toggleAnchorType` switch between corners and curves. A corner without
-  handles grows them from its neighbours.
-- `nearestOnPath`, `pathBounds`, `splitCubic` and `anchorsInRect` measure and hit-test.
-- `parseSvgPath` reads SVG path data, arcs and quadratics included. `pathToSvg` writes it back.
-  `mapPath` moves a path through any affine map.
+## Edit it from code
 
-## The path gizmo
+The helpers never change their input. Each one returns a new path.
 
-`PathGizmo` edits a path on screen. Put it in an overlay and set `space` to the world the path
-lives in. Anchors and handles then keep their size on screen at every zoom.
+| Helper | What it does |
+|---|---|
+| `insertAnchor(path, segment, t)` | Splits a segment at `t` with de Casteljau's construction. The curve keeps its shape. |
+| `removeAnchors`, `moveAnchors` | Delete or move a set of anchors. |
+| `setHandle` | Moves one handle and keeps the twin in line on smooth and mirrored anchors. |
+| `setAnchorType`, `toggleAnchorType` | Switch between corners and curves. A corner with no handles grows them from its neighbours. |
+| `nearestOnPath`, `pathBounds`, `anchorsInRect` | Measure and hit-test. |
+| `parseSvgPath`, `pathToSvg` | Read SVG path data, arcs and quadratics included, and write it back. |
+| `mapPath` | Moves a path through an affine map. |
+
+## Edit it on screen
 
 ```ts
 import { Container } from 'pixi.js';
@@ -83,26 +92,42 @@ overlay.addChild(gizmo);
 watch(gizmo.state.path, (path) => drawPath(shape.clear(), path).fill(0x0a84ff));
 ```
 
-- Click an anchor to select it and Shift + click to add more. Drag to move them all.
+The gizmo does not draw the shape. It edits `state.path`, and the `watch` redraws the shape from
+it. Put the gizmo in an overlay and set `space` to the container the path lives in, usually the
+camera's world. Anchors and handles then keep their size on screen at every zoom.
+
+These are the gestures:
+
+- Click an anchor to select it, Shift + click to add more, and drag to move them all.
 - Drag a handle to bend the curve. Alt + drag breaks the symmetry.
 - Double-click an anchor to switch between a corner and a smooth point.
-- Click a segment to add an anchor there. The outline lights up under the pointer first.
+- Click a segment to add an anchor there.
 - Delete or Backspace removes the selected anchors. Arrow keys nudge them, Shift by 10.
 
-`selectInRect(rect)` selects the anchors inside a rectangle, the hook for a marquee. `snap`
-moves dragged points, for a grid or for smart guides. `setClosed` closes or opens the path.
+| Option | Default | What it does |
+|---|---|---|
+| `space` | the gizmo's parent | The container the path's coordinates are in. |
+| `tool` | `'edit'` | `'pen'` starts with the pen. |
+| `history` | none | Records every edit as one undo step. |
+| `snap` | none | Moves a dragged point, for a grid or smart guides. |
+| `keys` | `true` | Delete, Backspace, Escape, Enter and the arrow keys. |
+| `onChange` | none | Called on every change, drags included. |
+| `onCommit` | none | Called once per finished edit, with its label. |
 
-### Pen tool
+`selectInRect(rect)` selects the anchors inside a rectangle, the hook for a marquee. `setClosed()`
+closes or opens the path.
 
-Set `state.tool` to `pen` to draw. Click for a corner, drag for a curve with mirrored handles.
-Alt during a drag moves only the outgoing handle. Click the last anchor to drop its outgoing
-handle, and click the first one to close the path. Escape or Enter stops drawing.
+## Draw with the pen
 
-`PenTool` is the pen's state machine on its own, with no pointer events or drawing. Feed it
-presses, moves and releases to build paths from any input.
+Set `state.tool` to `'pen'`. Click for a corner, or drag for a curve with mirrored handles. Alt
+during a drag moves only the outgoing handle. Click the last anchor to drop its outgoing handle,
+and click the first one to close the path. Escape or Enter stops drawing.
 
-### Undo
+`PenTool` is the pen's state machine with no pointer events and no drawing. Feed it presses,
+moves and releases to build paths from any input, such as a recorded gesture or a test.
 
-With a `history`, every edit is one undo step: a whole drag, an inserted point, a pen click, a
-run of nudges. The gizmo needs only the `HistoryLike` interface, so your own store works too. See
-[Selection and undo](/docs/selection-and-history/).
+## Undo
+
+With a `history`, a whole drag, an inserted point, a pen click and a run of nudges are one step
+each. The gizmo needs only the `HistoryLike` interface, so your own store works too. See
+[Gizmos and selection](/docs/gizmos-and-selection/#undo-and-redo).

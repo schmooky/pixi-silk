@@ -1,14 +1,21 @@
 ---
 title: Dials and timeline
-seoTitle: 'Jog dials, scrub fields and timelines for PixiJS'
-description: 'A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits.'
-keywords: ['PixiJS jog dial', 'scrub number field', 'animation timeline canvas', 'odometer counter', 'rolling numbers']
-updated: 2026-11-07
+seoTitle: 'Jog dials, scrub fields and a timeline for PixiJS'
+description: 'A jog wheel with fine control and inertia, scrub fields you drag sideways, and a compact animation timeline with keys, a loop range and zoom for PixiJS.'
+keywords: ['PixiJS jog dial', 'scrub number field', 'animation timeline canvas', 'PixiJS slider', 'editor controls']
+updated: 2026-11-08
+api: [JogDial, Scrubber, MiniTimeline]
 ---
+
+<Callout type="note">Experimental in 1.0: the API may change in a minor release.</Callout>
 
 <Demo name="dial" height={300} caption="Spin the dials and scrub the fields. The left dial also drives the Angle field." />
 
-## Jog dial
+Controls for numbers and time. `JogDial` and `Scrubber` are in `pixi-silk/ui/dial`, and
+`MiniTimeline` is in `pixi-silk/ui/timeline`. For a rolling number readout, see the odometer on
+[Slot HUD](/docs/slot-hud/).
+
+## Turn a value with a jog dial
 
 ```ts
 import { JogDial } from 'pixi-silk/ui/dial';
@@ -17,10 +24,10 @@ const camera = { zoom: 1 };
 const undo: number[] = [];
 const zoom = new JogDial({
     radius: 64,
-    turn: 2,          // value change per full turn
-    step: 0.1,        // detents: the value clicks through steps
+    turn: 2,
+    step: 0.1,
     min: 0.1,
-    max: 8,           // past a limit it stretches and springs back
+    max: 8,
     onChange: (v) => (camera.zoom = v),
     onCommit: (v) => undo.push(v),
 });
@@ -28,15 +35,23 @@ const zoom = new JogDial({
 
 Press anywhere on the dial and drag around its centre. The value follows the angle and keeps
 adding up over full turns, so there is no seam at the top. Past the ring the dial turns slower the
-further out the pointer is: move out for fine control without letting go. `fine` sets how quickly
-that happens, and 0 turns it off.
+further out the pointer is, which gives fine control without letting go.
 
-A fast release keeps the dial spinning and `friction` slows it down. With `min` and `max` the ring
-becomes a gauge of the range, and one turn covers the range unless `turn` says otherwise. Past a
-limit the dial stretches like a rubber band and springs back. A tap on the right half steps up, on
-the left half steps down. `onChange` fires on every snapped change, `onCommit` once the dial rests.
+A fast release keeps the dial spinning until `friction` stops it. With `min` and `max` the ring
+becomes a gauge of the range, and past a limit the value stretches and springs back. A tap on the
+right half steps up, on the left half down. `onChange` fires on every snapped change and
+`onCommit` once the dial rests.
 
-## Scrub fields
+| Option | Default | What it does |
+|---|---|---|
+| `turn` | the range, else 1 | Value change for one full turn near the ring. |
+| `step` | `0` | Snap step. 0 turns snapping off. |
+| `fine` | `1` | How fast precision grows with distance: the speed is `(radius / distance) ** fine`. 0 turns it off. |
+| `rubber` | `0.12` | How far the value stretches past a limit, as a fraction of a turn. |
+| `inertia` | `true` | Keep spinning after a flick. |
+| `friction` | `3.5` | How quickly a flick slows down, about 1 / seconds. |
+
+## Drag a number field
 
 ```ts
 import { Scrubber } from 'pixi-silk/ui/dial';
@@ -44,12 +59,13 @@ import { Scrubber } from 'pixi-silk/ui/dial';
 const size = new Scrubber({ label: 'Size', value: 24, step: 1, min: 1, max: 200, perPixel: 0.5 });
 ```
 
-The number fields of 3D and compositing tools: drag sideways to change the value. Shift scrubs at
-a tenth of the speed, and Ctrl or Cmd snaps to the step. A tap on either end steps down or up.
-With `min` and `max` the field fills like a slider. A pill shows the value above the pointer while
-dragging.
+Drag the field sideways to change its value. Shift scrubs at a tenth of the speed
+(`fineFactor`), and Ctrl or Cmd snaps to the step. A tap on either end steps down or up. With
+`min` and `max` the field fills like a slider. `perPixel` defaults to a quarter of the step.
 
-## Mini timeline
+Both controls keep their value in `state.value`, a signal you can also write to move them.
+
+## Scrub an animation timeline
 
 <Demo name="timeline" height={220} caption="Scrub, drag keys, box-select, move the loop handles. Tap the dial to pause." />
 
@@ -60,7 +76,10 @@ const timeline = new MiniTimeline({
     duration: 120,
     fps: 30,
     loop: [24, 96],
-    keys: [{ id: 'jump', time: 30 }, { id: 'land', time: 44 }],
+    keys: [
+        { id: 'jump', time: 30 },
+        { id: 'land', time: 44 },
+    ],
     onKeysChange: (keys) => localStorage.setItem('keys', JSON.stringify(keys)),
 });
 
@@ -68,31 +87,29 @@ timeline.state.time.subscribe((frame) => console.log('frame', frame));
 timeline.state.playing.set(true);
 ```
 
-- **Scrub** the ruler. The playhead snaps to frames and stretches past either end of the track.
-- **Keys** drag together when several are selected, snapped, and stop at the ends of the track.
-  Shift-click adds to the selection, and a drag on empty track draws a selection box.
-- **Loop range**: drag its green handles on the ruler. Playback wraps inside it.
-- **Zoom** with the wheel around the pointer, pan sideways or with Shift. Pixi listens to the wheel
-  passively, so the page scrolls too unless the canvas fills it. Without a wheel, a double tap on
-  the ruler zooms in, and another zooms back out. `zoomBy`, `panBy` and `showAll` do the same from code.
+Times are in frames. Scrub the ruler to move the playhead, which snaps to frames and stretches
+past either end. Drag a key to move it, Shift + click to add keys to the selection, or drag on
+empty track for a selection box. Selected keys move together and stop at the ends of the track.
+Drag the green handles on the ruler to set the loop range, and playback wraps inside it.
 
-State lives in `state`: `time`, `playing`, `selection`, `range` and `view`.
+The wheel zooms around the pointer and Shift + wheel pans. Pixi listens to the wheel passively,
+so the page scrolls too unless the canvas fills it. Without a wheel, a double tap on the ruler
+zooms in and another zooms back out. `zoomBy()`, `panBy()` and `showAll()` do the same from code.
 
-## Odometer
+| State | What it holds |
+|---|---|
+| `time` | Playhead time in frames. Writing it moves the playhead. |
+| `playing` | Writing it starts or stops playback. |
+| `selection` | Ids of the selected keys. |
+| `range` | Loop range in frames, or null for the whole track. |
+| `view` | The visible window in frames. |
 
-<Demo name="odometer" height={240} caption="Tap to add an amount. Tap again while it counts to skip to the end." />
+| Option | Default | What it does |
+|---|---|---|
+| `duration` | `120` | Length in frames. |
+| `fps` | `30` | Playback speed. |
+| `snap` | `1` | Keys and the playhead snap to multiples of this many frames. 0 turns it off. |
+| `minSpan` | `8` | Fewest frames the view zooms in to. |
 
-```ts
-import { Odometer } from 'pixi-silk/ui/odometer';
-
-const balance = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
-
-balance.set(9800);       // counts up, longer for bigger jumps (speedUp)
-balance.skip();          // straight to the end
-balance.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
-```
-
-Every digit column rolls on its own. A column only moves while the one below it passes from 9 to 0,
-so carries ripple like a mechanical counter. Each column holds two glyphs at most. Glyphs come
-from a bitmap font made from the text style, so a frame only moves them, and one mask clips them all.
-`format(value)` returns the same text without rolling, for labels and accessibility.
+The timeline holds keys and a playhead, not animation curves. Use `state.time` to drive your own
+tweens or a Spine track.
