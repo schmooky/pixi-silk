@@ -45,6 +45,23 @@ the rounded outer corners of earlier versions.
 A path stroke checks every segment of its path per pixel. Subpaths longer than 32 segments are
 split into chunks, so long chart lines stay fast. Tapered strokes keep one capsule per segment.
 
+## Crossings, fold-backs and dash caps
+
+A translucent stroke stays one shape in the hard cases too. Zoom in on each of them below.
+
+<Demo name="stroke-edges" height={280} />
+
+- **Crossings.** A path that crosses itself far along its length is still shaded once where it
+  overlaps. Each chunk of a long path also checks the segments of the other chunks that come near
+  it, and the nearest segment decides who shades a pixel.
+- **Fold-backs.** A path that turns by 180 degrees, or nearly, goes back over itself with no dim
+  or doubled pixels. A full reversal has no join, as in Canvas.
+- **Square dash caps.** On a curve, caps that overlap the next dash merge into it. A dash that runs
+  through a round corner keeps its cap's reach, so the corner stays round.
+
+Hairlines seen from far out are the one limit. When a line is thinner than a pixel, crossings of
+far-apart parts of one path can blend twice.
+
 ## Paths
 
 The canvas-style path API strokes and fills:

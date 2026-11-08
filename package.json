@@ -20,6 +20,7 @@
     "check:publish-contents": "node scripts/check-publish-contents.mjs",
     "check:pages": "node scripts/check-pages.mjs",
     "check:wgsl": "node scripts/check-wgsl.mjs",
+    "check:render": "node scripts/check-render.mjs",
     "site:dev": "pnpm --filter @pixi-silk/site dev",
     "site:build": "pnpm --filter @pixi-silk/site build",
     "site:preview": "pnpm --filter @pixi-silk/site preview",

@@ -40,9 +40,9 @@ export const Prim = {
     /** Filled path: its edges live in a float texture, `aShape0.xy` = first texel and edge count. */
     Poly: 9,
     /**
-     * Stroked path, one distance field for the whole outline: header and segment texels live in the
-     * path texture. `aShape0` = header texel, subpath count, first segment and segment count of a
-     * chunk (-1 = every segment). `aShape1` = join, miter limit, path length before the chunk.
+     * Stroked path, one distance field for the whole outline: header, segment and length texels live
+     * in the path texture. `aShape0` = first window texel, windows the instance owns, windows of
+     * other instances near them, and the instance's key. `aShape1` = join, miter limit.
      */
     Path: 10,
     /** Union of closed shapes: `aShape0.xy` = first record texel and record count (4 texels each). */

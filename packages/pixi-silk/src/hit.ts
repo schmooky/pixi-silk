@@ -138,10 +138,8 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
                 const sd = pathStrokeDist(
                     poly,
                     {
-                        header: f[o + 4],
-                        subpaths: f[o + 5],
-                        first: f[o + 6],
-                        count: f[o + 7],
+                        windows: f[o + 4],
+                        count: f[o + 5],
                         join: f[o + 8] as Join,
                         miterLimit: f[o + 9],
                         cap0: ((flags >> CAP0_SHIFT) & 3) as Cap,

@@ -35,7 +35,7 @@ import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput
 import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { createSilkShader } from './shader';
-import { joinPolygon } from './stroke';
+import { joinPolygon, type NearWindow, nearWindows, type StrokeWindow } from './stroke';
 
 // ---------------------------------------------------------------------------------------------
 // Public style types
@@ -280,6 +280,22 @@ interface LastEmit {
     /** Instances the fill emitted. */
     count: number;
 }
+
+/** A subpath of a stroked path, as written to the path texture. */
+interface StrokeSub {
+    pts: number[];
+    closed: boolean;
+    segs: number;
+    /** Header texel. */
+    hdr: number;
+    cum: number[];
+}
+
+/** Segments `s .. s + count` of a subpath. */
+type StrokeWin = StrokeWindow<StrokeSub>;
+
+/** A window another instance owns, with that instance's key. */
+type StrokeNear = NearWindow<StrokeSub>;
 
 /** Gradient row shared by the instances of one stroked path. */
 interface StrokeCtx {
@@ -1933,12 +1949,15 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     }
 
     /**
-     * Strokes paths as one distance field each (Prim.Path): segments go to the path texture, behind
-     * a header per subpath. Subpaths share an instance up to PATH_CHUNK segments in all, and longer
-     * subpaths are split into chunks that own PATH_CHUNK segments each.
+     * Strokes paths as one distance field (Prim.Path). Segments go to the path texture behind a
+     * header per subpath, with their lengths along the path after them. Instances own windows of
+     * segments: runs of short subpaths up to PATH_CHUNK segments in all, or chunks of PATH_CHUNK
+     * segments of a long one. Each instance also lists the windows of the other instances that come
+     * near its own. So every pixel of the stroke is shaded once, by the nearest segment, even where
+     * the path crosses itself far along its length (see `pathSD` in the shader).
      */
     private _emitStroke(subpaths: SubPath[], stroke: Stroke, frameOverride: ShapeFrame | null): void {
-        const subs: { pts: number[]; closed: boolean; segs: number; hdr: number; cum: number[] }[] = [];
+        const subs: StrokeSub[] = [];
         const b = this._box;
 
         b[0] = b[1] = Infinity;
@@ -1950,7 +1969,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             if (n === 0) continue;
             const closed = sp.closed && n >= 3;
             const segs = n === 1 ? 1 : closed ? n : n - 1;
-            const hdr = this._reserve(1 + segs);
+            const hdr = this._reserve(1 + segs + Math.ceil(segs / 4));
             const e = this._poly;
             const cum = [0];
 
@@ -1965,40 +1984,52 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                 e[q + 3] = pts[ib + 1];
                 cum.push(cum[i] + Math.hypot(pts[ib] - pts[ia], pts[ib + 1] - pts[ia + 1]));
             }
-            this._set4Poly(hdr, segs, closed ? 1 : 0, cum[segs], 0);
+            // lengths before each segment, four per texel: every instance reads the same values
+            const at = (hdr + 1 + segs) * 4;
+
+            for (let i = 0; i < Math.ceil(segs / 4) * 4; i++) e[at + i] = i < segs ? cum[i] : 0;
+            let dashScale = 1;
+
+            if (stroke.dash && closed && stroke.dashFit && cum[segs] > 0) {
+                const period = stroke.dash[0] + stroke.dash[1];
+
+                dashScale = cum[segs] / (Math.max(1, Math.round(cum[segs] / period)) * period);
+            }
+            this._set4Poly(hdr, segs, closed ? 1 : 0, cum[segs], dashScale);
             pointsBox(pts, b);
             subs.push({ pts, closed, segs, hdr, cum });
         }
         if (!subs.length) return;
         const frame = frameOverride ?? { x: b[0], y: b[1], w: b[2] - b[0], h: b[3] - b[1] };
         const ctx: StrokeCtx = { stroke, frame, row: -1, gradFlags: 0 };
-        // runs of short subpaths share an instance, unless closed dashes must fit each loop alone
-        let run: typeof subs = [];
+        // windows each instance owns: runs of short subpaths, chunks of long ones
+        const owned: StrokeWin[][] = [];
+        let run: StrokeWin[] = [];
         let runSegs = 0;
         const flush = () => {
-            if (!run.length) return;
-            this._pathInstance(run[0].hdr, run.length, 0, -1, 0, run, ctx);
+            if (run.length) owned.push(run);
             run = [];
             runSegs = 0;
         };
 
         for (const sp of subs) {
-            const alone = stroke.dash !== null && sp.closed && stroke.dashFit;
-
-            if (sp.segs > PATH_CHUNK || alone) {
+            if (sp.segs > PATH_CHUNK) {
                 flush();
-                if (sp.segs <= PATH_CHUNK) this._pathInstance(sp.hdr, 1, 0, -1, 0, [sp], ctx);
-                else
-                    for (let s = 0; s < sp.segs; s += PATH_CHUNK) {
-                        this._pathInstance(sp.hdr, 1, s, Math.min(PATH_CHUNK, sp.segs - s), sp.cum[s], [sp], ctx);
-                    }
+                for (let s = 0; s < sp.segs; s += PATH_CHUNK) {
+                    owned.push([{ sub: sp, s, count: Math.min(PATH_CHUNK, sp.segs - s) }]);
+                }
                 continue;
             }
             if (runSegs + sp.segs > PATH_CHUNK) flush();
-            run.push(sp);
+            run.push({ sub: sp, s: 0, count: sp.segs });
             runSegs += sp.segs;
         }
         flush();
+        const others = nearWindows(owned, strokeRadius(stroke));
+
+        owned.forEach((wins, key) => {
+            this._pathInstance(wins, others[key], key, ctx);
+        });
     }
 
     private _set4Poly(t: number, a: number, b: number, c: number, d: number): void {
@@ -2010,30 +2041,30 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         e[t * 4 + 3] = d;
     }
 
-    /** One Prim.Path instance: subpaths from `hdr`, or segments `first .. first + count` of one subpath. */
-    private _pathInstance(
-        hdr: number,
-        nSub: number,
-        first: number,
-        count: number,
-        before: number,
-        subs: { pts: number[]; closed: boolean; segs: number; cum: number[] }[],
-        ctx: StrokeCtx,
-    ): void {
+    /**
+     * One Prim.Path instance. Its window texels (header texel, first segment, count, owner key)
+     * list the windows it owns, then the windows of other instances near them.
+     */
+    private _pathInstance(own: StrokeWin[], near: StrokeNear[], key: number, ctx: StrokeCtx): void {
         const { stroke, frame } = ctx;
-        const hdr0 = hdr;
+        const win = this._reserve(own.length + near.length);
+
+        own.forEach((w, i) => {
+            this._set4Poly(win + i, w.sub.hdr, w.s, w.count, key);
+        });
+        near.forEach((w, i) => {
+            this._set4Poly(win + own.length + i, w.sub.hdr, w.s, w.count, w.key);
+        });
         const o = this._alloc();
         const hw = stroke.width / 2;
         const ext = hw * (stroke.cap === Cap.Square ? Math.SQRT2 : 1);
         const b = [Infinity, Infinity, -Infinity, -Infinity];
         const e = this._poly;
 
-        for (const sp of subs) {
-            const s0 = count < 0 ? 0 : first;
-            const s1 = count < 0 ? sp.segs : first + count;
-            const tex = hdr + 1;
+        for (const { sub: sp, s, count } of own) {
+            const tex = sp.hdr + 1;
 
-            for (let i = s0; i < s1; i++) {
+            for (let i = s; i < s + count; i++) {
                 const q = (tex + i) * 4;
 
                 pointsBox([e[q], e[q + 1], e[q + 2], e[q + 3]], b);
@@ -2057,15 +2088,14 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                     if (poly) pointsBox(poly, b);
                 }
             }
-            hdr += 1 + sp.segs;
         }
         const pad = ext + SilkGraphics._reach(stroke);
         let flags = Flag.Stroke | (stroke.cap << CAP0_SHIFT) | (stroke.cap << CAP1_SHIFT);
 
         if (stroke.blur > 0) flags |= Flag.Dither;
         this._setBounds(o, b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad);
-        this._set4(o + 4, hdr0, nSub, first, count);
-        this._set4(o + 8, stroke.join, stroke.miterLimit, before, 0);
+        this._set4(o + 4, win, own.length, near.length, key);
+        this._set4(o + 8, stroke.join, stroke.miterLimit, 0, 0);
         this._premul(o + 24, stroke.rgba);
         if (stroke.gradient) {
             if (ctx.row < 0) {
@@ -2078,19 +2108,9 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             flags |= ctx.gradFlags;
         }
         if (stroke.dash) {
-            let [dash, gap] = stroke.dash;
-            const sp = subs[0];
-
-            if (sp.closed && stroke.dashFit && nSub === 1) {
-                const total = sp.cum[sp.segs];
-                const k = Math.max(1, Math.round(total / (dash + gap)));
-                const s = total / (k * (dash + gap));
-
-                dash *= s;
-                gap *= s;
-            }
+            // closed subpaths stretch the pattern by the factor in their header
             flags |= Flag.Dash;
-            this._set4(o + 36, dash, gap, stroke.dashOffset, 0);
+            this._set4(o + 36, stroke.dash[0], stroke.dash[1], stroke.dashOffset, 0);
         }
         this._set4(o + 16, Prim.Path, flags | this._fx(o, stroke), stroke.width, stroke.blur);
     }
@@ -2256,4 +2276,18 @@ function offsetPolygon(pts: number[], d: number): number[] {
     }
 
     return out;
+}
+
+/**
+ * How far a stroke paints from its centre line, local units: half its width (more for square caps
+ * and miters), its blur and spread, and one unit for the anti-aliasing ramp.
+ */
+function strokeRadius(stroke: Stroke): number {
+    const hw = stroke.width / 2;
+    const corner = Math.max(
+        stroke.cap === Cap.Square ? Math.SQRT2 : 1,
+        stroke.join === Join.Miter ? stroke.miterLimit : 1,
+    );
+
+    return hw * corner + 3 * Math.max(stroke.blur, stroke.blurTo) + Math.max(stroke.spread, 0) + 1;
 }

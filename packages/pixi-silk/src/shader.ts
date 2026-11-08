@@ -490,144 +490,111 @@ vec2 segDir(vec4 e)
     return len > 1e-9 ? ab / len : vec2(1.0, 0.0);
 }
 
+// Component i (0 to 3) of v.
+float comp(vec4 v, int i)
+{
+    return dot(v, vec4(equal(ivec4(i), ivec4(0, 1, 2, 3))));
+}
+
 // Stroke of a path (Prim 10): butt pieces, caps at open ends, a join at every inner vertex.
-// A chunk of a long subpath also evaluates the segment on each side of it: a pixel nearer to a
-// neighbour belongs to the neighbour's instance and is discarded here, so it is shaded once.
+// Segments come in windows: texels (header texel, first segment, count, owner key). The instance
+// owns its first windows and also evaluates the windows of other instances of the path that come
+// near its own. A pixel is shaded by the instance with the nearest segment, the lower key winning a
+// tie, so it is shaded once even where a long path crosses itself. Every instance computes a
+// segment's distance from the same texels in the same loop, so they agree to the bit.
 float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
 {
-    int hdr = int(vShape0.x + 0.5);
-    int nSub = int(vShape0.y + 0.5);
-    bool whole = vShape0.w < 0.0;
+    int win = int(vShape0.x + 0.5);
+    int nOwn = int(vShape0.y + 0.5);
+    int nAll = nOwn + int(vShape0.z + 0.5);
+    float key = vShape0.w;
     int join = int(vShape1.x + 0.5);
     float limit = vShape1.y;
-    float dash = vDash.x;
-    float period = max(vDash.x + vDash.y, 1e-5);
     float own = 1e20;
-    float prevNb = 1e20;
-    float nextNb = 1e20;
-    float best = 1e20;
-    // the vertices a chunk shares with its neighbours, and the bisectors there
-    vec2 v0 = vec2(0.0);
-    vec2 b0 = vec2(0.0);
-    vec2 v1 = vec2(0.0);
-    vec2 b1 = vec2(0.0);
+    float other = 1e20;
+    float otherKey = 0.0;
     gU = 0.0;
     gL = 1.0;
-    for (int sp = 0; sp < nSub; sp++)
+    for (int w = 0; w < nAll; w++)
     {
+        vec4 wt = polyTexel(win + w);
+        int hdr = int(wt.x + 0.5);
+        int s = int(wt.y + 0.5);
+        int cnt = int(wt.z + 0.5);
         vec4 h = polyTexel(hdr);
         int n = int(h.x + 0.5);
         bool closed = h.y > 0.5;
         float L = h.z;
+        // closed outlines stretch the dash pattern so it tiles: the factor is in the header
+        float dash = vDash.x * h.w;
+        float period = max((vDash.x + vDash.y) * h.w, 1e-5);
         int first = hdr + 1;
-        hdr += 1 + n;
-        int a = whole ? 0 : int(vShape0.z + 0.5);
-        int m = whole ? n : int(vShape0.w + 0.5);
-        // A chunk also evaluates its neighbours' segments up to 'reach' along the path on each
-        // side: caps, discs and joins of short segments reach that far across the boundary.
-        float reach = 3.0 * hw + 2.0 * px;
-        int spare = closed ? n - m : 1 << 20; // never wrap round into the chunk's own segments
-        int kb = 0;
-        float c = whole ? 0.0 : vShape1.z;
-        if (!whole)
-        {
-            float acc = 0.0;
-            for (int j = 1; j <= 16; j++)
-            {
-                bool ok;
-                vec4 e = segFetch(first, n, closed, a - j, ok);
-                if (!ok || j > spare / 2) break;
-                kb = j;
-                acc += length(e.zw - e.xy);
-                if (acc >= reach) break;
-            }
-            c -= acc;
-        }
-        int maxNext = whole ? 0 : min(16, spare - kb);
-        int k0 = -kb;
+        int cumAt = first + n;
         bool hp;
-        bool hc;
         bool hn;
-        vec4 ep = segFetch(first, n, closed, a + k0 - 1, hp);
-        vec4 ec = segFetch(first, n, closed, a + k0, hc);
-        float accNext = 0.0;
-        for (int k = k0; k < m + 16; k++)
+        vec4 ep = segFetch(first, n, closed, s - 1, hp);
+        vec4 ec = polyTexel(first + s);
+        float wmin = 1e20;
+        for (int k = s; k < s + cnt; k++)
         {
-            if (k >= m && (k - m >= maxNext || accNext >= reach || !hc)) break;
-            vec4 en = segFetch(first, n, closed, a + k + 1, hn);
-            if (hc)
+            vec4 en = segFetch(first, n, closed, k + 1, hn);
+            float c = comp(polyTexel(cumAt + k / 4), k % 4);
+            vec2 sa = ec.xy;
+            float len = length(ec.zw - sa);
+            vec2 dir = segDir(ec);
+            vec2 dp = segDir(ep);
+            int js = hp ? joinKind(dp, dir, hw, join, limit, px) : -1;
+            int je = hn ? joinKind(dir, segDir(en), hw, join, limit, px) : -1;
+            int ks = js < 0 ? cap0 : (js == 1 ? 3 : 0);
+            int ke = je < 0 ? cap1 : 0;
+            // how far the stroke (or a dash, through its start cap) reaches back before this segment
+            float capBack = cap0 != 0 ? hw : 0.0;
+            float back = closed ? 1e20 : c + capBack;
+            float ej = min(hw, min(len, length(ep.zw - ep.xy)));
+            vec2 q = vec2(dot(p - sa, dir), dir.x * (p.y - sa.y) - dir.y * (p.x - sa.x));
+            float d = 1e20;
+            if (!dashed)
             {
-                vec2 sa = ec.xy;
-                float len = length(ec.zw - sa);
-                vec2 dir = segDir(ec);
-                vec2 dp = segDir(ep);
-                int js = hp ? joinKind(dp, dir, hw, join, limit, px) : -1;
-                int je = hn ? joinKind(dir, segDir(en), hw, join, limit, px) : -1;
-                int ks = js < 0 ? cap0 : (js == 1 ? 3 : 0);
-                int ke = je < 0 ? cap1 : 0;
-                // how far the stroke reaches back before this segment
-                float back = closed ? 1e20 : c + (cap0 != 0 ? hw : 0.0);
-                float ej = min(hw, min(len, length(ep.zw - ep.xy)));
-                vec2 w = p - sa;
-                vec2 q = vec2(dot(w, dir), dir.x * w.y - dir.y * w.x);
-                float d = 1e20;
-                if (!dashed)
-                {
-                    d = pieceSD(q, 0.0, len, ks, ke, hw, back);
-                    if (js >= 2) d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
-                }
-                else
-                {
-                    float kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
-                    for (int j = -1; j <= 1; j++)
-                    {
-                        float t0 = (kk + float(j)) * period - vDash.z;
-                        float t1 = t0 + dash;
-                        float lo = max(t0, c);
-                        float hi = min(t1, c + len);
-                        if (hi < lo || (hi == lo && dash > 0.0)) continue;
-                        // a dash cut by a vertex goes on along the next segment: the vertex decides that end
-                        d = min(d, pieceSD(q, lo - c, hi - c, t0 < c ? ks : cap0, t1 > c + len ? ke : cap1, hw, min(back, c - t0)));
-                    }
-                    // a dash that runs through the vertex (not one that starts or ends on it) gets the join
-                    float ph = mod(c + vDash.z, period);
-                    float inDash = min(ph, dash - ph);
-                    if (js >= 2 && inDash > 1e-4 * period) d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
-                }
-                if (d < best)
-                {
-                    best = d;
-                    gU = c + clamp(q.x, 0.0, len);
-                    gL = L;
-                }
-                if (k < 0) prevNb = min(prevNb, d);
-                else if (k >= m) nextNb = min(nextNb, d);
-                else own = min(own, d);
-                if (k == 0 && hp)
-                {
-                    v0 = sa;
-                    b0 = dp + dir;
-                }
-                if (k == m && hp)
-                {
-                    v1 = sa;
-                    b1 = dp + dir;
-                }
-                c += len;
-                if (k >= m) accNext += len;
+                d = pieceSD(q, 0.0, len, ks, ke, hw, back);
+                if (js >= 2) d = min(d, joinSD(p, sa, dp, dir, hw, ej, js));
             }
+            else
+            {
+                float kk = floor((c + clamp(q.x, 0.0, len) + vDash.z) / period);
+                for (int j = -1; j <= 1; j++)
+                {
+                    float t0 = (kk + float(j)) * period - vDash.z;
+                    float t1 = t0 + dash;
+                    float lo = max(t0, c);
+                    float hi = min(t1, c + len);
+                    if (hi < lo || (hi == lo && dash > 0.0)) continue;
+                    // a dash cut by a vertex goes on along the next segment: the vertex decides that end
+                    d = min(d, pieceSD(q, lo - c, hi - c, t0 < c ? ks : cap0, t1 > c + len ? ke : cap1, hw, min(back, c - t0 + capBack)));
+                }
+                // a dash that runs through the vertex (not one that starts or ends on it) gets the join
+                float ph = mod(c + vDash.z, period);
+                float inDash = min(ph, dash - ph);
+                if (js >= 2 && inDash > 1e-4 * period) d = min(d, joinSD(p, sa, dp, dir, hw, min(ej, inDash), js));
+            }
+            if (w < nOwn && d < own)
+            {
+                own = d;
+                gU = c + clamp(q.x, 0.0, len);
+                gL = L;
+            }
+            wmin = min(wmin, d);
             ep = ec;
-            hp = hc;
+            hp = true;
             ec = en;
-            hc = hn;
+        }
+        if (w >= nOwn && (wmin < other || (wmin == other && wt.w < otherKey)))
+        {
+            other = wmin;
+            otherKey = wt.w;
         }
     }
-    // A pixel nearer to a neighbour's segment is the neighbour's. Near-ties (the same formula can
-    // round differently in two chunks) go by the side of the bisector at the shared vertex.
-    float tol = 1e-3 * px;
-    if (prevNb < own - tol || (prevNb <= own + tol && dot(p - v0, b0) < 0.0)) discard;
-    if (nextNb < own - tol || (nextNb <= own + tol && dot(p - v1, b1) >= 0.0)) discard;
-    return min(own, min(prevNb, nextNb));
+    if (other < own || (other == own && otherKey < key)) discard;
+    return own;
 }
 
 // Catmull-Rom weights for the four samples around fraction f

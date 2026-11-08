@@ -34,6 +34,10 @@ pnpm lint && pnpm typecheck && pnpm --filter pixi-silk test && pnpm site:build
 - Shader changes: the GLSL program in `shader.ts` has a WGSL twin in `shader-wgsl.ts` (and the glass
   filter one in `glass/glass-wgsl.ts`). Change both. `pnpm build && pnpm check:wgsl` compiles the
   WGSL on a real WebGPU device. Add `?renderer=webgpu` to a docs URL to run its demos on WebGPU.
+- Pixel checks: `pnpm build && pnpm check:render` renders hard cases (self-crossing paths, fold-backs,
+  dash caps, shape operations, batching) in headless Chrome on WebGL2 and WebGPU. It checks for double
+  blending, dim pixels and exact coverage, and compares the two renderers. Add a case to
+  `scripts/render-cases.js` with every rendering fix.
 - Library changes need a changeset: `pnpm changeset` (patch = fix, minor = feature, major = breaking).
 - Commit messages follow Conventional Commits, for example `feat(gradient): add stop easing` or
   `fix(shader): clamp coverage`. commitlint checks them.
