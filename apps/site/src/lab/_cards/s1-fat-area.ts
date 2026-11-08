@@ -26,4 +26,4 @@ export function fatArea(c: Cx): void {
         .stroke({ width: 1.5, color: CARD, alignment: 'outside' });
 }
 
-export default card(fatArea, { id: 's1-fat-area', name: 'Body fat · trend', size: [462, 191], style: STYLE });
+export default card(fatArea, { id: 's1-fat-area', name: 'Body fat trend', size: [462, 191], style: STYLE });

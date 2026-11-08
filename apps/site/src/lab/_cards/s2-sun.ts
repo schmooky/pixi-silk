@@ -41,8 +41,8 @@ export function sunAltitude(c: Cx): void {
 
         g.circle(dx, 68 - 25 * u * u, 0.95).fill(W);
     }
-    c.text('SET · 02:08', 0, 84.5, { size: 12.5, weight: '600' });
-    c.text('RISE · 17:45', 192, 84.5, { size: 12.5, weight: '600', align: 'right' });
+    c.text('SET 02:08', 0, 84.5, { size: 12.5, weight: '600' });
+    c.text('RISE 17:45', 192, 84.5, { size: 12.5, weight: '600', align: 'right' });
 }
 
 export default card(sunAltitude, { id: 's2-sun', name: 'Sun altitude', size: [196, 88], style: STYLE });

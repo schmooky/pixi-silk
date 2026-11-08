@@ -3,7 +3,7 @@ import type { Cx } from '../_sheets/cx';
 import { FAT_BARS, FAT_FUTURE, fatHeader, guides, now, osc, YELLOW } from '../_sheets/kit1';
 import { STYLE } from '../_sheets/style1';
 
-/** Body fat · daily. */
+/** Daily body fat. */
 export function fatBars(c: Cx): void {
     const { g } = c;
 
@@ -18,4 +18,4 @@ export function fatBars(c: Cx): void {
     now(g, 334);
 }
 
-export default card(fatBars, { id: 's1-fat-bars', name: 'Body fat · daily', size: [462, 191], style: STYLE });
+export default card(fatBars, { id: 's1-fat-bars', name: 'Daily body fat', size: [462, 191], style: STYLE });

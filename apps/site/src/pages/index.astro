@@ -24,16 +24,14 @@ const facts = [
     <section class="relative overflow-hidden border-b">
         <div class="grid-bg pointer-events-none absolute inset-0"></div>
         <div class="container-page relative py-16 sm:py-24" data-pagefind-body data-pagefind-filter="section:Home">
-            <p class="flex flex-wrap gap-x-5 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <span>PixiJS v8</span><span>WebGL2</span><span>TypeScript</span><span>MIT</span>
-            </p>
-            <h1 class="mt-4 max-w-4xl text-5xl font-semibold tracking-tight sm:text-6xl">
+            <h1 class="max-w-4xl text-5xl font-semibold tracking-tight sm:text-6xl">
                 Smooth, anti-aliased graphics<br class="hidden sm:block" /> for PixiJS v8, <span class="silk-text whitespace-nowrap">smooth as silk.</span>
             </h1>
             <p class="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
                 <strong class="text-foreground">pixi-silk</strong> draws each PixiJS shape as an exact signed distance field.
                 Every edge is anti-aliased per pixel, so it stays smooth at any zoom, rotation and pixel ratio.
-                No MSAA, no triangles, one draw call per object. Squircles, arcs, smooth lines, dashes, OKLab gradients and glows are included.
+                You don't need MSAA or extra triangles, and each object is one draw call.
+                Gradients mix in OKLab, so they don't band, and any shape can glow.
             </p>
             <div class="mt-8 flex flex-wrap items-center gap-3">
                 <a href="/docs/quick-start/" class="rounded-lg bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90">Get started</a>

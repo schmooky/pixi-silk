@@ -3,7 +3,7 @@ import type { Cx } from '../_sheets/cx';
 import { DIM, heartHeader, osc, PINK, ticks } from '../_sheets/kit1';
 import { STYLE } from '../_sheets/style1';
 
-/** Heart rate · range. */
+/** Heart rate range. */
 export function heartRange(c: Cx): void {
     const { g } = c;
     const s = osc(c.t, 0.3) * 3;
@@ -14,4 +14,4 @@ export function heartRange(c: Cx): void {
     g.roundRect(119 + s, 114.5, 127, 19.5, 4).fill(PINK);
 }
 
-export default card(heartRange, { id: 's1-heart-range', name: 'Heart rate · range', size: [463, 153], style: STYLE });
+export default card(heartRange, { id: 's1-heart-range', name: 'Heart rate range', size: [463, 153], style: STYLE });
