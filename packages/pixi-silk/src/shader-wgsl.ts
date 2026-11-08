@@ -15,8 +15,8 @@ import { GpuProgram } from 'pixi.js';
  *   - derivatives need uniform control flow, so dpdx / dpdy run first, before any branch.
  *   - the framebuffer y axis points down (gl_FragCoord's points up): dither and the local
  *     position rebuilt from @builtin(position) account for it.
- *   - Pixi batches SilkGraphics only on WebGL, so here aFx.w is always 0. The object table is
- *     still bound and read the same way, so both programs take the same resources.
+ *   - batched draws read the object table (uBatch) with textureLoad, as the GLSL program does
+ *     with texelFetch. Unbatched draws bind a 1x1 table and have aFx.w 0.
  *   - the gradient ramp is read with textureLoad and blended by hand (the same bilinear tap as
  *     textureLod on the linear atlas), so the program needs no sampler.
  */

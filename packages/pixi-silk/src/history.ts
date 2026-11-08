@@ -37,7 +37,9 @@ export interface HistoryLike {
 
 /** One entry of the stack: a label and the commands it undoes together. */
 export interface HistoryStep {
+    /** The transaction's label, or the first command's. Empty when neither has one. */
     readonly label: string;
+    /** Commands in the order they were recorded. Undo runs them in reverse. */
     readonly commands: readonly Command[];
 }
 
@@ -49,7 +51,9 @@ export interface HistoryOptions {
 
 /** The signals of a {@link History}. */
 export interface HistoryState {
+    /** True when `undo()` has a step to revert. */
     canUndo: ReadSignal<boolean>;
+    /** True when `redo()` has a step to apply again. */
     canRedo: ReadSignal<boolean>;
     /** Label of the step `undo()` reverts, or null. */
     undoLabel: ReadSignal<string | null>;
@@ -213,7 +217,7 @@ export class History implements HistoryLike {
         this._open = false;
     }
 
-    /** Reverts the last step. Returns false when there is none. */
+    /** Reverts the last step, after one `end()` of an open transaction. Returns false when there is none. */
     undo(): boolean {
         if (this._group) this.end();
         const step = this._done.pop();
@@ -229,7 +233,7 @@ export class History implements HistoryLike {
         return true;
     }
 
-    /** Applies the last undone step again. Returns false when there is none. */
+    /** Applies the last undone step again, after one `end()` of an open transaction. Returns false when there is none. */
     redo(): boolean {
         if (this._group) this.end();
         const step = this._undone.pop();
@@ -245,7 +249,7 @@ export class History implements HistoryLike {
         return true;
     }
 
-    /** Forgets every step. */
+    /** Forgets every step and drops an open transaction without reverting it. */
     clear(): void {
         this._done = [];
         this._undone = [];

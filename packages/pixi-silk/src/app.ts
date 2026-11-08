@@ -2,17 +2,18 @@ import { Application, type ApplicationOptions, Filter } from 'pixi.js';
 
 /** Options of {@link createSilkApp}: Pixi application options plus the element to fill, DPR limits and touch behaviour. */
 export interface SilkAppOptions extends Partial<ApplicationOptions> {
-    /** Element the canvas fills (it must have a size). */
+    /** Element the canvas is appended to and fills. Give it a size in CSS, or the canvas is 1x1. */
     parent: HTMLElement;
-    /** Upper bound for the resolution (DPR). Default 3. */
+    /** Upper bound for the resolution when it follows devicePixelRatio. Default 3. */
     maxResolution?: number;
-    /** Force a resolution instead of following devicePixelRatio. */
+    /** Fixed resolution instead of devicePixelRatio, capped at 16. `maxResolution` does not apply. */
     fixedResolution?: number;
-    /** Called after every size / resolution change with the size in CSS pixels. */
+    /** Called after every size or resolution change, with the size in CSS pixels and the resolution. */
     onResize?: (width: number, height: number, resolution: number) => void;
     /**
-     * Pixi filters render at resolution 1 by default, which blurs everything behind a filter
-     * on retina screens. When true (default) new filters inherit the renderer resolution.
+     * Pixi filters render at resolution 1 by default, which blurs everything behind a filter on
+     * high-DPR screens. When true (default), new filters inherit the renderer resolution. It sets
+     * the global `Filter.defaultOptions.resolution`, so it affects every Pixi app on the page.
      */
     inheritFilterResolution?: boolean;
     /**
@@ -37,24 +38,28 @@ export interface SilkApp {
     readonly width: number;
     /** Current height in CSS pixels. */
     readonly height: number;
-    /** Current renderer resolution (device pixels per CSS pixel). */
+    /** Current renderer resolution, in device pixels per CSS pixel. */
     readonly resolution: number;
-    /** Forces a resolution, for example to compare 1x and 2x. `null` returns to devicePixelRatio. */
+    /** Forces a resolution, for example to compare 1x and 2x, and resizes at once. `null` returns to devicePixelRatio. */
     setResolution(resolution: number | null): void;
     /** Stops observers, destroys the stage and renderer and removes the canvas. Safe with several apps on a page. */
     destroy(): void;
 }
 
 /**
- * Creates a Pixi application tuned for smooth vector output:
+ * Creates a Pixi application, appends its canvas to `parent` and keeps it sized to it.
  *
- * - WebGL2 by default, WebGPU with `preference: 'webgpu'` (the WGSL shader then loads on demand),
- * - no MSAA (analytic AA does the job, MSAA would only cost bandwidth),
- * - backing store sized from `devicePixelContentBoxSize`, so every canvas pixel maps to
- *   exactly one device pixel even at fractional DPRs (1.25, 1.5, 2.625 ...) - no resampling blur,
- * - follows DPR changes (moving the window between displays, browser zoom),
- * - unrounded coordinates for sub-pixel smooth motion,
- * - filters that render at the screen resolution instead of 1x.
+ * It starts WebGL2 by default and WebGPU with `preference: 'webgpu'`. MSAA is off, since SilkGraphics
+ * anti-alias their own edges. The backing store is sized from `devicePixelContentBoxSize`, so each
+ * canvas pixel is one device pixel even at fractional DPRs such as 1.25 or 2.625. It follows DPR
+ * changes from browser zoom or a move to another display. Coordinates are not rounded, so motion
+ * stays sub-pixel smooth. Any other Pixi option you pass overrides these defaults.
+ *
+ * @example
+ * ```ts
+ * const silk = await createSilkApp({ parent: document.getElementById('stage')!, background: 0x0b0b0d });
+ * silk.app.stage.addChild(new SilkGraphics().circle(100, 100, 40).fill(0x30d158));
+ * ```
  */
 export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
     const {

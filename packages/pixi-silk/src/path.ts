@@ -21,18 +21,23 @@ export type AnchorType = 'corner' | 'smooth' | 'mirrored';
 
 /** One point of a path. `in` and `out` are handle offsets from the anchor, not positions. */
 export interface PathAnchor {
+    /** Anchor x, in the path's units. */
     x: number;
+    /** Anchor y, in the path's units. */
     y: number;
     /** Handle that shapes the segment arriving at this anchor. */
     in?: Vec;
     /** Handle that shapes the segment leaving it. */
     out?: Vec;
+    /** How the two handles move together when one is edited. */
     type: AnchorType;
 }
 
 /** A path: anchors in order. A closed path also joins the last anchor back to the first. */
 export interface BezierPath {
+    /** Anchors in drawing order. */
     anchors: PathAnchor[];
+    /** Joins the last anchor back to the first. */
     closed: boolean;
 }
 
@@ -48,8 +53,11 @@ export interface PathHitPoint {
     segment: number;
     /** Position along the segment, 0 to 1. */
     t: number;
+    /** Closest point x. */
     x: number;
+    /** Closest point y. */
     y: number;
+    /** Distance from the query point, in the path's units. */
     distance: number;
 }
 
@@ -144,7 +152,10 @@ export function splitCubic(c: Cubic, t: number): [Cubic, Cubic] {
     ];
 }
 
-/** The closest point of a cubic to `p`. */
+/**
+ * The closest point of a cubic to `p`. It takes 33 samples and refines around the best one, so it
+ * can pick the wrong part of a curve that passes almost equally close twice.
+ */
 export function nearestOnCubic(c: Cubic, p: Vec): { t: number; x: number; y: number; distance: number } {
     const d2 = (t: number) => {
         const q = cubicPoint(c, t);
@@ -242,7 +253,7 @@ export function pathBounds(path: BezierPath): { x: number; y: number; width: num
 
 /**
  * Draws `path` into `g` with moveTo, lineTo, bezierCurveTo and closePath, then returns `g` for
- * `.fill()` and `.stroke()`. A `SilkGraphics` fills the whole path as one exact shape.
+ * `.fill()` and `.stroke()`. A `SilkGraphics` fills it even-odd.
  */
 export function drawPath<G extends PathSink>(g: G, path: BezierPath): G {
     const n = path.anchors.length;
@@ -501,7 +512,7 @@ export function toggleAnchorType(path: BezierPath, index: number): BezierPath {
     return setAnchorType(path, index, sharp ? 'smooth' : 'corner', !sharp);
 }
 
-/** Indices of the anchors inside a rectangle, for marquee selection. */
+/** Indices of the anchors inside a rectangle, edges included, for marquee selection. A negative width or height works. Handles are ignored. */
 export function anchorsInRect(
     path: BezierPath,
     rect: { x: number; y: number; width: number; height: number },

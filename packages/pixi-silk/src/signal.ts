@@ -1,6 +1,7 @@
 /**
- * The smallest reactive store that does the job: a value you can read, set and watch.
- * No proxies, no dependency tracking, no scheduler. UI widgets expose their state as signals
+ * A minimal reactive store: a value you can read, set and watch. It has no proxies, no automatic
+ * dependency tracking and no scheduler. Listeners run synchronously, or once at the end of a
+ * {@link batch}. UI widgets expose their state as signals
  * so an app can bind to them from anywhere (React, MobX, a plain callback) without a framework.
  */
 
@@ -11,28 +12,34 @@ export type Listener<T> = (value: T, previous: T) => void;
 export interface ReadSignal<T> {
     /** Current value. */
     readonly value: T;
-    /** Calls `fn` on every change. Returns the unsubscribe function. */
+    /** Calls `fn` on every change, not with the current value. Returns the unsubscribe function. */
     subscribe(fn: Listener<T>): () => void;
 }
 
 /** A value you can read, watch and change. */
 export interface Signal<T> extends ReadSignal<T> {
+    /** Current value. Assigning an equal value does nothing, otherwise listeners run. */
     value: T;
     /** Same as assigning `value`. */
     set(value: T): void;
-    /** Sets the value from the current one. */
+    /** Sets the value to `fn(current)`. */
     update(fn: (value: T) => T): void;
 }
 
 /** A derived signal. `dispose()` stops it following its sources. */
 export interface Computed<T> extends ReadSignal<T> {
+    /** Unsubscribes from the sources. The value then stays as it is. */
     dispose(): void;
 }
 
 let depth = 0;
 const queued = new Set<() => void>();
 
-/** Runs `fn` and delivers the change notifications once, after it returns. */
+/**
+ * Runs `fn` and delivers the change notifications once, after it returns, even if it throws.
+ * A signal set several times notifies once, with the value from before the batch as `previous`.
+ * It notifies nothing if it ends equal to that value. Batches nest.
+ */
 export function batch<R>(fn: () => R): R {
     depth++;
     try {
@@ -47,7 +54,10 @@ export function batch<R>(fn: () => R): R {
     }
 }
 
-/** Creates a signal. `equals` decides when a write is a change (default `Object.is`). */
+/**
+ * Creates a signal. `equals` decides when a write is a change (default `Object.is`), so mutating
+ * an object in place and setting it again notifies nobody. Set a new object instead.
+ */
 export function signal<T>(initial: T, equals: (a: T, b: T) => boolean = Object.is): Signal<T> {
     let current = initial;
     let notified = initial;
@@ -83,7 +93,10 @@ export function signal<T>(initial: T, equals: (a: T, b: T) => boolean = Object.i
     };
 }
 
-/** Derives a signal from others: `fn` runs again whenever one of the `sources` changes. */
+/**
+ * Derives a signal from others: `fn` runs now and again whenever one of the `sources` changes.
+ * Only the listed sources are followed. Call `dispose()` when you no longer need it.
+ */
 export function computed<T>(sources: readonly ReadSignal<unknown>[], fn: () => T): Computed<T> {
     const out = signal(fn());
     const stops = sources.map((s) => s.subscribe(() => out.set(fn())));

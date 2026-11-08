@@ -1,8 +1,8 @@
 /**
- * Instance layout shared by the CPU packer and the GLSL program.
- * Every primitive is one instance of a unit quad. The vertex shader expands the quad to the
- * primitive's bounds, plus an anti-aliasing margin in device pixels. The fragment shader
- * evaluates the exact signed distance of the shape.
+ * Instance layout shared by the CPU packer and the GLSL and WGSL programs. Internal: not part of
+ * the public API. Every primitive is one instance of a unit quad. The vertex shader expands the
+ * quad to the primitive's bounds, plus an anti-aliasing margin in device pixels. The fragment
+ * shader evaluates the signed distance of the shape.
  *
  * Ids are `as const` objects rather than TypeScript enums: they compile to plain object
  * literals (no enum IIFEs, no reverse mappings) and need no TypeScript-only syntax.
@@ -71,7 +71,9 @@ export const Flag = {
 } as const;
 export type Flag = (typeof Flag)[keyof typeof Flag];
 
+/** Bit offset of the start cap id in the flags. */
 export const CAP0_SHIFT = 8;
+/** Bit offset of the end cap id in the flags. */
 export const CAP1_SHIFT = 10;
 
 /** Line cap ids (two bits per end, see CAP0_SHIFT / CAP1_SHIFT). */
@@ -115,9 +117,11 @@ export type Extend = (typeof Extend)[keyof typeof Extend];
 
 /** Gradient ramp atlas: one gradient per row, RAMP_WIDTH samples per ramp. */
 export const RAMP_WIDTH = 256;
+/** Rows of the gradient atlas, so gradients in use at once. More reuse row 0 with a warning. */
 export const ATLAS_ROWS = 256;
 
 /** Edges per row of a graphics' path texture (one edge per RGBA32F texel). */
 export const POLY_WIDTH = 256;
 
+/** One full turn in radians. */
 export const TAU: number = Math.PI * 2;
