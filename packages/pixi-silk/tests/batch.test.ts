@@ -11,6 +11,8 @@ import {
 } from '../src/batch';
 import { POLY_WIDTH, STRIDE } from '../src/constants';
 import { SilkGraphics } from '../src/SilkGraphics';
+import { silkGpu } from '../src/shader-slot';
+import { createSilkGpuProgram } from '../src/shader-wgsl';
 
 const source = (g: SilkGraphics) => g._batchSource;
 
@@ -161,7 +163,7 @@ describe('SilkPipe bookkeeping', () => {
         pipe.destroy();
     });
 
-    it('hands objects to the mesh pipe on renderers it cannot batch for', () => {
+    it('hands objects to the mesh pipe on WebGPU without the WGSL program', () => {
         const { renderer, log } = fakeRenderer(RendererType.WEBGPU);
         const pipe = new SilkPipe(renderer);
         const set = new InstructionSet();
@@ -171,5 +173,23 @@ describe('SilkPipe bookkeeping', () => {
         pipe.updateRenderable(g);
         pipe.execute(g);
         expect(log).toEqual(['mesh', 'mesh-update', 'mesh-execute']);
+    });
+
+    it('batches on WebGPU once enableWebGPU() installed the WGSL program', () => {
+        const { renderer, log } = fakeRenderer(RendererType.WEBGPU);
+        const pipe = new SilkPipe(renderer);
+        const set = new InstructionSet();
+        const saved = silkGpu.program;
+
+        silkGpu.program = createSilkGpuProgram();
+        try {
+            pipe.addRenderable(new SilkGraphics(), set);
+            pipe.addRenderable(new SilkGraphics(), set);
+            expect(set.instructionSize).toBe(1);
+            expect((set.instructions[0] as unknown as Batch).items).toHaveLength(2);
+            expect(log).not.toContain('mesh');
+        } finally {
+            silkGpu.program = saved;
+        }
     });
 });

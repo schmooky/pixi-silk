@@ -3,7 +3,7 @@
  * headless Chrome against the built library, on the renderer named by `?renderer=`.
  */
 
-import { enableSilkBatching, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
+import { enableSilkBatching, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
 import { enableWebGPU } from '/packages/pixi-silk/dist/webgpu.js';
 import { Application, Container, RenderTexture } from '/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs';
@@ -13,6 +13,33 @@ const W = 256;
 const H = 256;
 
 if (preference === 'webgpu') enableWebGPU();
+// every case renders through the batching pipe; the batch cases compare it with `batch: false`
+enableSilkBatching();
+
+/** Draw calls of the last render, counted on the GL context or the WebGPU render pass encoder. */
+const draws = { count: 0 };
+
+if (preference === 'webgpu') {
+    for (const name of ['draw', 'drawIndexed']) {
+        const fn = GPURenderPassEncoder.prototype[name];
+
+        GPURenderPassEncoder.prototype[name] = function (...a) {
+            draws.count++;
+
+            return fn.apply(this, a);
+        };
+    }
+} else {
+    for (const name of ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']) {
+        const fn = WebGL2RenderingContext.prototype[name];
+
+        WebGL2RenderingContext.prototype[name] = function (...a) {
+            draws.count++;
+
+            return fn.apply(this, a);
+        };
+    }
+}
 
 /** Points of a curve sampled at `n` steps of `t` in [0, 1]. */
 function sample(n, fn) {
@@ -361,6 +388,63 @@ const cases = {
 
         return { scene: g, kind: 'none' };
     },
+    // batching: many objects in one draw, pixel for pixel the same as one draw each
+    ...Object.fromEntries(
+        ['shapes', 'paths', 'paint'].map((kind) => [
+            `batch-${kind}`,
+            () => {
+                const make = (batch) => {
+                    const root = new Container();
+
+                    // opaque ground: plus-lighter paint on a transparent one reads back differently on WebGPU
+                    if (kind === 'paint') root.addChild(new SilkGraphics({ batch }).rect(0, 0, W, H).fill(0x101418));
+
+                    for (let i = 0; i < 60; i++) {
+                        const g = new SilkGraphics({ batch });
+                        const x = 16 + (i % 8) * 31;
+                        const y = 16 + Math.floor(i / 8) * 31;
+
+                        if (kind === 'shapes') {
+                            if (i % 3 === 0) g.circle(0, 0, 11).fill({ color: 0x0a84ff, alpha: 0.7 });
+                            else if (i % 3 === 1)
+                                g.roundRect(-11, -9, 22, 18, 5, 0.6).stroke({ width: 2, color: 0x30d158 });
+                            else g.star(0, 0, 5, 12, 5).fill(0xffd60a);
+                        } else if (kind === 'paths') {
+                            const pts = [];
+
+                            for (let k = 0; k <= 40; k++) pts.push(-12 + k * 0.6, Math.sin(k * 0.6 + i) * 9);
+                            g.polyline(pts).stroke({
+                                width: 2.5,
+                                alpha: 0.6,
+                                color: 0xff375f,
+                                dash: i % 2 ? [4, 2] : undefined,
+                            });
+                            g.svgPath('M-8 -8 L8 -8 L0 8 Z').fill({ color: 0xbf5af2, alpha: 0.5 });
+                        } else {
+                            g.circle(0, 0, 12)
+                                .circle(5, -3, 6)
+                                .fill({
+                                    gradient: radial([0xff9f0a, 0xff375f]),
+                                    op: 'subtract',
+                                    innerShadow: { y: 2, blur: 2, alpha: 0.5 },
+                                })
+                                .stroke({ width: 1, color: 0xffffff, alpha: 0.8 });
+                            if (i % 4 === 0)
+                                g.circle(0, 0, 14).fill({ color: 0x30d158, blur: 4, blend: 'add', alpha: 0.4 });
+                        }
+                        g.position.set(x, y);
+                        g.rotation = i * 0.37;
+                        g.alpha = 0.6 + (i % 5) * 0.08;
+                        root.addChild(g);
+                    }
+
+                    return root;
+                };
+
+                return { scene: make(true), kind: 'same', ref: make(false), tolerance: 0, counts: true };
+            },
+        ]),
+    ),
 };
 
 export const extraCases = cases;
@@ -663,7 +747,9 @@ window.renderCases = async ({ only, png }) => {
     for (const [name, make] of Object.entries(cases)) {
         if (only && !name.includes(only)) continue;
         const c = make();
+        draws.count = 0;
         const px = await draw(c.scene, c.screen);
+        const calls = draws.count;
         let res;
 
         if (c.kind === 'alpha') res = checkAlpha(px, c.alpha, c.min);
@@ -671,9 +757,11 @@ window.renderCases = async ({ only, png }) => {
         else if (c.kind === 'exact') res = checkExact(px, c.hit, c.scale);
         else if (c.kind === 'none') res = { note: 'compared between renderers', failures: [] };
         else {
+            draws.count = 0;
             const ref = await draw(c.ref);
 
             res = checkSame(px, ref, c.tolerance);
+            if (c.counts) res.note += `, ${calls} draw calls batched, ${draws.count} unbatched`;
             if (png) out.push({ name: `${name}-ref`, failures: [], raw: '', png: toPng(ref) });
             if (png && res.at)
                 out.push({ name: `${name}-zoom`, failures: [], raw: '', png: zoomPair(px, ref, res.at) });
@@ -685,5 +773,3 @@ window.renderCases = async ({ only, png }) => {
 
     return { renderer: r.type === 1 ? 'WebGL2' : 'WebGPU', name: r.name, cases: out };
 };
-
-export { enableSilkBatching };
