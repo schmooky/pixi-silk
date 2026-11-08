@@ -19,21 +19,18 @@ enableSilkBatching();
 /** Draw calls of the last render, counted on the GL context or the WebGPU render pass encoder. */
 const draws = { count: 0 };
 
-if (preference === 'webgpu') {
-    for (const name of ['draw', 'drawIndexed']) {
-        const fn = GPURenderPassEncoder.prototype[name];
+// both, since a browser without WebGPU falls back to WebGL2
+const counted = [
+    [globalThis.GPURenderPassEncoder, ['draw', 'drawIndexed']],
+    [globalThis.WebGL2RenderingContext, ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']],
+];
 
-        GPURenderPassEncoder.prototype[name] = function (...a) {
-            draws.count++;
+for (const [type, names] of counted) {
+    if (!type) continue;
+    for (const name of names) {
+        const fn = type.prototype[name];
 
-            return fn.apply(this, a);
-        };
-    }
-} else {
-    for (const name of ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']) {
-        const fn = WebGL2RenderingContext.prototype[name];
-
-        WebGL2RenderingContext.prototype[name] = function (...a) {
+        type.prototype[name] = function (...a) {
             draws.count++;
 
             return fn.apply(this, a);
@@ -468,6 +465,12 @@ async function drawScreen(scene) {
     root.addChild(scene);
     r.background.alpha = 0;
     r.render({ container: root, clear: true, clearColor: [0, 0, 0, 0] });
+    // WebKit copies a WebGPU canvas as it was last presented, not the frame drawn in this task.
+    // Let this frame be presented, then draw it again, so both readings give the same picture.
+    if (r.name === 'webgpu') {
+        await new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+        r.render({ container: root, clear: true, clearColor: [0, 0, 0, 0] });
+    }
     const c = document.createElement('canvas');
 
     c.width = W;
@@ -504,7 +507,7 @@ async function draw(scene, screen = false) {
     const px = new Uint8ClampedArray(pixels);
 
     // WebGPU reads back through a 2D canvas, which un-premultiplies: premultiply again
-    if (preference === 'webgpu') {
+    if (r.name === 'webgpu') {
         for (let i = 0; i < px.length; i += 4) {
             const a = px[i + 3] / 255;
 
