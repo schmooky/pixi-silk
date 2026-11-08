@@ -53,7 +53,7 @@ export default defineConfig({
                 },
                 // editor widgets: pixi-silk/ui/<name> is src/ui/<name>.ts
                 {
-                    find: /^pixi-silk\/ui\/(gizmo|outline|camera|measure|grid|ruler|guides|marquee|group|spacing|snap|color|halo|brush|modes|dial|timeline|odometer|gesture|arc|keys|pill|pathgizmo|label|layout)$/,
+                    find: /^pixi-silk\/ui\/(gizmo|outline|camera|measure|grid|ruler|guides|marquee|group|spacing|snap|color|halo|brush|modes|dial|timeline|odometer|gesture|arc|keys|pill|pathgizmo|label|layout|textedit)$/,
                     replacement: `${resolve(repoRoot, 'packages/pixi-silk/src/ui')}/$1.ts`,
                 },
                 { find: '@', replacement: resolve(here, 'src') },

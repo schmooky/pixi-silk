@@ -135,6 +135,10 @@
       "types": "./dist/ui/pill.d.ts",
       "default": "./dist/ui/pill.js"
     },
+    "./ui/textedit": {
+      "types": "./dist/ui/textedit.d.ts",
+      "default": "./dist/ui/textedit.js"
+    },
     "./glass": {
       "types": "./dist/glass.d.ts",
       "default": "./dist/glass.js"
