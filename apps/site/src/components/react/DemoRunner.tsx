@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { type Control, type Demo, initialValues, type MountedDemo, mountDemo } from '@/demos/runtime';
 
-// one lazily loaded chunk per demo
 /** Import failures after a deploy: the page asks for script files that no longer exist. */
 const STALE =
     /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module/i;
 
+// one lazily loaded chunk per demo
 const modules = import.meta.glob<{ default: Demo }>('../../demos/*.demo.ts');
 
 interface Props {
@@ -13,16 +13,73 @@ interface Props {
     height?: number;
     /** Accessible description of what the canvas shows. */
     label?: string;
+    /** The demo has controls: the bar under the canvas is drawn before the module loads. */
+    hasControls?: boolean;
+    /** Studio URL of this demo. */
+    studio?: string;
+}
+
+/**
+ * Copies what the demo's canvases show into one 2D canvas, so the frame keeps its last picture
+ * while the WebGL context is gone. A WebGL canvas keeps its pixels only until the next composite,
+ * so this renders a frame first and copies it in the same task.
+ */
+function freeze(host: HTMLElement, mounted: MountedDemo): HTMLCanvasElement | null {
+    const box = host.getBoundingClientRect();
+    const sources = [...host.querySelectorAll('canvas')].filter((c) => !c.dataset.frozen);
+
+    if (box.width === 0 || box.height === 0 || sources.length === 0) return null;
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d');
+
+    if (!ctx) return null;
+    out.width = Math.round(box.width * ratio);
+    out.height = Math.round(box.height * ratio);
+    out.dataset.frozen = 'true';
+    out.setAttribute('aria-hidden', 'true');
+    out.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+    try {
+        mounted.silk.app.render();
+        for (const c of sources) {
+            const r = c.getBoundingClientRect();
+
+            ctx.drawImage(c, (r.left - box.left) * ratio, (r.top - box.top) * ratio, r.width * ratio, r.height * ratio);
+        }
+    } catch {
+        return null;
+    }
+
+    return out;
+}
+
+/**
+ * Pixi's filter system keeps the last filter input bound in a bind group it never releases.
+ * Destroying the app then frees that pooled texture under it and Pixi warns. Releasing the
+ * bind group first keeps teardown quiet; the renderer is destroyed right after anyway.
+ */
+function releaseFilterBindings(mounted: MountedDemo) {
+    try {
+        const filter = (
+            mounted.silk.app.renderer as unknown as { filter?: { _globalFilterBindGroup?: { destroy(): void } } }
+        ).filter;
+
+        filter?._globalFilterBindGroup?.destroy();
+    } catch {
+        // a renderer without a filter system has nothing to release
+    }
 }
 
 /**
  * Live demo island: loads the demo module, mounts it only while it is near the viewport
- * (browsers allow ~16 WebGL contexts per page) and renders its controls.
+ * (browsers allow ~16 WebGL contexts per page) and renders its controls. Scrolled away, the
+ * frame keeps a still of its last frame.
  */
-export default function DemoRunner({ name, height = 280, label }: Props) {
+export default function DemoRunner({ name, height = 280, label, hasControls = false, studio }: Props) {
     const frame = useRef<HTMLDivElement>(null);
     const host = useRef<HTMLDivElement>(null);
     const mounted = useRef<MountedDemo | null>(null);
+    const still = useRef<HTMLCanvasElement | null>(null);
     const values = useRef<Record<string, unknown>>({});
     const [demo, setDemo] = useState<Demo | null>(null);
     const [params, setParams] = useState<Record<string, unknown>>({});
@@ -65,26 +122,46 @@ export default function DemoRunner({ name, height = 280, label }: Props) {
         return () => io.disconnect();
     }, []);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: bumping `generation` (Restart) remounts the demo
+    // biome-ignore lint/correctness/useExhaustiveDependencies: bumping `generation` (Reset) remounts the demo
     useEffect(() => {
-        if (!demo || !visible || !host.current) return;
+        const el = host.current;
+
+        if (!demo || !visible || !el) return;
         let cancelled = false;
         let instance: MountedDemo | null = null;
 
-        mountDemo(demo, host.current, values.current).then(
+        mountDemo(demo, el, values.current).then(
             (m) => {
-                if (cancelled) m.destroy();
-                else {
-                    mounted.current = instance = m;
-                    setLive(true);
+                if (cancelled) {
+                    releaseFilterBindings(m);
+                    m.destroy();
+
+                    return;
                 }
+                mounted.current = instance = m;
+                // the live canvas is up: drop the still of the previous run
+                still.current?.remove();
+                still.current = null;
+                setLive(true);
             },
             (e: unknown) => setError(String(e)),
         );
 
         return () => {
             cancelled = true;
-            instance?.destroy();
+            if (instance) {
+                // keep a still of the last frame, stop the clock, then tear down
+                const picture = freeze(el, instance);
+
+                instance.pause(true);
+                releaseFilterBindings(instance);
+                instance.destroy();
+                if (picture) {
+                    still.current?.remove();
+                    el.appendChild(picture);
+                    still.current = picture;
+                }
+            }
             mounted.current = null;
             setLive(false);
         };
@@ -101,6 +178,7 @@ export default function DemoRunner({ name, height = 280, label }: Props) {
         setGeneration((g) => g + 1);
     };
     const controls = Object.entries(demo?.controls ?? {});
+    const bar = hasControls || controls.length > 0;
 
     return (
         <div ref={frame}>
@@ -108,16 +186,19 @@ export default function DemoRunner({ name, height = 280, label }: Props) {
                 ref={host}
                 role="img"
                 aria-label={label}
-                className="relative w-full overflow-hidden"
-                style={{ height, background: '#0b0b0d' }}
+                aria-busy={!live && !error}
+                data-live={live || undefined}
+                className="relative w-full overflow-hidden bg-demo"
+                style={{ height }}
             >
-                {!live && !error && (
-                    <div className="absolute inset-0 flex items-center justify-center font-mono text-xs uppercase tracking-wider text-white/35">
-                        Live demo
-                    </div>
+                {!bar && studio && (
+                    <a href={studio} className="demo-chip" title="Open this demo in Studio">
+                        <StudioIcon />
+                        Studio
+                    </a>
                 )}
                 {error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center font-mono text-xs text-red-400">
+                    <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center gap-3 bg-demo p-4 text-center font-mono text-xs text-red-400">
                         {STALE.test(error) ? (
                             <>
                                 <span className="text-white/60">
@@ -137,25 +218,67 @@ export default function DemoRunner({ name, height = 280, label }: Props) {
                     </div>
                 )}
             </div>
-            <div className="flex min-h-[41px] flex-wrap items-center gap-x-5 gap-y-2 border-t px-4 py-2.5 text-xs">
-                {controls.map(([key, control]) => (
-                    <ControlInput
-                        key={key}
-                        name={key}
-                        control={control}
-                        value={params[key]}
-                        onChange={(v) => set(key, v)}
-                    />
-                ))}
-                <button
-                    type="button"
-                    onClick={reset}
-                    className="ml-auto rounded-md px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                    Reset
-                </button>
-            </div>
+            {bar && (
+                <div className="demo-bar">
+                    {controls.map(([key, control]) => (
+                        <ControlInput
+                            key={key}
+                            name={key}
+                            control={control}
+                            value={params[key]}
+                            onChange={(v) => set(key, v)}
+                        />
+                    ))}
+                    <div className="ml-auto flex items-center gap-0.5">
+                        <button type="button" onClick={reset} className="demo-icon-btn" title="Reset the demo">
+                            <svg
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                            <span>Reset</span>
+                        </button>
+                        {studio && (
+                            <a
+                                href={studio}
+                                className="demo-icon-btn"
+                                title="Open this demo in Studio"
+                                aria-label="Open in Studio"
+                            >
+                                <StudioIcon />
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
+    );
+}
+
+function StudioIcon() {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <path d="M15 3h6v6" />
+            <path d="M10 14 21 3" />
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        </svg>
     );
 }
 
@@ -185,9 +308,9 @@ function ControlInput({
                     step={control.step ?? 'any'}
                     value={v}
                     onChange={(e) => onChange(Number(e.target.value))}
-                    className="w-28 accent-[hsl(var(--silk))]"
+                    className="w-24 accent-[hsl(var(--silk))] sm:w-28"
                 />
-                <span className="w-12 font-mono tabular-nums">
+                <span className="min-w-10 font-mono tabular-nums text-foreground">
                     {Number.isInteger(v) ? v : v.toFixed(2)}
                     {control.unit ?? ''}
                 </span>
@@ -217,6 +340,7 @@ function ControlInput({
                         key={option}
                         type="button"
                         onClick={() => onChange(option)}
+                        aria-pressed={value === option}
                         className={`px-2 py-1 font-mono ${value === option ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-accent'}`}
                     >
                         {option}
