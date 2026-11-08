@@ -8,7 +8,7 @@ Site: https://pixi-silk.schmooky.dev
 Repository: https://github.com/schmooky/pixi-silk
 Package: https://www.npmjs.com/package/pixi-silk
 
-This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs harness: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.
+This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs demo runner: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.
 
 - [llms-full.txt](https://pixi-silk.schmooky.dev/llms-full.txt): core, paint and rendering: guides and API, SilkGraphics first.
 - [llms-ui.txt](https://pixi-silk.schmooky.dev/llms-ui.txt): text, layout, UI widgets and the editor kit: guides and API.
@@ -39,7 +39,7 @@ Area: Examples
 
 ### Weather, in two tones
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `weather-mono` (source):
 
@@ -987,7 +987,7 @@ copy it into your game and restyle it. They are built from the same atoms as the
 
 ### Spin button and autoplay
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `slot-spin` (source):
 

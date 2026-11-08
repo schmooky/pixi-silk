@@ -339,7 +339,7 @@ write('llms-ui.txt', ui);
 const examples = [
     header('pixi-silk: examples'),
     '',
-    'This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs harness: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.',
+    'This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs demo runner: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.',
     '',
     ...others('examples'),
     '',

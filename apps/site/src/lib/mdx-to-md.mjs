@@ -6,9 +6,9 @@ const glossaryMarkdown = () =>
         .map((t) => `- **${t.term}**${t.aka ? ` (${t.aka.join(', ')})` : ''}: ${t.definition}`)
         .join('\n');
 
-/** Said once per page, before the first demo source: how the docs harness maps to a plain Pixi app. */
-export const DEMO_HARNESS_NOTE =
-    'Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.';
+/** Said once per page, before the first demo source: how the docs demo runner maps to a plain Pixi app. */
+export const DEMO_RUNNER_NOTE =
+    'Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.';
 
 /**
  * Turns a docs MDX body into plain Markdown for machines (llms files and /docs/<slug>.md):
@@ -35,7 +35,7 @@ export function mdxToMarkdown(body, demoSource, options = {}) {
             const code = demoSource(name);
 
             if (!code) return options.demoLink ? `Live demo \`${name}\`: source at ${options.demoLink(name)}` : '';
-            const note = noted ? '' : `${DEMO_HARNESS_NOTE}\n\n`;
+            const note = noted ? '' : `${DEMO_RUNNER_NOTE}\n\n`;
 
             noted = true;
 

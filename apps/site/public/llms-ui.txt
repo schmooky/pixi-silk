@@ -85,7 +85,7 @@ Area: UI widgets
 
 > SilkText draws labels and readouts from a runtime SDF glyph atlas. Text stays crisp from 0.5x to 100x zoom, with outlines, glows and tabular numbers.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `sdf-text` (source):
 
@@ -395,7 +395,7 @@ Area: UI widgets
 
 > TextEditor makes SilkText clickable and editable like a design tool text layer: caret, selection, undo, clipboard and input methods, sharp at any zoom.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `text-edit-canvas` (source):
 
@@ -785,7 +785,7 @@ Area: UI widgets
 
 > Marking menus with nested rings, falloff and per-device tuning, plus buttons that animate in and out and ignore input while they move. Tree-shakeable.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `radial-menu` (source):
 
@@ -1149,7 +1149,7 @@ Area: UI widgets
 
 > Place HUD boxes on any screen the way slot games do, with portrait and landscape records, then lay out what is inside them with a small flex engine.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `layout-hud` (source):
 
@@ -1888,7 +1888,7 @@ Area: Editor UI
 
 > Pan and zoom a PixiJS scene like a design tool, with pinch, fling and fit, and measure the distances between objects with redlines and size badges.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `editor-canvas` (source):
 
@@ -2124,7 +2124,7 @@ Area: Editor UI
 
 > Add a zoom-aware grid, rulers, draggable guides, rubber-band selection, group transforms and Figma-style smart spacing to a PixiJS canvas.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `canvas-tools` (source):
 
@@ -2648,7 +2648,7 @@ Area: Editor UI
 
 > Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `gizmo` (source):
 
@@ -2925,7 +2925,7 @@ Area: Editor UI
 
 > Track what is selected, hovered and primary in a PixiJS editor, and make every edit undoable with transactions, merging, signal recording and keyboard shortcuts.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `selection-history` (source):
 
@@ -3211,7 +3211,7 @@ Area: Editor UI
 
 > Edit bezier paths in PixiJS like a design tool: drag anchors and handles, add and delete points, and draw with a pen tool. Every edit is undoable.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `path-editing` (source):
 
@@ -3422,7 +3422,7 @@ Area: Editor UI
 
 > Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `color-rings` (source):
 
@@ -3695,7 +3695,7 @@ Area: Editor UI
 
 > Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `halo` (source):
 
@@ -4063,7 +4063,7 @@ Area: Editor UI
 
 > A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `dial` (source):
 
@@ -4329,7 +4329,7 @@ Area: Editor UI
 
 > Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `editor-panels` (source):
 

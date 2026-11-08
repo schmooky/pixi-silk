@@ -1302,7 +1302,7 @@ It does not turn shapes into triangles. The GPU evaluates each shape's exact dis
 every pixel and derives coverage from it. The anti-aliasing is exact at every scale, without MSAA
 or extra render passes.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `versus` (source):
 
@@ -1478,7 +1478,7 @@ Area: Get started
 Build the card below: a squircle background, a gauge whose conic gradient follows the arc, and a
 smoothed area chart with a fading fill.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `quick-start` (source):
 
@@ -1648,7 +1648,7 @@ Area: Drawing
 Every shape method adds a primitive to the **active path**. Nothing is drawn until you call
 `fill()` or `stroke()`, which paint everything on the path. Pixi's `Graphics` works the same way.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `shapes` (source):
 
@@ -1913,7 +1913,7 @@ Area: Drawing
 
 > Arcs with round, butt or square caps, pie and donut sectors with rounded corners, and activity rings whose conic gradients follow the arc.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `rings` (source):
 
@@ -2019,7 +2019,7 @@ Area: Drawing
 
 > Anti-aliased lines and polylines with monotone or Catmull-Rom smoothing, Bezier paths, tapered strokes and translucent joints without double blending.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `polyline` (source):
 
@@ -2265,7 +2265,7 @@ g.circle(0, 0, 20).stroke({ width: 4, color: 0xffffff, cap: 'round', alignment: 
 
 ### Alignment
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `alignment` (source):
 
@@ -2378,7 +2378,7 @@ Area: Drawing
 
 > Dash patterns computed in the shader, with caps on every dash, dots from zero-length dashes, closed outlines without a seam, and marching ants.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `dashes` (source):
 
@@ -2462,7 +2462,7 @@ Area: Drawing
 
 > Save, restore, translate, rotate and scale the drawing. Rotated and scaled primitives stay exact, and stroke widths scale with them.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `transforms` (source):
 
@@ -2541,7 +2541,7 @@ Area: Paint
 
 > Linear, radial, conic and along-the-path gradients in OKLab, with smooth easing. Half-float ramps and dithering keep dark gradients free of banding.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `gradients` (source):
 
@@ -2681,7 +2681,7 @@ Area: Paint
 
 > A gaussian blur applied to each shape's distance field gives neon glows, soft drop shadows and motion blur without filters or extra passes.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `glow` (source):
 
@@ -2769,7 +2769,7 @@ Figma, so a spec ports over as it is.
 
 ### Inner shadows
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `effects-inner-shadow` (source):
 
@@ -3019,7 +3019,7 @@ Live demo `glow-icons`: source at https://github.com/schmooky/pixi-silk/blob/mai
 Several blurred copies behind a shape read better than one big blur: a tight one for the edge, a
 wide one for the light. Each is the shape grown by its spread and blurred by half its CSS blur.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `glow-shadows` (source):
 
@@ -3084,7 +3084,7 @@ Area: UI widgets
 
 > Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `area-chart` (source):
 
@@ -3186,7 +3186,7 @@ Area: UI widgets
 
 > Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `hit-test` (source):
 
@@ -3264,7 +3264,7 @@ Area: UI widgets
 
 > Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `spring` (source):
 
@@ -3395,7 +3395,7 @@ moves.
 Keep strokes at least one device pixel wide and fade them instead. SilkGraphics does this for you
 with energy-conserving hairlines:
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `hairlines` (source):
 
@@ -3518,7 +3518,7 @@ supersampling and post-process FXAA. pixi-silk adds a sixth, **analytic anti-ali
 computes coverage from each shape's exact signed distance field, so it is exact at any zoom,
 rotation and device pixel ratio.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `versus` (source):
 
@@ -3733,7 +3733,7 @@ Area: Rendering
 
 > createSilkApp maps the canvas 1:1 to device pixels, even at fractional DPRs, follows DPR changes and renders filters at screen resolution.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `resolution` (source):
 
@@ -3905,7 +3905,7 @@ Area: Rendering
 
 > One instanced draw call per SilkGraphics and about 12 ms of CPU to rebuild 50,000 primitives, plus tips for static layers, gradients and fill rate.
 
-Demo sources run in the docs harness, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
 
 Live demo `stress` (source):
 
