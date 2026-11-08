@@ -245,7 +245,7 @@ export default function Studio({ sections, hidden = [] }: { sections: StudioSect
     };
 
     const isEdited = (id: string) => edits[id] !== undefined && edits[id] !== original[id];
-    const item = (e: StudioEntry, depth: number) => (
+    const item = (e: StudioEntry, depth: number, label = e.title) => (
         <button
             key={e.id}
             type="button"
@@ -254,14 +254,14 @@ export default function Studio({ sections, hidden = [] }: { sections: StudioSect
                 setBrowse(false);
             }}
             aria-current={e.id === current.id}
-            title={e.title}
+            title={label}
             className={`-ml-px block w-full truncate border-l py-[5px] pr-3 text-left transition-colors ${depth > 1 ? 'pl-7' : 'pl-4'} ${
                 e.id === current.id
                     ? 'border-silk bg-accent/70 font-medium text-foreground'
                     : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
             }`}
         >
-            {e.title}
+            {label}
             {isEdited(e.id) && (
                 <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-silk align-middle" title="Edited" />
             )}
@@ -310,10 +310,19 @@ export default function Studio({ sections, hidden = [] }: { sections: StudioSect
                                 )}
                                 {a.pages.map((p) => (
                                     <div key={p.href} className="mb-1.5 ml-2 border-l">
-                                        <div className="truncate py-0.5 pl-4 text-[11.5px] text-muted-foreground/80">
-                                            {p.title}
-                                        </div>
-                                        {p.entries.map((e) => item(e, 1))}
+                                        {/* a page with one demo is that demo: no heading above it */}
+                                        {(p.entries.length > 1 || p.sheets.length > 0) && (
+                                            <div className="truncate pb-0.5 pl-4 pt-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground/70">
+                                                {p.title}
+                                            </div>
+                                        )}
+                                        {p.entries.map((e) =>
+                                            item(
+                                                e,
+                                                1,
+                                                p.entries.length === 1 && p.sheets.length === 0 ? p.title : e.title,
+                                            ),
+                                        )}
                                         {p.sheets.map((sh) => {
                                             const key = `${p.href}#${sh.title}`;
                                             const open =
