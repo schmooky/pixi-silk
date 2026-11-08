@@ -220,16 +220,19 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
             </div>
             {bar && (
                 <div className="demo-bar">
-                    {controls.map(([key, control]) => (
-                        <ControlInput
-                            key={key}
-                            name={key}
-                            control={control}
-                            value={params[key]}
-                            onChange={(v) => set(key, v)}
-                        />
-                    ))}
-                    <div className="ml-auto flex items-center gap-0.5">
+                    {/* controls wrap among themselves; Reset and Studio stay on the first line */}
+                    <div className="demo-controls">
+                        {controls.map(([key, control]) => (
+                            <ControlInput
+                                key={key}
+                                name={key}
+                                control={control}
+                                value={params[key]}
+                                onChange={(v) => set(key, v)}
+                            />
+                        ))}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5 self-start">
                         <button type="button" onClick={reset} className="demo-icon-btn" title="Reset the demo">
                             <svg
                                 viewBox="0 0 24 24"
@@ -244,7 +247,7 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
                                 <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
                                 <path d="M3 3v5h5" />
                             </svg>
-                            <span>Reset</span>
+                            <span className="max-sm:sr-only">Reset</span>
                         </button>
                         {studio && (
                             <a
