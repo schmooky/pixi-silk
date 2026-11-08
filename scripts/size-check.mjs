@@ -74,11 +74,18 @@ const IMPORTS = {
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
     // the headless engine has no Pixi in it: no shader, no display objects
     layout: ['*', ['#version 300 es', 'silk-gradient-atlas', 'pixi.js', 'SmartContainer'], '/layout'],
+    // the debug overlay and the device preview stay out of an app that only places containers
     'ui/layout (SmartContainer)': [
         'SmartContainer',
-        ['#version 300 es', 'silk-gradient-atlas', 'RadialMenu'],
+        ['#version 300 es', 'silk-gradient-atlas', 'RadialMenu', 'layoutDebug', 'SimulatedViewport'],
         '/ui/layout',
     ],
+    'ui/layout (FlexContainer)': [
+        'FlexContainer',
+        ['#version 300 es', 'layoutDebug', 'SimulatedViewport'],
+        '/ui/layout',
+    ],
+    'ui/layout (layoutDebug)': ['layoutDebug', ['#version 300 es', 'RadialMenu'], '/ui/layout'],
     'ui (everything)': ['*', [], '/ui'],
 };
 

@@ -259,6 +259,14 @@ describe('sizes', () => {
         expect(box(root.children[0])).toEqual([0, 0, 400, 80]);
     });
 
+    it('reads two, three and four value edges as CSS does', () => {
+        const three = node({ padding: [10, 20, 30] }, node({ grow: 1 })).calculate(200, 100);
+        const two = node({ padding: [10, 20] }, node({ grow: 1 })).calculate(200, 100);
+
+        expect(box(three.children[0])).toEqual([20, 10, 160, 60]);
+        expect(box(two.children[0])).toEqual([20, 10, 160, 80]);
+    });
+
     it('never makes a box smaller than its padding', () => {
         const root = node({}, node({ width: 10, padding: 20 })).calculate(400, 300);
 

@@ -18,8 +18,8 @@ export type JustifyContent = 'start' | 'center' | 'end' | 'space-between' | 'spa
 /** Cross axis distribution of the lines of a wrapping container. */
 export type AlignContent = 'start' | 'center' | 'end' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly';
 
-/** Box edges: one value for all sides, `[vertical, horizontal]` or `[top, right, bottom, left]`. */
-export type Edges<T = Length> = T | readonly [T, T] | readonly [T, T, T, T];
+/** Box edges, as in CSS: one value for all sides, `[vertical, horizontal]`, `[top, horizontal, bottom]` or `[top, right, bottom, left]`. */
+export type Edges<T = Length> = T | readonly [T, T] | readonly [T, T, T] | readonly [T, T, T, T];
 
 /** A size in pixels. */
 export interface Size {

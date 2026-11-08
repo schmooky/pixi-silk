@@ -1,227 +1,312 @@
-import { Container, Graphics } from 'pixi.js';
-import { describe, expect, it, vi } from 'vitest';
-import { fitScale, SmartContainer, type SmartContainerOptions } from '../src/ui/layout';
+import { Graphics } from 'pixi.js';
+import { describe, expect, it } from 'vitest';
+import { signal } from '../src/signal';
+import { type LayoutData, placeBox, SmartContainer, type ViewportRect } from '../src/ui/layout';
 
-const block = (w: number, h: number): Graphics => new Graphics().rect(0, 0, w, h).fill(0xffffff);
-const at = (c: Container): number[] => [c.x, c.y].map((v) => +v.toFixed(2));
-const smart = (options: SmartContainerOptions = {}): SmartContainer => new SmartContainer({ ticker: null, ...options });
+/**
+ * The placement of the SmartContainer the user's slot games ship, line for line: window size in,
+ * position and scale out. Our container must give the same numbers for the same records.
+ */
+function games(portraitData: LayoutData, landscapeData: LayoutData, window: Required<ViewportRect>) {
+    const base = {
+        align: 'center',
+        valign: 'center',
+        height: 0,
+        width: 0,
+        stretchWidth: false,
+        stretchHeight: false,
+        correctionScaleX: 1,
+        correctionScaleY: 1,
+        correctionOffsetX: 0,
+        correctionOffsetY: 0,
+        fitCover: false,
+    };
+    const portrait = { ...base, viewportWidth: 1080, viewportHeight: 1920, ...portraitData } as Required<LayoutData>;
+    const landscape = { ...base, viewportWidth: 1920, viewportHeight: 1080, ...landscapeData } as Required<LayoutData>;
+    const { width: windowWidth, height: windowHeight, x: windowX, y: windowY } = window;
+    const d = windowHeight > windowWidth ? portrait : landscape;
+    const m = d.fitCover ? Math.max : Math.min;
+    let { width, height } = d;
+    let scaleX = m(windowWidth / 1920, windowHeight / 1080);
+    let scaleY = scaleX;
 
-describe('SmartContainer', () => {
-    it('places children by their bounds', () => {
-        const root = smart({ layout: { gap: 10, padding: 20, alignItems: 'start' } }).resize(400, 200);
-        const a = root.add(block(100, 40));
-        const b = root.add(block(60, 30));
+    if (d.viewportWidth || d.viewportHeight) {
+        scaleX = scaleY = m(windowWidth / (d.viewportWidth || 1920), windowHeight / (d.viewportHeight || 1080));
+    }
+    if (d.stretchWidth) {
+        scaleX = windowWidth / width;
+        width = windowWidth / scaleX;
+    }
+    if (d.stretchHeight) {
+        scaleY = windowHeight / height;
+        height = windowHeight / scaleY;
+    }
+    scaleX *= d.correctionScaleX;
+    scaleY *= d.correctionScaleY;
+    let posX = 0;
+    let posY = 0;
 
-        root.updateLayout();
-        expect([at(a), at(b)]).toEqual([
-            [20, 20],
-            [130, 20],
-        ]);
-        expect(root.slotOf(b)).toEqual({ x: 130, y: 20, width: 60, height: 30 });
-    });
+    if (d.align === 'right') posX = windowWidth - width * scaleX;
+    else if (d.align === 'center') posX = (windowWidth - width * scaleX) / 2;
+    if (d.valign === 'bottom') posY = windowHeight - height * scaleY;
+    else if (d.valign === 'center') posY = (windowHeight - height * scaleY) / 2;
 
-    it('lays out on the next tick after a change, and is idle afterwards', () => {
-        const root = smart({ layout: { direction: 'column' } }).resize(100, 300);
-        const a = root.add(block(50, 50));
+    return {
+        x: windowX + posX + d.correctionOffsetX * scaleX,
+        y: windowY + posY + d.correctionOffsetY * scaleY,
+        scaleX,
+        scaleY,
+    };
+}
 
-        expect(root.tick(1 / 60)).toBe(false);
-        root.addChildAt(block(50, 20), 0);
-        root.tick(1 / 60);
-        expect(at(a)).toEqual([25, 20]);
-    });
+const RECORDS: [string, LayoutData, LayoutData][] = [
+    ['defaults', {}, {}],
+    ['centred box', { width: 1000, height: 1200 }, { width: 1600, height: 900 }],
+    [
+        'top left pin',
+        { align: 'left', valign: 'top', width: 300, height: 120 },
+        { align: 'left', valign: 'top', width: 400, height: 120 },
+    ],
+    [
+        'bottom right pin',
+        { align: 'right', valign: 'bottom', width: 300, height: 120 },
+        { align: 'right', valign: 'bottom', width: 360, height: 100 },
+    ],
+    ['cover', { fitCover: true, width: 1080, height: 1920 }, { fitCover: true, width: 1920, height: 1080 }],
+    [
+        'stretch width',
+        { valign: 'bottom', width: 1080, height: 160, stretchWidth: true },
+        { valign: 'bottom', width: 1920, height: 140, stretchWidth: true },
+    ],
+    [
+        'stretch both',
+        { width: 1080, height: 1920, stretchWidth: true, stretchHeight: true },
+        { width: 1920, height: 1080, stretchWidth: true, stretchHeight: true, align: 'left' },
+    ],
+    [
+        'corrections',
+        {
+            width: 500,
+            height: 500,
+            correctionScaleX: 1.2,
+            correctionScaleY: 0.8,
+            correctionOffsetX: 40,
+            correctionOffsetY: -30,
+        },
+        {
+            width: 500,
+            height: 500,
+            align: 'right',
+            correctionScaleX: 0.9,
+            correctionOffsetX: -25,
+            correctionOffsetY: 15,
+        },
+    ],
+    [
+        'own reference',
+        { viewportWidth: 750, viewportHeight: 1334, width: 750, height: 1334 },
+        { viewportWidth: 1280, viewportHeight: 720, width: 1280, height: 720, fitCover: true },
+    ],
+];
+const WINDOWS: Required<ViewportRect>[] = [
+    { x: 0, y: 0, width: 1920, height: 1080 },
+    { x: 0, y: 0, width: 1280, height: 720 },
+    { x: 0, y: 0, width: 2560, height: 1080 },
+    { x: 0, y: 0, width: 1024, height: 768 },
+    { x: 0, y: 0, width: 390, height: 844 },
+    { x: 0, y: 0, width: 768, height: 1024 },
+    { x: 12, y: 30, width: 360, height: 800 },
+];
 
-    it('keeps a pivoted child box on its slot', () => {
-        const root = smart({ layout: { alignItems: 'start' } }).resize(400, 200);
-        const a = block(100, 40);
+const rect = (r: ViewportRect) => ({ ...r });
+const place = (c: SmartContainer) => ({ x: c.x, y: c.y, scaleX: c.scale.x, scaleY: c.scale.y });
 
-        a.pivot.set(50, 20);
-        root.add(a, { marginLeft: 30 });
-        root.updateLayout();
-        expect(at(a)).toEqual([80, 20]);
-    });
+describe('SmartContainer placement', () => {
+    for (const [name, portraitData, landscapeData] of RECORDS) {
+        it(`matches the games' SmartContainer: ${name}`, () => {
+            for (const window of WINDOWS) {
+                const c = new SmartContainer({ ticker: null, portraitData, landscapeData, viewport: rect(window) });
+                const want = games(portraitData, landscapeData, window);
+                const got = place(c);
 
-    it('scales a child into its slot with each fit mode', () => {
-        const fitted = (mode: 'contain' | 'cover' | 'scale-down' | 'fill') => {
-            const root = smart().resize(200, 200);
-            const c = root.add(block(100, 50), { width: 200, height: 200, fit: mode });
-
-            root.updateLayout();
-            return [c.scale.x, c.scale.y, ...at(c)];
-        };
-
-        expect(fitted('contain')).toEqual([2, 2, 0, 50]);
-        expect(fitted('cover')).toEqual([4, 4, -100, 0]);
-        expect(fitted('scale-down')).toEqual([1, 1, 50, 75]);
-        expect(fitted('fill')).toEqual([2, 4, 0, 0]);
-        expect(fitScale('none', 10, 10, 50, 50)).toEqual([1, 1]);
-    });
-
-    it('aligns a fitted child with fitAlign', () => {
-        const root = smart().resize(200, 200);
-        const c = root.add(block(100, 50), { width: 200, height: 200, fit: 'contain', fitAlign: [0, 1] });
-
-        root.updateLayout();
-        expect(at(c)).toEqual([0, 100]);
-    });
-
-    it('shrinks text to fit down to a minimum scale', () => {
-        const root = smart({ layout: { alignItems: 'start' } }).resize(400, 100);
-        const fits = root.add(block(300, 20), { width: 200, fit: 'scale-down', minScale: 0.5, fitAlign: [0, 0] });
-        const floor = root.add(block(300, 20), { width: 100, fit: 'scale-down', minScale: 0.5, fitAlign: [0, 0] });
-
-        root.updateLayout();
-        expect(+fits.scale.x.toFixed(3)).toBe(0.667);
-        expect(floor.scale.x).toBe(0.5);
-    });
-
-    it('switches styles between portrait and landscape and under a width', () => {
-        const root = smart({
-            layout: {
-                landscape: { direction: 'row' },
-                portrait: { direction: 'column' },
-                media: [{ maxWidth: 300, style: { gap: 5 } }],
-                alignItems: 'start',
-                gap: 10,
-            },
+                for (const k of ['x', 'y', 'scaleX', 'scaleY'] as const) expect(got[k]).toBeCloseTo(want[k], 9);
+            }
         });
-        const a = root.add(block(50, 50));
-        const b = root.add(block(50, 50), { portrait: { display: 'none' } });
-        const c = root.add(block(50, 50));
+    }
 
-        root.resize(800, 400).updateLayout();
-        expect(root.orientation).toBe('landscape');
-        expect([at(a), at(b), at(c)]).toEqual([
-            [0, 0],
-            [60, 0],
-            [120, 0],
-        ]);
-        root.resize(250, 800).updateLayout();
-        expect(b.visible).toBe(false);
-        expect(at(c)).toEqual([0, 55]);
-        root.resize(800, 400).updateLayout();
-        expect(b.visible).toBe(true);
+    it('gives the hand-worked numbers', () => {
+        expect(placeBox({ width: 400, height: 200 }, { width: 1280, height: 720 })).toMatchObject({
+            x: (1280 - 400 * (2 / 3)) / 2,
+            scaleX: 2 / 3,
+        });
+        const bar = new SmartContainer({
+            ticker: null,
+            portraitData: { width: 1080, height: 300, valign: 'bottom' },
+            viewport: { width: 720, height: 1280 },
+        });
+
+        expect([bar.x, bar.y, +bar.scale.x.toFixed(4), bar.breakpoint]).toEqual([0, 1080, 0.6667, 'portrait']);
+        const cover = new SmartContainer({
+            ticker: null,
+            landscapeData: { fitCover: true },
+            viewport: { width: 1000, height: 1000 },
+        });
+
+        expect(cover.scale.x).toBeCloseTo(1000 / 1080);
+        const stretched = new SmartContainer({
+            ticker: null,
+            landscapeData: { width: 1920, height: 140, stretchWidth: true, valign: 'bottom' },
+            viewport: { width: 1000, height: 500 },
+        });
+
+        expect(stretched.scale.x).toBeCloseTo(1000 / 1920, 12);
+        expect(stretched.scale.y).toBeCloseTo(500 / 1080, 12);
+        expect(stretched.x).toBeCloseTo(0, 9);
     });
+});
 
-    it('scales a reference resolution to the screen and rotates it for portrait', () => {
-        const root = smart({ reference: { width: 1920, height: 1080 } });
-
-        root.fitTo({ width: 960, height: 540 });
-        expect([root.designScale, root.area.width, root.area.height]).toEqual([0.5, 1920, 1080]);
-        root.fitTo({ width: 540, height: 1200 });
-        expect(root.designScale).toBe(0.5);
-        expect(root.area).toEqual({ width: 1080, height: 2400 });
-        expect(root.scale.x).toBe(0.5);
-    });
-
-    it('follows an application renderer and adds safe-area insets in design units', () => {
-        const listeners: (() => void)[] = [];
+describe('SmartContainer viewport', () => {
+    it('follows an application renderer, and stops on destroy', () => {
+        const listeners = new Set<() => void>();
         const app = {
-            screen: { width: 960, height: 540 },
-            renderer: { on: (_: string, fn: () => void, ctx: unknown) => listeners.push(fn.bind(ctx)), off: vi.fn() },
+            screen: { x: 0, y: 0, width: 1920, height: 1080 },
+            renderer: {
+                on: (_: string, fn: () => void) => listeners.add(fn),
+                off: (_: string, fn: () => void) => listeners.delete(fn),
+            },
         };
-        const root = smart({
-            reference: { width: 1920, height: 1080 },
-            safeArea: { top: 20 },
-            layout: { padding: 10 },
+        const c = new SmartContainer({
+            ticker: null,
+            landscapeData: { width: 100, height: 100 },
+            viewport: app as never,
         });
-        const a = root.add(block(10, 10), { alignSelf: 'start' });
 
-        root.fitTo(app as never).updateLayout();
-        expect(at(a)).toEqual([10, 50]);
-        app.screen.width = 1920;
-        app.screen.height = 1080;
+        expect(c.scale.x).toBe(1);
+        app.screen.width = 960;
+        app.screen.height = 540;
         for (const fn of listeners) fn();
-        root.updateLayout();
-        expect(root.designScale).toBe(1);
-        expect(at(a)).toEqual([10, 30]);
+        expect(c.scale.x).toBe(0.5);
+        c.destroy();
+        expect(listeners.size).toBe(0);
     });
 
-    it('glides children to new slots on springs, then sleeps', () => {
-        const root = smart({ transition: true, layout: { alignItems: 'start' } }).resize(400, 100);
-        const a = root.add(block(50, 50));
-        const b = root.add(block(50, 50));
+    it('follows a signal of a rectangle', () => {
+        const view = signal<ViewportRect>({ width: 1920, height: 1080 });
+        const c = new SmartContainer({ ticker: null, viewport: view });
 
-        root.updateLayout();
-        expect(at(b)).toEqual([50, 0]);
-        root.setLayout(a, { width: 150 });
-        root.updateLayout();
-        expect(at(b)).toEqual([50, 0]);
-        root.tick(1 / 60);
-        expect(b.x).toBeGreaterThan(50);
-        expect(b.x).toBeLessThan(150);
-        let frames = 0;
-
-        while (root.tick(1 / 60) && frames < 600) frames++;
-        expect(at(b)).toEqual([150, 0]);
-        expect(frames).toBeLessThan(600);
-        expect(root.tick(1 / 60)).toBe(false);
+        expect(c.breakpoint).toBe('landscape');
+        view.value = { width: 1080, height: 1920 };
+        expect(c.breakpoint).toBe('portrait');
+        expect(c.scale.x).toBe(1);
     });
 
-    it('nests a SmartContainer as a flex container of its parent', () => {
-        const root = smart({ layout: { direction: 'column', padding: 10, gap: 10 } }).resize(300, 300);
-        const header = root.add(block(50, 40), { alignSelf: 'start' });
-        const row = root.add(new SmartContainer({ ticker: null, layout: { gap: 10, alignItems: 'start' } }), {
-            grow: 1,
+    it('picks the first named breakpoint that matches', () => {
+        const c = new SmartContainer({
+            ticker: null,
+            breakpoints: [
+                { name: 'ultrawide', when: (w, h) => w / h > 2, data: { viewportWidth: 2560, viewportHeight: 1080 } },
+            ],
+            viewport: { width: 2560, height: 1080 },
         });
-        const x = row.add(block(40, 40));
-        const y = row.add(block(40, 40), { grow: 1, fit: 'fill' });
 
-        root.updateLayout();
-        expect(at(header)).toEqual([10, 10]);
-        expect(at(row)).toEqual([10, 60]);
-        expect(at(x)).toEqual([0, 0]);
-        expect(at(y)).toEqual([50, 0]);
-        expect(y.scale.x).toBe(230 / 40);
-        // a change inside the nested container lays out the whole tree
-        row.setLayout(x, { width: 100 });
-        root.tick(1 / 60);
-        expect(at(y)).toEqual([110, 0]);
+        expect([c.breakpoint, c.scale.x]).toEqual(['ultrawide', 1]);
     });
 
-    it('measures again after invalidate, or every frame with watch', () => {
-        const root = smart({ layout: { alignItems: 'start' } }).resize(400, 100);
-        const a = root.add(block(50, 50));
-        const b = root.add(block(50, 50));
+    it('keeps the box clear of safe-area insets unless a record ignores them', () => {
+        const pinned = new SmartContainer({
+            ticker: null,
+            safeArea: { top: 44, left: 20 },
+            landscapeData: { align: 'left', valign: 'top', width: 100, height: 100 },
+            viewport: { width: 1920, height: 1080 },
+        });
+        const bleed = new SmartContainer({
+            ticker: null,
+            safeArea: { top: 44, left: 20 },
+            landscapeData: { align: 'left', valign: 'top', ignoreSafeArea: true },
+            viewport: { width: 1920, height: 1080 },
+        });
 
-        root.updateLayout();
-        a.clear().rect(0, 0, 80, 50).fill(0xffffff);
-        root.invalidate(a).updateLayout();
-        expect(at(b)).toEqual([80, 0]);
-
-        const watched = smart({ watch: true, layout: { alignItems: 'start' } }).resize(400, 100);
-        const c = watched.add(block(50, 50));
-        const d = watched.add(block(50, 50));
-
-        watched.tick(1 / 60);
-        c.clear().rect(0, 0, 70, 50).fill(0xffffff);
-        watched.tick(1 / 60);
-        expect(at(d)).toEqual([70, 0]);
+        expect([pinned.x, pinned.y]).toEqual([20, 44]);
+        expect(pinned.scale.x).toBeCloseTo(Math.min(1900 / 1920, 1036 / 1080));
+        expect([bleed.x, bleed.y, bleed.scale.x]).toEqual([0, 0, 1]);
     });
 
-    it('calls onSize with the slot size and lays out removals', () => {
-        const onSize = vi.fn();
-        const root = smart({ layout: { padding: 10 } }).resize(300, 200);
-        const panel = root.add(new Container(), { position: 'absolute', inset: 0, onSize });
-        const a = root.add(block(50, 50));
-        const b = root.add(block(50, 50));
+    it('glides to the new place after a breakpoint switch when asked', () => {
+        const view = { width: 1920, height: 1080 };
+        const c = new SmartContainer({
+            ticker: null,
+            switchTransition: true,
+            portraitData: { valign: 'top', width: 1080, height: 200 },
+            landscapeData: { valign: 'bottom', width: 1920, height: 200 },
+            viewport: view,
+        });
 
-        root.updateLayout();
-        expect(onSize).toHaveBeenCalledWith(300, 200, panel);
-        root.removeChild(a);
-        root.updateLayout();
-        expect(at(b)).toEqual([10, 75]);
-        expect(onSize).toHaveBeenCalledTimes(1);
+        expect(c.y).toBe(880);
+        view.width = 1080;
+        view.height = 1920;
+        c.updateContainer();
+        expect(c.y).toBe(880);
+        c.tick(1 / 60);
+        expect(c.y).toBeLessThan(880);
+        for (let i = 0; i < 600 && c.tick(1 / 60); i++);
+        expect(c.y).toBeCloseTo(0, 3);
+        // a resize inside one breakpoint snaps
+        view.width = 1000;
+        c.updateContainer();
+        expect(c.scale.x).toBeCloseTo(1000 / 1080);
+    });
+});
+
+describe('SmartContainer inner layout', () => {
+    it('leaves children alone without a layout', () => {
+        const c = new SmartContainer({
+            ticker: null,
+            landscapeData: { width: 400, height: 200 },
+            viewport: { width: 1920, height: 1080 },
+        });
+        const child = c.addChild(new Graphics().rect(0, 0, 10, 10).fill(0));
+
+        child.position.set(33, 44);
+        c.updateLayout();
+        expect([child.x, child.y]).toEqual([33, 44]);
     });
 
-    it('draws a debug overlay and keeps it on top', () => {
-        const root = smart({ debug: true, layout: { gap: 10, padding: 8 } }).resize(300, 100);
+    it('lays out children with flex inside the design box, extended to the window', () => {
+        const c = new SmartContainer({
+            ticker: null,
+            layout: { justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+            landscapeData: { valign: 'bottom', width: 1920, height: 140, extendWidth: true },
+            viewport: { width: 2560, height: 1080 },
+        });
+        const a = c.add(new Graphics().rect(0, 0, 100, 60).fill(0));
+        const b = c.add(new Graphics().rect(0, 0, 100, 60).fill(0), { fit: 'contain', width: 200, height: 100 });
 
-        root.add(block(50, 50));
-        root.add(block(50, 50));
-        root.updateLayout();
-        expect(root.debug).toBe(true);
-        expect(root.children[root.children.length - 1].label).toBe('SmartContainer debug');
-        root.debug = false;
-        expect(root.children.length).toBe(2);
+        c.updateLayout();
+        // uniform scale 1, the box widened to the 2560 window
+        expect([c.box.width, c.scale.x, c.scale.y, c.x, c.y]).toEqual([2560, 1, 1, 0, 940]);
+        expect([a.x, a.y]).toEqual([20, 40]);
+        expect([b.x, b.scale.x]).toEqual([2560 - 20 - 200 + (200 - 166.66666666666666) / 2, 100 / 60]);
+    });
+
+    it('switches flex styles by breakpoint name', () => {
+        const view = { width: 1920, height: 1080 };
+        const c = new SmartContainer({
+            ticker: null,
+            layout: { media: [{ breakpoint: 'portrait', style: { direction: 'column' } }], alignItems: 'start' },
+            portraitData: { width: 1080, height: 1920 },
+            landscapeData: { width: 1920, height: 1080 },
+            viewport: view,
+        });
+
+        c.add(new Graphics().rect(0, 0, 100, 100).fill(0));
+        const b = c.add(new Graphics().rect(0, 0, 100, 100).fill(0));
+
+        c.updateLayout();
+        expect([b.x, b.y]).toEqual([100, 0]);
+        view.width = 1080;
+        view.height = 1920;
+        c.updateContainer();
+        c.updateLayout();
+        expect([b.x, b.y]).toEqual([0, 100]);
     });
 });

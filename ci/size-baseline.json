@@ -132,12 +132,18 @@
     "gzip": 23408
   },
   "layout": {
-    "gzip": 3637
+    "gzip": 3643
   },
   "ui/layout (SmartContainer)": {
-    "gzip": 6748
+    "gzip": 7378
+  },
+  "ui/layout (FlexContainer)": {
+    "gzip": 6017
+  },
+  "ui/layout (layoutDebug)": {
+    "gzip": 10066
   },
   "ui (everything)": {
-    "gzip": 90211
+    "gzip": 93982
   }
 }

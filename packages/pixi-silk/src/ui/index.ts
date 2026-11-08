@@ -192,15 +192,29 @@ export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, isTypingTarget, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
 export {
+    type Breakpoint,
+    DEVICES,
     type FitMode,
+    FlexContainer,
+    type FlexContainerOptions,
     fitScale,
     type Insets,
+    type LayoutData,
+    type LayoutDebug,
+    type LayoutDebugOptions,
+    layoutDebug,
     type MediaRule,
-    type ReferenceResolution,
+    type Placement,
+    placeBox,
+    SimulatedViewport,
+    type SimulatedViewportOptions,
     SmartContainer,
     type SmartContainerOptions,
     type SmartLayout,
     type SmartStyle,
+    simulateViewport,
+    type ViewportRect,
+    type ViewportSource,
     wrapText,
 } from './layout';
 export {

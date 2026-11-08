@@ -29,7 +29,9 @@ function sides<T>(v: Edges<T> | undefined): (T | undefined)[] {
     if (!Array.isArray(v)) return [v as T, v as T, v as T, v as T];
     const a = v as readonly T[];
 
-    return a.length === 2 ? [a[0], a[1], a[0], a[1]] : [a[0], a[1], a[2], a[3]];
+    if (a.length === 2) return [a[0], a[1], a[0], a[1]];
+
+    return a.length === 3 ? [a[0], a[1], a[2], a[1]] : [a[0], a[1], a[2], a[3]];
 }
 
 /** An edge box per axis: `start` is left or top, `end` is right or bottom. */
