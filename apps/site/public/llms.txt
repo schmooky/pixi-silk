@@ -113,6 +113,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/): Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model. (Markdown: https://pixi-silk.schmooky.dev/docs/color-pickers.md)
 - [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/): Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch. (Markdown: https://pixi-silk.schmooky.dev/docs/editor-tools.md)
 - [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline/): A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits. (Markdown: https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md)
+- [Panels](https://pixi-silk.schmooky.dev/docs/panels/): Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera. (Markdown: https://pixi-silk.schmooky.dev/docs/panels.md)
 
 ### Examples
 
@@ -239,6 +240,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [What license is pixi-silk under?](https://pixi-silk.schmooky.dev/faq/#what-license-is-pixi-silk-under)
 - [Does pixi-silk come with UI widgets?](https://pixi-silk.schmooky.dev/faq/#does-pixi-silk-come-with-ui-widgets)
 - [Can I build an editor or design tool with pixi-silk?](https://pixi-silk.schmooky.dev/faq/#can-i-build-an-editor-or-design-tool-with-pixi-silk)
+- [Do I need DOM panels over the canvas for a scene editor?](https://pixi-silk.schmooky.dev/faq/#do-i-need-dom-panels-over-the-canvas-for-a-scene-editor)
 - [Are the slot game HUD controls part of pixi-silk?](https://pixi-silk.schmooky.dev/faq/#are-the-slot-game-hud-controls-part-of-pixi-silk)
 
 ## Optional

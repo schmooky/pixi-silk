@@ -7544,6 +7544,978 @@ from a bitmap font made from the text style, so a frame only moves them, and one
 
 ---
 
+# Panels
+
+URL: https://pixi-silk.schmooky.dev/docs/panels/
+Section: Editor UI
+
+> Dockable panels drawn in Pixi with no DOM: a virtualised layer tree, a schema-driven property inspector with undo, and a minimap of the camera.
+
+Live demo `editor-panels` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
+import { bindGizmo, bindMeasure, bindOutline, Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { silkLabel } from 'pixi-silk/text';
+import { Camera } from 'pixi-silk/ui/camera';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
+import { altDown } from 'pixi-silk/ui/keys';
+import { LayerTree, pixiTreeAdapter } from 'pixi-silk/ui/layers';
+import { Measure } from 'pixi-silk/ui/measure';
+import { Minimap } from 'pixi-silk/ui/minimap';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { PANEL_THEME, PANEL_THEME_LIGHT, Panel, type PanelTheme, panelHitTest } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** A layer with a fill, a size and a corner radius the inspector can edit. */
+class Shape extends Container {
+    private readonly g = new SilkGraphics();
+    private _fill: number;
+    private _w: number;
+    private _h: number;
+    private _radius: number;
+    readonly round: boolean;
+
+    constructor(label: string, w: number, h: number, fill: number, radius = 0, round = false) {
+        super({ label });
+        this._w = w;
+        this._h = h;
+        this._fill = fill;
+        this._radius = radius;
+        this.round = round;
+        this.addChild(this.g);
+        this.redraw();
+    }
+
+    get fill(): number {
+        return this._fill;
+    }
+    set fill(v: number) {
+        this._fill = v;
+        this.redraw();
+    }
+    get w(): number {
+        return this._w;
+    }
+    set w(v: number) {
+        this._w = Math.max(1, v);
+        this.redraw();
+    }
+    get h(): number {
+        return this._h;
+    }
+    set h(v: number) {
+        this._h = Math.max(1, v);
+        this.redraw();
+    }
+    get radius(): number {
+        return this._radius;
+    }
+    set radius(v: number) {
+        this._radius = Math.max(0, v);
+        this.redraw();
+    }
+
+    private redraw(): void {
+        const g = this.g.clear();
+
+        if (this.round) g.ellipse(this._w / 2, this._h / 2, this._w / 2, this._h / 2).fill(this._fill);
+        else
+            g.roundRect(0, 0, this._w, this._h, Math.min(this._radius, this._w / 2, this._h / 2), 0.6).fill(this._fill);
+    }
+}
+
+// The inspector rows for a layer. Keys are paths on the selected objects.
+const schema: InspectorField[] = [
+    {
+        type: 'section',
+        label: 'Layer',
+        fields: [
+            { type: 'text', key: 'label', label: 'Name' },
+            { type: 'toggle', key: 'visible', label: 'Visible' },
+            { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01, perPixel: 0.005 },
+            {
+                type: 'choice',
+                key: 'blendMode',
+                label: 'Blend',
+                options: [
+                    { value: 'inherit', label: 'Pass' },
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'add', label: 'Add' },
+                ],
+            },
+        ],
+    },
+    {
+        type: 'section',
+        label: 'Transform',
+        fields: [
+            { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+            { type: 'vector', keys: ['w', 'h'], label: 'Size', labels: ['W', 'H'], min: 1, lockAspect: true },
+            { type: 'number', key: 'angle', label: 'Rotation', step: 1, unit: 'deg' },
+        ],
+    },
+    {
+        type: 'section',
+        label: 'Fill',
+        fields: [
+            { type: 'color', key: 'fill', label: 'Colour' },
+            { type: 'number', key: 'radius', label: 'Radius', min: 0, step: 1, unit: 'px' },
+        ],
+    },
+];
+
+// A small editor drawn entirely on the canvas: layers on the left, the inspector on the right,
+// a minimap at the bottom right and the scene in the middle. Pick a layer in the list or on the
+// canvas, drag rows to reorder them, scrub a number, or open the colour swatch. Cmd or ctrl + Z
+// undoes every step. Drag a panel by its title to float it, and drop it near an edge to dock it.
+export default defineDemo({
+    size: [1100, 660],
+    background: 0x111113,
+    touchAction: 'none',
+    ownsCamera: true,
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
+    },
+    setup({ silk, params, tick }) {
+        const app = silk.app;
+        const world = new Container({ label: 'Page' });
+        const overlay = new Container();
+        const panelLayer = new Container();
+        const selection = new Selection<Container>();
+        const history = new History();
+        const label = silkLabel();
+        const hover = new SelectionOutline({ ticker: app.ticker });
+        const outline = new SelectionOutline({ ticker: app.ticker });
+        const measure = new Measure({ space: world, ticker: app.ticker, label });
+        const gizmo = new TransformGizmo({ ticker: app.ticker, onChange: () => synced() });
+        const panels: Panel[] = [];
+        const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(() => panels) });
+        const viewport = { width: camera.state.width, height: camera.state.height };
+
+        gizmo.state.mode.set('move');
+        overlay.addChild(hover, outline, gizmo, measure);
+        app.stage.addChild(world, overlay, panelLayer);
+        app.stage.eventMode = 'static';
+        app.stage.hitArea = app.screen;
+        app.stage.on('pointerdown', (e) => e.target === app.stage && !e.shiftKey && selection.clear());
+
+        // ------------------------------------------------------------------ the scene
+        const layer = <T extends Container>(item: T, parent: Container, x: number, y: number): T => {
+            item.position.set(x, y);
+            item.eventMode = 'static';
+            item.cursor = 'pointer';
+            item.on('pointerover', () => selection.state.hovered.set(item));
+            item.on('pointerout', () => {
+                if (selection.state.hovered.value === item) selection.state.hovered.set(null);
+            });
+            item.on('pointerdown', (e) => {
+                e.stopPropagation();
+                selection.pick(item, e.shiftKey ? 'toggle' : 'replace');
+            });
+            parent.addChild(item);
+
+            return item;
+        };
+        const group = (name: string, parent: Container, x = 0, y = 0) => {
+            const g = new Container({ label: name });
+
+            g.position.set(x, y);
+            parent.addChild(g);
+
+            return g;
+        };
+
+        const home = group('Home', world);
+
+        layer(new Shape('Background', 390, 620, 0xf4f4f6), home, 0, 0);
+        layer(new Shape('Hero', 342, 180, 0x5e5ce6, 24), home, 24, 24);
+        const cards = group('Cards', home, 24, 228);
+
+        layer(new Shape('Card A', 160, 120, 0xffffff, 18), cards, 0, 0);
+        layer(new Shape('Card B', 160, 120, 0xffffff, 18), cards, 182, 0);
+        const list = group('List', home, 24, 372);
+
+        for (let i = 0; i < 3; i++) {
+            const row = group(`Row ${i + 1}`, list, 0, i * 52);
+
+            layer(new Shape('Row background', 342, 44, 0xffffff, 12), row, 0, 0);
+            layer(new Shape('Avatar', 28, 28, [0x30d158, 0xff9f0a, 0xff375f][i], 0, true), row, 10, 8);
+            layer(new Shape('Title', 140, 10, 0xd1d1d6, 5), row, 50, 17);
+        }
+        layer(new Shape('Tab bar', 342, 52, 0x1c1c1e, 26), home, 24, 548);
+        const profile = group('Profile', world, 470, 0);
+
+        layer(new Shape('Background', 390, 620, 0xf4f4f6), profile, 0, 0);
+        layer(new Shape('Cover', 390, 200, 0xbf5af2), profile, 0, 0);
+        layer(new Shape('Photo', 96, 96, 0xffd60a, 0, true), profile, 147, 152);
+        layer(new Shape('Bio', 300, 80, 0xffffff, 16), profile, 45, 280);
+
+        // ------------------------------------------------------------------ the panels
+        let ui: ReturnType<typeof buildPanels> | null = null;
+        const synced = () => {
+            ui?.inspector.refresh();
+            ui?.minimap.refresh();
+        };
+        // the light theme builds the panels again with the other tokens
+        const buildPanels = (theme: Partial<PanelTheme>) => {
+            const layersPanel = new Panel({
+                title: 'Layers',
+                dock: 'left',
+                width: 248,
+                viewport,
+                scroll: false,
+                theme,
+            });
+            const inspectorPanel = new Panel({
+                title: 'Inspector',
+                dock: 'right',
+                width: 272,
+                viewport,
+                insets: { bottom: 196 },
+                theme,
+            });
+            const mapPanel = new Panel({
+                title: 'Map',
+                dock: 'bottom-right',
+                width: 272,
+                height: 188,
+                viewport,
+                scroll: false,
+                layout: { padding: 8 },
+                theme,
+            });
+            const tree = new LayerTree({
+                adapter: pixiTreeAdapter({ leaf: (c) => c instanceof Shape }),
+                root: world,
+                selection,
+                history,
+                element: app.canvas,
+                theme,
+            });
+            const inspector = new Inspector({ schema, history, element: app.canvas, popoverLayer: panelLayer, theme });
+            const minimap = new Minimap({ camera, background: false, theme });
+
+            layersPanel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+            inspectorPanel.content.add(inspector);
+            mapPanel.content.add(minimap, { grow: 1, onSize: (w, h) => minimap.resize(w, h) });
+            panels.length = 0;
+            panels.push(layersPanel, inspectorPanel, mapPanel);
+            panelLayer.addChild(...panels);
+            const stops = [
+                watch(selection.state.items, (items) => {
+                    inspector.bind(items);
+                    inspectorPanel.title =
+                        items.length > 1 ? `${items.length} layers` : (items[0]?.label ?? 'Inspector');
+                }),
+                history.onChange(() => {
+                    tree.refresh();
+                    synced();
+                }),
+            ];
+
+            return {
+                inspector,
+                minimap,
+                destroy: () => {
+                    for (const stop of stops) stop();
+                    for (const p of panels) p.destroy({ children: true });
+                },
+            };
+        };
+
+        ui = buildPanels(PANEL_THEME);
+        const redlines = () => altDown();
+        const measured = bindMeasure(selection, measure, { between: redlines });
+        const syncHover = () => {
+            const over = selection.state.hovered.value;
+
+            hover.hover(!over || selection.has(over) ? null : over);
+        };
+        // everything reads the one selection, and every change goes through the one history
+        const stops = [
+            bindOutline(selection, outline),
+            bindGizmo(selection, gizmo),
+            measured.stop,
+            recordGizmo(gizmo, history),
+            bindHistoryKeys(history),
+            watch(selection.state.hovered, syncHover),
+            watch(selection.state.items, syncHover),
+        ];
+        let theme = params.theme;
+
+        tick(() => {
+            if (params.theme === theme) return;
+            theme = params.theme;
+            app.renderer.background.color = theme === 'light' ? 0xe4e4ea : 0x111113;
+            ui?.destroy();
+            ui = buildPanels(theme === 'light' ? PANEL_THEME_LIGHT : PANEL_THEME);
+        });
+
+        selection.pick(cards.children[0] as Container);
+        camera.fit({ x: -60, y: -40, width: 980, height: 700 }, 0, false);
+        camera.centerOn({ x: 430, y: 300 }, camera.zoom * 0.62, false);
+
+        return () => {
+            for (const stop of stops) stop();
+            ui?.destroy();
+            camera.destroy();
+        };
+    },
+});
+```
+
+## A scene editor without DOM
+
+A scene editor needs panels around its canvas: a layer list, an inspector and often a minimap.
+Most apps stack DOM over Pixi for them, and then keep two event systems, two layouts and two
+styles in step. These panels are Pixi containers instead. They take the same pointer events as
+the scene, lay out with the [flex engine](https://pixi-silk.schmooky.dev/docs/layout/), and draw their text with
+[SilkText](https://pixi-silk.schmooky.dev/docs/text/), so they stay sharp at any scale.
+
+They are widgets, not a framework. Each one has its own entry point:
+
+| Entry | What it has |
+| --- | --- |
+| `pixi-silk/ui/panel` | `Panel`, `ScrollView`, the panel themes, `dockRect` and `panelHitTest` |
+| `pixi-silk/ui/layers` | `LayerTree`, `pixiTreeAdapter` and the tree functions it uses |
+| `pixi-silk/ui/inspector` | `Inspector`, its fields, `bindObjects` and `bindSignals` |
+| `pixi-silk/ui/minimap` | `Minimap` and its mapping functions |
+
+## Panel
+
+Live demo `panel-dock` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import { PANEL_THEME, PANEL_THEME_LIGHT, Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+// Drag a panel by its title bar. Drop it near an edge or a corner to dock it there, drag it off to
+// float it again. Drag an edge to resize it, click the chevron to fold it, and scroll its list.
+export default defineDemo({
+    size: [760, 460],
+    background: 0x141416,
+    touchAction: 'none',
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
+    },
+    setup({ silk, stage, width, height, params, tick }) {
+        const viewport = { width, height };
+        const canvas = silk.app.canvas;
+        // the panels scroll with the wheel: keep the page still while the pointer is over the demo
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const backdrop = new SilkGraphics();
+
+        stage.addChild(backdrop);
+        let panels: Panel[] = [];
+        const build = (light: boolean) => {
+            for (const p of panels) p.destroy({ children: true });
+            const theme = light ? PANEL_THEME_LIGHT : PANEL_THEME;
+
+            backdrop
+                .clear()
+                .rect(0, 0, width, height)
+                .fill(light ? 0xe6e6eb : 0x141416);
+            const colours = new Panel({ title: 'Colours', x: 270, y: 70, width: 220, height: 300, viewport, theme });
+            const notes = new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
+
+            // forty swatch rows, laid out by the panel's flex column and clipped by its body
+            for (let i = 0; i < 40; i++) {
+                const row = new Container();
+                const hue = (i * 37) % 360;
+                const chip = new SilkGraphics().roundRect(0, 0, 22, 22, 6, 0.6).fill(`hsl(${hue} 70% 58%)`);
+                const name = new SilkText({
+                    text: `Swatch ${i + 1}`,
+                    fontFamily: theme.fontFamily,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    fill: theme.text,
+                });
+                const code = new SilkText({
+                    text: `${hue} deg`,
+                    fontFamily: theme.fontFamily,
+                    fontSize: 11,
+                    fill: theme.textDim,
+                    anchor: { x: 1, y: 0 },
+                });
+
+                name.position.set(32, 4);
+                code.position.set(196, 5);
+                row.addChild(chip, name, code);
+                colours.content.add(row);
+            }
+            const text = new SilkText({
+                text: 'Panels are Pixi containers. They pan, zoom and stay sharp like the rest of the scene, and need no DOM on top of the canvas.',
+                fontFamily: theme.fontFamily,
+                fontSize: 12,
+                lineHeight: 18,
+                fill: theme.textDim,
+                wordWrap: true,
+                wordWrapWidth: 190,
+            });
+
+            notes.content.add(text);
+            panels = [colours, notes];
+            stage.addChild(...panels);
+        };
+        let light = params.theme === 'light';
+
+        build(light);
+        tick(() => {
+            if ((params.theme === 'light') === light) return;
+            light = params.theme === 'light';
+            build(light);
+        });
+
+        return () => {
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+A `Panel` has a title bar, a body and edges to resize. Drag the title bar to move it. While the
+pointer is near a screen edge or corner, a preview shows where it docks, and releasing docks it
+there. Left and right panels span the screen height, top and bottom ones its width. Size,
+position and folding glide on springs.
+
+```ts
+
+declare const camera: Camera;
+declare const stage: Container;
+declare const rows: Container[];
+
+const panel = new Panel({
+    title: 'Library',
+    dock: 'left', // or 'right', 'top', 'bottom', 'top-left' and the other corners
+    width: 260,
+    viewport: camera.state, // the screen size, as signals or numbers
+});
+
+for (const row of rows) panel.content.add(row);
+stage.addChild(panel);
+```
+
+The body is `panel.content`, a flex column with a gap and a padding. It scrolls when it is taller
+than the panel: wheels and trackpads glide, fingers fling and stretch past the ends, and a slim
+scrollbar fades in while it moves. Widgets that scroll themselves, like the layer tree, take
+`scroll: false`, and the body is then a flex container as tall as the panel.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `dock` | floating | An edge or a corner. Needs `viewport` |
+| `margin` | 8 | Gap to the screen edge when docked |
+| `insets` | none | Space kept free along each edge, for a toolbar or another panel |
+| `collapsible`, `collapsed` | true, false | The chevron folds the body away |
+| `draggable`, `resizable`, `dockable` | true | Move, resize and dock by dragging |
+| `minWidth`, `minHeight` | 160, 96 | Smallest size a resize leaves |
+| `scroll` | true | Scroll `content`, or fill the body with it |
+| `theme` | dark | `PANEL_THEME_LIGHT`, or any tokens over the dark theme |
+
+`panel.state` holds `collapsed`, `dock`, `dragging`, `resizing` and `rect` as
+[signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/). Write `collapsed` or `dock` to fold or dock from code.
+`panel.actions` is a flex row in the title bar for buttons of your own.
+
+### Panels and the camera
+
+The [camera](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/) listens to the wheel on the whole canvas. Pass
+`panelHitTest` as its `ignore` option, and wheels and pan drags over a panel stay with the panel.
+
+```ts
+
+declare const app: Application;
+declare const world: Container;
+declare const panels: Panel[];
+
+const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(panels) });
+```
+
+## Layer tree
+
+Live demo `layers-tree` (source):
+
+```ts
+import { History } from 'pixi-silk/history';
+import { Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { SilkText } from 'pixi-silk/text';
+import { type LayerIcon, LayerTree, type TreeAdapter } from 'pixi-silk/ui/layers';
+import { PANEL_THEME, Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** The app's own model: plain objects, no Pixi in them. */
+interface Item {
+    name: string;
+    kind: 'frame' | 'group' | 'shape' | 'text';
+    children: Item[];
+    parent: Item | null;
+    hidden: boolean;
+    locked: boolean;
+}
+
+const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
+    const it: Item = { name, kind, children: [], parent, hidden: false, locked: false };
+
+    parent?.children.push(it);
+
+    return it;
+};
+
+// Two thousand layers in a plain object model. Only the rows in view are drawn. Click, Shift +
+// click and cmd or ctrl + click select. Drag rows to reorder them, or drop them on a group to move
+// them inside. Double click a name to rename it. Arrow keys move the selection.
+export default defineDemo({
+    size: [640, 460],
+    background: 0x141416,
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const canvas = silk.app.canvas;
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const root = item('Document', 'frame', null);
+        let count = 0;
+
+        for (let f = 0; f < 40; f++) {
+            const frame = item(`Screen ${f + 1}`, 'frame', root);
+
+            for (let g = 0; g < 5; g++) {
+                const group = item(`Section ${g + 1}`, 'group', frame);
+
+                for (let s = 0; s < 9; s++)
+                    item(s % 3 === 0 ? `Label ${s + 1}` : `Shape ${s + 1}`, s % 3 ? 'shape' : 'text', group);
+                count += 10;
+            }
+            count++;
+        }
+        const adapter: TreeAdapter<Item> = {
+            getChildren: (n) => n.children,
+            getName: (n) => n.name,
+            getParent: (n) => n.parent,
+            setName: (n, name) => {
+                n.name = name;
+            },
+            getIcon: (n): LayerIcon => n.kind,
+            isVisible: (n) => !n.hidden,
+            setVisible: (n, v) => {
+                n.hidden = !v;
+            },
+            isLocked: (n) => n.locked,
+            setLocked: (n, v) => {
+                n.locked = v;
+            },
+            canHaveChildren: (n) => n.kind === 'frame' || n.kind === 'group',
+            move: (n, parent, index) => {
+                n.parent?.children.splice(n.parent.children.indexOf(n), 1);
+                parent.children.splice(index, 0, n);
+                n.parent = parent;
+            },
+        };
+        const selection = new Selection<Item>();
+        const history = new History();
+        const panel = new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
+        const tree = new LayerTree({ adapter, root, selection, history, element: canvas });
+        const info = new SilkText({
+            fontFamily: PANEL_THEME.fontFamily,
+            fontSize: 13,
+            lineHeight: 20,
+            fill: 0x8e8e96,
+            wordWrap: true,
+            wordWrapWidth: 260,
+        });
+        const onKey = (e: KeyboardEvent) => {
+            const mod = e.metaKey || e.ctrlKey;
+
+            if (!mod || e.code !== 'KeyZ') return;
+            e.preventDefault();
+            if (e.shiftKey) history.redo();
+            else history.undo();
+        };
+
+        addEventListener('keydown', onKey);
+        tree.expand(root.children[0], true);
+        panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+        info.position.set(356, 40);
+        stage.addChild(panel, info);
+        const show = () => {
+            const picked = selection.items.map((n) => n.name);
+
+            info.text = [
+                `${count} layers, ${tree.rows.length} rows open`,
+                '',
+                picked.length
+                    ? `Selected: ${picked.slice(0, 6).join(', ')}${picked.length > 6 ? ' and more' : ''}`
+                    : 'Nothing selected',
+                '',
+                history.state.undoLabel.value ? `Undo: ${history.state.undoLabel.value}` : 'Nothing to undo',
+            ].join('\n');
+        };
+        const stops = [watch(selection.state.items, show), watch(tree.state.rows, show), history.onChange(show)];
+
+        return () => {
+            for (const stop of stops) stop();
+            removeEventListener('keydown', onKey);
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+`LayerTree` lists any tree. It reads your data through a `TreeAdapter`, a few callbacks such as
+`getChildren` and `getName`, so it can show a Pixi scene graph, a document model or a store. It
+keeps no copy of the data. Call `refresh()` after the data changes elsewhere.
+
+```ts
+
+declare const world: Container;
+declare const panel: Panel; // created with scroll: false
+
+const selection = new Selection<Container>();
+const tree = new LayerTree({ adapter: pixiTreeAdapter(), root: world, selection, history: new History() });
+
+panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
+```
+
+- **Selection.** Click selects, Shift + click selects a range, cmd or ctrl + click toggles. The
+  rows follow a `Selection` store both ways. A pick on the canvas opens its groups and scrolls it
+  into view. Hovering a row sets `selection.state.hovered`, so the canvas can outline it.
+- **Reorder and reparent.** Drag rows between others, or onto the middle of a group to move them
+  inside. Below the last row of a group, the pointer's x picks how far out the drop goes. A line
+  or a box shows where they land. On touch, hold a row to pick it up.
+- **Rename, hide and lock.** Double click a name, or press Enter or F2, to rename it in place with
+  a `TextEditor`. The eye and lock toggles show on hover, and stay while they are off the default.
+- **Keys.** Up and Down move the selection, Shift extends it, Left and Right fold and unfold.
+- **Thousands of nodes.** Only the rows in view exist. A pool of row views is reused as you scroll.
+
+Every rename, toggle and move goes through `history` as one undo step. Rows are listed front to
+back, the way design tools show layers, so the adapter's first child is the top row.
+
+`pixiTreeAdapter()` maps containers to rows. Names are `label`, the eye sets `visible`, the lock
+turns pointer events off, and moves keep each node in place on screen. Pass `filter` to leave
+children out, and `name` or `icon` for your own labels and icons. For your own model, write the
+adapter:
+
+```ts
+
+interface Item {
+    name: string;
+    children: Item[];
+    parent: Item | null;
+}
+
+declare const doc: Item;
+
+const adapter: TreeAdapter<Item> = {
+    getChildren: (n) => n.children,
+    getName: (n) => n.name,
+    getParent: (n) => n.parent,
+    setName: (n, name) => (n.name = name),
+    move: (n, parent, index) => {
+        n.parent?.children.splice(n.parent.children.indexOf(n), 1);
+        parent.children.splice(index, 0, n);
+        n.parent = parent;
+    },
+};
+
+const tree = new LayerTree({ adapter, root: doc });
+```
+
+The logic behind the list is exported on its own and has no Pixi in it: `flattenTree`,
+`visibleRange`, `dropTarget`, `applyDrop` and `undoMoves`.
+
+## Inspector
+
+Live demo `inspector-schema` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History } from 'pixi-silk/history';
+import { bindOutline, Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
+import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+import { Panel } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+/** A card with a fill and a corner radius, so the inspector has something of its own to edit. */
+class Card extends Container {
+    private readonly g = new SilkGraphics();
+    private _fill: number;
+    private _radius = 18;
+    shadow = true;
+
+    constructor(label: string, fill: number) {
+        super({ label });
+        this._fill = fill;
+        this.addChild(this.g);
+        this.redraw();
+    }
+
+    get fill(): number {
+        return this._fill;
+    }
+    set fill(v: number) {
+        this._fill = v;
+        this.redraw();
+    }
+    get radius(): number {
+        return this._radius;
+    }
+    set radius(v: number) {
+        this._radius = v;
+        this.redraw();
+    }
+    get glow(): boolean {
+        return this.shadow;
+    }
+    set glow(v: boolean) {
+        this.shadow = v;
+        this.redraw();
+    }
+
+    redraw(): void {
+        const g = this.g.clear();
+
+        if (this.shadow)
+            g.roundRect(0, 8, 120, 120, this._radius, 0.6).fill({ color: this._fill, alpha: 0.45, blur: 7 });
+        g.roundRect(0, 0, 120, 120, this._radius, 0.6).fill(this._fill);
+    }
+}
+
+const schema: InspectorField[] = [
+    { type: 'text', key: 'label', label: 'Name' },
+    { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+    { type: 'vector', keys: ['scale.x', 'scale.y'], label: 'Scale', labels: ['X', 'Y'], step: 0.01, lockAspect: true },
+    { type: 'number', key: 'angle', label: 'Rotation', unit: 'deg' },
+    { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01, perPixel: 0.005 },
+    {
+        type: 'section',
+        label: 'Style',
+        fields: [
+            { type: 'color', key: 'fill', label: 'Fill' },
+            { type: 'number', key: 'radius', label: 'Radius', min: 0, max: 60, unit: 'px' },
+            { type: 'toggle', key: 'glow', label: 'Glow' },
+            {
+                type: 'choice',
+                key: 'blendMode',
+                label: 'Blend',
+                options: [
+                    { value: 'inherit', label: 'Pass' },
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'add', label: 'Add' },
+                ],
+            },
+        ],
+    },
+];
+
+// Click a card, or Shift + click to edit several: values that differ show as Mixed, and a scrub
+// moves each from its own start. Drag a number sideways, or click it to type. Open the swatch for
+// the colour picker. Cmd or ctrl + Z undoes each drag as one step.
+export default defineDemo({
+    size: [760, 480],
+    background: 0x141416,
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const canvas = silk.app.canvas;
+        const still = (e: WheelEvent) => e.preventDefault();
+
+        canvas.addEventListener('wheel', still, { passive: false });
+        const selection = new Selection<Container>();
+        const history = new History();
+        const scene = new Container();
+        const outline = new SelectionOutline({ ticker: silk.app.ticker });
+        const panel = new Panel({ title: 'Inspector', x: 452, y: 20, width: 288, height: 440 });
+        const inspector = new Inspector({ schema, history, element: canvas, popoverLayer: stage });
+        const cards = [new Card('Blue', 0x0a84ff), new Card('Pink', 0xff375f), new Card('Mint', 0x30d158)];
+
+        cards.forEach((card, i) => {
+            card.position.set(40 + (i % 2) * 180, 50 + Math.floor(i / 2) * 200 + (i % 2) * 40);
+            card.eventMode = 'static';
+            card.cursor = 'pointer';
+            card.on('pointerdown', (e) => {
+                e.stopPropagation();
+                selection.pick(card, e.shiftKey ? 'toggle' : 'replace');
+            });
+            scene.addChild(card);
+        });
+        stage.eventMode = 'static';
+        stage.hitArea = { contains: () => true };
+        stage.on('pointerdown', (e) => {
+            if (e.target === stage) selection.clear();
+        });
+        panel.content.add(inspector);
+        stage.addChild(scene, outline, panel);
+        const stops = [
+            bindOutline(selection, outline),
+            watch(selection.state.items, (items) => {
+                inspector.bind(items);
+                panel.title = items.length > 1 ? `${items.length} cards` : (items[0]?.label ?? 'Inspector');
+            }),
+            history.onChange(() => inspector.refresh()),
+            bindHistoryKeys(history),
+        ];
+
+        selection.replace([cards[0], cards[1]]);
+
+        return () => {
+            for (const stop of stops) stop();
+            canvas.removeEventListener('wheel', still);
+        };
+    },
+});
+```
+
+An `Inspector` builds its rows from a schema. Each entry names a key, a path on the edited
+objects such as `position.x`, and a field type.
+
+```ts
+
+declare const selection: Selection<Container>;
+declare const panel: Panel;
+
+const inspector = new Inspector({
+    schema: [
+        { type: 'text', key: 'label', label: 'Name' },
+        { type: 'vector', keys: ['position.x', 'position.y'], label: 'Position' },
+        { type: 'vector', keys: ['width', 'height'], label: 'Size', labels: ['W', 'H'], lockAspect: true },
+        { type: 'number', key: 'angle', label: 'Rotation', unit: 'deg' },
+        {
+            type: 'section',
+            label: 'Layer',
+            fields: [
+                { type: 'number', key: 'alpha', label: 'Opacity', min: 0, max: 1, step: 0.01 },
+                { type: 'toggle', key: 'visible', label: 'Visible' },
+                { type: 'color', key: 'tint', label: 'Tint' },
+            ],
+        },
+    ],
+    history: new History(),
+});
+
+selection.state.items.subscribe((items) => inspector.bind(items));
+panel.content.add(inspector);
+```
+
+| Type | Field |
+| --- | --- |
+| `number` | Drag sideways to scrub, Shift for ten times faster, Alt for ten times finer. Click to type. `min`, `max`, `step`, `unit` |
+| `text` | A one-line `TextEditor` |
+| `toggle` | A switch with a springy knob |
+| `choice` | Segmented options with a sliding thumb |
+| `color` | A swatch and its hex code. A click opens a colour picker |
+| `vector` | Two numbers in one row. `lockAspect` adds a link that keeps their ratio |
+| `section` | A titled group that folds |
+
+`bind()` takes a list of objects, or an `InspectorBinding` with `read` and `write` for a store of
+your own. `bindSignals()` edits [signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/), for a settings panel.
+With several objects bound, values that differ show as Mixed. A scrub moves each value from its
+own start, and a typed value sets them all.
+
+Every drag, toggle or commit is one step in `history`, with the values of each object before
+and after. Call `refresh()` when the objects change elsewhere, such as during a gizmo drag. Colour
+fields open a `HueSquarePicker` by default. Pass `colorPicker` to use another picker from
+[colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/), and `popoverLayer` for the container it opens in.
+
+## Minimap
+
+Live demo `minimap` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Camera } from 'pixi-silk/ui/camera';
+import { Minimap } from 'pixi-silk/ui/minimap';
+import { panelHitTest } from 'pixi-silk/ui/panel';
+import { defineDemo } from './runtime';
+
+// Scroll to pan and pinch or ctrl + scroll to zoom. The minimap follows the view. Drag its frame
+// to pan, click anywhere on it to jump there, and scroll over it to zoom.
+export default defineDemo({
+    size: [760, 460],
+    background: 0x101012,
+    touchAction: 'none',
+    ownsCamera: true,
+    controls: {
+        mode: { type: 'select', label: 'thumbnail', options: ['bounds', 'texture'], value: 'bounds' },
+    },
+    setup({ silk, params, tick }) {
+        const app = silk.app;
+        const world = new Container();
+        const maps: Container[] = [];
+        const camera = new Camera({ world, element: app.canvas, ignore: panelHitTest(() => maps) });
+
+        app.stage.addChild(world);
+        // a board of cards in rows, some wide, some tall
+        const colours = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff];
+
+        for (let i = 0; i < 60; i++) {
+            const w = 120 + ((i * 53) % 140);
+            const h = 80 + ((i * 31) % 120);
+            const g = new SilkGraphics().roundRect(0, 0, w, h, 16, 0.6).fill(colours[i % colours.length]);
+
+            g.position.set((i % 10) * 300 + ((i * 17) % 40), Math.floor(i / 10) * 260 + ((i * 29) % 50));
+            world.addChild(g);
+        }
+        let map: Minimap | null = null;
+        const place = () =>
+            map?.position.set(app.screen.width - map.mapWidth - 16, app.screen.height - map.mapHeight - 16);
+        const build = (mode: 'bounds' | 'texture') => {
+            map?.destroy();
+            map = new Minimap({ camera, width: 230, height: 150, mode, renderer: app.renderer });
+            maps[0] = map;
+            app.stage.addChild(map);
+            place();
+        };
+        let mode = params.mode;
+
+        build(mode as 'bounds' | 'texture');
+        app.renderer.on('resize', place);
+        tick(() => {
+            if (params.mode === mode) return;
+            mode = params.mode;
+            build(mode as 'bounds' | 'texture');
+        });
+        camera.fit({ x: 0, y: 0, width: 1200, height: 700 }, 40, false);
+
+        return () => {
+            app.renderer.off('resize', place);
+            camera.destroy();
+        };
+    },
+});
+```
+
+A `Minimap` shows a camera's world in small, with the view as a frame. Drag the frame to pan,
+click to jump there, and scroll over it to zoom. It frames the content and the view together, and
+glides as the view moves past the content.
+
+```ts
+
+declare const app: Application;
+declare const camera: Camera;
+
+const map = new Minimap({ camera, width: 220, height: 140 });
+
+app.stage.addChild(map);
+```
+
+The default `bounds` mode draws the outline of each object, crisp and cheap. `mode: 'texture'`
+renders the content into a small texture every `interval` seconds, for a real thumbnail. It needs
+the `renderer`. Call `refresh()` after the content moves, so the map measures it again.
+
+---
+
 # Showcase
 
 URL: https://pixi-silk.schmooky.dev/docs/showcase/
@@ -12890,6 +13862,10 @@ Yes. Radial menus, animated buttons and a button dock ship under `pixi-silk/ui/*
 ## Can I build an editor or design tool with pixi-silk?
 
 Yes. `pixi-silk/ui/gizmo` has transform gizmos, selection outlines and smart guides. `pixi-silk/ui/color` has colour pickers, `pixi-silk/ui/halo`, `brush` and `modes` the tools around a selection, and `pixi-silk/ui/dial` and `timeline` the value controls. All of it draws on the canvas, with no DOM.
+
+## Do I need DOM panels over the canvas for a scene editor?
+
+No. `pixi-silk/ui/panel` draws dockable panels on the canvas, and `layers`, `inspector` and `minimap` fill them with a layer tree, a property inspector and a minimap. They are Pixi containers, so they share the scene, its pointer events and its undo history.
 
 ## Are the slot game HUD controls part of pixi-silk?
 

@@ -41,6 +41,11 @@ export interface CameraOptions {
     keys?: boolean;
     /** How fast animated zooms settle, about 1 / seconds. Default 16. */
     smoothing?: number;
+    /**
+     * Element points (CSS pixels) the camera leaves alone: wheels and pan drags there go to the
+     * scene instead. Use it for panels drawn over the view, with `panelHitTest` from `pixi-silk/ui/panel`.
+     */
+    ignore?: (point: PointData) => boolean;
     ticker?: Ticker | null;
 }
 
@@ -396,6 +401,8 @@ export class Camera {
             (e) => {
                 e.preventDefault();
                 const p = this._local(e);
+
+                if (o.ignore?.(p)) return;
                 const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1;
                 const dx = e.deltaX * unit;
                 const dy = e.deltaY * unit;
@@ -418,7 +425,7 @@ export class Camera {
             window,
             'pointerdown',
             (e) => {
-                if (!inside(e)) return;
+                if (!inside(e) || o.ignore?.(this._local(e))) return;
                 if (e.pointerType === 'touch') {
                     this._touches.set(e.pointerId, this._local(e));
                     if (this._touches.size === 2 || (o.touchPan === 'one' && this._touches.size === 1)) {

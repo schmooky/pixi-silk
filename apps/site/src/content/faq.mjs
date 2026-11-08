@@ -118,6 +118,11 @@ export const FAQ = [
         a: 'Yes. `pixi-silk/ui/gizmo` has transform gizmos, selection outlines and smart guides. `pixi-silk/ui/color` has colour pickers, `pixi-silk/ui/halo`, `brush` and `modes` the tools around a selection, and `pixi-silk/ui/dial` and `timeline` the value controls. All of it draws on the canvas, with no DOM.',
     },
     {
+        area: 'editor-ui',
+        q: 'Do I need DOM panels over the canvas for a scene editor?',
+        a: 'No. `pixi-silk/ui/panel` draws dockable panels on the canvas, and `layers`, `inspector` and `minimap` fill them with a layer tree, a property inspector and a minimap. They are Pixi containers, so they share the scene, its pointer events and its undo history.',
+    },
+    {
         area: 'examples',
         q: 'Are the slot game HUD controls part of pixi-silk?',
         a: 'No. The spin button, autoplay picker, meters and wallet on the slot HUD page are examples. Each is one demo file built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the file into your game and restyle it.',

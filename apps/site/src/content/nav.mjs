@@ -106,7 +106,7 @@ export const DOCS_AREAS = [
         summary: 'Everything a design tool draws on its canvas, from the camera and rulers to gizmos and undo.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls.',
+            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls. Panels hold a layer tree, an inspector and a minimap, all on the canvas.',
         ],
         items: [
             'canvas-and-measurements',
@@ -117,6 +117,7 @@ export const DOCS_AREAS = [
             'color-pickers',
             'editor-tools',
             'dials-and-timeline',
+            'panels',
         ],
     },
     {
