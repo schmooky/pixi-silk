@@ -73,6 +73,16 @@ const IMPORTS = {
     'text (layoutText, sdfFromAlpha)': ['layoutText, sdfFromAlpha', ['#version 300 es', 'silk-text-atlas'], '/text'],
     'ui/textedit (TextEditor)': ['TextEditor', ['RadialMenu', 'TransformGizmo', 'ColorModel'], '/ui/textedit'],
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
+    // editor panels: a panel frame never pulls in the layer tree, the inspector or the colour pickers
+    'ui/panel (Panel)': [
+        'Panel',
+        ['RadialMenu', 'LayerTree', 'Inspector', 'ColorModel', 'TransformGizmo'],
+        '/ui/panel',
+    ],
+    'ui/layers (LayerTree)': ['LayerTree, pixiTreeAdapter', ['RadialMenu', 'Inspector', 'ColorModel'], '/ui/layers'],
+    'ui/layers (tree math)': ['flattenTree, dropTarget, applyDrop', ['#version 300 es', 'RadialMenu'], '/ui/layers'],
+    'ui/inspector (Inspector)': ['Inspector', ['RadialMenu', 'LayerTree', 'TransformGizmo'], '/ui/inspector'],
+    'ui/minimap (Minimap)': ['Minimap', ['RadialMenu', 'LayerTree', 'Inspector', 'ColorModel'], '/ui/minimap'],
     // the headless engine has no Pixi in it: no shader, no display objects
     layout: ['*', ['#version 300 es', 'silk-gradient-atlas', 'pixi.js', 'SmartContainer'], '/layout'],
     // the debug overlay and the device preview stay out of an app that only places containers

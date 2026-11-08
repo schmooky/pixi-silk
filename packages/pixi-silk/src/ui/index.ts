@@ -259,6 +259,100 @@ export {
     unionQuad,
 } from './outline';
 export {
+    bindObjects,
+    bindSignals,
+    type FieldValue,
+    fieldValue,
+    getPath,
+    type InspectorBinding,
+    setPath,
+    type WritableSignal,
+} from './panels/binding';
+export {
+    ChoiceField,
+    type ChoiceFieldOptions,
+    type ChoiceOption,
+    ColorField,
+    type ColorFieldOptions,
+    Field,
+    type FieldContext,
+    type FieldEdit,
+    NumberField,
+    type NumberFieldOptions,
+    TextField,
+    type TextFieldOptions,
+    ToggleField,
+    type ToggleFieldOptions,
+    VectorField,
+    type VectorFieldOptions,
+} from './panels/fields';
+export {
+    type ChoiceFieldSpec,
+    type ColorFieldSpec,
+    type ColorPickerFactory,
+    Inspector,
+    type InspectorField,
+    type InspectorOptions,
+    type InspectorState,
+    type NumberFieldSpec,
+    type SectionSpec,
+    type TextFieldSpec,
+    type ToggleFieldSpec,
+    type VectorFieldSpec,
+} from './panels/Inspector';
+export { drawLayerIcon, type LayerKind } from './panels/icons';
+export { LayerTree, type LayerTreeOptions, type LayerTreeState } from './panels/LayerTree';
+export {
+    Minimap,
+    type MinimapOptions,
+    type MinimapState,
+    type MinimapTransform,
+    minimapFit,
+    minimapToWorld,
+    unionRect,
+    worldRectToMinimap,
+    worldToMinimap,
+} from './panels/Minimap';
+export {
+    dockAt,
+    dockRect,
+    Panel,
+    type PanelDock,
+    type PanelInsets,
+    type PanelOptions,
+    type PanelRect,
+    type PanelState,
+    type PanelViewport,
+    panelHitTest,
+} from './panels/Panel';
+export { type PixiTreeAdapter, type PixiTreeOptions, pixiTreeAdapter } from './panels/pixi-tree';
+export { ScrollView, type ScrollViewOptions, type ScrollViewState } from './panels/ScrollView';
+export {
+    fitText,
+    PANEL_THEME,
+    PANEL_THEME_LIGHT,
+    type PanelTextOptions,
+    type PanelTheme,
+    panelText,
+    resolvePanelTheme,
+} from './panels/theme';
+export {
+    applyDrop,
+    type DropTarget,
+    type DropTargetOptions,
+    dropTarget,
+    type FlatRow,
+    findParent,
+    flattenTree,
+    type LayerIcon,
+    type MoveStep,
+    redoMoves,
+    type TreeAdapter,
+    topLevelNodes,
+    undoMoves,
+    visibleRange,
+} from './panels/tree';
+export {
     PATH_GIZMO_THEME,
     PathGizmo,
     type PathGizmoOptions,

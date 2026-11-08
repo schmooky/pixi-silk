@@ -57,10 +57,10 @@
     "gzip": 29096
   },
   "ui/camera": {
-    "gzip": 30061
+    "gzip": 30077
   },
   "ui/camera (Camera only)": {
-    "gzip": 3145
+    "gzip": 3161
   },
   "ui/measure": {
     "gzip": 28747
@@ -120,18 +120,48 @@
     "gzip": 28796
   },
   "text": {
-    "gzip": 10342
+    "gzip": 11900
   },
   "text (SilkText)": {
-    "gzip": 10117
+    "gzip": 11083
   },
   "text (layoutText, sdfFromAlpha)": {
-    "gzip": 1434
+    "gzip": 1795
+  },
+  "ui/textedit (TextEditor)": {
+    "gzip": 43028
   },
   "ui/pill (ValuePill)": {
     "gzip": 27011
   },
+  "ui/panel (Panel)": {
+    "gzip": 45961
+  },
+  "ui/layers (LayerTree)": {
+    "gzip": 57625
+  },
+  "ui/layers (tree math)": {
+    "gzip": 890
+  },
+  "ui/inspector (Inspector)": {
+    "gzip": 58361
+  },
+  "ui/minimap (Minimap)": {
+    "gzip": 29305
+  },
+  "layout": {
+    "gzip": 3643
+  },
+  "ui/layout (SmartContainer)": {
+    "gzip": 7378
+  },
+  "ui/layout (FlexContainer)": {
+    "gzip": 6017
+  },
+  "ui/layout (layoutDebug)": {
+    "gzip": 10066
+  },
   "ui (everything)": {
-    "gzip": 85649
+    "gzip": 131249
   }
 }

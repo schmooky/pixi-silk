@@ -42,6 +42,10 @@ export default defineConfig({
         'src/ui/pill.ts',
         'src/ui/layout.ts',
         'src/ui/textedit.ts',
+        'src/ui/panel.ts',
+        'src/ui/layers.ts',
+        'src/ui/inspector.ts',
+        'src/ui/minimap.ts',
     ],
     // ESM only, one output file per source module: with `sideEffects: false` an app's bundler
     // drops every module it does not use (motion helpers never pull in the shader)
