@@ -1,4 +1,5 @@
-import { Filter, GlProgram, Texture, UniformGroup } from 'pixi.js';
+import { Filter, GlProgram, GpuProgram, Texture, UniformGroup } from 'pixi.js';
+import { glassWgsl } from './glass-wgsl';
 
 /** @internal Filter vertex stage: Pixi's default filter vertex shader. */
 export const glassVertex = /* glsl */ `#version 300 es
@@ -147,6 +148,7 @@ void main(void)
 `;
 
 let program: GlProgram | null = null;
+let gpuProgram: GpuProgram | null = null;
 
 /**
  * Low-level frosted glass filter. Prefer {@link Glass}, which sizes it, keeps it in step with the
@@ -163,6 +165,11 @@ export class GlassFilter extends Filter {
             name: 'silk-glass',
             preferredFragmentPrecision: 'highp',
         });
+        gpuProgram ??= GpuProgram.from({
+            name: 'silk-glass',
+            vertex: { source: glassWgsl, entryPoint: 'mainVertex' },
+            fragment: { source: glassWgsl, entryPoint: 'mainFragment' },
+        });
         const u = new UniformGroup({
             uShape: { value: new Float32Array([50, 50, 16, 0]), type: 'vec4<f32>' },
             uOptics: { value: new Float32Array([16, 12, 0.3, 18]), type: 'vec4<f32>' },
@@ -173,6 +180,7 @@ export class GlassFilter extends Filter {
 
         super({
             glProgram: program,
+            gpuProgram,
             resources: { glassUniforms: u, uBackTexture: Texture.EMPTY },
             blendRequired: true,
             clipToViewport: false,
