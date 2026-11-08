@@ -119,6 +119,16 @@ export class Camera {
         this._listen();
     }
 
+    /** The container the camera moves and scales. */
+    get world(): Container {
+        return this._world;
+    }
+
+    /** The element that receives input. Its size is the size of the view. */
+    get element(): HTMLElement {
+        return this._el;
+    }
+
     /** Current zoom (1 is 100%). */
     get zoom(): number {
         return this._zoom.value;

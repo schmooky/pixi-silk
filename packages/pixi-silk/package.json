@@ -47,6 +47,30 @@
       "types": "./dist/ui/measure.d.ts",
       "default": "./dist/ui/measure.js"
     },
+    "./ui/grid": {
+      "types": "./dist/ui/grid.d.ts",
+      "default": "./dist/ui/grid.js"
+    },
+    "./ui/ruler": {
+      "types": "./dist/ui/ruler.d.ts",
+      "default": "./dist/ui/ruler.js"
+    },
+    "./ui/guides": {
+      "types": "./dist/ui/guides.d.ts",
+      "default": "./dist/ui/guides.js"
+    },
+    "./ui/marquee": {
+      "types": "./dist/ui/marquee.d.ts",
+      "default": "./dist/ui/marquee.js"
+    },
+    "./ui/group": {
+      "types": "./dist/ui/group.d.ts",
+      "default": "./dist/ui/group.js"
+    },
+    "./ui/spacing": {
+      "types": "./dist/ui/spacing.d.ts",
+      "default": "./dist/ui/spacing.js"
+    },
     "./ui/snap": {
       "types": "./dist/ui/snap.d.ts",
       "default": "./dist/ui/snap.js"

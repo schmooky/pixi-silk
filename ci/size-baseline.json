@@ -42,13 +42,34 @@
     "gzip": 19869
   },
   "ui/camera": {
-    "gzip": 20689
+    "gzip": 20704
   },
   "ui/camera (Camera only)": {
-    "gzip": 3020
+    "gzip": 3034
   },
   "ui/measure": {
     "gzip": 19545
+  },
+  "ui/grid": {
+    "gzip": 18672
+  },
+  "ui/ruler": {
+    "gzip": 19902
+  },
+  "ui/guides": {
+    "gzip": 20409
+  },
+  "ui/marquee": {
+    "gzip": 19690
+  },
+  "ui/group": {
+    "gzip": 1117
+  },
+  "ui/spacing": {
+    "gzip": 19776
+  },
+  "ui/spacing (findSpacing)": {
+    "gzip": 899
   },
   "ui/snap (SnapEngine only)": {
     "gzip": 1303
@@ -84,6 +105,6 @@
     "gzip": 19587
   },
   "ui (everything)": {
-    "gzip": 59335
+    "gzip": 67355
   }
 }
