@@ -7,7 +7,8 @@ import { defineDemo } from './runtime';
 const CELL = 72;
 
 export default defineDemo({
-    size: [440, 300],
+    title: 'WebGL2 and WebGPU',
+    size: [460, 310],
     renderers: ['webgl', 'webgpu'],
     controls: {
         spin: { type: 'toggle', label: 'rotate', value: false },
@@ -85,7 +86,8 @@ export default defineDemo({
             g.clear();
             cells.forEach((draw, i) => {
                 g.save()
-                    .translateTransform(40 + (i % 6) * CELL, 50 + Math.floor(i / 6) * 100)
+                    // the top row leaves room for the renderer label
+                    .translateTransform(50 + (i % 6) * CELL, 76 + Math.floor(i / 6) * 90)
                     .rotateTransform(a);
                 draw(g);
                 g.restore();

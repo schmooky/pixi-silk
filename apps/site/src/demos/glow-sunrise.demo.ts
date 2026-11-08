@@ -10,14 +10,15 @@ const label = (text: string, size: number, color: number, weight: TextStyleFontW
     });
 
 export default defineDemo({
+    title: 'Sunrise glow',
     size: [640, 440],
     background: 0x260600,
     setup({ stage, tick }) {
         const orb = new SilkGraphics();
         const core = new SilkGraphics();
         const glass = new Glass({
-            width: 300,
-            height: 130,
+            width: 360,
+            height: 136,
             radius: 26,
             blur: 26,
             refraction: 10,
@@ -25,16 +26,16 @@ export default defineDemo({
             tint: 0x3a0a00,
             tintAmount: 0.12,
         });
-        const eyebrow = label('WORK SPACE', 10, 0xffd9b8, '600');
-        const title = label('Enable Efficient Teamwork', 20, 0xffffff, '600');
-        const body = label('Create a culture of clarity across every project.', 12, 0xffd9b8);
+        const eyebrow = label('WORK SPACE', 11, 0xffd9b8, '600');
+        const title = label('Enable Efficient Teamwork', 22, 0xffffff, '600');
+        const body = label('Create a culture of clarity across every project.', 13, 0xffd9b8);
 
         eyebrow.style.letterSpacing = 1.4;
         eyebrow.position.set(24, 26);
-        title.position.set(24, 46);
-        body.position.set(24, 86);
+        title.position.set(24, 44);
+        body.position.set(24, 88);
         glass.content.addChild(eyebrow, title, body);
-        glass.position.set(170, 286);
+        glass.position.set(140, 280);
         stage.addChild(orb, core, glass);
 
         tick((t) => {

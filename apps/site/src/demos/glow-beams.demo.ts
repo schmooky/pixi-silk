@@ -1,7 +1,7 @@
 import { Container, Text } from 'pixi.js';
 import { along, linear, radial, SilkGraphics } from 'pixi-silk';
 import { bolt } from 'pixi-silk/glow';
-import { defineDemo } from './runtime';
+import { defineDemo, PAD } from './runtime';
 
 const W = 760;
 const mono = 'ui-monospace, SF Mono, Menlo, monospace';
@@ -25,7 +25,7 @@ function hourglass(g: SilkGraphics, cx: number, cy: number, w: number, h: number
 }
 
 function label(text: string, x: number, y: number, color: number, anchorX = 0): Text {
-    const t = new Text({ text, style: { fontFamily: mono, fontSize: 10, fill: color } });
+    const t = new Text({ text, style: { fontFamily: mono, fontSize: 14, fill: color } });
 
     t.anchor.set(anchorX, 0);
     t.position.set(x, y);
@@ -34,9 +34,17 @@ function label(text: string, x: number, y: number, color: number, anchorX = 0): 
 }
 
 export default defineDemo({
-    size: [W, 520],
-    background: 0x050508,
-    setup({ stage, tick }) {
+    title: 'Beams and bolts',
+    size: [720, 520],
+    setup({ stage: frame, tick }) {
+        // the three panels are drawn at 760 wide and inset by the shared padding
+        const stage = new Container();
+        const fit = (720 - 2 * PAD) / W;
+
+        stage.scale.set(fit);
+        stage.position.set(PAD, (520 - 520 * fit) / 2);
+        frame.addChild(stage);
+
         // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
         const hero = new Container();
         const heroBg = new SilkGraphics();
@@ -108,10 +116,10 @@ export default defineDemo({
             arts.push(art);
         }
         speed.addChild(
-            label('Test sample #07', 26, 24, 0x6b5866),
-            label('Render complete', 344, 24, 0xd9a0b8, 1),
-            label('Speed mode: ON', 26, 226, 0x6b5866),
-            label('Render time: 400 ms', 344, 226, 0x6b5866, 1),
+            label('Test sample #07', 26, 22, 0x8a7484),
+            label('Render complete', 344, 22, 0xd9a0b8, 1),
+            label('Speed: ON', 26, 220, 0x8a7484),
+            label('400 ms', 344, 220, 0x8a7484, 1),
         );
         speed.position.set(390, 260);
 
