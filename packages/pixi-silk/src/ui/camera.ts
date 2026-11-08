@@ -52,6 +52,9 @@ export interface CameraState {
     y: ReadSignal<number>;
     /** True while the user drags the view. */
     panning: ReadSignal<boolean>;
+    /** Size of the element in CSS pixels, for overlays that span the view. Follows resizes where `ResizeObserver` exists. */
+    width: ReadSignal<number>;
+    height: ReadSignal<number>;
 }
 
 const isTyping = (t: EventTarget | null): boolean => {
@@ -85,6 +88,8 @@ export class Camera {
     private readonly _x: Signal<number>;
     private readonly _y: Signal<number>;
     private readonly _panning = signal(false);
+    private readonly _width: Signal<number>;
+    private readonly _height: Signal<number>;
     private readonly _driver: Driver;
     // target view and the screen point an animated zoom keeps still
     private _k: number;
@@ -114,9 +119,19 @@ export class Camera {
         this._zoom = signal(this._k);
         this._x = signal(this._tx);
         this._y = signal(this._ty);
-        this.state = { zoom: this._zoom, x: this._x, y: this._y, panning: this._panning };
+        this._width = signal(options.element.clientWidth);
+        this._height = signal(options.element.clientHeight);
+        this.state = {
+            zoom: this._zoom,
+            x: this._x,
+            y: this._y,
+            panning: this._panning,
+            width: this._width,
+            height: this._height,
+        };
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
         this._listen();
+        this._observe();
     }
 
     /** The container the camera moves and scales. */
@@ -507,6 +522,18 @@ export class Camera {
             this._space = false;
             this._syncCursor();
         });
+    }
+
+    /** Keeps `state.width` and `state.height` in step with the element. */
+    private _observe(): void {
+        if (typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => {
+            this._width.set(this._el.clientWidth);
+            this._height.set(this._el.clientHeight);
+        });
+
+        ro.observe(this._el);
+        this._off.push(() => ro.disconnect());
     }
 
     /** Tracks drag speed for the fling, smoothed over the last few moves. */

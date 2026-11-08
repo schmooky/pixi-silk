@@ -42,22 +42,22 @@
     "gzip": 19869
   },
   "ui/camera": {
-    "gzip": 20704
+    "gzip": 20811
   },
   "ui/camera (Camera only)": {
-    "gzip": 3034
+    "gzip": 3145
   },
   "ui/measure": {
     "gzip": 19545
   },
   "ui/grid": {
-    "gzip": 18672
+    "gzip": 18679
   },
   "ui/ruler": {
-    "gzip": 19902
+    "gzip": 19910
   },
   "ui/guides": {
-    "gzip": 20409
+    "gzip": 20415
   },
   "ui/marquee": {
     "gzip": 19690
@@ -105,6 +105,6 @@
     "gzip": 19587
   },
   "ui (everything)": {
-    "gzip": 67355
+    "gzip": 67474
   }
 }

@@ -165,7 +165,8 @@ export class Guides extends Container {
         const wake = () => this._driver.wake();
         const cam = options.camera.state;
 
-        for (const s of [cam.zoom, cam.x, cam.y, this.state.hover]) this._off.push(s.subscribe(wake));
+        for (const s of [cam.zoom, cam.x, cam.y, cam.width, cam.height, this.state.hover])
+            this._off.push(s.subscribe(wake));
         for (const g of options.guides ?? []) this.add(g.axis, g.at);
     }
 

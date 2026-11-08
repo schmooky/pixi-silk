@@ -143,8 +143,9 @@ export class CanvasGrid extends Container {
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
         const wake = () => this._driver.wake();
 
-        for (const s of [options.camera.state.zoom, options.camera.state.x, options.camera.state.y])
-            this._off.push(s.subscribe(wake));
+        const cam = options.camera.state;
+
+        for (const s of [cam.zoom, cam.x, cam.y, cam.width, cam.height]) this._off.push(s.subscribe(wake));
         this._off.push(
             this.state.style.subscribe(wake),
             this.state.visible.subscribe(wake),

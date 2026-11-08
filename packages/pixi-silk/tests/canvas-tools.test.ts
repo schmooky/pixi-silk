@@ -103,6 +103,8 @@ describe('grid', () => {
         const { camera } = rig(4);
         const grid = new CanvasGrid({ camera, ticker: null, axes: true });
 
+        expect([camera.state.width.value, camera.state.height.value]).toEqual([800, 600]);
+
         settle(grid);
         const levels = grid.levels.length;
 

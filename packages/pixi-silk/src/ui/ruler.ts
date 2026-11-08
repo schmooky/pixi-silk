@@ -135,7 +135,8 @@ export class Ruler extends Container {
         const wake = () => this._driver.wake();
         const cam = options.camera.state;
 
-        for (const s of [cam.zoom, cam.x, cam.y, this.state.cursor]) this._off.push(s.subscribe(wake));
+        for (const s of [cam.zoom, cam.x, cam.y, cam.width, cam.height, this.state.cursor])
+            this._off.push(s.subscribe(wake));
         if (options.trackCursor ?? true) this._track();
         this._driver.wake();
     }
