@@ -9,6 +9,8 @@ const BLOBS = SERIES.slice(0, 5);
 export default defineDemo({
     title: 'Glass playground',
     size: [720, 460],
+    // phones: the words stack and the pane is narrower
+    phone: { size: [360, 460] },
     touchAction: 'none',
     controls: {
         blur: { type: 'range', label: 'blur', min: 0, max: 48, step: 1, value: 18 },
@@ -18,12 +20,12 @@ export default defineDemo({
         light: { type: 'range', label: 'light', min: -180, max: 180, step: 1, value: -135, unit: '°' },
         grain: { type: 'range', label: 'grain', min: 0, max: 0.15, step: 0.005, value: 0.035 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height, phone }) {
         const back = new SilkGraphics();
         const blobs = new SilkGraphics();
         const lines = new SilkGraphics();
         const words = new Container();
-        const glass = new Glass({ width: 300, height: 190, radius: 34 });
+        const glass = new Glass({ width: phone ? 260 : 300, height: 190, radius: 34 });
         const hint = new Text({
             text: 'drag me',
             style: { fontFamily: FONT, fontSize: 14, fill: 0xffffff, fontWeight: '600' },
@@ -32,9 +34,9 @@ export default defineDemo({
         let grab: { x: number; y: number } | null = null;
 
         blobs.blendMode = 'add';
-        back.rect(0, 0, 720, 460).fill({ color: 0x000000, alpha: 0.001 });
-        for (let i = 0; i < 9; i++) lines.rect(0, 40 + i * 48, 720, 1.5).fill({ color: 0xffffff, alpha: 0.18 });
-        // three words spread across the width, inside the padding
+        back.rect(0, 0, width, height).fill({ color: 0x000000, alpha: 0.001 });
+        for (let i = 0; i < 9; i++) lines.rect(0, 40 + i * 48, width, 1.5).fill({ color: 0xffffff, alpha: 0.18 });
+        // three words spread across the width, inside the padding, or one under the other on phones
         const texts = ['PIXI', 'SILK', 'GLASS'].map(
             (w) => new Text({ text: w, style: { fontFamily: FONT, fontSize: 88, fontWeight: '800', fill: 0xffffff } }),
         );
@@ -43,14 +45,16 @@ export default defineDemo({
 
         texts.forEach((t, i) => {
             t.alpha = 0.9;
-            t.position.set(x, 130 + (i % 2) * 90);
+            if (phone) t.position.set(i === 1 ? width - PAD - t.width : PAD, 60 + i * 115);
+            else t.position.set(x, 130 + (i % 2) * 90);
             x += t.width + gap;
             words.addChild(t);
         });
         hint.anchor.set(0.5);
-        hint.position.set(150, 95);
+        hint.position.set(phone ? 130 : 150, 95);
         glass.content.addChild(hint);
-        glass.position.set(210, 135);
+        if (phone) glass.position.set(50, 135);
+        else glass.position.set(210, 135);
         glass.eventMode = 'static';
         glass.cursor = 'grab';
         stage.addChild(back, blobs, lines, words, glass);
@@ -71,7 +75,11 @@ export default defineDemo({
                 const a = t * (0.25 + i * 0.05) + i * 1.3;
 
                 blobs
-                    .circle(360 + Math.cos(a) * (220 - i * 18), 230 + Math.sin(a * 1.3) * 130, 90 - i * 6)
+                    .circle(
+                        width / 2 + Math.cos(a) * ((phone ? 110 : 220) - i * 18),
+                        height / 2 + Math.sin(a * 1.3) * 130,
+                        90 - i * 6,
+                    )
                     .fill({ color: c, alpha: 0.9, blur: 40 });
             });
             glass.set({

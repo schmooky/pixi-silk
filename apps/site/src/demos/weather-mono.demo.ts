@@ -61,10 +61,12 @@ type Role = 'ink' | 'onDisc' | 'faint';
 export default defineDemo({
     title: 'Weather card',
     size: [W, H],
+    // phones: the same card, as tall as the frame width allows, with no text under 12 px
+    phone: { size: [W, H] },
     controls: {
         theme: { type: 'select', label: 'theme', options: ['light', 'dark'], value: 'dark' },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, phone }) {
         const base = new SilkGraphics();
         const live = new SilkGraphics();
         const texts = new Container();
@@ -83,12 +85,13 @@ export default defineDemo({
             anchor = 0,
             weight: TextStyleFontWeight = '400',
         ) => {
+            // a phone frame shows the card at about 0.9: the small labels grow to stay readable
             const t = new Text({
                 text: value,
                 style: {
                     fill: 0xffffff,
                     fontFamily: MONO,
-                    fontSize: size,
+                    fontSize: phone ? Math.max(12, size) : size,
                     fontWeight: weight,
                     letterSpacing: size * 0.08,
                 },

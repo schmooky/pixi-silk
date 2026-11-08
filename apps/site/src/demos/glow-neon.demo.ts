@@ -9,16 +9,18 @@ const font = 'Inter, system-ui, sans-serif';
 export default defineDemo({
     title: 'Neon bolt',
     size: [720, 440],
+    // phones: the big bolt above the card
+    phone: { size: [360, 600] },
     background: 0x0b0b09,
     controls: {
         intensity: { type: 'range', label: 'glow', min: 0, max: 2, step: 0.05, value: 1 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, phone }) {
         const room = new SilkGraphics();
 
         // warm light spilling into the room, like the reference backdrop
         // taller than the canvas, so a wide frame shows no band above or below
-        room.rect(0, -220, 720, 880).fill(
+        room.rect(0, -220, 720, 1000).fill(
             radial(
                 [
                     [0, 0x3a3410, 1],
@@ -32,7 +34,8 @@ export default defineDemo({
         // the bolt alone: about 120 wide, so the recipe runs at size 120
         const big = new Glow({ draw: (g) => bolt(g, -60, -84, 120, 168), layers: neon(YELLOW, { size: 120 }) });
 
-        big.position.set(180, 220);
+        if (phone) big.position.set(180, 110);
+        else big.position.set(180, 220);
 
         // the ticket card
         const card = new Container();
@@ -100,7 +103,8 @@ export default defineDemo({
         sub.position.set(22, 250);
         ring.position.set(206, 172);
         card.addChild(back, small, ticket, ring, title, sub);
-        card.position.set(414, 62);
+        if (phone) card.position.set(51, 250);
+        else card.position.set(414, 62);
         stage.addChild(room, big, card);
 
         let last = -1;

@@ -8,19 +8,25 @@ import { defineDemo, FONT, INK, label, PALETTE, readout } from './runtime';
 export default defineDemo({
     title: 'Text and SilkText under zoom',
     size: [720, 320],
+    // phones: the two sides stack, each with its own title row
+    phone: { size: [360, 440] },
     controls: {
         zoom: { type: 'range', label: 'zoom (log)', min: 0, max: 2, step: 0.01, value: 0, unit: '' },
         auto: { type: 'toggle', label: 'animate', value: true },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height, phone }) {
         const half = 360;
         const top = 48;
+        // each side's box: its title row on top, the zooming text below
+        const box = (i: number) =>
+            phone ? { x: 0, y: i * 220, w: width, h: 220 } : { x: i * half, y: 0, w: half, h: height };
         const sides: Container[] = [];
         const style = { fontFamily: FONT, fontWeight: '600' as const };
 
         for (let i = 0; i < 2; i++) {
             const side = new Container();
-            const mask = new Graphics().rect(i * half, top, half, 320 - top).fill(0xffffff);
+            const b = box(i);
+            const mask = new Graphics().rect(b.x, b.y + top, b.w, b.h - top).fill(0xffffff);
             const make = (text: string, size: number, color: number) =>
                 i === 0
                     ? new Text({ text, style: { ...style, fontSize: size, fill: color } })
@@ -37,12 +43,13 @@ export default defineDemo({
             sides.push(side);
             stage.addChild(side, mask);
             stage.addChild(
-                label(i ? 'SilkText (distance field)' : 'Text (bitmap)', i * half + 24, 16, { fontSize: 13 }),
+                label(i ? 'SilkText (distance field)' : 'Text (bitmap)', b.x + 24, b.y + 16, { fontSize: 13 }),
             );
+            stage.addChild(new Graphics().rect(b.x, b.y + top - 0.5, b.w, 1).fill(INK.line));
         }
-        stage.addChild(new Graphics().rect(half - 0.5, 0, 1, 320).fill(INK.line));
-        stage.addChild(new Graphics().rect(0, top - 0.5, 720, 1).fill(INK.line));
-        const zoom = readout('', 696, 16, { fontSize: 13 }, 1);
+        if (phone) stage.addChild(new Graphics().rect(0, 219.5, width, 1).fill(INK.line));
+        else stage.addChild(new Graphics().rect(half - 0.5, 0, 1, height).fill(INK.line));
+        const zoom = readout('', width - 24, 16, { fontSize: 13 }, 1);
 
         stage.addChild(zoom);
 
@@ -65,10 +72,12 @@ export default defineDemo({
 
             // at 1x the block sits in the middle of its half, zoomed in the focus point does
             sides.forEach((side, i) => {
+                const b = box(i);
+
                 side.pivot.set(focus.x, focus.y);
                 side.position.set(
-                    i * half + half / 2 - (block.x - focus.x) / k,
-                    top + (320 - top) / 2 - (block.y - focus.y) / k,
+                    b.x + b.w / 2 - (block.x - focus.x) / k,
+                    b.y + top + (b.h - top) / 2 - (block.y - focus.y) / k,
                 );
                 side.scale.set(k);
             });
