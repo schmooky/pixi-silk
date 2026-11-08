@@ -100,15 +100,17 @@ export const DOCS_AREAS = [
         id: 'editor-ui',
         title: 'Editor UI',
         summary:
-            'An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, colour pickers, dials and a timeline.',
+            'An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, undo, path editing, colour pickers, dials and a timeline.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. Colour pickers, editor tools and dials add the controls.',
+            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls.',
         ],
         items: [
             'canvas-and-measurements',
             'canvas-tools',
             'transform-gizmos',
+            'selection-and-history',
+            'path-editing',
             'color-pickers',
             'editor-tools',
             'dials-and-timeline',

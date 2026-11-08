@@ -1,5 +1,73 @@
 // Everything in one import. Each widget also has its own entry point (pixi-silk/ui/radial,
 // pixi-silk/ui/gizmo ...): import from those to ship only what you use.
+
+export {
+    bindHistoryKeys,
+    type Command,
+    History,
+    type HistoryKeysOptions,
+    type HistoryLike,
+    type HistoryOptions,
+    type HistoryState,
+    type HistoryStep,
+    type RecordableGizmo,
+    type RecordGizmoOptions,
+    type RecordSignalsOptions,
+    recordGizmo,
+    recordSignals,
+    type SignalRecorder,
+    type TransformSnapshot,
+    type TransformTarget,
+} from '../history';
+export {
+    type AnchorType,
+    anchorsInRect,
+    type BezierPath,
+    type Cubic,
+    clonePath,
+    cubicPoint,
+    drawPath,
+    type HandleSide,
+    inferAnchorType,
+    insertAnchor,
+    isStraight,
+    mapPath,
+    moveAnchors,
+    nearestOnCubic,
+    nearestOnPath,
+    type PathAnchor,
+    type PathHitPoint,
+    type PathSink,
+    parseSvgPath,
+    pathBounds,
+    pathFromPoints,
+    pathToSvg,
+    removeAnchors,
+    reversePath,
+    segmentAt,
+    segmentCount,
+    setAnchorType,
+    setHandle,
+    splitCubic,
+    toggleAnchorType,
+    type Vec,
+} from '../path';
+// editor state without visuals: also at pixi-silk/history, pixi-silk/path and pixi-silk/selection
+export {
+    type BindGizmoOptions,
+    type BindMeasureOptions,
+    bindGizmo,
+    bindMeasure,
+    bindOutline,
+    type GizmoLike,
+    type MeasureLike,
+    type OutlineLike,
+    Selection,
+    type SelectionChange,
+    type SelectionOptions,
+    type SelectionState,
+    type SelectMode,
+} from '../selection';
 export { AngleAccumulator, angleDelta, clamp, rubberBand, snapTo, TAU, wrapAngle } from './arc';
 export { ButtonDock, type ButtonDockOptions } from './ButtonDock';
 export { BrushCursor, type BrushCursorOptions, type BrushState } from './brush';
@@ -121,7 +189,7 @@ export {
 } from './halo';
 export type { IconSource } from './icon';
 export type { InputKind, InputProfile, InputProfiles } from './input';
-export { altDown, isKeyDown, modDown, onKey, shiftDown } from './keys';
+export { altDown, isKeyDown, isTypingTarget, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
 export {
     combineSelection,
@@ -164,6 +232,20 @@ export {
     scaleQuad,
     unionQuad,
 } from './outline';
+export {
+    PATH_GIZMO_THEME,
+    PathGizmo,
+    type PathGizmoOptions,
+    type PathGizmoState,
+    type PathGizmoTheme,
+    type PathHit,
+    type PathSnapInfo,
+    type PathTool,
+    type PenInput,
+    type PenPhase,
+    PenTool,
+    type PenToolOptions,
+} from './pathgizmo';
 export { ValuePill, type ValuePillOptions } from './pill';
 export {
     bindRadialTrigger,

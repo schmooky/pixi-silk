@@ -5,6 +5,9 @@ export default defineConfig({
     entry: [
         'src/index.ts',
         'src/signal.ts',
+        'src/selection.ts',
+        'src/history.ts',
+        'src/path.ts',
         'src/glass.ts',
         'src/glow.ts',
         'src/webgpu.ts',
@@ -15,6 +18,7 @@ export default defineConfig({
         'src/ui/ButtonDock.ts',
         'src/ui/gizmo.ts',
         'src/ui/outline.ts',
+        'src/ui/pathgizmo.ts',
         'src/ui/camera.ts',
         'src/ui/measure.ts',
         'src/ui/grid.ts',

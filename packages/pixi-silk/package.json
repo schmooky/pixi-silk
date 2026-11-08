@@ -15,6 +15,18 @@
       "types": "./dist/signal.d.ts",
       "default": "./dist/signal.js"
     },
+    "./selection": {
+      "types": "./dist/selection.d.ts",
+      "default": "./dist/selection.js"
+    },
+    "./history": {
+      "types": "./dist/history.d.ts",
+      "default": "./dist/history.js"
+    },
+    "./path": {
+      "types": "./dist/path.d.ts",
+      "default": "./dist/path.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
@@ -38,6 +50,10 @@
     "./ui/outline": {
       "types": "./dist/ui/outline.d.ts",
       "default": "./dist/ui/outline.js"
+    },
+    "./ui/pathgizmo": {
+      "types": "./dist/ui/pathgizmo.d.ts",
+      "default": "./dist/ui/pathgizmo.js"
     },
     "./ui/camera": {
       "types": "./dist/ui/camera.d.ts",

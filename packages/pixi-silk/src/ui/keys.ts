@@ -50,6 +50,16 @@ export function modDown(): boolean {
     return isKeyDown('ControlLeft') || isKeyDown('ControlRight') || isKeyDown('MetaLeft') || isKeyDown('MetaRight');
 }
 
+/** True when a key event comes from a text field, where the keys belong to the field and not to the canvas. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+    const el = target as { tagName?: unknown; isContentEditable?: boolean } | null;
+
+    if (!el || typeof el !== 'object' || typeof el.tagName !== 'string') return false;
+    const tag = el.tagName.toUpperCase();
+
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+}
+
 /** Calls `fn` on every key press and release. Returns the unsubscribe function. */
 export function onKey(fn: (code: string, down: boolean, e: KeyboardEvent) => void): () => void {
     install();
