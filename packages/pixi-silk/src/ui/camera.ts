@@ -551,6 +551,7 @@ export class Camera {
             if (e.key === '+' || e.key === '=') this.zoomBy(1.5);
             else if (e.key === '-' || e.key === '_') this.zoomBy(1 / 1.5);
             else if (e.shiftKey && e.code === 'Digit0') this.zoomTo(1);
+            // biome-ignore lint/suspicious/noFocusedTests: Camera.fit, not a focused test
             else if (e.shiftKey && e.code === 'Digit1') this.fit();
             else return;
             e.preventDefault();
