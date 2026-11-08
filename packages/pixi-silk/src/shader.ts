@@ -1,4 +1,4 @@
-import { GlProgram, Shader, UniformGroup } from 'pixi.js';
+import { GlProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
 import { GradientAtlas } from './atlas';
 
 /*
@@ -142,6 +142,7 @@ flat in vec4 vTint;
 in float vProg;
 
 uniform highp sampler2D uGradients;
+uniform highp sampler2D uPolys;
 uniform vec4 uSilk; // x: dither amplitude (LSB), y: AA ramp width (device px), z: min stroke width (device px)
 
 out vec4 finalColor;
@@ -259,6 +260,27 @@ float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2)
                      vec2(dot(pq1, pq1), s * (v1.x * e1.y - v1.y * e1.x))),
                      vec2(dot(pq2, pq2), s * (v2.x * e2.y - v2.y * e2.x)));
     return -sqrt(d.x) * sign(d.y);
+}
+
+// Filled path: exact distance to the nearest edge, sign from even-odd crossings.
+// Edges are texels (ax, ay, bx, by) of uPolys, starting at texel 'start'.
+float sdPoly(vec2 p, int start, int n)
+{
+    int w = textureSize(uPolys, 0).x;
+    float dd = 1e20;
+    bool inside = false;
+    for (int i = 0; i < n; i++)
+    {
+        int t = start + i;
+        vec4 e = texelFetch(uPolys, ivec2(t % w, t / w), 0);
+        vec2 a = e.xy;
+        vec2 ab = e.zw - a;
+        vec2 ap = p - a;
+        vec2 q = ap - ab * clamp(dot(ap, ab) / max(dot(ab, ab), 1e-12), 0.0, 1.0);
+        dd = min(dd, dot(q, q));
+        if ((a.y <= p.y) != (e.w <= p.y) && p.x < a.x + (p.y - a.y) * ab.x / ab.y) inside = !inside;
+    }
+    return (inside ? -1.0 : 1.0) * sqrt(dd);
 }
 
 // Tapered capsule between circles (pa, ra) and (pb, rb) - iq's exact uneven capsule.
@@ -464,6 +486,10 @@ float closedSD(vec2 p, int type, float px)
     else if (type == 8)
     {
         d = sdTriangle(p, vShape0.xy, vShape0.zw, vShape1.xy) - vShape1.z;
+    }
+    else if (type == 9)
+    {
+        d = sdPoly(p, int(vShape0.x + 0.5), int(vShape0.y + 0.5)) - vShape0.z;
     }
 
     gFillScale = fillScale;
@@ -692,7 +718,7 @@ export interface SilkShaderSettings {
     minStrokePx: number;
 }
 
-export function createSilkShader(settings: SilkShaderSettings): Shader {
+export function createSilkShader(settings: SilkShaderSettings, polys: TextureSource): Shader {
     program ??= GlProgram.from({
         vertex,
         fragment,
@@ -705,6 +731,7 @@ export function createSilkShader(settings: SilkShaderSettings): Shader {
         glProgram: program,
         resources: {
             uGradients: GradientAtlas.shared.source,
+            uPolys: polys,
             silkUniforms: new UniformGroup({
                 uSilk: {
                     value: new Float32Array([settings.dither, settings.aaWidth, settings.minStrokePx, 0]),

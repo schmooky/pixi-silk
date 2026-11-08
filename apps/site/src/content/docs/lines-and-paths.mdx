@@ -27,7 +27,7 @@ joints are always round. Round is the only join that is continuous in distance.
 
 ## Paths
 
-The canvas-style path API works for strokes:
+The canvas-style path API strokes and fills:
 
 ```ts
 g.moveTo(10, 80)
@@ -37,8 +37,16 @@ g.moveTo(10, 80)
     .stroke({ width: 3, color: 0xff9f0a, cap: 'round' });
 ```
 
-Silk flattens curves adaptively into segments. Free-form paths are stroke-only. For filled
-regions, use closed primitives or [`area()`](/docs/charts/).
+Silk flattens curves adaptively into segments. A stroke draws them one by one. A fill draws the
+whole path as one exact shape, so a bolt, a drop or a logo outline blurs, spreads and takes inner
+shadows like a circle does. Overlapping subpaths follow the even-odd rule, so a square inside a
+square makes a hole.
+
+```ts
+g.poly([64, 0, 6, 58, 44, 58, 30, 100, 94, 40, 56, 40]).fill({ color: 0xffd60a, blur: 12 });
+```
+
+Each fill checks every edge of its path per pixel. Keep paths to a few hundred points.
 
 ## Tapered strokes
 

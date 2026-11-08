@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GLASS_DEFAULTS, Glass, lightVector, resolveGlass } from '../src/glass';
-import { Aurora, auroraBlobs, fan, Glow, hexLabel, neon, rayQuad, SPECTRUM, spectrum } from '../src/glow';
+import { Aurora, auroraBlobs, fan, Glow, hexLabel, neon, rayQuad, SPECTRUM, shadowStack, spectrum } from '../src/glow';
 
 describe('glass options', () => {
     it('fills defaults and clamps ranges', () => {
@@ -35,11 +35,20 @@ describe('glow', () => {
     it('draws one graphics per pass, with the pass blend mode', () => {
         const glow = new Glow({ draw: (g) => g.circle(0, 0, 40), layers: neon(0xffd60a, { size: 80 }) });
 
-        expect(glow.passes.length).toBe(5);
+        expect(glow.passes.length).toBe(7);
         expect(glow.passes[0].blendMode).toBe('add');
-        expect(glow.passes[2].primitiveCount).toBe(1);
+        // the core: its fill plus the pale inner shadow
+        expect(glow.passes[4].blendMode).toBe('normal');
+        expect(glow.passes[4].primitiveCount).toBe(2);
         glow.setLayers(neon(0xff0000).slice(0, 2));
         expect(glow.passes.length).toBe(2);
+    });
+
+    it('stacks CSS-style shadows with half the blur as sigma', () => {
+        const layers = shadowStack();
+
+        expect(layers).toHaveLength(3);
+        expect(layers[2].fill).toMatchObject({ blur: 64, spread: 32 });
     });
 
     it('spreads the spectrum evenly', () => {
