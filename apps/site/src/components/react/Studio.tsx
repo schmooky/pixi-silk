@@ -12,11 +12,35 @@ export interface StudioEntry {
     title: string;
 }
 
-/** Entries grouped the way the docs read: area, then page. */
-export interface StudioGroup {
-    area: string;
-    pages: { title: string; href: string; entries: StudioEntry[] }[];
+/** A reference sheet: its widgets, listed under the page that shows the sheet. */
+export interface StudioSheet {
+    title: string;
+    href: string;
+    entries: StudioEntry[];
 }
+
+/** A docs page and the demos it runs. */
+export interface StudioPage {
+    title: string;
+    href: string;
+    entries: StudioEntry[];
+    sheets: StudioSheet[];
+}
+
+/** Entries grouped the way the docs read: section, area, then page. */
+export interface StudioSection {
+    title: string;
+    areas: { title: string; pages: StudioPage[] }[];
+}
+
+type Located = StudioEntry & { page: { title: string; href: string }; where: string };
+
+/** Does an entry match the filter? Every word must appear in its title, file, page or group. */
+const matches = (words: string[], ...text: string[]) => {
+    const hay = text.join(' ').toLowerCase();
+
+    return words.every((w) => hay.includes(w));
+};
 
 const demoSources = import.meta.glob<string>('../../demos/*.demo.ts', { query: '?raw', import: 'default' });
 const labSources = import.meta.glob<string>('../../lab/[0-9]*.ts', { query: '?raw', import: 'default' });
@@ -37,10 +61,27 @@ type Status = { state: 'idle' | 'running' | 'ok' } | { state: 'error'; message: 
  * Code next to canvas for every demo and lab experiment. Edits run in a sandboxed frame
  * (`/studio/run/`), each run on a fresh document. Edits stay per entry until reset.
  */
-export default function Studio({ groups }: { groups: StudioGroup[] }) {
-    const all = useMemo(
-        () => groups.flatMap((g) => g.pages.flatMap((p) => p.entries.map((e) => ({ ...e, page: p, area: g.area })))),
-        [groups],
+export default function Studio({ sections, hidden = [] }: { sections: StudioSection[]; hidden?: StudioEntry[] }) {
+    const all = useMemo<Located[]>(
+        () => [
+            ...sections.flatMap((s) =>
+                s.areas.flatMap((a) =>
+                    a.pages.flatMap((p) => [
+                        ...p.entries.map((e) => ({ ...e, page: p, where: `${s.title} ${a.title}` })),
+                        ...p.sheets.flatMap((sh) =>
+                            sh.entries.map((e) => ({
+                                ...e,
+                                page: { title: sh.title, href: sh.href },
+                                where: `${s.title} ${a.title} ${p.title}`,
+                            })),
+                        ),
+                    ]),
+                ),
+            ),
+            // experiments listed nowhere still open from a link
+            ...hidden.map((e) => ({ ...e, page: { title: e.title, href: `/lab/${e.name}/` }, where: '' })),
+        ],
+        [sections, hidden],
     );
     const [current, setCurrent] = useState(() => {
         const q = new URLSearchParams(location.search);
@@ -61,25 +102,40 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
     const [query, setQuery] = useState('');
     // narrow screens show one pane at a time
     const [pane, setPane] = useState<'code' | 'canvas'>('canvas');
+    const [browse, setBrowse] = useState(false);
+    const words = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
     const shown = useMemo(() => {
-        const q = query.trim().toLowerCase();
+        if (words.length === 0) return sections;
 
-        if (!q) return groups;
-
-        return groups
-            .map((g) => ({
-                ...g,
-                pages: g.pages
-                    .map((p) => ({
-                        ...p,
-                        entries: p.entries.filter((e) =>
-                            `${g.area} ${p.title} ${e.title} ${e.name}`.toLowerCase().includes(q),
-                        ),
+        return sections
+            .map((s) => ({
+                ...s,
+                areas: s.areas
+                    .map((a) => ({
+                        ...a,
+                        pages: a.pages
+                            .map((p) => ({
+                                ...p,
+                                entries: p.entries.filter((e) =>
+                                    matches(words, s.title, a.title, p.title, e.title, e.name),
+                                ),
+                                sheets: p.sheets
+                                    .map((sh) => ({
+                                        ...sh,
+                                        entries: sh.entries.filter((e) =>
+                                            matches(words, s.title, a.title, p.title, sh.title, e.title, e.name),
+                                        ),
+                                    }))
+                                    .filter((sh) => sh.entries.length > 0),
+                            }))
+                            .filter((p) => p.entries.length > 0 || p.sheets.length > 0),
                     }))
-                    .filter((p) => p.entries.length > 0),
+                    .filter((a) => a.pages.length > 0),
             }))
-            .filter((g) => g.pages.length > 0);
-    }, [groups, query]);
+            .filter((s) => s.areas.length > 0);
+    }, [sections, words]);
+    // sheets are closed until opened, filtered, or holding the open entry
+    const [openSheets, setOpenSheets] = useState<Record<string, boolean>>({});
     const frame = useRef<HTMLIFrameElement>(null);
     const pending = useRef<string | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -188,73 +244,111 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
         setTimeout(() => setCopied(false), 1200);
     };
 
+    const isEdited = (id: string) => edits[id] !== undefined && edits[id] !== original[id];
+    const item = (e: StudioEntry, depth: number) => (
+        <button
+            key={e.id}
+            type="button"
+            onClick={() => {
+                select(e.id);
+                setBrowse(false);
+            }}
+            aria-current={e.id === current.id}
+            title={e.title}
+            className={`-ml-px block w-full truncate border-l py-[5px] pr-3 text-left transition-colors ${depth > 1 ? 'pl-7' : 'pl-4'} ${
+                e.id === current.id
+                    ? 'border-silk bg-accent/70 font-medium text-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            }`}
+        >
+            {e.title}
+            {isEdited(e.id) && (
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-silk align-middle" title="Edited" />
+            )}
+        </button>
+    );
+
     return (
-        <div className="fixed inset-x-0 bottom-0 top-14 z-30 grid grid-rows-[auto_minmax(0,1fr)] bg-background lg:grid-cols-[230px_minmax(0,1fr)] lg:grid-rows-1">
-            {/* entries: a list on wide screens, a menu on narrow ones */}
-            <div className="border-b p-2 lg:hidden">
-                <select
-                    value={current.id}
-                    onChange={(e) => select(e.target.value)}
-                    className="w-full rounded-md border bg-card px-2 py-1.5 text-sm"
-                    aria-label="Open a demo or experiment"
+        <div className="fixed inset-x-0 bottom-0 top-14 z-30 grid grid-rows-[auto_minmax(0,1fr)] bg-background lg:grid-cols-[264px_minmax(0,1fr)] lg:grid-rows-1">
+            {/* entries: a list on wide screens, a panel behind a button on narrow ones */}
+            <div className="flex items-center gap-2 border-b p-2 lg:hidden">
+                <button
+                    type="button"
+                    onClick={() => setBrowse((b) => !b)}
+                    aria-expanded={browse}
+                    aria-controls="studio-list"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md border bg-card px-3 py-1.5 text-left text-sm"
                 >
-                    {groups.map((g) =>
-                        g.pages.map((p) => (
-                            <optgroup key={`${g.area}/${p.title}`} label={`${g.area}: ${p.title}`}>
-                                {p.entries.map((e) => (
-                                    <option key={e.id} value={e.id}>
-                                        {e.title}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        )),
-                    )}
-                </select>
+                    <span className="truncate">{current.title}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{browse ? 'Close' : 'Browse'}</span>
+                </button>
             </div>
             <nav
+                id="studio-list"
                 ref={listRef}
                 aria-label="Demos and experiments"
-                className="hidden overflow-y-auto border-r pb-3 text-sm lg:block"
+                className={`overflow-y-auto border-r bg-background pb-6 text-[13px] max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:top-[49px] max-lg:z-20 ${browse ? 'block' : 'hidden'} lg:block`}
             >
-                <div className="sticky top-0 z-10 border-b bg-background p-2">
+                <div className="sticky top-0 z-10 border-b bg-background p-2.5">
                     <input
                         type="search"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Filter"
+                        placeholder={`Filter ${all.length} demos`}
                         aria-label="Filter demos and experiments"
-                        className="w-full rounded-md border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                        className="w-full rounded-md border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-silk/60"
                     />
                 </div>
                 {shown.length === 0 && <p className="px-4 py-3 text-xs text-muted-foreground">Nothing matches.</p>}
-                {shown.map((g) => (
-                    <div key={g.area} className="mb-4 mt-3">
-                        <div className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                            {g.area}
-                        </div>
-                        {g.pages.map((p) => (
-                            <div key={`${p.href}#${p.title}`} className="mb-1">
-                                <div className="px-4 pt-1 text-xs text-muted-foreground/80">{p.title}</div>
-                                {p.entries.map((e) => (
-                                    <button
-                                        key={e.id}
-                                        type="button"
-                                        onClick={() => select(e.id)}
-                                        aria-current={e.id === current.id}
-                                        className={`block w-full truncate px-4 py-1 pl-6 text-left transition-colors ${
-                                            e.id === current.id
-                                                ? 'bg-accent font-medium text-foreground'
-                                                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                                        }`}
-                                    >
-                                        {e.title}
-                                        {edits[e.id] !== undefined && edits[e.id] !== original[e.id] && (
-                                            <span
-                                                className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-silk align-middle"
-                                                title="Edited"
-                                            />
-                                        )}
-                                    </button>
+                {shown.map((s) => (
+                    <div key={s.title} className="px-2 pt-5">
+                        <div className="eyebrow px-2 pb-2">{s.title}</div>
+                        {s.areas.map((a) => (
+                            <div key={a.title} className="mb-3">
+                                {(s.areas.length > 1 || a.title !== s.title) && (
+                                    <div className="px-2 pb-1 text-xs font-semibold text-foreground">{a.title}</div>
+                                )}
+                                {a.pages.map((p) => (
+                                    <div key={p.href} className="mb-1.5 ml-2 border-l">
+                                        <div className="truncate py-0.5 pl-4 text-[11.5px] text-muted-foreground/80">
+                                            {p.title}
+                                        </div>
+                                        {p.entries.map((e) => item(e, 1))}
+                                        {p.sheets.map((sh) => {
+                                            const key = `${p.href}#${sh.title}`;
+                                            const open =
+                                                words.length > 0 ||
+                                                openSheets[key] ||
+                                                sh.entries.some((e) => e.id === current.id);
+
+                                            return (
+                                                <div key={key}>
+                                                    <button
+                                                        type="button"
+                                                        aria-expanded={open}
+                                                        onClick={() => setOpenSheets((o) => ({ ...o, [key]: !open }))}
+                                                        className="-ml-px flex w-full items-center gap-1.5 border-l border-transparent py-[5px] pl-4 pr-3 text-left text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                                                    >
+                                                        <svg
+                                                            viewBox="0 0 24 24"
+                                                            className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2.5"
+                                                            aria-hidden="true"
+                                                        >
+                                                            <path d="m9 6 6 6-6 6" />
+                                                        </svg>
+                                                        <span className="truncate">{sh.title}</span>
+                                                        <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
+                                                            {sh.entries.length}
+                                                        </span>
+                                                    </button>
+                                                    {open && sh.entries.map((e) => item(e, 2))}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 ))}
                             </div>
                         ))}
