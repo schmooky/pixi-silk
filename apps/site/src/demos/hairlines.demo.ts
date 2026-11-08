@@ -1,27 +1,35 @@
 import { SilkGraphics } from 'pixi-silk';
-import { defineDemo } from './runtime';
+import { defineDemo, INK, label } from './runtime';
 
 // Lines thinner than a device pixel keep one pixel of width and fade instead of breaking up.
+// Widths grow from left to right.
 export default defineDemo({
-    size: [480, 220],
+    title: 'Hairlines',
+    size: [720, 240],
     controls: {
         scale: { type: 'range', label: 'width scale', min: 0.05, max: 2, step: 0.01, value: 0.5 },
     },
     setup({ stage, params, tick }) {
         const g = new SilkGraphics();
+        const cx = 360;
+        const cy = 210;
+        const r = 180;
+        const thinnest = label('', cx - r - 12, cy - 8, {}, 1);
+        const widest = label('', cx + r + 12, cy - 8);
 
-        stage.addChild(g);
+        stage.addChild(g, thinnest, widest);
         tick((t) => {
             g.clear();
-            for (let i = 0; i < 24; i++) {
-                const a = -Math.PI / 2 + (i / 23) * Math.PI + Math.sin(t * 0.3) * 0.05;
-                const w = (0.1 + i * 0.12) * params.scale;
+            const width = (i: number) => (0.1 + i * 0.12) * params.scale;
 
-                g.line(240, 200, 240 + Math.cos(a) * 220, 200 + Math.sin(a) * 190).stroke({
-                    width: w,
-                    color: 0xffffff,
-                });
+            for (let i = 0; i < 24; i++) {
+                const a = -Math.PI + (i / 23) * Math.PI + Math.sin(t * 0.3) * 0.02;
+
+                g.line(cx, cy, cx + Math.cos(a) * r, cy + Math.sin(a) * r).stroke({ width: width(i), color: INK.text });
             }
+            g.circle(cx, cy, 3).fill(INK.muted);
+            thinnest.text = `${width(0).toFixed(3)} px`;
+            widest.text = `${width(23).toFixed(2)} px`;
         });
     },
 });

@@ -1,13 +1,14 @@
-import { Container, Text } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import { damp, SilkGraphics, Spring } from 'pixi-silk';
 import { signal } from 'pixi-silk/signal';
 import { type GesturePoint, trackGesture } from 'pixi-silk/ui/gesture';
 import { type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
-import { defineDemo } from './runtime';
+import { defineDemo, FONT, INK, PAD, PALETTE } from './runtime';
 
 // A slot spin button built from the atoms (copy it into your game and restyle it):
 // idle breathing, press squash, hold for the autoplay picker, a stop square while spinning and the
 // autoplay count left as a shrinking ring. The picker is a half RadialMenu fanning up from the button.
+// The three reels are a stand-in for your game's reels: they only show when the button spins.
 
 type Phase = 'idle' | 'spinning' | 'stopping';
 
@@ -92,42 +93,129 @@ class SpinButton extends Container {
 
 const chip = (n: string): RadialItem => ({ id: n, label: n });
 
+const CELL = 56;
+const SYMBOLS: ((g: SilkGraphics) => void)[] = [
+    (g) => g.star(0, 1, 5, 22, 10, 0, 3).fill(PALETTE.yellow),
+    (g) => g.heart(0, 0, 40, 0.3).fill(PALETTE.pink),
+    (g) => g.regularPoly(0, 0, 22, 4, 0, 4).fill(PALETTE.blue),
+    (g) => g.circle(0, 0, 19).fill(PALETTE.green),
+    (g) => g.regularPoly(0, 4, 24, 3, 0, 4).fill(PALETTE.purple),
+];
+
+/** A reel strip: symbols scroll down while it spins and settle on a whole cell when it stops. */
+class Reel extends Container {
+    private readonly g = new SilkGraphics();
+    private readonly strip: number[];
+    private offset = 0;
+    private speed = 0;
+    private stopAt: number | null = null;
+    private readonly bounce = new Spring(0, 300, 14);
+
+    constructor(seed: number) {
+        super();
+        this.strip = Array.from({ length: 12 }, (_, i) => (i * 3 + seed) % SYMBOLS.length);
+        this.addChild(this.g);
+        this.draw();
+    }
+
+    start(): void {
+        this.stopAt = null;
+        this.speed = 0.01;
+    }
+
+    /** Stops on the next whole cell after `extra` more cells. */
+    stop(extra: number): void {
+        this.stopAt = Math.ceil(this.offset) + extra;
+    }
+
+    update(dt: number): void {
+        if (this.stopAt === null && this.speed > 0) this.speed = Math.min(16, this.speed + dt * 40);
+        if (this.speed > 0) {
+            this.offset += this.speed * dt;
+            if (this.stopAt !== null && this.offset >= this.stopAt) {
+                this.offset = this.stopAt;
+                this.speed = 0;
+                this.bounce.value = 0.25;
+            }
+        }
+        this.bounce.step(dt);
+        this.draw();
+    }
+
+    private draw(): void {
+        const g = this.g.clear();
+        const shift = this.offset - Math.floor(this.offset) - this.bounce.value;
+        const base = Math.floor(this.offset);
+
+        for (let row = -1; row <= 3; row++) {
+            const index = (((base - row) % this.strip.length) + this.strip.length) % this.strip.length;
+
+            g.save().translateTransform(0, (row + shift) * CELL);
+            SYMBOLS[this.strip[index]](g);
+            g.restore();
+        }
+    }
+}
+
 export default defineDemo({
-    size: [520, 320],
+    title: 'Slot spin button',
+    size: [720, 320],
     touchAction: 'none',
     setup({ silk, stage, tick }) {
-        const spin = new SpinButton();
+        const cx = 360;
+        const by = 266;
+        const spin = new SpinButton(34);
+        const frame = new SilkGraphics();
+        const reels = [0, 1, 2].map((i) => new Reel(i));
+        const win = new Graphics().rect(cx - 120, PAD, 240, CELL * 3).fill(0xffffff);
+        const reelLayer = new Container();
         const status = new Text({
             text: 'tap to spin, hold for autoplay',
-            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+            style: { fill: INK.muted, fontFamily: FONT, fontSize: 13 },
         });
         const picker = new RadialMenu({
             items: ['10', '25', '50', '100', '∞'].map(chip),
             sweep: Math.PI * 0.95,
             direction: -Math.PI / 2,
-            innerRadius: 58,
+            innerRadius: 50,
             hub: false,
-            outerRadius: 108,
+            outerRadius: 100,
             ticker: silk.app.ticker,
             theme: { segment: 0x2c2c2e, segmentHover: 0x3a3a3c, icon: 0xf2f2f7, iconHover: 0xffd60a, accent: 0xffd60a },
             onSelect: (item) => startAutoplay(item.id === '∞' ? 999 : Number(item.id)),
         });
         let timer: ReturnType<typeof setTimeout> | null = null;
 
-        status.anchor.set(0.5);
-        status.position.set(260, 30);
-        spin.position.set(260, 250);
-        picker.position.set(260, 250);
-        stage.addChild(status, spin, picker);
+        // reel window: three columns under a rounded frame, the middle row is the pay line
+        frame
+            .roundRect(cx - 132, PAD, 264, CELL * 3, 18, 0.6)
+            .fill(INK.surface)
+            .rect(cx - 124, PAD + CELL, 248, CELL)
+            .fill({ color: 0xffffff, alpha: 0.04 })
+            .roundRect(cx - 132, PAD, 264, CELL * 3, 18, 0.6)
+            .stroke({ width: 1, color: INK.line, alignment: 'inside' });
+        reels.forEach((reel, i) => {
+            reel.position.set(cx - 80 + i * 80, PAD + CELL / 2);
+            reelLayer.addChild(reel);
+        });
+        reelLayer.mask = win;
+        status.anchor.set(0, 0.5);
+        status.position.set(cx + 58, by);
+        spin.position.set(cx, by);
+        picker.position.set(cx, by);
+        stage.addChild(frame, reelLayer, win, status, spin, picker);
 
+        const land = () => reels.forEach((reel, i) => reel.stop(2 + i * 2));
         const spinOnce = () => {
             spin.phase.set('spinning');
+            for (const reel of reels) reel.start();
             status.text = spin.autoplay.value > 0 ? `autoplay: ${spin.autoplay.value} left` : 'spinning';
             timer = setTimeout(() => {
+                land();
                 spin.phase.set('idle');
                 if (spin.autoplay.value > 0) {
                     spin.autoplay.update((n) => n - 1);
-                    if (spin.autoplay.value > 0) timer = setTimeout(spinOnce, 250);
+                    if (spin.autoplay.value > 0) timer = setTimeout(spinOnce, 700);
                     else status.text = 'autoplay done';
                 } else status.text = 'tap to spin, hold for autoplay';
             }, 1100);
@@ -140,11 +228,17 @@ export default defineDemo({
 
         spin.onSpin = spinOnce;
         spin.onStop = () => {
+            if (timer) clearTimeout(timer);
+            land();
+            spin.phase.set('idle');
             spin.autoplay.set(0);
             status.text = 'stopped';
         };
-        spin.onHold = (p) => picker.openAt(260, 250, p);
-        tick((_t, dt) => spin.update(dt));
+        spin.onHold = (p) => picker.openAt(cx, by, p);
+        tick((_t, dt) => {
+            spin.update(dt);
+            for (const reel of reels) reel.update(dt);
+        });
 
         return () => {
             if (timer) clearTimeout(timer);

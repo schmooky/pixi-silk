@@ -1,23 +1,25 @@
 import { Container, Text, type TextStyleFontWeight } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
-import { defineDemo } from './runtime';
+import { defineDemo, MONO } from './runtime';
 
 // A sci-fi spectrum readout. The frame, labels and gauges are drawn once, the heatmap cells and the
 // orientation square redraw every frame.
 
-const W = 1280;
-const H = 720;
-const CX = 640;
-const CY = 360;
-const MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+const W = 720;
+const H = 460;
+const CX = 340;
+const CY = 226;
 const WHITE = 0xf2f2f2;
-const DIM = 0x8a8a8a;
+const DIM = 0x9a9aa2;
 const RED = 0xff2b2b;
+const AMBER = 0xffb020;
 
 // heatmap grid: cells inside a circle around the centre
-const CELL = 11;
-const RADIUS = 150;
+const CELL = 10;
+const RADIUS = 120;
 const GRID = Math.ceil((RADIUS * 2) / CELL);
+// the orientation dial, top right
+const DIAL = { x: 618, y: 122, r: 40 };
 
 const hair = (alpha = 1) => ({ width: 1, color: WHITE, alpha });
 
@@ -39,8 +41,8 @@ const grey = (v: number) => {
 };
 
 export default defineDemo({
+    title: 'Spectrum HUD',
     size: [W, H],
-    background: 0x050505,
     setup({ stage, tick }) {
         const frame = new SilkGraphics();
         const cells = new SilkGraphics();
@@ -50,18 +52,10 @@ export default defineDemo({
 
         stage.addChild(cells, frame, live, texts);
 
-        const text = (
-            value: string,
-            x: number,
-            y: number,
-            size = 8,
-            color = DIM,
-            anchor = 0,
-            weight: TextStyleFontWeight = '400',
-        ) => {
+        const text: TextFn = (value, x, y, size = 11, color = DIM, anchor = 0, weight = '400') => {
             const t = new Text({
                 text: value,
-                style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.6 },
+                style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.4 },
             });
 
             t.anchor.set(anchor, 0.5);
@@ -71,14 +65,9 @@ export default defineDemo({
             return t;
         };
 
-        drawTabs(text);
-        drawWarning(frame, text);
-        drawTitle(text);
+        drawTitle(frame, text);
         drawPlot(frame, text);
-        drawTimeline(frame, text);
-        drawCompassFace(frame, text);
-        drawEdges(frame);
-        drawControls(frame, text);
+        drawDialFace(frame, text);
         drawFooter(frame, text);
 
         tick((t) => {
@@ -87,13 +76,13 @@ export default defineDemo({
             live.clear();
             const a = t * 0.35;
 
-            live.save().translateTransform(1165, 98).rotateTransform(a);
-            live.rect(-11, -11, 22, 22).stroke({ width: 1, color: 0xffb020 });
+            live.save().translateTransform(DIAL.x, DIAL.y).rotateTransform(a);
+            live.rect(-10, -10, 20, 20).stroke({ width: 1.5, color: AMBER });
             live.restore();
-            live.line(1165, 98, 1165 + Math.cos(a - 1.2) * 46, 98 + Math.sin(a - 1.2) * 46).stroke(hair(0.5));
-            const blink = Math.sin(t * 4) > 0 ? 1 : 0.35;
-
-            live.circle(30, 680, 2.5).fill({ color: 0xffb020, alpha: blink });
+            live.line(DIAL.x, DIAL.y, DIAL.x + Math.cos(a - 1.2) * DIAL.r, DIAL.y + Math.sin(a - 1.2) * DIAL.r).stroke(
+                hair(0.5),
+            );
+            live.circle(30, H - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
         });
 
         return undefined;
@@ -138,124 +127,68 @@ function drawCells(g: SilkGraphics, t: number) {
     }
 }
 
-function drawTabs(text: TextFn) {
-    const tabs = [
-        'SPATIAL PREPROCESSING',
-        'SPECTRAL PREPROCESSING',
-        'UNIVARIATE IMAGING',
-        'MULTIVARIATE IMAGING',
-        'IMAGE PROCESSING',
-    ];
-    let x = 30;
-
-    for (const [i, tab] of tabs.entries()) {
-        const label = text(tab, x, 22, 7, i === 1 ? WHITE : DIM);
-
-        x += label.width + 26;
-    }
-}
-
-function drawWarning(g: SilkGraphics, text: TextFn) {
-    text('IRP WARNING THRESHOLD  84%', 1205, 22, 7, WHITE, 1);
-    g.roundRect(1215, 16, 36, 12, 2).fill(RED);
-    text('HIGH', 1233, 22, 6, WHITE, 0.5, '700');
-}
-
-function drawTitle(text: TextFn) {
-    text('06F', 40, 82, 30, WHITE, 0, '700');
-    text('Neptune Spectra  /  Logged', 40, 112, 13, WHITE, 0, '600');
-    text('APHELION', 40, 140, 6);
-    text('30.33 AU (4.54 BILLION KM)', 40, 150, 7, WHITE);
-    text('PERIHELION', 40, 168, 6);
-    text('29.81 AU (4.46 BILLION KM)', 40, 178, 7, WHITE);
-    text('C Time  19:28:24', 40, 486, 7);
-    text('P Time  17:06:47', 40, 498, 7);
+function drawTitle(g: SilkGraphics, text: TextFn) {
+    text('06F', 24, 42, 30, WHITE, 0, '700');
+    text('Neptune Spectra', 24, 76, 13, WHITE, 0, '600');
+    text('APHELION', 24, 108);
+    text('30.33 AU', 24, 124, 12, WHITE);
+    text('PERIHELION', 24, 150);
+    text('29.81 AU', 24, 166, 12, WHITE);
+    g.rect(24, 290, 104, 20).fill(WHITE);
+    text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
+    text('C 19:28:24', 24, 330);
+    text('P 17:06:47', 24, 348);
+    text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
+    g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
+    text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
 }
 
 function drawPlot(g: SilkGraphics, text: TextFn) {
-    g.circle(CX, CY, RADIUS + 18).stroke(hair(0.35));
-    g.rect(CX - 125, CY - 105, 250, 250).stroke(hair(0.9));
-    g.rect(CX - 20, CY - 195, 230, 230).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
-    g.roundRect(CX + 165, CY - 182, 34, 20, 2).fill(WHITE);
-    text('06F', CX + 182, CY - 172, 8, 0x050505, 0.5, '700');
-    for (const [i, exp] of ['10⁻⁰²', '10⁻⁰⁴', '10⁻⁰⁶', '10⁻¹⁴'].entries()) {
-        text(exp, CX - 150, CY - 92 + i * 75, 9, WHITE, 1);
+    g.circle(CX, CY, RADIUS + 14).stroke(hair(0.35));
+    g.rect(CX - 100, CY - 84, 200, 200).stroke(hair(0.9));
+    g.rect(CX - 16, CY - 156, 184, 184).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
+    g.roundRect(CX + 128, CY - 148, 36, 20, 3).fill(WHITE);
+    text('06F', CX + 146, CY - 138, 11, 0x050505, 0.5, '700');
+    for (const [i, exp] of ['1e-2', '1e-4', '1e-6', '1e-8'].entries()) {
+        text(exp, CX - 140, CY - 72 + i * 60, 11, WHITE, 1);
     }
-    for (const [i, tick] of ['0.1', '1.0', '10.0'].entries()) text(tick, CX - 110 + i * 110, CY + 225, 10, WHITE, 0.5);
-    text('ENERGY  [keV]', CX, CY + 250, 6, DIM, 0.5);
-    const axis = text('FLUX  [1 / C M² S]', CX - 196, CY, 6, DIM, 0.5);
-
-    axis.rotation = -Math.PI / 2;
+    for (const [i, tick] of ['0.1', '1.0', '10.0'].entries()) text(tick, CX - 90 + i * 90, CY + 146, 11, WHITE, 0.5);
+    text('ENERGY [keV]', CX, CY + 166, 11, DIM, 0.5);
     g.circle(CX - 6, CY + 2, 1.5).fill(WHITE);
-}
-
-function drawTimeline(g: SilkGraphics, text: TextFn) {
-    const x0 = 560;
-    const y = 74;
-
-    text('TIMELINE', x0 - 14, y, 6, DIM, 1);
-    for (let i = 0; i <= 40; i++) g.rect(x0 + i * 4, y - 2, 1, 4).fill({ color: WHITE, alpha: 0.35 });
-    g.rect(x0 + 30, y - 6, 6, 12).fill(WHITE);
-    for (const [i, m] of ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'].entries()) {
-        text(m, x0 + 20 + i * 30, y - 12, 6, i === 1 ? WHITE : DIM, 0.5);
-    }
-    g.rect(CX - 3, 34, 6, 14).fill(WHITE);
-    g.rect(CX - 3, H - 48, 6, 14).fill(WHITE);
-}
-
-function drawCompassFace(g: SilkGraphics, text: TextFn) {
-    const cx = 1165;
-    const cy = 98;
-
-    g.circle(cx, cy, 46).stroke(hair(0.6));
-    for (let i = 0; i < 36; i++) {
-        const a = (i / 36) * Math.PI * 2;
-        const r0 = i % 9 === 0 ? 40 : 43;
-
-        g.line(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * 46, cy + Math.sin(a) * 46).stroke(
-            hair(0.6),
-        );
-    }
-    text('0°', cx, cy - 56, 7, WHITE, 0.5);
-    text('90°', cx + 58, cy, 7, WHITE, 0);
-    text('180°', cx, cy + 56, 7, WHITE, 0.5);
-    text('-90°', cx - 58, cy, 7, WHITE, 1);
-    text('ROT  -17°', 1140, 168, 6);
-    text('SEQ  1.42', 1140, 180, 6);
-}
-
-function drawEdges(g: SilkGraphics) {
-    g.line(20, CY, 200, CY).stroke(hair(0.3));
-    g.line(W - 200, CY, W - 20, CY).stroke(hair(0.3));
+    // the cross hair, out to the edges
     g.line(CX - RADIUS - 40, CY, CX - RADIUS - 18, CY).stroke(hair(0.6));
     g.line(CX + RADIUS + 18, CY, CX + RADIUS + 40, CY).stroke(hair(0.6));
-    for (const x of [24, W - 24]) {
-        g.circle(x, CY, 2).fill(WHITE);
-        g.line(x, CY - 5, x, CY + 5).stroke(hair(0.8));
-    }
-    for (const x of [CX - 270, CX + 270]) g.circle(x, CY, 2).fill(WHITE);
+    g.rect(CX - 3, 18, 6, 12).fill(WHITE);
 }
 
-function drawControls(g: SilkGraphics, text: TextFn) {
-    text('R', 1214, 548, 11, WHITE, 0.5, '700');
-    for (const [i, flip] of [false, true].entries()) {
-        const y = 584 + i * 34;
+function drawDialFace(g: SilkGraphics, text: TextFn) {
+    const { x, y, r } = DIAL;
 
-        g.rect(1200, y - 12, 28, 24).stroke(hair(0.8));
+    g.circle(x, y, r).stroke(hair(0.6));
+    for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const r0 = i % 9 === 0 ? r - 7 : r - 3;
+
+        g.line(x + Math.cos(a) * r0, y + Math.sin(a) * r0, x + Math.cos(a) * r, y + Math.sin(a) * r).stroke(hair(0.6));
+    }
+    text('0', x, y - r - 12, 11, WHITE, 0.5);
+    text('90', x + r + 8, y, 11, WHITE, 0);
+    text('180', x, y + r + 12, 11, WHITE, 0.5);
+    text('-90', x - r - 8, y, 11, WHITE, 1);
+    text('ROT -17', x - r, y + r + 40);
+    text('SEQ 1.42', x - r, y + r + 58);
+    // play controls
+    for (const [i, flip] of [false, true].entries()) {
+        const cy = 300 + i * 32;
         const s = flip ? -1 : 1;
 
-        g.triangle(1214 - 5 * s, y - 6, 1214 - 5 * s, y + 6, 1214 + 6 * s, y).fill(WHITE);
+        g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
+        g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
     }
 }
 
 function drawFooter(g: SilkGraphics, text: TextFn) {
-    text('SPECTRA / 06F', 46, 452, 7, 0x050505, 0, '700');
-    g.rect(34, 444, 80, 16).fill(WHITE);
-    text('FLUX  [1 / C M² S]', 42, 680, 6);
-    text('ENERGY  [keV]', 42, 694, 6);
-    g.rect(27, 691, 6, 6).fill(DIM);
-    text('Selection  LDK 06F', 80, 700, 10, WHITE);
-    text('Form A', 560, 700, 10, WHITE);
-    text('1039 / 3972  E', 620, 700, 10, WHITE);
-    text('Show Log', W - 30, 700, 7, WHITE, 1);
+    g.line(24, H - 52, W - 24, H - 52).stroke(hair(0.2));
+    text('Selection  LDK 06F', 44, H - 30, 12, WHITE);
+    text('Form A  1039 / 3972', W - 24, H - 30, 12, WHITE, 1);
 }
