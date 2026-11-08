@@ -82,13 +82,12 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas, with outlines, glows, gradients and tabular numbers. It lives in pixi-silk/text. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
 - [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/): TextEditor turns a SilkText into a text layer people click and type into: caret, selection, undo, clipboard, forms and input methods, on the canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/editing-text.md)
 
-### Game UI
+### Interface
 
-- [Game UI overview](https://pixi-silk.schmooky.dev/docs/game-ui/): Buttons, radial menus, layout, input and motion, and the controls of a slot game HUD.
+- [Interface overview](https://pixi-silk.schmooky.dev/docs/ui/): Buttons, radial menus, responsive layout, hit testing and motion for canvas interfaces.
 - [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): RadialMenu is a marking menu with nested rings and per-device tuning. SilkButton animates in and out and ignores input while it moves or is busy. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
-- [Layout and smart containers](https://pixi-silk.schmooky.dev/docs/layout/): Place HUD boxes on any screen with portrait, landscape and named breakpoint records, then lay out what is inside them with flexbox. pixi-silk/ui/layout. (Markdown: https://pixi-silk.schmooky.dev/docs/layout.md)
+- [Layout and smart containers](https://pixi-silk.schmooky.dev/docs/layout/): Place blocks on portrait and landscape screens with SmartContainer records and breakpoints, then lay out what is inside them with flexbox. pixi-silk/ui/layout. (Markdown: https://pixi-silk.schmooky.dev/docs/layout.md)
 - [Interaction and motion](https://pixi-silk.schmooky.dev/docs/interaction-and-motion/): Pointer events test the painted shape, so rings are hollow and lines react only on their stroke. damp, Spring and ease move things the same at any refresh rate. (Markdown: https://pixi-silk.schmooky.dev/docs/interaction-and-motion.md)
-- [Slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/): Copyable slot HUD controls from pixi-silk widgets: a spin button with autoplay, an odometer balance, win meters, free-spin pips and a dock that steps aside. (Markdown: https://pixi-silk.schmooky.dev/docs/slot-hud.md)
 
 ### Editor kit
 
@@ -225,7 +224,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Do pointer events work on SilkGraphics?](https://pixi-silk.schmooky.dev/faq/#do-pointer-events-work-on-silkgraphics)
 - [Why does my SmartContainer not move or scale?](https://pixi-silk.schmooky.dev/faq/#why-does-my-smartcontainer-not-move-or-scale)
 - [How close is the layout engine to CSS flexbox?](https://pixi-silk.schmooky.dev/faq/#how-close-is-the-layout-engine-to-css-flexbox)
-- [Are the slot game HUD controls part of pixi-silk?](https://pixi-silk.schmooky.dev/faq/#are-the-slot-game-hud-controls-part-of-pixi-silk)
+- [How do I animate a counter or a balance?](https://pixi-silk.schmooky.dev/faq/#how-do-i-animate-a-counter-or-a-balance)
 - [Is the editor kit stable?](https://pixi-silk.schmooky.dev/faq/#is-the-editor-kit-stable)
 - [Does the editor kit keep my document?](https://pixi-silk.schmooky.dev/faq/#does-the-editor-kit-keep-my-document)
 - [Do I need DOM panels over the canvas for a scene editor?](https://pixi-silk.schmooky.dev/faq/#do-i-need-dom-panels-over-the-canvas-for-a-scene-editor)

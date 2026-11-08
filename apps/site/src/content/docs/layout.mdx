@@ -1,33 +1,34 @@
 ---
 title: Layout and smart containers
-seoTitle: 'Smart containers and flexbox layout for PixiJS games'
-description: 'Place HUD boxes on any screen with portrait, landscape and named breakpoint records, then lay out what is inside them with flexbox. pixi-silk/ui/layout.'
-keywords: ['PixiJS layout', 'slot game HUD', 'reference resolution', 'responsive canvas UI', 'flexbox', 'safe area']
+seoTitle: 'Responsive containers and flexbox layout for PixiJS'
+description: 'Place blocks on portrait and landscape screens with SmartContainer records and breakpoints, then lay out what is inside them with flexbox. pixi-silk/ui/layout.'
+keywords: ['PixiJS layout', 'responsive container', 'reference resolution', 'responsive canvas UI', 'flexbox', 'safe area']
 updated: 2026-11-08
 api: [SmartContainer, FlexContainer, layoutDebug, simulateViewport, placeBox]
 ---
 
-`SmartContainer` places a whole block on the screen, such as a HUD corner, the reels or a bottom
-bar. `FlexContainer` arranges children inside a block with flexbox. Both come from
+`SmartContainer` places a whole block on the screen, such as a corner readout, the main view or a
+bottom bar, on portrait and landscape screens. `FlexContainer` arranges children inside a block with flexbox. Both come from
 `pixi-silk/ui/layout`.
 
-## Place a HUD on any screen
+## Place blocks on portrait and landscape screens
 
 <Demo name="layout-hud" height={520} caption="Pick a device. Tick debug, or press L over the demo, for the layout overlay." />
 
-The HUD above is five SmartContainers. The balance pins to the top left, the menu to the top right,
-the reels stay centred, the bar runs along the bottom and the background covers the whole window.
+The screen above is five SmartContainers. One readout pins to the top left and the menu to the top
+right. The main view stays centred, the bar runs along the bottom and the background covers the
+whole window.
 
 ```ts
 import { SmartContainer } from 'pixi-silk/ui/layout';
 
-const reels = new SmartContainer({
+const main = new SmartContainer({
     viewport: app,
     portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
     landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
 });
 
-app.stage.addChild(reels);
+app.stage.addChild(main);
 ```
 
 The container follows `app` and lays out again on every resize. It uses `portraitData` when the
@@ -35,9 +36,7 @@ window is taller than wide and `landscapeData` otherwise. Without a `viewport` a
 does nothing: it has no window to place itself in.
 
 The scale is the window size over the reference resolution, the smaller ratio, or the larger one
-with `fitCover`. Stretch replaces it per axis, and the corrections apply last. The record names
-and numbers match the SmartContainer many slot games already use, so a game can bring its records
-over unchanged. `placeBox(record, window)` gives the same placement without a container.
+with `fitCover`. Stretch replaces it per axis, and the corrections apply last. `placeBox(record, window)` gives the same placement without a container.
 
 ### Layout records
 
@@ -102,14 +101,14 @@ const bar = new SmartContainer({
     portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
     landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
 });
-const spin = new Container();
+const play = new Container();
 
-bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+bar.add(play, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
 ```
 
 ## Arrange children with flexbox
 
-<Demo name="layout-stack" height={420} caption="Change the item count, direction, gap and alignment. Hover a card to read its slot." />
+<Demo name="layout-stack" height={420} caption="Change the item count, direction, gap and alignment. Hover a card to read its box." />
 
 ```ts
 import { FlexContainer } from 'pixi-silk/ui/layout';
@@ -122,9 +121,9 @@ row.add(new Text({ text: 'Balance' }), { grow: 1 });
 row.resize(480, 80);
 ```
 
-The coin takes a 48 by 48 slot and the label takes the rest of the row. Call `resize(width, height)`
+The coin takes a 48 by 48 box and the label takes the rest of the row. Call `resize(width, height)`
 on a root FlexContainer, or nest it in another FlexContainer or a SmartContainer. A SmartContainer
-inside a FlexContainer places itself and takes no slot.
+inside a FlexContainer places itself and takes no space.
 
 Give a child a style with `add(child, style)` or `setLayout(child, style)`. A child is measured by
 its local bounds, or by the style's `measure` (for wrapped text, use the `wrapText` helper). Pixi
@@ -138,12 +137,12 @@ off the ticker.
 | Option | Default | What it does |
 | --- | --- | --- |
 | `layout` | none | The container's own flex style |
-| `transition` | false | Children glide to new slots on springs, scale included. `true` is stiffness 170, damping 26 |
+| `transition` | false | Children glide to their new places on springs, scale included. `true` is stiffness 170, damping 26 |
 | `watch` | false | Check the children's bounds every frame and lay out again when they change |
 | `onLayout` | none | Called after every layout pass |
 | `ticker` | `Ticker.shared` | `null` to call `tick()` yourself |
 
-A child with `animate: false` never glides. A child with `onSize` is called with its slot size
+A child with `animate: false` never glides. A child with `onSize` is called with its box size
 whenever that changes, which suits a panel background. Such a child measures as zero, so size it
 with `inset`, `grow` or a size:
 
@@ -161,25 +160,25 @@ panel.add(bg, {
 });
 ```
 
-## Fit art and shrink text into a slot
+## Fit art and shrink text into a box
 
-<Demo name="layout-fit" height={360} caption="Resize the slots and move fitAlign. The last slot holds a long text." />
+<Demo name="layout-fit" height={360} caption="Change the box size and move fitAlign. The last box holds a long text." />
 
-`fit` scales a child into its slot, like CSS `object-fit`.
+`fit` scales a child into its box, like CSS `object-fit`.
 
 | Value | What it does |
 | --- | --- |
 | `none` | Keeps the child's size. The default |
-| `contain` | Fits inside the slot |
-| `cover` | Fills the slot and overflows. Mask the slot, not the child: a masked child measures only what its mask shows |
+| `contain` | Fits inside the box |
+| `cover` | Fills the box and overflows. Mask the box, not the child: a masked child measures only what its mask shows |
 | `scale-down` | `contain` that never enlarges |
 | `fill` | Stretches both axes |
 
-`fitAlign` places the child in its slot, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
+`fitAlign` places the child in its box, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
 default is the centre. `minScale` and `maxScale` clamp the fit scale.
 
 Text shrink-to-fit is `fit: 'scale-down'` with a floor. The text keeps its size while it fits and
-scales down when its slot gets narrow, never below `minScale`:
+scales down when its box gets narrow, never below `minScale`:
 
 ```ts
 import { FlexContainer } from 'pixi-silk/ui/layout';
@@ -230,7 +229,7 @@ sim.setDevice('phone landscape');
 
 `layoutDebug` draws over the stage and is off until you toggle it with the key. For a
 SmartContainer it shows the design box with its breakpoint and scale, the reference resolution in
-purple, the safe area in orange and stretched axes in yellow. For a FlexContainer it shows slots in
+purple, the safe area in orange and stretched axes in yellow. For a FlexContainer it shows boxes in
 blue, padding in green, gaps in pink and real bounds in white, or red when a child overflows.
 
 `simulateViewport` shows a device window inside a desktop page, scaled to fit and letterboxed.
@@ -239,7 +238,7 @@ the preset sizes, and a `[width, height]` pair works too.
 
 ## Where it stops
 
-The layout runs on the CPU in your frame, once per change. Rotated children keep their slot but
+The layout runs on the CPU in your frame, once per change. Rotated children keep their box but
 are measured unrotated. The engine has no `order`, `overflow` or borders, and an item's default
 minimum size is 0, not its content. [Layout engine](/docs/layout-engine/#differences-from-css)
 lists every difference from CSS.

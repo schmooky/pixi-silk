@@ -75,7 +75,7 @@ import { LayoutNode } from 'pixi-silk/layout';
 
 const charWidth = 9;
 const lineHeight = 20;
-const copy = 'Free spins start on three scatters';
+const copy = 'Tap a card to open it in full view';
 
 const text = new LayoutNode({}, (availableWidth) => {
     const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
@@ -112,4 +112,4 @@ The engine follows CSS where results differ in practice. A few things are simple
 | Not there | `order`, `overflow`, borders and `flex-basis: content` |
 
 The engine knows nothing about transforms. FlexContainer measures rotated children unrotated and
-gives them their slot as if they were not rotated.
+gives them their box as if they were not rotated.

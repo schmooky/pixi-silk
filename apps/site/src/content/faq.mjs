@@ -86,26 +86,26 @@ export const FAQ = [
         q: 'Do IME and mobile keyboards work in the text editor?',
         a: '`TextEditor` types through a hidden `<textarea>` that follows the caret, so input methods, mobile keyboards, autocorrect and the clipboard work. Spell check underlines do not show.',
     },
-    // Game UI
+    // Interface
     {
-        area: 'game-ui',
+        area: 'ui',
         q: 'Do pointer events work on SilkGraphics?',
         a: "Yes. Set `eventMode = 'static'` and listen as usual. Hit tests use the real shapes, so a stroked circle is hollow and a line reacts only within its stroke width.",
     },
     {
-        area: 'game-ui',
+        area: 'ui',
         q: 'Why does my SmartContainer not move or scale?',
         a: 'It needs a `viewport`: pass the Pixi `Application`, a signal or a rectangle as `viewport` or call `setViewport()`. Without one it has no window to place itself in.',
     },
     {
-        area: 'game-ui',
+        area: 'ui',
         q: 'How close is the layout engine to CSS flexbox?',
         a: "It follows flexbox for direction, wrap, grow, shrink, gaps and alignment. It has no `order`, `overflow` or borders, and an item's default minimum size is 0, not its content size.",
     },
     {
-        area: 'game-ui',
-        q: 'Are the slot game HUD controls part of pixi-silk?',
-        a: 'The spin button, autoplay picker, meters and wallet are site examples built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the demo file and restyle it.',
+        area: 'ui',
+        q: 'How do I animate a counter or a balance?',
+        a: 'Use `Odometer` from `pixi-silk/ui/odometer`. `set(value)` rolls each digit column to the new value, and `skip()` jumps to the end.',
     },
     // Editor kit
     {

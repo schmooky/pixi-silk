@@ -64,22 +64,28 @@ The menu tints them, so a hover colour costs no redraw.
 ```ts
 import { SilkButton } from 'pixi-silk/ui/button';
 
-const spin = new SilkButton({ shape: 'circle', height: 76, icon: drawPlay, holdMs: 450, onPress: spinOnce, onHold: autoplay });
-const turbo = new SilkButton({ label: 'Turbo' });
+const play = new SilkButton({
+    shape: 'circle',
+    height: 76,
+    icon: drawPlay,
+    holdMs: 450,
+    onPress: () => console.log('play'),
+    onHold: () => console.log('play on repeat'),
+});
+const share = new SilkButton({ label: 'Share' });
 
-await turbo.hide();        // resolves when the animation ends
-spin.state.busy.set(true); // spinner, input off
-spin.state.active.subscribe((on) => console.log('accepts input', on));
+await share.hide();        // resolves when the animation ends
+play.state.busy.set(true); // spinner, input off
+play.state.active.subscribe((on) => console.log('accepts input', on));
 ```
 
 A button accepts input only when it is shown, settled, enabled and not busy. That is what keeps a
-spin button from being pressed twice. `show()` and `hide()` return promises that resolve `false`
+save button from being pressed twice while it saves. `show()` and `hide()` return promises that resolve `false`
 if the animation was reversed half way. A press that slides a little off the button still counts
 on release, within `hitPadding` (6 by default).
 
-`ButtonDock` from `pixi-silk/ui/dock` lines buttons up and closes the gap when one hides. Slot
-sizes follow each button's animated appearance, so the reflow and the fade move together. The
-[slot HUD](/docs/slot-hud/#a-dock-that-steps-aside) page shows a dock in a game bar.
+`ButtonDock` from `pixi-silk/ui/dock` lines buttons up and closes the gap when one hides. Each
+button's space follows its animated appearance, so the reflow and the fade move together.
 
 ## State in signals
 
@@ -90,13 +96,13 @@ dependency tracking, so it plugs into React, MobX or plain callbacks.
 ```ts
 import { batch, computed, signal } from 'pixi-silk/signal';
 
-const bet = signal(1);
-const label = computed([bet], () => `bet ${bet.value}`);
+const volume = signal(1);
+const label = computed([volume], () => `volume ${volume.value}`);
 
-bet.subscribe((now, before) => console.log(before, '->', now));
+volume.subscribe((now, before) => console.log(before, '->', now));
 batch(() => {
-    bet.set(2);
-    bet.set(3);
+    volume.set(2);
+    volume.set(3);
 }); // one notification
 ```
 

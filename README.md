@@ -45,7 +45,7 @@ imports.
 | `pixi-silk/layout`, `pixi-silk/ui/layout` | A flex layout engine and the Pixi containers built on it |
 | `pixi-silk/glass`, `pixi-silk/glow` | Glass and glow filters |
 | `pixi-silk/webgpu` | The WGSL shader, for WebGPU in your own Pixi app |
-| `pixi-silk/ui/*` | Buttons, radial menus, slot HUD pieces and the editor kit |
+| `pixi-silk/ui/*` | Buttons, radial menus, counters and the editor kit |
 
 [Choose an entry point](https://pixi-silk.schmooky.dev/docs/choose-an-entry-point/) lists every
 subpath. The editor kit (camera, rulers, gizmos, pickers, panels) is experimental in 1.0: its API

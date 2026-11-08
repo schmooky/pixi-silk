@@ -39,9 +39,10 @@ export default defineConfig({
         '/docs/antialiasing-in-pixijs/': '/docs/anti-aliasing-compared/',
         '/docs/start/': '/docs/learn/',
         '/docs/drawing/': '/docs/shapes-and-strokes/',
-        '/docs/ui/': '/docs/game-ui/',
         '/docs/editor-ui/': '/docs/editor-kit/',
         '/docs/rendering/': '/docs/architecture/',
+        '/docs/game-ui/': '/docs/ui/',
+        '/docs/slot-hud/': '/docs/radial-menus-and-buttons/',
         // lab experiments cut for 1.0: each repeated a demo on its page
         '/lab/02-versus/': '/docs/migrating-from-graphics/',
         '/lab/08-activity-rings/': '/docs/shapes/',

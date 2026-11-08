@@ -2,9 +2,9 @@
 title: Interaction and motion
 seoTitle: 'PixiJS hit testing and frame-rate independent motion'
 description: 'Pointer events test the painted shape, so rings are hollow and lines react only on their stroke. damp, Spring and ease move things the same at any refresh rate.'
-keywords: ['PixiJS hit test', 'containsPoint', 'pointer events shapes', 'frame-rate independent animation', 'spring animation', 'PixiJS animation']
+keywords: ['PixiJS hit test', 'containsPoint', 'pointer events shapes', 'frame-rate independent animation', 'spring animation', 'PixiJS animation', 'odometer counter']
 updated: 2026-11-08
-api: [SilkGraphics, damp, dampAngle, Spring, ease]
+api: [SilkGraphics, damp, dampAngle, Spring, ease, Odometer]
 ---
 
 A SilkGraphics answers pointer events with the shape it paints, not its bounding box. The motion
@@ -75,6 +75,38 @@ you when to stop redrawing.
 | `dampAngle` | current, target, lambda, dt | An angle, the short way round |
 | `Spring` | value (0), stiffness (170), damping (26) | Motion with overshoot and a settle |
 | `ease` | t from 0 to 1 | Timed tweens |
+
+## Roll a number with an odometer
+
+<Demo name="odometer" height={240} caption="Tap to add an amount. Tap again while it counts to skip to the end." />
+
+```ts
+import { Odometer } from 'pixi-silk/ui/odometer';
+
+const total = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+
+total.set(9800); // counts up, longer for bigger jumps
+total.skip(); // straight to the end
+total.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
+```
+
+Every digit column rolls on its own. A column moves only while the one below it passes from 9 to
+0, so carries ripple like a mechanical counter. Glyphs come from a bitmap font made from the text
+style, so a frame only moves them, and one mask clips them all. `format(value)` returns the same
+text without rolling, for labels and screen readers.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `value` | 0 | Start value |
+| `decimals` | 0 | Digits after the point |
+| `prefix`, `suffix` | none | Text around the number, such as a currency |
+| `thousands`, `point` | `,` and `.` | Separators. `''` turns thousands off |
+| `minDigits` | 1 | Smallest number of whole digits |
+| `fontSize`, `color`, `textStyle` | 32, white | The look of the digits |
+| `duration` | 0.9 | Count-up time in seconds for a small change |
+| `speedUp` | true | Bigger jumps count for longer, up to three times |
+| `easing` | `outCubic` | Easing of the count |
+| `onDone` | none | Called with the value when the count ends |
 
 ## Redraw every frame
 

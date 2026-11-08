@@ -91,16 +91,16 @@ export const DOCS_AREAS = [
         items: ['text', 'editing-text'],
     },
     {
-        id: 'game-ui',
-        title: 'Game UI',
+        id: 'ui',
+        title: 'Interface',
         section: 'features',
-        summary: 'Buttons, radial menus, layout, input and motion, and the controls of a slot game HUD.',
+        summary: 'Buttons, radial menus, responsive layout, hit testing and motion for canvas interfaces.',
         intro: [
-            'Ready-made widgets for game screens, each under its own pixi-silk/ui entry point.',
-            'Layout places them. Interaction and motion cover hit testing and springs. The slot HUD page puts them together.',
+            'Ready-made widgets for canvas interfaces, each under its own pixi-silk/ui entry point.',
+            'Layout places them on portrait and landscape screens. Interaction and motion cover hit testing, springs and the odometer.',
         ],
-        items: ['radial-menus-and-buttons', 'layout', 'interaction-and-motion', 'slot-hud'],
-        aliases: ['ui', 'building-ui'],
+        items: ['radial-menus-and-buttons', 'layout', 'interaction-and-motion'],
+        aliases: ['game-ui', 'building-ui'],
     },
     {
         id: 'editor-kit',

@@ -345,15 +345,15 @@ The UI widgets, text, layout, glass, glow and the WebGPU shader are not in the r
 | `pixi-silk/glass` | `Glass`, `GlassFilter` | you want frosted panels. See [Glass & glow](https://pixi-silk.schmooky.dev/docs/glass-and-glow/) |
 | `pixi-silk/glow` | `Glow`, `Aurora`, `neon`, `halo`, `shadowStack`, light rays | you want neon, halos or light beams |
 
-## Game UI widgets
+## Interface widgets
 
 | Import | What it holds | Page |
 |---|---|---|
 | `pixi-silk/ui/button` | `SilkButton` | [Radial menus & buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/) |
 | `pixi-silk/ui/radial` | `RadialMenu`, `bindRadialTrigger` | [Radial menus & buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/) |
-| `pixi-silk/ui/dock` | `ButtonDock` | [Slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/) |
-| `pixi-silk/ui/odometer` | `Odometer` | [Slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/) |
-| `pixi-silk/ui/pill` | `ValuePill` | [Slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/) |
+| `pixi-silk/ui/dock` | `ButtonDock` | [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/) |
+| `pixi-silk/ui/odometer` | `Odometer` | [Interaction and motion](https://pixi-silk.schmooky.dev/docs/interaction-and-motion/) |
+| `pixi-silk/ui/pill` | `ValuePill` | [Gizmos and selection](https://pixi-silk.schmooky.dev/docs/gizmos-and-selection/) |
 | `pixi-silk/ui/gesture` | `trackGesture` | [Interaction & motion](https://pixi-silk.schmooky.dev/docs/interaction-and-motion/) |
 | `pixi-silk/ui/textedit` | `TextEditor` | [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/) |
 
@@ -493,7 +493,7 @@ do not react.
 
 ## The ready-made button
 
-`SilkButton` from `pixi-silk/ui/button` does all of this and handles the cases a game needs.
+`SilkButton` from `pixi-silk/ui/button` does all of this and handles the cases an app needs.
 
 ```ts
 
@@ -3651,7 +3651,7 @@ Spell check underlines do not show, because the hidden field is invisible.
 # Radial menus and buttons
 
 URL: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/
-Section: Game UI
+Section: Interface
 
 > RadialMenu is a marking menu with nested rings and per-device tuning. SilkButton animates in and out and ignores input while it moves or is busy.
 
@@ -3847,22 +3847,28 @@ The menu tints them, so a hover colour costs no redraw.
 
 ```ts
 
-const spin = new SilkButton({ shape: 'circle', height: 76, icon: drawPlay, holdMs: 450, onPress: spinOnce, onHold: autoplay });
-const turbo = new SilkButton({ label: 'Turbo' });
+const play = new SilkButton({
+    shape: 'circle',
+    height: 76,
+    icon: drawPlay,
+    holdMs: 450,
+    onPress: () => console.log('play'),
+    onHold: () => console.log('play on repeat'),
+});
+const share = new SilkButton({ label: 'Share' });
 
-await turbo.hide();        // resolves when the animation ends
-spin.state.busy.set(true); // spinner, input off
-spin.state.active.subscribe((on) => console.log('accepts input', on));
+await share.hide();        // resolves when the animation ends
+play.state.busy.set(true); // spinner, input off
+play.state.active.subscribe((on) => console.log('accepts input', on));
 ```
 
 A button accepts input only when it is shown, settled, enabled and not busy. That is what keeps a
-spin button from being pressed twice. `show()` and `hide()` return promises that resolve `false`
+save button from being pressed twice while it saves. `show()` and `hide()` return promises that resolve `false`
 if the animation was reversed half way. A press that slides a little off the button still counts
 on release, within `hitPadding` (6 by default).
 
-`ButtonDock` from `pixi-silk/ui/dock` lines buttons up and closes the gap when one hides. Slot
-sizes follow each button's animated appearance, so the reflow and the fade move together. The
-[slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/#a-dock-that-steps-aside) page shows a dock in a game bar.
+`ButtonDock` from `pixi-silk/ui/dock` lines buttons up and closes the gap when one hides. Each
+button's space follows its animated appearance, so the reflow and the fade move together.
 
 ## State in signals
 
@@ -3872,13 +3878,13 @@ dependency tracking, so it plugs into React, MobX or plain callbacks.
 
 ```ts
 
-const bet = signal(1);
-const label = computed([bet], () => `bet ${bet.value}`);
+const volume = signal(1);
+const label = computed([volume], () => `volume ${volume.value}`);
 
-bet.subscribe((now, before) => console.log(before, '->', now));
+volume.subscribe((now, before) => console.log(before, '->', now));
 batch(() => {
-    bet.set(2);
-    bet.set(3);
+    volume.set(2);
+    volume.set(3);
 }); // one notification
 ```
 
@@ -3891,15 +3897,15 @@ application's ticker, or `null` to step them yourself with `tick(dt)`.
 # Layout and smart containers
 
 URL: https://pixi-silk.schmooky.dev/docs/layout/
-Section: Game UI
+Section: Interface
 
-> Place HUD boxes on any screen with portrait, landscape and named breakpoint records, then lay out what is inside them with flexbox. pixi-silk/ui/layout.
+> Place blocks on portrait and landscape screens with SmartContainer records and breakpoints, then lay out what is inside them with flexbox. pixi-silk/ui/layout.
 
-`SmartContainer` places a whole block on the screen, such as a HUD corner, the reels or a bottom
-bar. `FlexContainer` arranges children inside a block with flexbox. Both come from
+`SmartContainer` places a whole block on the screen, such as a corner readout, the main view or a
+bottom bar, on portrait and landscape screens. `FlexContainer` arranges children inside a block with flexbox. Both come from
 `pixi-silk/ui/layout`.
 
-## Place a HUD on any screen
+## Place blocks on portrait and landscape screens
 
 Live demo `layout-hud` (source):
 
@@ -4097,18 +4103,19 @@ export default defineDemo({
 });
 ```
 
-The HUD above is five SmartContainers. The balance pins to the top left, the menu to the top right,
-the reels stay centred, the bar runs along the bottom and the background covers the whole window.
+The screen above is five SmartContainers. One readout pins to the top left and the menu to the top
+right. The main view stays centred, the bar runs along the bottom and the background covers the
+whole window.
 
 ```ts
 
-const reels = new SmartContainer({
+const main = new SmartContainer({
     viewport: app,
     portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
     landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
 });
 
-app.stage.addChild(reels);
+app.stage.addChild(main);
 ```
 
 The container follows `app` and lays out again on every resize. It uses `portraitData` when the
@@ -4116,9 +4123,7 @@ window is taller than wide and `landscapeData` otherwise. Without a `viewport` a
 does nothing: it has no window to place itself in.
 
 The scale is the window size over the reference resolution, the smaller ratio, or the larger one
-with `fitCover`. Stretch replaces it per axis, and the corrections apply last. The record names
-and numbers match the SmartContainer many slot games already use, so a game can bring its records
-over unchanged. `placeBox(record, window)` gives the same placement without a container.
+with `fitCover`. Stretch replaces it per axis, and the corrections apply last. `placeBox(record, window)` gives the same placement without a container.
 
 ### Layout records
 
@@ -4180,9 +4185,9 @@ const bar = new SmartContainer({
     portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
     landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
 });
-const spin = new Container();
+const play = new Container();
 
-bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+bar.add(play, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
 ```
 
 ## Arrange children with flexbox
@@ -4301,9 +4306,9 @@ row.add(new Text({ text: 'Balance' }), { grow: 1 });
 row.resize(480, 80);
 ```
 
-The coin takes a 48 by 48 slot and the label takes the rest of the row. Call `resize(width, height)`
+The coin takes a 48 by 48 box and the label takes the rest of the row. Call `resize(width, height)`
 on a root FlexContainer, or nest it in another FlexContainer or a SmartContainer. A SmartContainer
-inside a FlexContainer places itself and takes no slot.
+inside a FlexContainer places itself and takes no space.
 
 Give a child a style with `add(child, style)` or `setLayout(child, style)`. A child is measured by
 its local bounds, or by the style's `measure` (for wrapped text, use the `wrapText` helper). Pixi
@@ -4317,12 +4322,12 @@ off the ticker.
 | Option | Default | What it does |
 | --- | --- | --- |
 | `layout` | none | The container's own flex style |
-| `transition` | false | Children glide to new slots on springs, scale included. `true` is stiffness 170, damping 26 |
+| `transition` | false | Children glide to their new places on springs, scale included. `true` is stiffness 170, damping 26 |
 | `watch` | false | Check the children's bounds every frame and lay out again when they change |
 | `onLayout` | none | Called after every layout pass |
 | `ticker` | `Ticker.shared` | `null` to call `tick()` yourself |
 
-A child with `animate: false` never glides. A child with `onSize` is called with its slot size
+A child with `animate: false` never glides. A child with `onSize` is called with its box size
 whenever that changes, which suits a panel background. Such a child measures as zero, so size it
 with `inset`, `grow` or a size:
 
@@ -4338,7 +4343,7 @@ panel.add(bg, {
 });
 ```
 
-## Fit art and shrink text into a slot
+## Fit art and shrink text into a box
 
 Live demo `layout-fit` (source):
 
@@ -4448,21 +4453,21 @@ export default defineDemo({
 });
 ```
 
-`fit` scales a child into its slot, like CSS `object-fit`.
+`fit` scales a child into its box, like CSS `object-fit`.
 
 | Value | What it does |
 | --- | --- |
 | `none` | Keeps the child's size. The default |
-| `contain` | Fits inside the slot |
-| `cover` | Fills the slot and overflows. Mask the slot, not the child: a masked child measures only what its mask shows |
+| `contain` | Fits inside the box |
+| `cover` | Fills the box and overflows. Mask the box, not the child: a masked child measures only what its mask shows |
 | `scale-down` | `contain` that never enlarges |
 | `fill` | Stretches both axes |
 
-`fitAlign` places the child in its slot, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
+`fitAlign` places the child in its box, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
 default is the centre. `minScale` and `maxScale` clamp the fit scale.
 
 Text shrink-to-fit is `fit: 'scale-down'` with a floor. The text keeps its size while it fits and
-scales down when its slot gets narrow, never below `minScale`:
+scales down when its box gets narrow, never below `minScale`:
 
 ```ts
 
@@ -4509,7 +4514,7 @@ sim.setDevice('phone landscape');
 
 `layoutDebug` draws over the stage and is off until you toggle it with the key. For a
 SmartContainer it shows the design box with its breakpoint and scale, the reference resolution in
-purple, the safe area in orange and stretched axes in yellow. For a FlexContainer it shows slots in
+purple, the safe area in orange and stretched axes in yellow. For a FlexContainer it shows boxes in
 blue, padding in green, gaps in pink and real bounds in white, or red when a child overflows.
 
 `simulateViewport` shows a device window inside a desktop page, scaled to fit and letterboxed.
@@ -4518,7 +4523,7 @@ the preset sizes, and a `[width, height]` pair works too.
 
 ## Where it stops
 
-The layout runs on the CPU in your frame, once per change. Rotated children keep their slot but
+The layout runs on the CPU in your frame, once per change. Rotated children keep their box but
 are measured unrotated. The engine has no `order`, `overflow` or borders, and an item's default
 minimum size is 0, not its content. [Layout engine](https://pixi-silk.schmooky.dev/docs/layout-engine/#differences-from-css)
 lists every difference from CSS.
@@ -4528,7 +4533,7 @@ lists every difference from CSS.
 # Interaction and motion
 
 URL: https://pixi-silk.schmooky.dev/docs/interaction-and-motion/
-Section: Game UI
+Section: Interface
 
 > Pointer events test the painted shape, so rings are hollow and lines react only on their stroke. damp, Spring and ease move things the same at any refresh rate.
 
@@ -4683,334 +4688,6 @@ you when to stop redrawing.
 | `Spring` | value (0), stiffness (170), damping (26) | Motion with overshoot and a settle |
 | `ease` | t from 0 to 1 | Timed tweens |
 
-## Redraw every frame
-
-The simplest animation clears and redraws in the ticker. `clear()` keeps the GPU buffers, so a
-redraw only uploads the new primitive data.
-
-```ts
-app.ticker.add((ticker) => {
-    const t = ticker.lastTime / 1000;
-
-    g.clear();
-    g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 2 * (0.5 + 0.4 * Math.sin(t))).stroke({ width: 12, cap: 'round', color: 0x30d158 });
-});
-```
-
-Put the parts that do not move in a second SilkGraphics and draw it once.
-[Performance](https://pixi-silk.schmooky.dev/docs/performance/) has the numbers for large scenes.
-
-Slow shapes glide between pixels instead of snapping, because silk renders coordinates as given
-and `createSilkApp` turns pixel rounding off. The [sub-pixel experiment](https://pixi-silk.schmooky.dev/lab/04-subpixel/) shows it.
-
----
-
-# Slot HUD
-
-URL: https://pixi-silk.schmooky.dev/docs/slot-hud/
-Section: Game UI
-
-> Copyable slot HUD controls from pixi-silk widgets: a spin button with autoplay, an odometer balance, win meters, free-spin pips and a dock that steps aside.
-
-The odometer, the dial, the buttons and the dock on this page are library widgets. The spin
-button, the meters and the pips are examples, built from `SilkGraphics`, `Spring` and `damp`,
-signals, `trackGesture` and `RadialMenu`. Each demo is one file: open it in Studio, copy it into
-your game and restyle it.
-
-## Spin button and autoplay
-
-Live demo `slot-spin` (source):
-
-```ts
-import { Container, Text } from 'pixi.js';
-import { damp, SilkGraphics, Spring } from 'pixi-silk';
-import { signal } from 'pixi-silk/signal';
-import { type GesturePoint, trackGesture } from 'pixi-silk/ui/gesture';
-import { type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
-import { defineDemo } from './runtime';
-
-// A slot spin button built from the atoms (copy it into your game and restyle it):
-// idle breathing, press squash, hold for the autoplay picker, a stop square while spinning and the
-// autoplay count left as a shrinking ring. The picker is a half RadialMenu fanning up from the button.
-
-type Phase = 'idle' | 'spinning' | 'stopping';
-
-class SpinButton extends Container {
-    readonly phase = signal<Phase>('idle');
-    readonly autoplay = signal(0);
-    /** Spins in the current autoplay run, for the ring. */
-    autoplayTotal = 1;
-    onSpin: () => void = () => {};
-    onStop: () => void = () => {};
-    onHold: (p: GesturePoint) => void = () => {};
-
-    private readonly g = new SilkGraphics();
-    private readonly press = new Spring(0, 700, 30);
-    private readonly morph = new Spring(0, 260, 22);
-    private spinAngle = 0;
-    private ring = 0;
-    private t = 0;
-
-    constructor(private readonly radius = 44) {
-        super();
-        this.addChild(this.g);
-        this.hitArea = { contains: (x, y) => Math.hypot(x, y) <= radius + 10 };
-        trackGesture(
-            this,
-            {
-                onDown: () => (this.press.target = 1),
-                onUp: () => (this.press.target = 0),
-                onTap: () => (this.phase.value === 'idle' ? this.onSpin() : this.onStop()),
-                onHold: (p) => this.phase.value === 'idle' && this.onHold(p),
-            },
-            { holdMs: 380, flickSpeed: 0 },
-        );
-    }
-
-    update(dt: number): void {
-        const spinning = this.phase.value !== 'idle';
-        const r = this.radius;
-        const total = Math.max(1, this.autoplayTotal);
-
-        this.t += dt;
-        this.press.step(dt);
-        this.morph.target = spinning ? 1 : 0;
-        this.morph.step(dt);
-        this.spinAngle += dt * (2 + 8 * this.morph.value);
-        this.ring = damp(this.ring, this.autoplay.value > 0 ? this.autoplay.value / total : 0, 10, dt);
-
-        const breathe = spinning ? 0 : Math.sin(this.t * 2.4) * 0.025;
-
-        this.scale.set((1 + breathe) * (1 - 0.08 * this.press.value));
-        const m = Math.min(1, Math.max(0, this.morph.value));
-        const g = this.g.clear();
-
-        g.circle(0, 4, r).fill({ color: 0x000000, alpha: 0.35, blur: 10 });
-        g.circle(0, 0, r).fill(spinning ? 0xff453a : 0x30d158);
-        g.circle(0, 0, r - 5).stroke({ width: 2, color: 0xffffff, alpha: 0.25 });
-        // the arrow turns into a stop square as the reels start
-        g.save().rotateTransform(this.spinAngle * (1 - m) * 0.15);
-        if (m < 0.5) {
-            g.arcSweep(0, 0, r * 0.42, -Math.PI * 0.3, Math.PI * 1.45).stroke({
-                width: 7,
-                cap: 'round',
-                color: 0xffffff,
-                alpha: 1 - m * 2,
-            });
-            g.regularPoly(r * 0.12, -r * 0.42, 9, 3, Math.PI / 2, 2).fill({ color: 0xffffff, alpha: 1 - m * 2 });
-        } else {
-            const s = r * 0.42 * (m - 0.5) * 2;
-
-            g.roundRect(-s / 2, -s / 2, s, s, 5).fill(0xffffff);
-        }
-        g.restore();
-        if (this.ring > 0.002) {
-            g.arcSweep(0, 0, r + 8, -Math.PI / 2, Math.PI * 2 * this.ring).stroke({
-                width: 4,
-                cap: 'round',
-                color: 0xffd60a,
-            });
-        }
-    }
-}
-
-const chip = (n: string): RadialItem => ({ id: n, label: n });
-
-export default defineDemo({
-    size: [520, 320],
-    touchAction: 'none',
-    setup({ silk, stage, tick }) {
-        const spin = new SpinButton();
-        const status = new Text({
-            text: 'tap to spin, hold for autoplay',
-            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
-        });
-        const picker = new RadialMenu({
-            items: ['10', '25', '50', '100', '∞'].map(chip),
-            sweep: Math.PI * 0.95,
-            direction: -Math.PI / 2,
-            innerRadius: 58,
-            hub: false,
-            outerRadius: 108,
-            ticker: silk.app.ticker,
-            theme: { segment: 0x2c2c2e, segmentHover: 0x3a3a3c, icon: 0xf2f2f7, iconHover: 0xffd60a, accent: 0xffd60a },
-            onSelect: (item) => startAutoplay(item.id === '∞' ? 999 : Number(item.id)),
-        });
-        let timer: ReturnType<typeof setTimeout> | null = null;
-
-        status.anchor.set(0.5);
-        status.position.set(260, 30);
-        spin.position.set(260, 250);
-        picker.position.set(260, 250);
-        stage.addChild(status, spin, picker);
-
-        const spinOnce = () => {
-            spin.phase.set('spinning');
-            status.text = spin.autoplay.value > 0 ? `autoplay: ${spin.autoplay.value} left` : 'spinning';
-            timer = setTimeout(() => {
-                spin.phase.set('idle');
-                if (spin.autoplay.value > 0) {
-                    spin.autoplay.update((n) => n - 1);
-                    if (spin.autoplay.value > 0) timer = setTimeout(spinOnce, 250);
-                    else status.text = 'autoplay done';
-                } else status.text = 'tap to spin, hold for autoplay';
-            }, 1100);
-        };
-        const startAutoplay = (n: number) => {
-            spin.autoplayTotal = n;
-            spin.autoplay.set(n);
-            spinOnce();
-        };
-
-        spin.onSpin = spinOnce;
-        spin.onStop = () => {
-            spin.autoplay.set(0);
-            status.text = 'stopped';
-        };
-        spin.onHold = (p) => picker.openAt(260, 250, p);
-        tick((_t, dt) => spin.update(dt));
-
-        return () => {
-            if (timer) clearTimeout(timer);
-        };
-    },
-});
-```
-
-The arrow turns into a stop square while the reels run, and the yellow ring shows the autoplay
-spins left. Holding opens a half `RadialMenu` in marking mode, so press, hold, drag and release
-pick a count in one gesture.
-
-## Balance, win and bet
-
-Live demo `slot-wallet` (source):
-
-```ts
-import { Text } from 'pixi.js';
-import { SilkGraphics } from 'pixi-silk';
-import { signal } from 'pixi-silk/signal';
-import { JogDial } from 'pixi-silk/ui/dial';
-import { trackGesture } from 'pixi-silk/ui/gesture';
-import { Odometer } from 'pixi-silk/ui/odometer';
-import { defineDemo } from './runtime';
-
-// Balance and win counters plus a bet dial, built on the library's Odometer and JogDial.
-// Turn the dial to pick a bet from the ladder, press SPIN. Wins count up (tap the win to skip),
-// then roll into the balance. Copy and restyle.
-
-const LADDER = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
-const money = { decimals: 2, prefix: '$' };
-const label = (text: string, x: number, y: number) => {
-    const t = new Text({ text, style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 12 } });
-
-    t.anchor.set(0.5);
-    t.position.set(x, y);
-
-    return t;
-};
-
-export default defineDemo({
-    size: [600, 340],
-    touchAction: 'none',
-    setup({ silk, stage }) {
-        const ticker = silk.app.ticker;
-        const betIndex = signal(3);
-        const busy = signal(false);
-        const panel = new SilkGraphics();
-        const balance = new Odometer({ ticker, ...money, value: 500, fontSize: 30 });
-        const win = new Odometer({ ticker, ...money, value: 0, fontSize: 40, color: 0xffd60a });
-        // the dial turns through ladder positions: one detent per bet, a full turn covers the ladder
-        const bet = new JogDial({
-            ticker,
-            radius: 62,
-            value: betIndex.value,
-            min: 0,
-            max: LADDER.length - 1,
-            step: 1,
-            format: (i) => `$${LADDER[Math.round(i)]}`,
-            onCommit: (i) => betIndex.set(Math.round(i)),
-        });
-        const spin = new SilkGraphics();
-        const spinText = new Text({
-            text: 'SPIN',
-            style: { fill: 0xffffff, fontFamily: 'system-ui, sans-serif', fontWeight: '700', fontSize: 16 },
-        });
-
-        panel.roundRect(30, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
-        panel.roundRect(310, 30, 260, 120, 20, 0.6).fill(0x1c1c1e);
-        balance.position.set(160, 100);
-        win.position.set(440, 100);
-        bet.position.set(160, 250);
-        spin.position.set(440, 250);
-        spinText.anchor.set(0.5);
-        spinText.position.set(440, 250);
-        stage.addChild(
-            panel,
-            label('BALANCE', 160, 55),
-            label('WIN', 440, 55),
-            label('BET', 160, 330),
-            balance,
-            win,
-            bet,
-            spin,
-            spinText,
-        );
-
-        const drawSpin = () => {
-            spin.clear()
-                .circle(0, 0, 48)
-                .fill(busy.value ? 0x3a3a3c : 0x30d158);
-        };
-
-        busy.subscribe(drawSpin);
-        drawSpin();
-        spin.hitArea = { contains: (x, y) => Math.hypot(x, y) <= 56 };
-        trackGesture(spin, {
-            onTap: () => {
-                const stake = LADDER[betIndex.value];
-
-                if (busy.value || balance.state.value.value < stake) return;
-                busy.set(true);
-                balance.set(balance.state.value.value - stake);
-                setTimeout(() => {
-                    const roll = Math.random();
-                    const amount = roll < 0.45 ? 0 : roll < 0.9 ? stake * (1 + Math.random() * 4) : stake * 60;
-
-                    if (amount === 0) {
-                        busy.set(false);
-
-                        return;
-                    }
-                    win.set(0);
-                    win.skip();
-                    win.set(Math.round(amount * 100) / 100);
-                }, 600);
-            },
-        });
-        // the win rolls into the balance when it finishes counting (or is skipped)
-        win.state.counting.subscribe((counting) => {
-            if (counting || !busy.value) return;
-            const amount = win.state.value.value;
-
-            setTimeout(() => {
-                balance.set(balance.state.value.value + amount);
-                win.set(0);
-                busy.set(false);
-            }, 500);
-        });
-        win.eventMode = 'static';
-        win.hitArea = { contains: (x, y) => Math.abs(x) < 130 && Math.abs(y) < 50 };
-        win.on('pointertap', () => win.skip());
-
-        return undefined;
-    },
-});
-```
-
-The balance and the win are two `Odometer`s, and the bet is a `JogDial` from
-[Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline/). The dial's detents are positions on a bet
-ladder, and its readout shows the bet at that position.
-
 ## Roll a number with an odometer
 
 Live demo `odometer` (source):
@@ -5071,11 +4748,11 @@ export default defineDemo({
 
 ```ts
 
-const balance = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+const total = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
 
-balance.set(9800); // counts up, longer for bigger jumps
-balance.skip(); // straight to the end
-balance.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
+total.set(9800); // counts up, longer for bigger jumps
+total.skip(); // straight to the end
+total.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
 ```
 
 Every digit column rolls on its own. A column moves only while the one below it passes from 9 to
@@ -5096,374 +4773,25 @@ text without rolling, for labels and screen readers.
 | `easing` | `outCubic` | Easing of the count |
 | `onDone` | none | Called with the value when the count ends |
 
-## Meters, badges and pips
+## Redraw every frame
 
-Live demo `slot-meters` (source):
+The simplest animation clears and redraws in the ticker. `clear()` keeps the GPU buffers, so a
+redraw only uploads the new primitive data.
 
 ```ts
-import { Text } from 'pixi.js';
-import { conic, damp, SilkGraphics, Spring } from 'pixi-silk';
-import { signal } from 'pixi-silk/signal';
-import { trackGesture } from 'pixi-silk/ui/gesture';
-import { defineDemo } from './runtime';
+app.ticker.add((ticker) => {
+    const t = ticker.lastTime / 1000;
 
-// Slot HUD pieces drawn with one SilkGraphics each, state in signals. Copy and restyle.
-// Win meter with tiers, multiplier badge, free-spin pips, feature path and a hold-to-buy button.
-// Press "WIN" to feed the meter, hold "BUY" to confirm.
-
-const TIERS = [
-    { at: 0.25, name: 'BIG', color: 0x30d158 },
-    { at: 0.55, name: 'MEGA', color: 0x0a84ff },
-    { at: 0.85, name: 'EPIC', color: 0xbf5af2 },
-];
-const font = { fontFamily: 'system-ui, sans-serif', fontWeight: '700' } as const;
-
-export default defineDemo({
-    size: [640, 360],
-    touchAction: 'none',
-    setup({ stage, tick }) {
-        const win = signal(0); // 0..1 of the max win
-        const mult = signal(1);
-        const spins = signal(10);
-        const used = signal(0);
-        const path = signal(0); // feature collect progress, 0..6
-
-        const g = new SilkGraphics();
-        const tierText = new Text({ text: '', style: { ...font, fill: 0xffffff, fontSize: 18 } });
-        const multText = new Text({ text: 'x1', style: { ...font, fill: 0x1c1c1e, fontSize: 22 } });
-        const winBtn = new Text({ text: 'WIN', style: { ...font, fill: 0xffffff, fontSize: 14 } });
-        const buyText = new Text({ text: 'HOLD TO BUY', style: { ...font, fill: 0xffffff, fontSize: 13 } });
-
-        // one ramp over the whole gauge, so the colour says how far the win got
-        const meterPaint = conic([0x30d158, 0x0a84ff, 0xbf5af2, 0xff375f], {
-            center: [150, 170],
-            units: 'local',
-            startAngle: Math.PI * 0.75,
-            sweep: Math.PI * 1.5,
-        });
-        let shown = 0;
-        let tierPop = 0;
-        let lastTier = -1;
-        const badge = new Spring(1, 520, 14);
-        let shake = 0;
-        let pipPop = new Array(10).fill(0);
-        let pathShown = 0;
-        let buy = 0;
-        let holding = false;
-        let bought = 0;
-        let time = 0;
-
-        for (const t of [tierText, multText, winBtn, buyText]) t.anchor.set(0.5);
-        tierText.position.set(150, 190);
-        multText.position.set(380, 112);
-        winBtn.position.set(150, 300);
-        buyText.position.set(520, 300);
-        stage.addChild(g, tierText, multText, winBtn, buyText);
-
-        mult.subscribe(() => {
-            badge.value = 1.45;
-            shake = 1;
-        });
-        used.subscribe((u) => (pipPop[u - 1] = 1));
-
-        // hit zones: a container per control keeps the example readable
-        const zone = (x: number, y: number, w: number, h: number) => {
-            const z = new SilkGraphics();
-
-            z.hitArea = { contains: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
-            stage.addChild(z);
-
-            return z;
-        };
-
-        trackGesture(zone(90, 280, 120, 40), {
-            onTap: () => {
-                win.update((v) => (v >= 1 ? 0 : Math.min(1, v + 0.12 + Math.random() * 0.1)));
-                if (Math.random() < 0.5) mult.update((m) => (m >= 10 ? 1 : m + 1));
-                if (used.value < spins.value) used.update((u) => u + 1);
-                else {
-                    used.set(0);
-                    pipPop = pipPop.map(() => 0);
-                }
-                path.update((p) => (p >= 6 ? 0 : p + 1));
-            },
-        });
-        trackGesture(
-            zone(440, 280, 160, 40),
-            {
-                onDown: () => (holding = true),
-                onUp: () => (holding = false),
-            },
-            { holdMs: 0, flickSpeed: 0 },
-        );
-
-        tick((_t, dt) => {
-            time += dt;
-            shown = damp(shown, win.value, 4, dt);
-            badge.target = 1;
-            badge.step(dt);
-            shake = damp(shake, 0, 6, dt);
-            pipPop = pipPop.map((p) => damp(p, 0, 5, dt));
-            pathShown = damp(pathShown, path.value, 6, dt);
-            buy = holding ? Math.min(1, buy + dt / 1.2) : damp(buy, 0, 10, dt);
-            if (buy >= 1 && holding) {
-                holding = false;
-                bought = 1;
-                buy = 0;
-            }
-            bought = damp(bought, 0, 2.5, dt);
-
-            const tier = TIERS.reduce((acc, t, i) => (shown >= t.at ? i : acc), -1);
-
-            if (tier !== lastTier) {
-                if (tier > lastTier) tierPop = 1;
-                lastTier = tier;
-            }
-            tierPop = damp(tierPop, 0, 5, dt);
-
-            g.clear();
-            // win meter: a 270deg gauge with tier ticks; the fill takes the colour of the tier reached
-            const cx = 150;
-            const cy = 170;
-            const start = Math.PI * 0.75;
-            const sweep = Math.PI * 1.5;
-
-            g.arcSweep(cx, cy, 90, start, sweep).stroke({ width: 16, cap: 'round', color: 0x2c2c2e });
-            if (shown > 0.003) {
-                g.arcSweep(cx, cy, 90, start, sweep * shown).stroke({
-                    width: 16,
-                    cap: 'round',
-                    gradient: meterPaint,
-                });
-            }
-            for (const t of TIERS) {
-                const a = start + sweep * t.at;
-
-                g.line(
-                    cx + Math.cos(a) * 76,
-                    cy + Math.sin(a) * 76,
-                    cx + Math.cos(a) * 104,
-                    cy + Math.sin(a) * 104,
-                ).stroke({
-                    width: 2,
-                    color: shown >= t.at ? t.color : 0x48484a,
-                });
-            }
-            if (tier >= 0) {
-                g.circle(cx, cy + 20, 34 + tierPop * 20).fill({
-                    color: TIERS[tier].color,
-                    alpha: 0.25 + tierPop * 0.4,
-                    blur: 14,
-                });
-            }
-            tierText.text = tier >= 0 ? `${TIERS[tier].name} WIN` : `${Math.round(shown * 100)}%`;
-            tierText.scale.set(1 + tierPop * 0.35);
-
-            // multiplier badge: a rounded star that pops and shakes when the value changes
-            const bx = 380 + Math.sin(time * 60) * 4 * shake;
-
-            g.star(bx, 112, 8, 46 * badge.value, 38 * badge.value, time * 0.4, 4).fill({
-                color: 0xffd60a,
-                blur: 0,
-            });
-            g.circle(bx, 112, 56 * badge.value).fill({ color: 0xffd60a, alpha: 0.18 * shake, blur: 12 });
-            multText.text = `x${mult.value}`;
-            multText.position.x = bx;
-            multText.scale.set(badge.value);
-
-            // free-spin pips: used ones fill, the newest one bursts
-            for (let i = 0; i < spins.value; i++) {
-                const x = 300 + i * 30;
-                const y = 220;
-                const on = i < used.value;
-
-                g.circle(x, y, 9 + pipPop[i] * 6).fill({ color: on ? 0xff9f0a : 0x2c2c2e });
-                if (pipPop[i] > 0.02) {
-                    g.circle(x, y, 12 + (1 - pipPop[i]) * 16).stroke({
-                        width: 2,
-                        color: 0xff9f0a,
-                        alpha: pipPop[i],
-                    });
-                }
-            }
-
-            // feature path: collect points along a wave, the trail grows to the reached point
-            const pts: number[] = [];
-
-            for (let i = 0; i <= 60; i++) {
-                const t = i / 60;
-
-                pts.push(300 + t * 300, 160 + Math.sin(t * Math.PI * 3) * 14);
-            }
-            g.polyline(pts, { smooth: 'catmull' }).stroke({ width: 6, cap: 'round', color: 0x2c2c2e });
-            const reach = Math.round((pathShown / 6) * 60);
-
-            if (reach > 0) {
-                g.polyline(pts.slice(0, (reach + 1) * 2), { smooth: 'catmull' }).stroke({
-                    width: 6,
-                    cap: 'round',
-                    color: 0x64d2ff,
-                });
-            }
-            for (let k = 0; k <= 6; k++) {
-                const i = k * 10;
-                const on = pathShown >= k - 0.01;
-
-                g.circle(pts[i * 2], pts[i * 2 + 1], on ? 8 : 6).fill(on ? 0x64d2ff : 0x48484a);
-            }
-
-            // buttons
-            g.pill(90, 280, 120, 40).fill(0x0a84ff);
-            g.pill(440, 280, 160, 40).fill(bought > 0.05 ? 0x30d158 : 0x3a3a3c);
-            if (buy > 0.002) g.pill(440, 280, Math.max(40, 160 * buy), 40).fill({ color: 0xff9f0a, alpha: 0.9 });
-            buyText.text = bought > 0.05 ? 'BOUGHT' : 'HOLD TO BUY';
-        });
-
-        return undefined;
-    },
+    g.clear();
+    g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 2 * (0.5 + 0.4 * Math.sin(t))).stroke({ width: 12, cap: 'round', color: 0x30d158 });
 });
 ```
 
-Each piece is one SilkGraphics with its state in a signal: a win meter with tiers, a multiplier
-badge, free-spin pips, a feature path and a hold-to-buy button.
+Put the parts that do not move in a second SilkGraphics and draw it once.
+[Performance](https://pixi-silk.schmooky.dev/docs/performance/) has the numbers for large scenes.
 
-## A dock that steps aside
-
-Live demo `spin-dock` (source):
-
-```ts
-import { Text } from 'pixi.js';
-import { SilkGraphics } from 'pixi-silk';
-import { signal } from 'pixi-silk/signal';
-import { SilkButton } from 'pixi-silk/ui/button';
-import { ButtonDock } from 'pixi-silk/ui/dock';
-import { SegmentedSwitch } from 'pixi-silk/ui/modes';
-import { defineDemo } from './runtime';
-
-const play = (g: SilkGraphics, s: number) => g.regularPoly(s * 0.06, 0, s * 0.42, 3, Math.PI / 2, 2).fill(0xffffff);
-const minus = (g: SilkGraphics, s: number) =>
-    g.line(-s * 0.3, 0, s * 0.3, 0).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
-const plus = (g: SilkGraphics, s: number) => {
-    minus(g, s);
-    g.line(0, -s * 0.3, 0, s * 0.3).stroke({ width: s * 0.14, cap: 'round', color: 0xffffff });
-};
-// a lightning bolt as two rounded triangles (closed polygons cannot be filled yet)
-const bolt = (g: SilkGraphics, s: number) => {
-    g.triangle(s * 0.12, -s * 0.5, -s * 0.3, s * 0.08, s * 0.08, s * 0.02, 1).fill(0xffffff);
-    g.triangle(-s * 0.12, s * 0.5, s * 0.3, -s * 0.08, -s * 0.08, -s * 0.02, 1).fill(0xffffff);
-};
-
-// Tap SPIN for one spin, hold it for five. While the reels run, the side buttons leave, the speed
-// switch locks and the spin button turns busy: nothing can be pressed twice. The bet lives in a signal.
-const SPEED: Record<string, number> = { normal: 1.1, turbo: 0.6, quick: 0.3 };
-export default defineDemo({
-    size: [560, 340],
-    touchAction: 'none',
-    controls: {
-        enabled: { type: 'toggle', label: 'spin enabled', value: true },
-    },
-    setup({ silk, stage, params, tick }) {
-        const ticker = silk.app.ticker;
-        const bet = signal(1);
-        const reels = new SilkGraphics();
-        const label = new Text({
-            text: '',
-            style: { fill: 0xf2f2f7, fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '600' },
-        });
-        const side = { ticker, theme: { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e } };
-        const less = new SilkButton({
-            ...side,
-            shape: 'circle',
-            height: 48,
-            icon: minus,
-            onPress: () => bet.update((b) => Math.max(1, b - 1)),
-        });
-        const more = new SilkButton({
-            ...side,
-            shape: 'circle',
-            height: 48,
-            icon: plus,
-            onPress: () => bet.update((b) => Math.min(10, b + 1)),
-        });
-        const speed = new SegmentedSwitch({
-            ticker,
-            value: 'normal',
-            segmentWidth: 78,
-            height: 34,
-            options: [
-                { id: 'normal', label: 'Normal' },
-                { id: 'turbo', icon: bolt },
-                { id: 'quick', label: 'Quick' },
-            ],
-        });
-        const spin = new SilkButton({
-            ticker,
-            shape: 'circle',
-            height: 76,
-            icon: play,
-            iconSize: 30,
-            holdMs: 450,
-            theme: { fill: 0x30d158, fillHover: 0x4ade80, fillPress: 0x248a3d },
-            onPress: () => run(1),
-            onHold: () => run(5),
-        });
-        const dock = new ButtonDock({ ticker, gap: 14 }).add(less, spin, more);
-        let spinning = 0;
-        let duration = 1.1;
-        let left = 0;
-
-        bet.subscribe((b) => (label.text = `bet ${b}`));
-        label.text = `bet ${bet.value}`;
-        label.anchor.set(0.5);
-        label.position.set(90, 34);
-        speed.position.set(400, 34);
-        dock.position.set(280, 282);
-        stage.addChild(reels, label, speed, dock);
-
-        async function run(count: number) {
-            left = count;
-            spin.state.busy.set(true);
-            speed.state.enabled.set(false);
-            await Promise.all([less.hide(), more.hide()]);
-            while (left-- > 0) {
-                duration = SPEED[speed.state.value.value] ?? 1.1;
-                spinning = duration;
-                await new Promise((r) => setTimeout(r, duration * 1000));
-            }
-            spin.state.busy.set(false);
-            speed.state.enabled.set(true);
-            await dock.showAll();
-        }
-
-        tick((t, dt) => {
-            spin.state.enabled.set(params.enabled);
-            spinning = Math.max(0, spinning - dt);
-            reels.clear();
-            for (let c = 0; c < 5; c++) {
-                const x = 60 + c * 92;
-                const run = spinning > 0 && spinning < duration * (1 - c * 0.05) ? 1 : 0;
-
-                reels.roundRect(x, 62, 80, 168, 14, 0.6).fill(0x1c1c1e);
-                for (let r = 0; r < 3; r++) {
-                    const y = 70 + r * 54 + (run ? ((t * 900 + c * 40) % 54) - 27 : 0);
-                    const hue = [0xff453a, 0xffd60a, 0x0a84ff, 0xbf5af2][(r + c + (run ? Math.floor(t * 20) : 0)) % 4];
-
-                    reels.roundRect(x + 12, y + 6, 56, 40, 10, 0.6).fill({ color: hue, alpha: run ? 0.55 : 0.9 });
-                }
-            }
-        });
-
-        return undefined;
-    },
-});
-```
-
-The bar is a `ButtonDock` of `SilkButton`s. While the reels run, the side buttons hide, the speed
-switch locks and the spin button turns busy, so nothing can be pressed twice. The dock closes the
-gaps as buttons leave. [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/#make-a-button-that-waits)
-explains the button states.
-
-To place a HUD like this on phones and desktops, see [Layout](https://pixi-silk.schmooky.dev/docs/layout/).
+Slow shapes glide between pixels instead of snapping, because silk renders coordinates as given
+and `createSilkApp` turns pixel rounding off. The [sub-pixel experiment](https://pixi-silk.schmooky.dev/lab/04-subpixel/) shows it.
 
 ---
 
@@ -7476,7 +6804,7 @@ export default defineDemo({
 
 Controls for numbers and time. `JogDial` and `Scrubber` are in `pixi-silk/ui/dial`, and
 `MiniTimeline` is in `pixi-silk/ui/timeline`. For a rolling number readout, see the odometer on
-[Slot HUD](https://pixi-silk.schmooky.dev/docs/slot-hud/).
+[Interaction and motion](https://pixi-silk.schmooky.dev/docs/interaction-and-motion/#roll-a-number-with-an-odometer).
 
 ## Turn a value with a jog dial
 
@@ -10954,7 +10282,7 @@ axis is free.
 
 const charWidth = 9;
 const lineHeight = 20;
-const copy = 'Free spins start on three scatters';
+const copy = 'Tap a card to open it in full view';
 
 const text = new LayoutNode({}, (availableWidth) => {
     const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
@@ -10991,7 +10319,7 @@ The engine follows CSS where results differ in practice. A few things are simple
 | Not there | `order`, `overflow`, borders and `flex-basis: content` |
 
 The engine knows nothing about transforms. FlexContainer measures rotated children unrotated and
-gives them their slot as if they were not rotated.
+gives them their box as if they were not rotated.
 
 ---
 
@@ -13758,9 +13086,9 @@ It needs a `viewport`: pass the Pixi `Application`, a signal or a rectangle as `
 
 It follows flexbox for direction, wrap, grow, shrink, gaps and alignment. It has no `order`, `overflow` or borders, and an item's default minimum size is 0, not its content size.
 
-## Are the slot game HUD controls part of pixi-silk?
+## How do I animate a counter or a balance?
 
-The spin button, autoplay picker, meters and wallet are site examples built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the demo file and restyle it.
+Use `Odometer` from `pixi-silk/ui/odometer`. `set(value)` rolls each digit column to the new value, and `skip()` jumps to the end.
 
 ## Is the editor kit stable?
 
