@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Flag, Join, PATH_CHUNK, Prim, STRIDE } from '../src/constants';
 import { SilkGraphics } from '../src/SilkGraphics';
-import { joinPolygon, miterRatio, pathStrokeDist, polygonDist } from '../src/stroke';
+import { joinKind, joinPolygon, miterRatio, nearWindows, pathStrokeDist, polygonDist, segSegDist } from '../src/stroke';
 
 const data = (g: SilkGraphics) => g.geometry.instanceBuffer.data as Float32Array;
 const vec = (g: SilkGraphics, i: number, at: number) =>
@@ -18,12 +18,15 @@ describe('stroked paths', () => {
         expect(g.primitiveCount).toBe(1);
         expect(meta(g, 0)[0]).toBe(Prim.Path);
         expect(meta(g, 0)[2]).toBe(4);
-        // header texel, one subpath, every segment
-        expect(vec(g, 0, 4)).toEqual([0, 1, 0, -1]);
-        expect(vec(g, 0, 8)).toEqual([Join.Bevel, 3, 0, 0]);
-        expect(texel(g, 0)).toEqual([2, 0, 70, 0]);
+        // header (segments, closed, length, dash scale), segments, lengths before each segment
+        expect(texel(g, 0)).toEqual([2, 0, 70, 1]);
         expect(texel(g, 1)).toEqual([0, 0, 30, 0]);
         expect(texel(g, 2)).toEqual([30, 0, 30, 40]);
+        expect(texel(g, 3)).toEqual([0, 30, 0, 0]);
+        // one window it owns (header texel, first segment, count, key), none of other instances
+        expect(vec(g, 0, 4)).toEqual([4, 1, 0, 0]);
+        expect(texel(g, 4)).toEqual([0, 0, 2, 0]);
+        expect(vec(g, 0, 8)).toEqual([Join.Bevel, 3, 0, 0]);
     });
 
     it('defaults to miter joins with a limit of 10, like Canvas', () => {
@@ -35,7 +38,7 @@ describe('stroked paths', () => {
         expect(vec(g, 0, 8)[0]).toBe(Join.Round);
     });
 
-    it('splits long subpaths into chunks that know the length before them', () => {
+    it('splits long subpaths into chunks that see the segments of their neighbours', () => {
         const g = new SilkGraphics();
         const pts: number[] = [];
 
@@ -46,9 +49,17 @@ describe('stroked paths', () => {
         expect(g.primitiveCount).toBe(chunks);
         const seg = Math.hypot(10, 5);
 
+        // lengths before each segment, four per texel after the segments
+        expect(texel(g, 1 + 100 + 1)[2]).toBeCloseTo(6 * seg, 3);
         for (let i = 0; i < chunks; i++) {
-            expect(vec(g, i, 4)).toEqual([0, 1, i * PATH_CHUNK, Math.min(PATH_CHUNK, 100 - i * PATH_CHUNK)]);
-            expect(vec(g, i, 8)[2]).toBeCloseTo(i * PATH_CHUNK * seg, 3);
+            const [win, own, near, key] = vec(g, i, 4);
+
+            expect([own, key]).toEqual([1, i]);
+            expect(texel(g, win)).toEqual([0, i * PATH_CHUNK, Math.min(PATH_CHUNK, 100 - i * PATH_CHUNK), i]);
+            // the chunks before and after share a vertex with this one: their nearest segments are listed
+            const keys = Array.from({ length: near }, (_, k) => texel(g, win + 1 + k)[3]);
+
+            expect([...new Set(keys)].sort()).toEqual([i - 1, i + 1].filter((k) => k >= 0 && k < chunks));
         }
         // each chunk's bounds cover its own segments only
         expect(data(g)[0]).toBeLessThan(0);
@@ -60,8 +71,10 @@ describe('stroked paths', () => {
 
         g.moveTo(0, 0).lineTo(20, 20).moveTo(0, 20).lineTo(20, 0).stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
         expect(g.primitiveCount).toBe(1);
-        expect(vec(g, 0, 4)).toEqual([0, 2, 0, -1]);
-        expect(texel(g, 2)[0]).toBe(1); // second header after one segment
+        // two windows, one per subpath: header, one segment and one length texel each
+        expect(vec(g, 0, 4)).toEqual([6, 2, 0, 0]);
+        expect(texel(g, 6)).toEqual([0, 0, 1, 0]);
+        expect(texel(g, 7)).toEqual([3, 0, 1, 0]);
     });
 
     it('merges separate open paths with union: true', () => {
@@ -83,6 +96,60 @@ describe('stroked paths', () => {
 
         // 300 units of outline tile into whole periods
         expect(300 / (dash + gap)).toBeCloseTo(Math.round(300 / (dash + gap)), 6);
+    });
+
+    it('lets chunks of a path that crosses itself far along its length see each other', () => {
+        const g = new SilkGraphics();
+        const pts: number[] = [];
+
+        // a figure eight: it passes the centre at segments 0, 100 and 200
+        for (let i = 0; i <= 200; i++) {
+            const t = (i / 200) * Math.PI * 2;
+
+            pts.push(100 * Math.sin(t), 50 * Math.sin(2 * t));
+        }
+        g.polyline(pts).stroke({ width: 4, color: 0xffffff, alpha: 0.5 });
+        const nearKeys = (i: number) => {
+            const [win, own, near] = vec(g, i, 4);
+
+            return new Set(Array.from({ length: near }, (_, k) => texel(g, win + own + k)[3]));
+        };
+
+        // chunk 0 (segments 0 to 31) meets chunk 3 (96 to 127) there, and the last chunk where it ends
+        expect(nearKeys(0).has(3)).toBe(true);
+        expect(nearKeys(0).has(6)).toBe(true);
+        expect(nearKeys(3).has(0)).toBe(true);
+        for (let i = 0; i < g.primitiveCount; i++) for (const k of nearKeys(i)) expect(nearKeys(k).has(i)).toBe(true);
+    });
+
+    it('lists only the segments that can meet, as runs of one subpath', () => {
+        const sub = { pts: [0, 0, 10, 0, 20, 0, 30, 0, 40, 0] };
+        const far = { pts: [0, 100, 40, 100] };
+        const cross = { pts: [25, -10, 25, 10] };
+        const owned = [[{ sub, s: 0, count: 4 }], [{ sub: far, s: 0, count: 1 }], [{ sub: cross, s: 0, count: 1 }]];
+        const near = nearWindows(owned, 2);
+
+        expect(near[1]).toEqual([]);
+        // the line at x = 25 crosses segment 2 and stays more than 4 units from the others
+        expect(near[0]).toEqual([{ sub: cross, s: 0, count: 1, key: 2 }]);
+        expect(near[2]).toEqual([{ sub, s: 2, count: 1, key: 0 }]);
+        expect(segSegDist([0, 0, 10, 0], 0, [5, -5, 5, 5], 0)).toBe(0);
+        expect(segSegDist([0, 0, 10, 0], 0, [12, 3, 20, 3], 0)).toBeCloseTo(Math.hypot(2, 3));
+    });
+
+    it('stretches dashes per closed subpath, in its header', () => {
+        const g = new SilkGraphics();
+
+        g.moveTo(0, 0).lineTo(100, 0).lineTo(100, 50).closePath();
+        g.moveTo(200, 0)
+            .lineTo(300, 0)
+            .stroke({ width: 2, dash: [10, 7], color: 0xffffff });
+        const L = 150 + Math.hypot(100, 50);
+        const scale = texel(g, 0)[3];
+
+        expect((L / ((10 + 7) * scale)) % 1).toBeCloseTo(0, 5);
+        // the open subpath keeps the pattern as it is
+        expect(texel(g, 1 + 3 + 1)[3]).toBe(1);
     });
 
     it('keeps tapered strokes as one capsule per segment', () => {
@@ -170,14 +237,35 @@ describe('join geometry', () => {
         expect(polygonDist([0, 0, 10, 0, 10, 10, 0, 10], 5, 5)).toBeCloseTo(-5);
         expect(polygonDist([0, 0, 10, 0, 10, 10, 0, 10], 13, 14)).toBeCloseTo(5);
         // an L with a 2 unit half width, miter join
-        const e = new Float32Array([2, 0, 20, 0, 0, 0, 10, 0, 10, 0, 10, 10]);
-        const ref = { header: 0, subpaths: 1, first: 0, count: -1, miterLimit: 10, cap0: 0, cap1: 0, hw: 2 } as const;
+        // header, two segments, their lengths before them, one window owning both
+        const e = new Float32Array([2, 0, 20, 1, 0, 0, 10, 0, 10, 0, 10, 10, 0, 10, 0, 0, 0, 0, 2, 0]);
+        const ref = { windows: 4, count: 1, miterLimit: 10, cap0: 0, cap1: 0, hw: 2 } as const;
 
         expect(pathStrokeDist(e, { ...ref, join: Join.Miter }, 11.9, -1.9)).toBeLessThan(0);
         expect(pathStrokeDist(e, { ...ref, join: Join.Bevel }, 11.9, -1.9)).toBeGreaterThan(0);
         expect(pathStrokeDist(e, { ...ref, join: Join.Round }, 11.9, -1.9)).toBeGreaterThan(0);
         expect(pathStrokeDist(e, { ...ref, join: Join.Round }, 11.2, -1.2)).toBeLessThan(0);
         expect(pathStrokeDist(e, { ...ref, join: Join.Miter }, 5, 0)).toBeCloseTo(-2);
+    });
+
+    it('draws joins round when they differ from round by under a tenth of a pixel, as the shader does', () => {
+        // straight on: a miter adds nothing
+        expect(joinKind(1, 0, 1, 0, 5, Join.Miter, 10, 1)).toBe(1);
+        // a right angle is a miter at any zoom, a bevel past the limit
+        expect(joinKind(1, 0, 0, 1, 5, Join.Miter, 10, 1)).toBe(2);
+        expect(joinKind(1, 0, 0, 1, 5, Join.Miter, 1.2, 1)).toBe(3);
+        // a full reversal has no join: the two butt ends cover it
+        expect(joinKind(1, 0, -1, 0, 5, Join.Bevel, 10, 1)).toBe(0);
+        expect(joinKind(1, 0, 0, 1, 5, Join.Round, 10, 1)).toBe(1);
+    });
+
+    it('cuts the disc of a round join where the stroke starts', () => {
+        // a 1 unit segment, then on: the disc at (1, 0) must not reach back past x = 0
+        const e = new Float32Array([2, 0, 11, 1, 0, 0, 1, 0, 1, 0, 11, 0, 0, 1, 0, 0, 0, 0, 2, 0]);
+        const ref = { windows: 4, count: 1, join: Join.Round, miterLimit: 10, cap0: 0, cap1: 0, hw: 3 } as const;
+
+        expect(pathStrokeDist(e, ref, -0.5, 0)).toBeCloseTo(0.5);
+        expect(pathStrokeDist(e, ref, 0.5, 0)).toBeLessThan(0);
     });
 
     it('hit tests the miter tip of a polyline', () => {

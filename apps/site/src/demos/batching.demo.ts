@@ -2,7 +2,8 @@ import { Container, Text, type WebGLRenderer } from 'pixi.js';
 import { enableSilkBatching, SilkGraphics } from 'pixi-silk';
 import { defineDemo } from './runtime';
 
-// 2000 separate SilkGraphics that move every frame. With batching on, runs of them share a draw.
+// 2000 separate SilkGraphics that move every frame. With batching on, runs of them share a draw,
+// on WebGL2 and on WebGPU.
 enableSilkBatching();
 
 export default defineDemo({
@@ -21,29 +22,43 @@ export default defineDemo({
         caption.position.set(12, 10);
         stage.addChild(layer, caption);
 
-        // count draw calls by wrapping the WebGL context (WebGPU has no such hook: shows n/a)
+        // count draw calls: wrap the WebGL context, or the WebGPU render pass encoder
         const renderer = silk.app.renderer as WebGLRenderer;
         const gl = renderer.gl as WebGL2RenderingContext | undefined;
+        const restore: (() => void)[] = [];
         let calls = 0;
+        // only draws of this demo's renderer count: other demos on the page may draw in between
+        let mine = false;
+        const wrap = <T extends object>(target: T, names: (keyof T & string)[]) => {
+            for (const name of names) {
+                const fn = target[name] as unknown as (...a: unknown[]) => unknown;
 
-        if (gl) {
-            const instanced = gl.drawElementsInstanced.bind(gl);
-            const plain = gl.drawElements.bind(gl);
+                (target as Record<string, unknown>)[name] = function (this: unknown, ...a: unknown[]) {
+                    if (mine) calls++;
 
-            gl.drawElementsInstanced = (...a: Parameters<typeof instanced>) => {
-                calls++;
-                instanced(...a);
-            };
-            gl.drawElements = (...a: Parameters<typeof plain>) => {
-                calls++;
-                plain(...a);
-            };
-            silk.app.renderer.runners.prerender.add({
-                prerender: () => {
-                    calls = 0;
-                },
-            });
-        }
+                    return fn.apply(this, a);
+                };
+                restore.push(() => {
+                    (target as Record<string, unknown>)[name] = fn;
+                });
+            }
+        };
+
+        if (gl) wrap(gl, ['drawElementsInstanced', 'drawElements']);
+        else if (typeof GPURenderPassEncoder !== 'undefined')
+            wrap(GPURenderPassEncoder.prototype, ['drawIndexed', 'draw']);
+        const counter = {
+            prerender: () => {
+                calls = 0;
+                mine = true;
+            },
+            postrender: () => {
+                mine = false;
+            },
+        };
+
+        silk.app.renderer.runners.prerender.add(counter);
+        silk.app.renderer.runners.postrender.add(counter);
 
         let built = '';
         const colors = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2];
@@ -72,9 +87,11 @@ export default defineDemo({
                 g.position.set(240 + Math.cos(a) * r * 1.6, 150 + Math.sin(a) * r);
                 g.rotation = t + i;
             });
-            caption.text = `${n} objects, ${gl ? calls : 'n/a'} draw calls last frame`;
+            caption.text = `${n} objects, ${calls} draw calls last frame`;
         });
 
-        return undefined;
+        return () => {
+            for (const undo of restore) undo();
+        };
     },
 });

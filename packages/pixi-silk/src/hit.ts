@@ -41,6 +41,92 @@ function local(x: number, y: number, rot: number): [number, number] {
     return [c * x - s * y, s * x + c * y];
 }
 
+/** Distance to a wedge of half-aperture h around +y (the shader's sdWedge). */
+function wedge(qx: number, qy: number, h: number): number {
+    const cx = Math.sin(h);
+    const cy = Math.cos(h);
+    const ax = Math.abs(qx);
+    const t = Math.max(ax * cx + qy * cy, 0);
+
+    return Math.hypot(ax - cx * t, qy - cy * t) * Math.sign(cy * ax - cx * qy);
+}
+
+/** Annular sector with rounded corners (the shader's Prim.Sector). */
+function sectorDist(s: Float32Array, at: number, x: number, y: number): number {
+    const qx = x - s[at];
+    const qy = y - s[at + 1];
+    const sweep = s[at + 4];
+    const h = Math.min(Math.abs(sweep) * 0.5, Math.PI);
+    const mid = s[at + 3] + 0.5 * sweep;
+    const cm = Math.cos(mid);
+    const sm = Math.sin(mid);
+    const rx = sm * qx - cm * qy;
+    const ry = cm * qx + sm * qy;
+    const len = Math.hypot(qx, qy);
+    const rc = s[at + 6];
+    let dA = len - (s[at + 2] - rc);
+
+    if (s[at + 5] > 0) dA = Math.max(dA, s[at + 5] + rc - len);
+    const dW = h >= Math.PI - 1e-4 ? -1e6 : wedge(rx, ry, h) + rc;
+
+    return Math.hypot(Math.max(dA, 0), Math.max(dW, 0)) + Math.min(Math.max(dA, dW), 0) - rc;
+}
+
+/** The unit heart of the shader's Prim.Heart, scaled and rounded. */
+function heartDist(s: Float32Array, at: number, x: number, y: number): number {
+    const k = s[at + 2];
+    const [lx, ly] = local(x - s[at], y - s[at + 1], s[at + 11]);
+    const px = Math.abs(lx / k);
+    const py = 0.552 - ly / k;
+    let d: number;
+
+    if (py + px > 1) d = Math.hypot(px - 0.25, py - 0.75) - 0.35355339;
+    else {
+        const m = 0.5 * Math.max(px + py, 0);
+
+        d = Math.sqrt(Math.min(px * px + (py - 1) ** 2, (px - m) ** 2 + (py - m) ** 2)) * Math.sign(px - py);
+    }
+
+    return (d - s[at + 3]) * k;
+}
+
+/** Star with n points and rounded tips (the shader's Prim.Star). */
+function starDist(s: Float32Array, at: number, x: number, y: number): number {
+    const [lx, ly] = local(x - s[at], y - s[at + 1], s[at + 3]);
+    const rc = s[at + 6];
+    const r = s[at + 2] - rc;
+    const n = s[at + 4];
+    const en = s[at + 5];
+    const an = Math.PI / n;
+    const acx = Math.cos(an);
+    const acy = Math.sin(an);
+    const ecx = Math.cos(en);
+    const ecy = Math.sin(en);
+    const py = -ly;
+    const a = Math.atan2(lx, py);
+    let bn = (((a % (2 * an)) + 2 * an) % (2 * an)) - an;
+    const l = Math.hypot(lx, py);
+
+    bn = Number.isFinite(bn) ? bn : 0;
+    let qx = l * Math.cos(bn) - r * acx;
+    let qy = l * Math.abs(Math.sin(bn)) - r * acy;
+    const t = Math.max(0, Math.min(-(qx * ecx + qy * ecy), (r * acy) / ecy));
+
+    qx += ecx * t;
+    qy += ecy * t;
+
+    return Math.hypot(qx, qy) * Math.sign(qx) - rc;
+}
+
+/** Two operands combined as the shader's combineSD does: union, subtract, intersect or exclude. */
+function combine(a: number, b: number, op: number): number {
+    if (op === 1) return Math.max(a, -b);
+    if (op === 2) return Math.max(a, b);
+    if (op === 3) return Math.max(Math.min(a, b), -Math.max(a, b));
+
+    return Math.min(a, b);
+}
+
 /** Even-odd signed distance to edges `start .. start + n` of a path texture. */
 function polyDist(e: Float32Array, start: number, n: number, x: number, y: number): number {
     let d = Infinity;
@@ -61,7 +147,7 @@ function polyDist(e: Float32Array, start: number, n: number, x: number, y: numbe
 
 /**
  * Signed distance of a closed shape with parameters `s[at .. at + 12]` (an instance's aShape0..2
- * or a union record), or NaN when only its bounds are known (hearts, stars, sectors).
+ * or a union record), or NaN for an unknown type.
  */
 function shapeDist(type: number, s: Float32Array, at: number, x: number, y: number, poly?: Float32Array): number {
     switch (type) {
@@ -80,6 +166,12 @@ function shapeDist(type: number, s: Float32Array, at: number, x: number, y: numb
 
             return k1 > 0 ? (k0 * (k0 - 1)) / k1 : -Math.min(s[at + 2], s[at + 3]);
         }
+        case Prim.Sector:
+            return sectorDist(s, at, x, y);
+        case Prim.Heart:
+            return heartDist(s, at, x, y);
+        case Prim.Star:
+            return starDist(s, at, x, y);
         case Prim.Triangle:
             return polygonDist(Array.from(s.subarray(at, at + 6)), x, y) - s[at + 6];
         case Prim.Poly:
@@ -87,6 +179,33 @@ function shapeDist(type: number, s: Float32Array, at: number, x: number, y: numb
         default:
             return Number.NaN;
     }
+}
+
+/**
+ * Distance of a combined shape: `n` records of 4 texels from texel `start`, folded on a stack as
+ * the shader's closedSD does. Op 4 pushes a shape, ops 0 to 3 fold it in, type 255 pops.
+ */
+function unionDist(poly: Float32Array, start: number, n: number, x: number, y: number): number {
+    const st: number[] = [];
+
+    for (let r = 0; r < n; r++) {
+        const t = (start + r * 4) * 4;
+        const type = Math.round(poly[t]);
+        const op = Math.round(poly[t + 1]);
+
+        if (type === 255) {
+            const b = st.pop() ?? Infinity;
+
+            st[st.length - 1] = combine(st[st.length - 1], b, op);
+            continue;
+        }
+        const d = shapeDist(type, poly, t + 4, x, y, poly);
+
+        if (op === 4 || !st.length) st.push(d);
+        else st[st.length - 1] = combine(st[st.length - 1], d, op);
+    }
+
+    return st.length ? st[0] : Infinity;
 }
 
 export function hitTest(f: Float32Array, count: number, x: number, y: number, poly?: Float32Array): boolean {
@@ -110,14 +229,6 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
                 if (inSweep(qx, qy, f[o + 7], f[o + 8]) && Math.abs(Math.hypot(qx, qy) - f[o + 6]) <= hw) return true;
                 continue;
             }
-            case Prim.Sector: {
-                const qx = x - f[o + 4];
-                const qy = y - f[o + 5];
-                const len = Math.hypot(qx, qy);
-
-                if (len <= f[o + 6] && len >= f[o + 9] && inSweep(qx, qy, f[o + 7], f[o + 8])) return true;
-                continue;
-            }
             case Prim.Segment:
                 if (segDist(x, y, f[o + 4], f[o + 5], f[o + 6], f[o + 7]) <= Math.max(hw, 1)) return true;
                 continue;
@@ -138,10 +249,8 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
                 const sd = pathStrokeDist(
                     poly,
                     {
-                        header: f[o + 4],
-                        subpaths: f[o + 5],
-                        first: f[o + 6],
-                        count: f[o + 7],
+                        windows: f[o + 4],
+                        count: f[o + 5],
                         join: f[o + 8] as Join,
                         miterLimit: f[o + 9],
                         cap0: ((flags >> CAP0_SHIFT) & 3) as Cap,
@@ -158,19 +267,11 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
             }
             case Prim.Union: {
                 if (!poly) return true;
-                d = Infinity;
-                for (let r = 0; r < f[o + 5]; r++) {
-                    const t = (f[o + 4] + r * 4) * 4;
-                    const dr = shapeDist(poly[t], poly, t + 4, x, y, poly);
-
-                    // members without an exact distance count by their share of the bounds
-                    d = Math.min(d, Number.isNaN(dr) ? 0 : dr);
-                }
+                d = unionDist(poly, f[o + 4], f[o + 5], x, y);
                 break;
             }
             default:
                 d = shapeDist(type, f, o + 4, x, y, poly);
-                // hearts and stars: bounds are close enough for pointer events
                 if (Number.isNaN(d)) return true;
         }
 

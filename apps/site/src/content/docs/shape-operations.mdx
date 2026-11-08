@@ -1,0 +1,100 @@
+---
+title: Shape operations
+seoTitle: 'Boolean shape operations in PixiJS'
+description: 'Union, subtract, intersect and exclude shapes and SVG paths in PixiJS. Each result is one exact distance field with sharp edges, strokes, gradients and blur.'
+keywords: ['PixiJS boolean shapes', 'subtract shape PixiJS', 'shape cutout WebGL', 'SVG path PixiJS', 'SDF boolean operations']
+updated: 2026-11-08
+api: [SilkGraphics, ShapeOp]
+---
+
+Shape operations combine shapes into one. Cut a hole in a card, make a ring from two circles, or
+build an icon from a few primitives. The result is one distance field. It is painted once, so a
+translucent fill has no darker overlaps, and its outline is exact.
+
+<Demo name="shape-ops" height={280} />
+
+## Combine the shapes of a path
+
+Add `op` to `fill()` or `stroke()`. It combines every closed shape on the active path.
+
+```ts
+g.circle(60, 60, 50).circle(60, 60, 30).fill({ color: 0x30d158, op: 'subtract' }); // a ring
+g.rect(0, 0, 80, 80).circle(80, 80, 40).fill({ color: 0x0a84ff, op: 'intersect' }); // a quarter disc
+g.circle(40, 40, 30).circle(70, 40, 30).fill({ color: 0xff375f, op: 'exclude' }); // two lenses
+```
+
+| op | result |
+|---|---|
+| `union` | everything any shape covers. The same as `union: true`. |
+| `subtract` | the first shape, minus every later one |
+| `intersect` | only what every shape covers |
+| `exclude` | what an odd number of shapes cover |
+
+A `stroke()` right after the fill follows the outline of the result, in the same instance. A
+stroke with its own `op` strokes the outline without a fill.
+
+```ts
+g.roundRect(0, 0, 120, 80, 16)
+    .circle(60, 40, 24)
+    .fill({ color: 0x1c1c1e, op: 'subtract' })
+    .stroke({ width: 2, color: 0xffffff });
+```
+
+## Nest operations with boolean()
+
+`boolean(op, a, b)` adds one shape to the active path: what callback `a` draws, combined with what
+callback `b` draws. The shapes inside each callback are merged first. A callback can call
+`boolean()` again, so any tree of operations works. Paint the result like any shape.
+
+```ts
+// a ring with a notch, and a dot in the middle
+g.boolean(
+    'union',
+    (g) =>
+        g.boolean(
+            'subtract',
+            (g) => g.circle(50, 50, 40),
+            (g) => g.circle(50, 50, 24).rect(46, 0, 8, 30),
+        ),
+    (g) => g.circle(50, 50, 8),
+).fill(0xff9f0a);
+```
+
+The callbacks only add shapes. Do not call `fill()` or `stroke()` inside them. Up to 8 operands
+can wait on each other at once, which is far more nesting than an icon needs. Deeper trees are
+skipped with a warning.
+
+## SVG paths
+
+`svgPath(d)` reads the `d` attribute of an SVG path into the active path. It supports `M`, `L`,
+`H`, `V`, `C`, `S`, `Q`, `T`, `A` and `Z`, absolute and relative. A fill draws it as one
+even-odd shape, so the inner square of `M0 0 H60 V60 H0 Z M20 20 V40 H40 V20 Z` is a hole.
+
+```ts
+g.svgPath('M12 2 L22 22 H2 Z').fill(0xffd60a);
+g.svgPath('M4 4 H20 V20 H4 Z').circle(12, 12, 4).fill({ color: 0xffffff, op: 'subtract' });
+```
+
+In a shape operation, a path from `svgPath()` or `moveTo()` is one operand with all its subpaths.
+With `union`, each subpath counts on its own, as it always did.
+
+## Paint and effects
+
+Everything that paints a closed shape works on the result: colours, gradients, `blur`, a
+progressive blur, `spread`, inner shadows and `blend: 'add'`. Gradients without explicit units span
+the bounds of the result.
+
+The outline is exact, so anti-aliasing is as sharp as on a circle at any zoom. Inside the shape
+and far outside it, the combined distance is a close bound instead. A blur, a spread or an inner
+shadow wider than a corner can round that corner a little more than an exact field would. Keep
+blurs in proportion to the shape for crisp cutouts.
+
+## Hit testing
+
+`containsPoint()` follows the result. A ring is hollow, a cutout lets clicks through, and an
+intersection only hits where the shapes overlap.
+
+## Cost
+
+A combined shape is one instance. Each pixel evaluates every shape in it once, so ten shapes cost
+about what ten separate shapes do, in one draw call. Paths in an operation cost one step per edge.
