@@ -1,7 +1,7 @@
 import type { Container } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { SilkText } from 'pixi-silk/text';
-import { type FitMode, SmartContainer } from 'pixi-silk/ui/layout';
+import { type FitMode, FlexContainer } from 'pixi-silk/ui/layout';
 import { defineDemo } from './runtime';
 
 // The same 200x120 artwork in five slots, one per fit mode, like CSS object-fit. Resize the
@@ -31,17 +31,17 @@ export default defineDemo({
         align: { type: 'select', label: 'fitAlign', options: ['center', 'start', 'end'], value: 'center' },
     },
     setup({ silk, stage, params, tick }) {
-        const row = new SmartContainer({
+        const row = new FlexContainer({
             ticker: silk.app.ticker,
             layout: { gap: 14, padding: [24, 16], justifyContent: 'center', alignItems: 'start' },
         });
-        const slots: { box: SmartContainer; art: Container }[] = [];
+        const slots: { box: FlexContainer; art: Container }[] = [];
         const label = (text: string) => new SilkText({ text, fontSize: 14, fill: 0x8e8e93 });
         const slot = (title: string) => {
             const column = row.add(
-                new SmartContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
+                new FlexContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
             );
-            const box = column.add(new SmartContainer());
+            const box = column.add(new FlexContainer());
             const frame = new SilkGraphics();
             const clip = new SilkGraphics();
 

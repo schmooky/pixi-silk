@@ -2,19 +2,19 @@ import { Container } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import type { AlignItems, FlexDirection, JustifyContent } from 'pixi-silk/layout';
 import { SilkText } from 'pixi-silk/text';
-import { SmartContainer } from 'pixi-silk/ui/layout';
+import { FlexContainer, layoutDebug } from 'pixi-silk/ui/layout';
 import { defineDemo } from './runtime';
 
 // An auto-layout stack, like a Figma frame. Change the item count, direction, gap, padding and
-// alignment: cards glide to their new slots on springs. Debug draws the boxes (blue), the
-// padding (green) and the gaps (pink).
+// alignment: cards glide to their new slots on springs. The debug overlay draws the boxes and
+// slots (blue), the padding (green), the gaps (pink) and real bounds (white). Hover a card.
 
 const COLORS = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff, 0xffd60a];
 const W = 860;
 const H = 420;
 
 /** A card of its own size that redraws at its slot size, so `align: stretch` shows. */
-function card(frame: SmartContainer, i: number): Container {
+function card(frame: FlexContainer, i: number): Container {
     const c = new Container();
     const g = new SilkGraphics();
     const t = new SilkText({ text: String(i + 1), fontWeight: 700, fontSize: 22, fill: 0xffffff, anchor: 0.5 });
@@ -57,7 +57,9 @@ export default defineDemo({
         debug: { type: 'toggle', label: 'debug', value: true },
     },
     setup({ silk, stage, params, tick }) {
-        const frame = new SmartContainer({ ticker: silk.app.ticker, transition: true, debug: true });
+        const frame = new FlexContainer({ ticker: silk.app.ticker, transition: true });
+        // the layout debug overlay: boxes, padding, gaps, slots against real bounds. Hover a card.
+        const debug = layoutDebug(silk.app, { enabled: true });
         const bg = new SilkGraphics();
         const cards: Container[] = [];
         let last = '';
@@ -87,9 +89,12 @@ export default defineDemo({
                 alignItems: params.align as AlignItems,
                 alignContent: 'start',
             });
-            frame.debug = params.debug;
+            if (debug.enabled !== params.debug) debug.toggle();
         });
 
-        return () => frame.destroy({ children: true });
+        return () => {
+            debug.destroy();
+            frame.destroy({ children: true });
+        };
     },
 });
