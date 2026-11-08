@@ -80,14 +80,16 @@ export const DOCS_AREAS = [
     {
         id: 'ui',
         title: 'UI widgets',
-        summary: 'Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
+        summary: 'Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.',
         intro: [
             'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
+            'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera.',
             'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
             'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
         ],
         items: [
             { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
+            'text',
             'hit-testing',
             { page: 'animation', lab: ['23-timers'] },
             'radial-menus-and-buttons',
@@ -97,12 +99,22 @@ export const DOCS_AREAS = [
     {
         id: 'editor-ui',
         title: 'Editor UI',
-        summary: 'Transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.',
+        summary:
+            'An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, undo, path editing, colour pickers, dials and a timeline.',
         intro: [
             'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with transform gizmos for selecting and moving things. Colour pickers, editor tools and dials add the controls around them.',
+            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls.',
         ],
-        items: ['transform-gizmos', 'color-pickers', 'editor-tools', 'dials-and-timeline'],
+        items: [
+            'canvas-and-measurements',
+            'canvas-tools',
+            'transform-gizmos',
+            'selection-and-history',
+            'path-editing',
+            'color-pickers',
+            'editor-tools',
+            'dials-and-timeline',
+        ],
     },
     {
         id: 'examples',
@@ -140,13 +152,14 @@ export const DOCS_AREAS = [
         summary: 'How the anti-aliasing works, crisp canvases on any screen and what it costs.',
         intro: [
             'The ideas under the API. The first three pages compare pixi-silk with the other ways to smooth PixiJS graphics.',
-            'Resolution and performance cover canvas setup and cost. How it works walks through the shader.',
+            'Resolution, renderers and performance cover canvas setup and cost. How it works walks through the shader.',
         ],
         items: [
             'smooth-graphics-pixijs',
             { page: 'antialiasing-in-pixijs', lab: ['03-zoom', '04-subpixel'] },
             'graphics-smooth-v8',
             { page: 'resolution', lab: ['05-resolution', '06-render-texture'] },
+            'webgpu',
             { page: 'performance', lab: ['27-stress'] },
             'how-it-works',
         ],

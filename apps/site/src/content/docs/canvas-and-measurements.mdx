@@ -1,0 +1,89 @@
+---
+title: Canvas and measurements
+seoTitle: 'Infinite canvas and Figma-style redlines for PixiJS'
+description: 'Pan and zoom a PixiJS scene like a design tool, with pinch, fling and fit, and measure the distances between objects with redlines and size badges.'
+keywords: ['PixiJS camera', 'infinite canvas', 'pan and zoom', 'redlines', 'measure distance', 'design tool']
+updated: 2026-11-08
+---
+
+<Demo name="editor-canvas" height={480} caption="Scroll to pan, pinch or ctrl + scroll to zoom. Click a layer, then hover another to measure. Cmd or ctrl + Z undoes a move." />
+
+## Camera
+
+`Camera` pans and zooms a world container over an infinite canvas. It works the way design tools
+do, so people don't have to learn it.
+
+- A trackpad pinch, or ctrl or cmd with the wheel, zooms around the cursor. Scrolling pans.
+- Middle drag, right drag and Space + drag pan. On touch screens two fingers pinch and pan.
+- A fling keeps gliding and slows down.
+- `+` and `-` zoom, Shift + 0 is 100% and Shift + 1 fits the content.
+
+Pans never reach the scene, so your own clicks and drags keep working. Silk redraws its shapes
+exactly at every zoom, so they stay sharp from 2% to as far as you let it go.
+
+```ts
+import { Container } from 'pixi.js';
+import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
+
+const world = new Container();
+const overlay = new Container();
+const camera = new Camera({ world, element: app.canvas });
+
+app.stage.addChild(world, overlay);
+overlay.addChild(new ZoomControl(camera));
+camera.fit();
+```
+
+Put overlays beside the world, not inside it. Outlines, gizmos and measurements on the overlay
+follow the objects in the world and keep their size on screen.
+
+`fit()`, `zoomTo()`, `zoomBy()` and `centerOn()` animate by default. `state.zoom`, `state.x` and
+`state.y` are signals, for readouts and for anything that redraws on zoom. `screenToWorld()` and
+`worldToScreen()` convert points.
+
+Pass `wheel: 'zoom'` for map-style scrolling, where the wheel zooms and Shift + wheel pans.
+
+## Measurements
+
+`Measure` draws the distances from one object to another, the way Figma does when you hold Alt.
+
+- Two objects side by side: the gap between them, along the band they share.
+- Objects that don't line up: the gap, plus a dashed guide to where the other edge would be.
+- One inside the other: the margins on every side.
+
+`size()` puts a `W x H` badge under an object. Both follow their objects every frame, so they
+stay right while things move.
+
+```ts
+import type { Container } from 'pixi.js';
+import { Measure } from 'pixi-silk/ui/measure';
+
+declare const world: Container, overlay: Container, selected: Container, hovered: Container;
+
+const measure = new Measure({ space: world });
+
+overlay.addChild(measure);
+measure.size(selected);
+measure.between(selected, hovered);
+```
+
+Distances are measured in `space`, usually the camera's world. A gap of 24 reads 24 at any zoom.
+`format` turns values into labels, for units or rounding.
+
+`Measure` and `ZoomControl` draw their text with PixiJS `Text` by default. Pass
+`label: silkLabel()` from `pixi-silk/text` to draw it with SilkText instead, which stays sharp at
+any zoom and resolution. The widgets never import SilkText on their own, so apps that skip the
+option do not ship it.
+
+```ts
+import type { Container } from 'pixi.js';
+import { silkLabel } from 'pixi-silk/text';
+import { type Camera, ZoomControl } from 'pixi-silk/ui/camera';
+import { Measure } from 'pixi-silk/ui/measure';
+
+declare const camera: Camera, world: Container;
+
+const label = silkLabel();
+const measure = new Measure({ space: world, label });
+const zoom = new ZoomControl(camera, { label });
+```

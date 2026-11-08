@@ -15,6 +15,18 @@
       "types": "./dist/signal.d.ts",
       "default": "./dist/signal.js"
     },
+    "./selection": {
+      "types": "./dist/selection.d.ts",
+      "default": "./dist/selection.js"
+    },
+    "./history": {
+      "types": "./dist/history.d.ts",
+      "default": "./dist/history.js"
+    },
+    "./path": {
+      "types": "./dist/path.d.ts",
+      "default": "./dist/path.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
@@ -38,6 +50,42 @@
     "./ui/outline": {
       "types": "./dist/ui/outline.d.ts",
       "default": "./dist/ui/outline.js"
+    },
+    "./ui/pathgizmo": {
+      "types": "./dist/ui/pathgizmo.d.ts",
+      "default": "./dist/ui/pathgizmo.js"
+    },
+    "./ui/camera": {
+      "types": "./dist/ui/camera.d.ts",
+      "default": "./dist/ui/camera.js"
+    },
+    "./ui/measure": {
+      "types": "./dist/ui/measure.d.ts",
+      "default": "./dist/ui/measure.js"
+    },
+    "./ui/grid": {
+      "types": "./dist/ui/grid.d.ts",
+      "default": "./dist/ui/grid.js"
+    },
+    "./ui/ruler": {
+      "types": "./dist/ui/ruler.d.ts",
+      "default": "./dist/ui/ruler.js"
+    },
+    "./ui/guides": {
+      "types": "./dist/ui/guides.d.ts",
+      "default": "./dist/ui/guides.js"
+    },
+    "./ui/marquee": {
+      "types": "./dist/ui/marquee.d.ts",
+      "default": "./dist/ui/marquee.js"
+    },
+    "./ui/group": {
+      "types": "./dist/ui/group.d.ts",
+      "default": "./dist/ui/group.js"
+    },
+    "./ui/spacing": {
+      "types": "./dist/ui/spacing.d.ts",
+      "default": "./dist/ui/spacing.js"
     },
     "./ui/snap": {
       "types": "./dist/ui/snap.d.ts",
@@ -95,6 +143,14 @@
       "types": "./dist/glow.d.ts",
       "default": "./dist/glow.js"
     },
+    "./webgpu": {
+      "types": "./dist/webgpu.d.ts",
+      "default": "./dist/webgpu.js"
+    },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "default": "./dist/text.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -148,6 +204,7 @@
     "signed-distance-field",
     "shader",
     "webgl",
+    "webgpu",
     "squircle",
     "gradient",
     "oklab",

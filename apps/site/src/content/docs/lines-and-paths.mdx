@@ -3,7 +3,7 @@ title: Lines & paths
 seoTitle: 'Smooth lines, polylines and tapered strokes in PixiJS'
 description: 'Anti-aliased lines and polylines with monotone or Catmull-Rom smoothing, Bezier paths, tapered strokes and translucent joints without double blending.'
 keywords: ['smooth lines PixiJS', 'PixiJS polyline', 'anti-aliased lines WebGL', 'tapered stroke', 'bezier curve PixiJS']
-updated: 2026-09-26
+updated: 2026-11-08
 api: [SilkGraphics, along]
 ---
 
@@ -21,9 +21,29 @@ g.polyline(points, { smooth: 'catmull' }).stroke(...);       // free curves thro
 
 Points can be a flat array `[x0, y0, x1, y1, ...]`, a typed array, or an array of `{ x, y }`.
 
-Each segment is its own instance. For every pixel, only the nearest segment shades it. So a
-translucent polyline has uniform alpha at its joints instead of darker blobs. For the same reason,
-joints are always round. Round is the only join that is continuous in distance.
+A stroked path is one distance field. Every pixel is shaded once, so a translucent polyline has
+uniform alpha at its corners instead of darker blobs.
+
+## Joins
+
+`join` sets how segments meet: `miter` (the default, as in Canvas and Pixi), `bevel` or `round`.
+A miter longer than `miterLimit` half widths turns into a bevel. The default limit is 10.
+
+<Demo name="joins" height={260} />
+
+```ts
+g.polyline(points).stroke({ width: 12, join: 'bevel', color: 0x0a84ff, alpha: 0.6 });
+g.rect(0, 0, 80, 60).stroke({ width: 8, join: 'miter', miterLimit: 4 });
+```
+
+Joins follow Canvas 2D and SVG. Each segment is a butt rectangle, and the join fills the outer
+corner. Caps apply at the open ends and at the ends of every dash. A dash that runs through a
+corner gets the join too. Rects without a radius, triangles and stars without corner rounding
+get sharp corners as well, so a stroked `rect()` looks like a Canvas one. Use `join: 'round'` for
+the rounded outer corners of earlier versions.
+
+A path stroke checks every segment of its path per pixel. Subpaths longer than 32 segments are
+split into chunks, so long chart lines stay fast. Tapered strokes keep one capsule per segment.
 
 ## Paths
 
@@ -37,7 +57,7 @@ g.moveTo(10, 80)
     .stroke({ width: 3, color: 0xff9f0a, cap: 'round' });
 ```
 
-Silk flattens curves adaptively into segments. A stroke draws them one by one. A fill draws the
+Silk flattens curves adaptively into segments. A stroke draws the path as one outline. A fill draws the
 whole path as one exact shape, so a bolt, a drop or a logo outline blurs, spreads and takes inner
 shadows like a circle does. Overlapping subpaths follow the even-odd rule, so a square inside a
 square makes a hole.

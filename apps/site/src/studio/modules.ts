@@ -16,14 +16,27 @@ const PACKAGES: Record<string, Loader> = {
     'pixi.js': () => import('pixi.js'),
     'pixi-silk': () => import('pixi-silk'),
     'pixi-silk/signal': () => import('pixi-silk/signal'),
+    'pixi-silk/selection': () => import('pixi-silk/selection'),
+    'pixi-silk/history': () => import('pixi-silk/history'),
+    'pixi-silk/path': () => import('pixi-silk/path'),
     'pixi-silk/glass': () => import('pixi-silk/glass'),
     'pixi-silk/glow': () => import('pixi-silk/glow'),
+    'pixi-silk/text': () => import('pixi-silk/text'),
     'pixi-silk/ui': () => import('pixi-silk/ui'),
     'pixi-silk/ui/radial': () => import('pixi-silk/ui/radial'),
     'pixi-silk/ui/button': () => import('pixi-silk/ui/button'),
     'pixi-silk/ui/dock': () => import('pixi-silk/ui/dock'),
     'pixi-silk/ui/gizmo': () => import('pixi-silk/ui/gizmo'),
     'pixi-silk/ui/outline': () => import('pixi-silk/ui/outline'),
+    'pixi-silk/ui/pathgizmo': () => import('pixi-silk/ui/pathgizmo'),
+    'pixi-silk/ui/camera': () => import('pixi-silk/ui/camera'),
+    'pixi-silk/ui/measure': () => import('pixi-silk/ui/measure'),
+    'pixi-silk/ui/grid': () => import('pixi-silk/ui/grid'),
+    'pixi-silk/ui/ruler': () => import('pixi-silk/ui/ruler'),
+    'pixi-silk/ui/guides': () => import('pixi-silk/ui/guides'),
+    'pixi-silk/ui/marquee': () => import('pixi-silk/ui/marquee'),
+    'pixi-silk/ui/group': () => import('pixi-silk/ui/group'),
+    'pixi-silk/ui/spacing': () => import('pixi-silk/ui/spacing'),
     'pixi-silk/ui/snap': () => import('pixi-silk/ui/snap'),
     'pixi-silk/ui/color': () => import('pixi-silk/ui/color'),
     'pixi-silk/ui/halo': () => import('pixi-silk/ui/halo'),
@@ -40,18 +53,36 @@ const PACKAGES: Record<string, Loader> = {
 };
 
 // the lab's shared helpers, widgets and sheets, addressed the way a lab page imports them
-const LAB = import.meta.glob(['../lab/_shared/*.{ts,css}', '../lab/_widgets/*.ts', '../lab/_sheets/*.ts']);
+const LAB = import.meta.glob([
+    '../lab/_shared/*.{ts,css}',
+    '../lab/_widgets/*.ts',
+    '../lab/_sheets/*.ts',
+    '../lab/_cards/*.ts',
+]);
 
 function loader(specifier: string): Loader | undefined {
     if (PACKAGES[specifier]) return PACKAGES[specifier];
-    if (!specifier.startsWith('./_')) return undefined;
-    const base = `../lab/${specifier.slice(2)}`;
+    // a lab page imports './_sheets/x', a widget card in lab/_cards imports '../_sheets/x'
+    const rest = specifier.startsWith('./_')
+        ? specifier.slice(2)
+        : specifier.startsWith('../_')
+          ? specifier.slice(3)
+          : null;
+
+    if (rest === null) return undefined;
+    const base = `../lab/${rest}`;
 
     return (LAB[base] ?? LAB[`${base}.ts`]) as Loader | undefined;
 }
 
 /** Specifiers a module may import, for error messages. */
-export const IMPORTABLE: string[] = [...Object.keys(PACKAGES), './_shared/*', './_widgets/*', './_sheets/*'];
+export const IMPORTABLE: string[] = [
+    ...Object.keys(PACKAGES),
+    './_shared/*',
+    './_widgets/*',
+    './_sheets/*',
+    '../_sheets/* (from a card)',
+];
 
 /** Compiles TypeScript module source and runs it. Resolves with its exports. */
 export async function runModule(source: string): Promise<Record<string, unknown>> {

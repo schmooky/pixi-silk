@@ -19,11 +19,11 @@ describe('SilkGraphics', () => {
         expect(g.primitiveCount).toBe(1);
     });
 
-    it('draws a polyline as one instance per segment', () => {
+    it('draws a polyline as one instance', () => {
         const g = new SilkGraphics();
 
         g.polyline([0, 0, 10, 0, 20, 10, 30, 0]).stroke({ width: 2, color: 0xffffff });
-        expect(g.primitiveCount).toBe(3);
+        expect(g.primitiveCount).toBe(1);
     });
 
     it('grows its bounds with the drawing, including stroke width', () => {

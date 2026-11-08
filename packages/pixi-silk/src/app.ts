@@ -21,6 +21,12 @@ export interface SilkAppOptions extends Partial<ApplicationOptions> {
      * Pixi. Use `none` for canvases that handle drags themselves.
      */
     touchAction?: string;
+    /**
+     * Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU
+     * where the browser has it. Pixi falls back to WebGL2 when it does not. On WebGPU the app loads
+     * the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either.
+     */
+    preference?: ApplicationOptions['preference'];
 }
 
 /** What {@link createSilkApp} returns: the Pixi application, its CSS size and resolution, and helpers to change or destroy it. */
@@ -42,7 +48,8 @@ export interface SilkApp {
 /**
  * Creates a Pixi application tuned for smooth vector output:
  *
- * - WebGL2 and no MSAA (analytic AA does the job, MSAA would only cost bandwidth),
+ * - WebGL2 by default, WebGPU with `preference: 'webgpu'` (the WGSL shader then loads on demand),
+ * - no MSAA (analytic AA does the job, MSAA would only cost bandwidth),
  * - backing store sized from `devicePixelContentBoxSize`, so every canvas pixel maps to
  *   exactly one device pixel even at fractional DPRs (1.25, 1.5, 2.625 ...) - no resampling blur,
  * - follows DPR changes (moving the window between displays, browser zoom),
@@ -76,6 +83,9 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
         powerPreference: 'high-performance',
         ...rest,
     });
+
+    // the WGSL program is a separate chunk: WebGL2 apps never download it
+    if (app.renderer.name === 'webgpu') (await import('./webgpu')).enableWebGPU();
 
     const canvas = app.canvas;
 

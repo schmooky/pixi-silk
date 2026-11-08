@@ -18,8 +18,8 @@ export interface GlassOptions extends GlassStyle {
  * Put labels and icons in {@link Glass.content}: they sit on top of the glass, sharp. The pane's
  * top-left corner is at (0, 0). It reads the canvas behind it, so on WebGL it turns on the
  * renderer's back buffer the first time it draws. Pass `useBackBuffer: true` to the application
- * to have it from the first frame. Where no back buffer exists (WebGPU) it draws a plain frosted
- * fill instead.
+ * to have it from the first frame. WebGPU reads the backdrop without a back buffer. On any other
+ * renderer it draws a plain frosted fill instead.
  */
 export class Glass extends Container {
     /** Children drawn on top of the glass. */
@@ -114,8 +114,8 @@ export class Glass extends Container {
     private _sync(renderer: Renderer): void {
         const filter = this._filter;
         const backBuffer = (renderer as { backBuffer?: { useBackBuffer: boolean } }).backBuffer;
-        // only WebGL has a back buffer to read the backdrop from
-        const supported = !!filter && backBuffer !== undefined;
+        // WebGL reads the backdrop from its back buffer, WebGPU copies it from the render target
+        const supported = !!filter && (backBuffer !== undefined || renderer.name === 'webgpu');
 
         if (!supported && !this._fallback) {
             // a renderer without backdrop access: keep a frosted fill instead of a broken filter

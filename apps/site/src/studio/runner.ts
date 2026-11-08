@@ -4,9 +4,11 @@
  * document (the parent reloads the frame), so WebGL contexts, listeners and globals never leak.
  */
 import { type Control, type Demo, initialValues, mountDemo } from '@/demos/runtime';
+import { type CardDef, mountCard } from '@/lab/_sheets/card';
+import { attachCamera } from './camera';
 import { runModule } from './modules';
 
-type Message = { type: 'run'; kind: 'demo' | 'lab'; code: string };
+type Message = { type: 'run'; kind: 'demo' | 'lab' | 'card'; code: string };
 
 const post = (data: Record<string, unknown>) => parent.postMessage({ source: 'silk-studio', ...data }, location.origin);
 const fail = (e: unknown) => post({ type: 'error', message: e instanceof Error ? (e.stack ?? e.message) : String(e) });
@@ -70,6 +72,9 @@ async function runDemo(code: string) {
     const bar = document.getElementById('studio-controls')!;
     const values = initialValues(demo.controls);
     const mounted = await mountDemo(demo, host, values);
+
+    // SDF shapes stay sharp at any zoom, so the preview can pan and zoom without limit
+    if (!demo.ownsCamera) attachCamera(mounted.silk.app.stage, host);
     const entries = Object.entries(demo.controls ?? {});
 
     for (const [key, control] of entries) {
@@ -83,11 +88,20 @@ async function runDemo(code: string) {
     bar.hidden = entries.length === 0;
 }
 
+async function runCard(code: string) {
+    const exports = await runModule(code);
+    const def = exports.default as CardDef | undefined;
+
+    if (!def?.draw) throw new Error('A widget card exports `card(draw, { ... })` as its default export.');
+    await mountCard(def, document.getElementById('studio-stage')!);
+}
+
 addEventListener('message', async (e: MessageEvent<Message>) => {
     if (e.origin !== location.origin || e.data?.type !== 'run') return;
     document.body.dataset.kind = e.data.kind;
     try {
         if (e.data.kind === 'demo') await runDemo(e.data.code);
+        else if (e.data.kind === 'card') await runCard(e.data.code);
         // a lab page builds its own full-window scene when it runs
         else await runModule(e.data.code);
         post({ type: 'ok' });

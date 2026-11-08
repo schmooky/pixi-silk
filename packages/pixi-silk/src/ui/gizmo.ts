@@ -983,16 +983,15 @@ export class TransformGizmo extends Container {
                 const color = this._color(axis ? t.y : t.x, handle);
                 const alpha = dim(handle);
 
-                g.line(c * 16 * k, s * 16 * k, c * (size - 10 * k), s * (size - 10 * k)).stroke({
-                    width: 2.5 + hv * 1.5,
-                    color,
-                    alpha,
-                    cap: 'round',
-                });
-                g.regularPoly(c * (size - 4 * k), s * (size - 4 * k), (8 + hv * 2) * k, 3, a + Math.PI / 2, 1.5).fill({
-                    color,
-                    alpha,
-                });
+                const w = 2.5 + hv * 1.5;
+
+                // shaft and head are one shape: a union has no seam or double-blended overlap
+                g.save()
+                    .rotateTransform(a)
+                    .pill(16 * k - w / 2, -w / 2, size - 20 * k + w / 2, w)
+                    .restore()
+                    .regularPoly(c * (size - 4 * k), s * (size - 4 * k), (8 + hv * 2) * k, 3, a + Math.PI / 2, 1.5)
+                    .fill({ color, alpha, union: true });
             }
             const hv = this._h('move-free');
             const r = (7 + hv * 1.5) * k;
@@ -1009,25 +1008,19 @@ export class TransformGizmo extends Container {
             for (const axis of [0, 1] as const) {
                 const handle: GizmoHandle = axis ? 'scale-y' : 'scale-x';
                 const a = this._dir(axis, true);
-                const c = Math.cos(a);
-                const s = Math.sin(a);
                 const hv = this._h(handle);
                 const color = this._color(axis ? t.y : t.x, handle);
                 const r = (5.5 + hv * 1.5) * k;
 
-                if (mode === 'scale') {
-                    g.line(c * 20 * k, s * 20 * k, c * reach, s * reach).stroke({
-                        width: 2.5 + hv * 1.5,
-                        color,
-                        alpha: dim(handle),
-                    });
-                }
-                g.save()
-                    .translateTransform(c * reach, s * reach)
-                    .rotateTransform(a)
+                const w = 2.5 + hv * 1.5;
+
+                // the line runs into the square: one union, so the overlap is not painted twice
+                g.save().rotateTransform(a);
+                if (mode === 'scale') g.rect(20 * k, -w / 2, reach - 20 * k, w);
+                g.translateTransform(reach, 0)
                     .roundRect(-r, -r, r * 2, r * 2, 2)
-                    .fill({ color, alpha: dim(handle) })
-                    .restore();
+                    .restore()
+                    .fill({ color, alpha: dim(handle), union: true });
             }
             const hv = this._h('scale-uniform');
 

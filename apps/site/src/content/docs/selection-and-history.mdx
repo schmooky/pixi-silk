@@ -1,0 +1,146 @@
+---
+title: Selection and undo
+seoTitle: 'Selection and undo/redo history for PixiJS editors'
+description: 'Track what is selected, hovered and primary in a PixiJS editor, and make every edit undoable with transactions, merging, signal recording and keyboard shortcuts.'
+keywords: ['PixiJS selection', 'undo redo', 'command pattern', 'history stack', 'canvas editor', 'signals']
+updated: 2026-11-08
+---
+
+<Demo name="selection-history" height={420} caption="Click and Shift + click shapes, drag the gizmo, press Tint. Each step lands in the list. Cmd or ctrl + Z undoes." />
+
+## Selection
+
+`Selection` holds what an editor has selected. It keeps the items in the order they were picked,
+the **primary** item (the last one picked), and the item under the pointer. All three are
+signals, so anything can follow them.
+
+```ts
+import type { Container } from 'pixi.js';
+import { Selection } from 'pixi-silk/selection';
+
+declare const layers: Container[];
+
+const selection = new Selection<Container>();
+
+for (const layer of layers) {
+    layer.on('pointerdown', (e) => selection.pick(layer, e.shiftKey ? 'toggle' : 'replace'));
+    layer.on('pointerover', () => selection.state.hovered.set(layer));
+}
+selection.onChange(({ added, removed }) => console.log(added, removed));
+```
+
+- `add`, `remove`, `toggle`, `replace` and `clear` change the set. `pick` does what a click does.
+- `selectWhere(pool, test)` selects by a test, such as every layer inside a marquee.
+- `focus(item)` makes a selected item primary without changing the set.
+- `filter` keeps locked layers out, and `multiple: false` keeps one item at most.
+
+The store works for any item type: containers, ids or your own records.
+
+### One call per widget
+
+Adapters make the widgets follow the selection. Each returns the function that stops it.
+
+```ts
+import type { Container } from 'pixi.js';
+import { bindGizmo, bindMeasure, bindOutline, type Selection } from 'pixi-silk/selection';
+import type { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import type { Measure } from 'pixi-silk/ui/measure';
+import type { SelectionOutline } from 'pixi-silk/ui/outline';
+
+declare const selection: Selection<Container>;
+declare const outline: SelectionOutline, hover: SelectionOutline;
+declare const gizmo: TransformGizmo, measure: Measure;
+
+bindOutline(selection, outline, hover);
+bindGizmo(selection, gizmo);
+bindMeasure(selection, measure);
+```
+
+`bindOutline` frames the selection, and the second outline shows the hovered item. `bindGizmo`
+attaches the gizmo to the primary item. `bindMeasure` shows its size and the distances to the
+hovered item. The selection module draws nothing itself, so it adds about 1 kB.
+
+## Undo and redo
+
+`History` is an undo stack of commands. A command can `do()` and `undo()` a change.
+
+```ts
+import { History } from 'pixi-silk/history';
+
+declare const layer: { name: string };
+
+const history = new History();
+
+history.execute({ label: 'Rename', do: () => (layer.name = 'Hero'), undo: () => (layer.name = 'Layer 1') });
+history.undo();
+history.redo();
+```
+
+- `record(command)` stores a change that already happened, such as the end of a drag.
+- `begin()` and `end()` make everything in between one step, so a whole drag undoes at once.
+  `transaction(label, fn)` does both, and reverts the changes if `fn` throws.
+- A command with `merge()` can fold the next one into itself, so typing or nudges become one step.
+- A new change drops the steps you could redo. `maxDepth` caps the stack, 200 by default.
+- `state.canUndo`, `state.canRedo` and the labels are signals for buttons and menus.
+
+`bindHistoryKeys(history)` binds cmd or ctrl + Z to undo, and Shift + cmd + Z and ctrl + Y to
+redo. Keys typed into inputs and text areas stay with them.
+
+### Undo without commands
+
+`recordSignals` records changes of a set of signals. You keep writing to the signals, and
+undo works.
+
+```ts
+import { History, recordSignals } from 'pixi-silk/history';
+import { signal } from 'pixi-silk/signal';
+
+const history = new History();
+const doc = { title: signal('Untitled'), zoom: signal(1) };
+
+recordSignals(history, doc);
+doc.title.value = 'Poster';
+history.undo();
+```
+
+Changes made in one handler become one step. Inside a transaction they merge into its step. The
+default `patch` mode stores only the signals that changed. `snapshot` stores all of them, for
+values that depend on each other.
+
+### Your own store
+
+Widgets take any `HistoryLike`: an object with `record`, `begin` and `end`. Give them an adapter
+over your own state library or patch log, and the same edits land there.
+
+```ts
+import type { HistoryLike } from 'pixi-silk/history';
+
+declare const store: { push(entry: { label?: string; undo(): void; redo(): void }): void };
+
+const history: HistoryLike = {
+    record: (c) => store.push({ label: c.label, undo: () => c.undo(), redo: () => c.do() }),
+    begin: () => {},
+    end: () => {},
+};
+```
+
+### Gizmo drags
+
+`recordGizmo(gizmo, history)` turns each drag of a `TransformGizmo` into one step, labelled Move,
+Rotate, Scale or Resize. It watches the gizmo's `dragging` signal, so the gizmo does not depend
+on history.
+
+```ts
+import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
+import type { TransformGizmo } from 'pixi-silk/ui/gizmo';
+
+declare const gizmo: TransformGizmo;
+
+const history = new History();
+
+recordGizmo(gizmo, history);
+bindHistoryKeys(history);
+```
+
+The canvas demo on [Canvas and measurements](/docs/canvas-and-measurements/) uses the same
+selection and history.

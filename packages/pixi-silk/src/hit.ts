@@ -1,4 +1,5 @@
-import { Flag, Prim, STRIDE } from './constants';
+import { CAP0_SHIFT, CAP1_SHIFT, type Cap, Flag, type Join, Prim, STRIDE } from './constants';
+import { pathStrokeDist, polygonDist } from './stroke';
 
 /*
  * CPU versions of the main distance functions, so pointer events hit the real
@@ -58,6 +59,36 @@ function polyDist(e: Float32Array, start: number, n: number, x: number, y: numbe
     return inside ? -d : d;
 }
 
+/**
+ * Signed distance of a closed shape with parameters `s[at .. at + 12]` (an instance's aShape0..2
+ * or a union record), or NaN when only its bounds are known (hearts, stars, sectors).
+ */
+function shapeDist(type: number, s: Float32Array, at: number, x: number, y: number, poly?: Float32Array): number {
+    switch (type) {
+        case Prim.Rect: {
+            const r = Math.max(s[at + 4], s[at + 5], s[at + 6], s[at + 7]);
+            const [px, py] = local(x - s[at], y - s[at + 1], s[at + 11]);
+
+            return roundBox(px, py, s[at + 2], s[at + 3], Math.min(r, s[at + 2], s[at + 3]));
+        }
+        case Prim.Ellipse: {
+            const [px, py] = local(x - s[at], y - s[at + 1], s[at + 11]);
+            const qx = px / s[at + 2];
+            const qy = py / s[at + 3];
+            const k0 = Math.hypot(qx, qy);
+            const k1 = Math.hypot(qx / s[at + 2], qy / s[at + 3]);
+
+            return k1 > 0 ? (k0 * (k0 - 1)) / k1 : -Math.min(s[at + 2], s[at + 3]);
+        }
+        case Prim.Triangle:
+            return polygonDist(Array.from(s.subarray(at, at + 6)), x, y) - s[at + 6];
+        case Prim.Poly:
+            return poly ? polyDist(poly, s[at], s[at + 1], x, y) : Number.NaN;
+        default:
+            return Number.NaN;
+    }
+}
+
 export function hitTest(f: Float32Array, count: number, x: number, y: number, poly?: Float32Array): boolean {
     for (let i = count - 1; i >= 0; i--) {
         const o = i * STRIDE;
@@ -69,26 +100,9 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
         const fill = (flags & Flag.Fill) !== 0;
         const stroke = (flags & Flag.Stroke) !== 0 && hw > 0;
         const off = f[o + 39] * hw;
-        let d = Infinity; // closed distance
+        let d: number; // closed distance
 
         switch (type) {
-            case Prim.Rect: {
-                const r = Math.max(f[o + 8], f[o + 9], f[o + 10], f[o + 11]);
-                const [px, py] = local(x - f[o + 4], y - f[o + 5], f[o + 15]);
-
-                d = roundBox(px, py, f[o + 6], f[o + 7], Math.min(r, f[o + 6], f[o + 7]));
-                break;
-            }
-            case Prim.Ellipse: {
-                const [px, py] = local(x - f[o + 4], y - f[o + 5], f[o + 15]);
-                const qx = px / f[o + 6];
-                const qy = py / f[o + 7];
-                const k0 = Math.hypot(qx, qy);
-                const k1 = Math.hypot(qx / f[o + 6], qy / f[o + 7]);
-
-                d = k1 > 0 ? (k0 * (k0 - 1)) / k1 : -Math.min(f[o + 6], f[o + 7]);
-                break;
-            }
             case Prim.Arc: {
                 const qx = x - f[o + 4];
                 const qy = y - f[o + 5];
@@ -119,13 +133,45 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number, po
                 if (y >= Math.min(top, bottom) && y <= Math.max(top, bottom)) return true;
                 continue;
             }
-            case Prim.Poly:
+            case Prim.Path: {
                 if (!poly) return true;
-                d = polyDist(poly, f[o + 4], f[o + 5], x, y);
+                const sd = pathStrokeDist(
+                    poly,
+                    {
+                        header: f[o + 4],
+                        subpaths: f[o + 5],
+                        first: f[o + 6],
+                        count: f[o + 7],
+                        join: f[o + 8] as Join,
+                        miterLimit: f[o + 9],
+                        cap0: ((flags >> CAP0_SHIFT) & 3) as Cap,
+                        cap1: ((flags >> CAP1_SHIFT) & 3) as Cap,
+                        hw,
+                    },
+                    x,
+                    y,
+                );
+
+                // thin lines keep a hit area at least 1 unit to each side
+                if (sd <= Math.max(0, 1 - hw)) return true;
+                continue;
+            }
+            case Prim.Union: {
+                if (!poly) return true;
+                d = Infinity;
+                for (let r = 0; r < f[o + 5]; r++) {
+                    const t = (f[o + 4] + r * 4) * 4;
+                    const dr = shapeDist(poly[t], poly, t + 4, x, y, poly);
+
+                    // members without an exact distance count by their share of the bounds
+                    d = Math.min(d, Number.isNaN(dr) ? 0 : dr);
+                }
                 break;
+            }
             default:
-                // hearts, stars, triangles: bounds are close enough for pointer events
-                return true;
+                d = shapeDist(type, f, o + 4, x, y, poly);
+                // hearts and stars: bounds are close enough for pointer events
+                if (Number.isNaN(d)) return true;
         }
 
         if ((fill && d <= 0) || (stroke && Math.abs(d - off) <= hw)) return true;

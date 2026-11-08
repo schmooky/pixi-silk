@@ -53,7 +53,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Get started overview](https://pixi-silk.schmooky.dev/docs/start/): Install pixi-silk, draw a first scene and move code over from PixiJS Graphics.
 - [Introduction](https://pixi-silk.schmooky.dev/docs/introduction/): pixi-silk is a Graphics-like object for PixiJS v8. It draws shapes as exact signed distance fields, so edges stay smooth and anti-aliased at any zoom and DPR. (Markdown: https://pixi-silk.schmooky.dev/docs/introduction.md)
   - Experiment: [Primitives](https://pixi-silk.schmooky.dev/lab/01-primitives/): All 24 shape kinds side by side: rects, squircles, circles, arcs, sectors, lines, areas, dashes, icons, blur.
-- [Installation](https://pixi-silk.schmooky.dev/docs/installation/): Install pixi-silk with npm, pnpm, yarn or bun next to pixi.js v8. It needs WebGL2 and ships tree-shakeable ESM with TypeScript types, about 15 kB gzipped. (Markdown: https://pixi-silk.schmooky.dev/docs/installation.md)
+- [Installation](https://pixi-silk.schmooky.dev/docs/installation/): Install pixi-silk with npm, pnpm, yarn or bun next to pixi.js v8. It runs on WebGL2 or WebGPU and ships typed, tree-shakeable ESM, about 15 kB gzipped. (Markdown: https://pixi-silk.schmooky.dev/docs/installation.md)
 - [Quick start](https://pixi-silk.schmooky.dev/docs/quick-start/): Create a DPR-exact PixiJS app with createSilkApp, then draw a squircle card, a gradient gauge and an area chart with SilkGraphics. (Markdown: https://pixi-silk.schmooky.dev/docs/quick-start.md)
 - [Migrating from Graphics](https://pixi-silk.schmooky.dev/docs/migrating-from-graphics/): SilkGraphics mirrors the PixiJS v8 Graphics API: shapes on a path, fill and stroke, transforms. See what is the same, what differs and what is new. (Markdown: https://pixi-silk.schmooky.dev/docs/migrating-from-graphics.md)
   - Experiment: [v8 Graphics vs Silk](https://pixi-silk.schmooky.dev/lab/02-versus/): The same scene with Graphics (no AA), Graphics + MSAA 4x and Silk. Hover to magnify device pixels.
@@ -86,13 +86,14 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### UI widgets
 
-- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
+- [UI widgets overview](https://pixi-silk.schmooky.dev/docs/ui/): Charts, sharp text, pointer input, animation and the radial menus and buttons from pixi-silk/ui.
 - [Charts](https://pixi-silk.schmooky.dev/docs/charts/): Anti-aliased line and area charts with monotone smoothing that never overshoots, fading gradient fills, dotted guides, bars and dots. (Markdown: https://pixi-silk.schmooky.dev/docs/charts.md)
   - Experiment: [Area chart](https://pixi-silk.schmooky.dev/lab/15-area-chart/): Smoothed series, gradient fill, dotted guides, dashed forecast, NOW marker, eased updates.
   - Experiment: [Bar charts](https://pixi-silk.schmooky.dev/lab/16-bar-charts/): Slim bars with a past/future split and chunky stepped bars that grow in.
   - Experiment: [Ranges & levels](https://pixi-silk.schmooky.dev/lab/18-ranges/): Progress bars with markers, range segments and signal bars, all anti-aliased at any size and pixel ratio.
   - Experiment: [Gauges](https://pixi-silk.schmooky.dev/lab/20-gauges/): ISS flyover, car battery, heading dial with ticks, barometer, UV week, dimmer.
   - Experiment: [Sparklines](https://pixi-silk.schmooky.dev/lab/21-sparklines/): Value-coloured strokes, gradient markers, threshold stops, interactive crosshair.
+- [Sharp text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas. Text stays crisp from 0.5x to 100x zoom, with outlines, glows and tabular numbers. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
 - [Hit testing & events](https://pixi-silk.schmooky.dev/docs/hit-testing/): Pointer events test each shape's real distance field: rings are hollow, lines react only within their stroke and rounded corners stay rounded. (Markdown: https://pixi-silk.schmooky.dev/docs/hit-testing.md)
 - [Animation](https://pixi-silk.schmooky.dev/docs/animation/): Redraw SilkGraphics cheaply every frame. Animate with damp, dampAngle, Spring and ease so motion feels the same at 60, 120 or 144 Hz. (Markdown: https://pixi-silk.schmooky.dev/docs/animation.md)
   - Experiment: [Timers](https://pixi-silk.schmooky.dev/lab/23-timers/): Espresso ticks with analytic motion blur, run cadence bars and controls.
@@ -100,8 +101,12 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Editor UI
 
-- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): Transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.
+- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, undo, path editing, colour pickers, dials and a timeline.
+- [Canvas and measurements](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/): Pan and zoom a PixiJS scene like a design tool, with pinch, fling and fit, and measure the distances between objects with redlines and size badges. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-and-measurements.md)
+- [Grid, rulers and selection](https://pixi-silk.schmooky.dev/docs/canvas-tools/): Add a zoom-aware grid, rulers, draggable guides, rubber-band selection, group transforms and Figma-style smart spacing to a PixiJS canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-tools.md)
 - [Transform gizmos](https://pixi-silk.schmooky.dev/docs/transform-gizmos/): Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps. (Markdown: https://pixi-silk.schmooky.dev/docs/transform-gizmos.md)
+- [Selection and undo](https://pixi-silk.schmooky.dev/docs/selection-and-history/): Track what is selected, hovered and primary in a PixiJS editor, and make every edit undoable with transactions, merging, signal recording and keyboard shortcuts. (Markdown: https://pixi-silk.schmooky.dev/docs/selection-and-history.md)
+- [Path editing](https://pixi-silk.schmooky.dev/docs/path-editing/): Edit bezier paths in PixiJS like a design tool: drag anchors and handles, add and delete points, and draw with a pen tool. Every edit is undoable. (Markdown: https://pixi-silk.schmooky.dev/docs/path-editing.md)
 - [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/): Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model. (Markdown: https://pixi-silk.schmooky.dev/docs/color-pickers.md)
 - [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/): Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch. (Markdown: https://pixi-silk.schmooky.dev/docs/editor-tools.md)
 - [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline/): A jog wheel with fine control and inertia, Blender-style scrub fields, a compact timeline with keys and loop range, and an odometer that rolls its digits. (Markdown: https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md)
@@ -136,6 +141,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [Resolution & DPR](https://pixi-silk.schmooky.dev/docs/resolution/): createSilkApp maps the canvas 1:1 to device pixels, even at fractional DPRs, follows DPR changes and renders filters at screen resolution. (Markdown: https://pixi-silk.schmooky.dev/docs/resolution.md)
   - Experiment: [Resolution & device pixels](https://pixi-silk.schmooky.dev/lab/05-resolution/): Siemens star, 1-device-pixel grating, live 1x / 1.5x / 2x / 3x switching and 1:1 mapping check.
   - Experiment: [Filters & render textures](https://pixi-silk.schmooky.dev/lab/06-render-texture/): Why Graphics goes jaggy and blurry behind a filter, and why Silk does not.
+- [WebGPU & WebGL2](https://pixi-silk.schmooky.dev/docs/webgpu/): pixi-silk renders on Pixi WebGPU and WebGL2 with the same output. createSilkApp uses WebGL2 by default and WebGPU when you ask for it. (Markdown: https://pixi-silk.schmooky.dev/docs/webgpu.md)
 - [Performance](https://pixi-silk.schmooky.dev/docs/performance/): One instanced draw call per SilkGraphics and about 12 ms of CPU to rebuild 50,000 primitives, plus tips for static layers, gradients and fill rate. (Markdown: https://pixi-silk.schmooky.dev/docs/performance.md)
   - Experiment: [Stress test](https://pixi-silk.schmooky.dev/lab/27-stress/): Up to 100k primitives in one draw call, rebuilt every frame or static.
 - [How it works](https://pixi-silk.schmooky.dev/docs/how-it-works/): One instanced quad per primitive, exact signed distance functions per pixel, analytic coverage from screen-space derivatives and dithered OKLab ramps. (Markdown: https://pixi-silk.schmooky.dev/docs/how-it-works.md)
@@ -157,6 +163,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [RadialGradient](https://pixi-silk.schmooky.dev/api/classes/RadialGradient/): Class. A ramp from a centre outwards, optionally starting at an inner radius. Create it with radial.
 - [SilkGeometry](https://pixi-silk.schmooky.dev/api/classes/SilkGeometry/): Class. Geometry behind every SilkGraphics: one unit quad plus an interleaved instance buffer (40 floats per primitive). You rarely need it directly.
 - [SilkGraphics](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/): Class. A PixiJS display object with a Graphics-like API. Every primitive is a signed distance field evaluated per pixel, so edges are smooth at any scale,...
+- [SilkPipe](https://pixi-silk.schmooky.dev/api/classes/SilkPipe/): Class. Render pipe that draws runs of consecutive SilkGraphics in one instanced draw call. enableSilkBatching installs it.
 - [Spring](https://pixi-silk.schmooky.dev/api/classes/Spring/): Class. Damped harmonic spring (semi-implicit Euler with fixed sub-steps). stiffness / damping follow the usual UI spring convention (e.g. 170 / 26).
 - [along](https://pixi-silk.schmooky.dev/api/functions/along/): Function. Gradient that follows a stroke from its first point (t = 0) to its last (t = 1).
 - [catmullRom](https://pixi-silk.schmooky.dev/api/functions/catmullRom/): Function. Centripetal Catmull-Rom spline through the points (no cusps or self-loops).
@@ -164,6 +171,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/): Function. Creates a Pixi application tuned for smooth vector output:. Function createSilkApp of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [damp](https://pixi-silk.schmooky.dev/api/functions/damp/): Function. Exponential approach: moves current towards target. lambda is about 1/seconds, higher is snappier.
 - [dampAngle](https://pixi-silk.schmooky.dev/api/functions/dampAngle/): Function. Damped angle approach along the shortest path. Function dampAngle of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
+- [enableSilkBatching](https://pixi-silk.schmooky.dev/api/functions/enableSilkBatching/): Function. Turns on batching across objects: runs of consecutive SilkGraphics with the same blend mode and settings render in one draw call.
 - [horizontal](https://pixi-silk.schmooky.dev/api/functions/horizontal/): Function. Left-to-right linear gradient across the painted shape. Function horizontal of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [linear](https://pixi-silk.schmooky.dev/api/functions/linear/): Function. Linear gradient. from / to default to top and bottom of the shape's box (units: 'shape').
 - [linearToOklab](https://pixi-silk.schmooky.dev/api/functions/linearToOklab/): Function. Converts linear-light sRGB to OKLab (Björn Ottosson's perceptual colour space), used to interpolate gradients evenly.
@@ -194,6 +202,7 @@ The docs are grouped into areas. Each area overview tours its features with live
 - [FillInput](https://pixi-silk.schmooky.dev/api/types/FillInput/): Type. What fill() accepts: any Pixi colour, a gradient or a FillStyle. Type FillInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [GradientUnits](https://pixi-silk.schmooky.dev/api/types/GradientUnits/): Type. Gradient coordinates: shape = fractions of each painted shape's box, local = the graphics' local units (one ramp across many shapes).
 - [LineCap](https://pixi-silk.schmooky.dev/api/types/LineCap/): Type. Shape of the ends of open paths and of every dash: flat, round or square.
+- [LineJoin](https://pixi-silk.schmooky.dev/api/types/LineJoin/): Type. Shape of the corners where two segments of a stroke meet. Type LineJoin of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [MeshColorInput](https://pixi-silk.schmooky.dev/api/types/MeshColorInput/): Type. A mesh control colour: any Pixi colour, or [color, alpha]. Type MeshColorInput of pixi-silk, smooth anti-aliased graphics for PixiJS v8.
 - [PointsInput](https://pixi-silk.schmooky.dev/api/types/PointsInput/): Type. Points as a flat [x0, y0, x1, y1, ...] array, a typed array, or an array of { x, y } objects.
 - [RGBA](https://pixi-silk.schmooky.dev/api/types/RGBA/): Type. Straight (non-premultiplied) sRGB colour with alpha, all channels 0..1, as returned by parseColor.

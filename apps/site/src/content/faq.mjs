@@ -50,7 +50,7 @@ export const FAQ = [
     {
         area: 'start',
         q: 'Is pixi-silk a replacement for Graphics?',
-        a: 'Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It draws all joins round and does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.',
+        a: 'Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It supports miter, bevel and round joins. It does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.',
     },
     {
         area: 'rendering',
@@ -65,7 +65,7 @@ export const FAQ = [
     {
         area: 'rendering',
         q: 'Does pixi-silk work with WebGPU?',
-        a: "Not yet. The shader is GLSL for WebGL2, so create your app with `preference: 'webgl'` (`createSilkApp` does). A WGSL version is planned.",
+        a: "Yes. Pass `preference: 'webgpu'` to `createSilkApp`, and it loads the WGSL shader when Pixi picks WebGPU. Without WebGPU, Pixi falls back to WebGL2. For your own Pixi app, call `enableWebGPU()` from `pixi-silk/webgpu` before you create any SilkGraphics.",
     },
     {
         area: 'drawing',

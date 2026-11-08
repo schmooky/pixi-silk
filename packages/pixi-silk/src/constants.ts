@@ -23,7 +23,7 @@ export const INSTANCE_ATTRIBUTES = [
     'aGrad', // gradient geometry in local space
     'aPaint', // gradientKind, atlasRow, extendMode, 0
     'aDash', // dash, gap, offset, strokeAlign (-1 inside .. 0 center .. +1 outside)
-    'aFx', // spread, progressive blur end sigma, progressive blur angle, 0
+    'aFx', // spread, progressive blur end sigma, progressive blur angle, batch object index + 1 (0 = not batched)
 ] as const;
 
 /** Primitive ids, one per branch of the fragment shader. */
@@ -39,6 +39,14 @@ export const Prim = {
     Triangle: 8,
     /** Filled path: its edges live in a float texture, `aShape0.xy` = first texel and edge count. */
     Poly: 9,
+    /**
+     * Stroked path, one distance field for the whole outline: header and segment texels live in the
+     * path texture. `aShape0` = header texel, subpath count, first segment and segment count of a
+     * chunk (-1 = every segment). `aShape1` = join, miter limit, path length before the chunk.
+     */
+    Path: 10,
+    /** Union of closed shapes: `aShape0.xy` = first record texel and record count (4 texels each). */
+    Union: 11,
 } as const;
 export type Prim = (typeof Prim)[keyof typeof Prim];
 
@@ -73,6 +81,17 @@ export const Cap = {
     Square: 2,
 } as const;
 export type Cap = (typeof Cap)[keyof typeof Cap];
+
+/** Line join ids in `aShape1.x` of a {@link Prim.Path} instance. */
+export const Join = {
+    Round: 0,
+    Miter: 1,
+    Bevel: 2,
+} as const;
+export type Join = (typeof Join)[keyof typeof Join];
+
+/** Segments a stroked path instance owns at most. Longer subpaths are split into chunks of this size. */
+export const PATH_CHUNK = 32;
 
 /** Gradient ids in `aPaint.x`. */
 export const GradKind = {

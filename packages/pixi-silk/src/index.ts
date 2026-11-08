@@ -1,5 +1,6 @@
 export { createSilkApp, type SilkApp, type SilkAppOptions } from './app';
 export { GradientAtlas } from './atlas';
+export { enableSilkBatching, SilkPipe } from './batch';
 export { type ColorSpace, linearToOklab, oklabToLinear, parseColor, type RGBA } from './color';
 export { catmullRom, monotoneX, type PointsInput, toFlat } from './curves';
 export {
@@ -35,6 +36,7 @@ export {
     type FillStyle,
     type InnerShadow,
     type LineCap,
+    type LineJoin,
     type PolylineOptions,
     type ProgressiveBlur,
     SilkGeometry,
