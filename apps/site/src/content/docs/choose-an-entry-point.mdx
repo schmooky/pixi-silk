@@ -1,0 +1,93 @@
+---
+title: Choose an entry point
+seoTitle: 'pixi-silk entry points: what each import holds'
+description: 'pixi-silk ships one entry point per feature. See what the root import holds, what lives under ui, text, layout, glass, glow and webgpu, and when to import each.'
+keywords: ['pixi-silk imports', 'pixi-silk entry points', 'pixi-silk/ui', 'pixi-silk/text', 'tree shaking PixiJS']
+updated: 2026-11-08
+api: [SilkGraphics, createSilkApp]
+---
+
+The root import `pixi-silk` holds the drawing core. Everything else has its own entry point, so
+an app that only draws shapes never downloads the text renderer or the editor widgets.
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import { SilkButton } from 'pixi-silk/ui/button';
+```
+
+The UI widgets, text, layout, glass, glow and the WebGPU shader are not in the root import. An
+import of `SilkText` from `pixi-silk` fails to compile.
+
+## Core
+
+| Import | What it holds | Import it when |
+|---|---|---|
+| `pixi-silk` | `SilkGraphics`, gradients (`linear`, `radial`, `conic`, `along`, `mesh`), `createSilkApp`, `enableSilkBatching`, `Spring`, `damp`, `ease`, colour and curve helpers | always |
+| `pixi-silk/webgpu` | `enableWebGPU()`, the WGSL shader | you create your own Pixi app with WebGPU. See [Renderers](/docs/renderers/) |
+| `pixi-silk/signal` | `signal`, `computed`, `watch`, `batch` | you read or write widget state, which is kept in signals |
+
+## Text, layout and effects
+
+| Import | What it holds | Import it when |
+|---|---|---|
+| `pixi-silk/text` | `SilkText`, `silkLabel`, `SdfAtlas`, text layout and caret helpers | you draw labels. See [Text](/docs/text/) |
+| `pixi-silk/layout` | `LayoutNode`, a flex layout engine with no Pixi in it | you lay out boxes in a worker, a test or a server. See [Layout engine](/docs/layout-engine/) |
+| `pixi-silk/ui/layout` | `SmartContainer`, `FlexContainer`, `simulateViewport`, `layoutDebug` | you place Pixi containers on a responsive screen. See [Layout](/docs/layout/) |
+| `pixi-silk/glass` | `Glass`, `GlassFilter` | you want frosted panels. See [Glass & glow](/docs/glass-and-glow/) |
+| `pixi-silk/glow` | `Glow`, `Aurora`, `neon`, `halo`, `shadowStack`, light rays | you want neon, halos or light beams |
+
+## Game UI widgets
+
+| Import | What it holds | Page |
+|---|---|---|
+| `pixi-silk/ui/button` | `SilkButton` | [Radial menus & buttons](/docs/radial-menus-and-buttons/) |
+| `pixi-silk/ui/radial` | `RadialMenu`, `bindRadialTrigger` | [Radial menus & buttons](/docs/radial-menus-and-buttons/) |
+| `pixi-silk/ui/dock` | `ButtonDock` | [Slot HUD](/docs/slot-hud/) |
+| `pixi-silk/ui/odometer` | `Odometer` | [Slot HUD](/docs/slot-hud/) |
+| `pixi-silk/ui/pill` | `ValuePill` | [Slot HUD](/docs/slot-hud/) |
+| `pixi-silk/ui/gesture` | `trackGesture` | [Interaction & motion](/docs/interaction-and-motion/) |
+| `pixi-silk/ui/textedit` | `TextEditor` | [Editing text](/docs/editing-text/) |
+
+## Editor kit
+
+The editor kit is experimental in 1.0: its API may change in a minor release.
+
+| Import | What it holds | Page |
+|---|---|---|
+| `pixi-silk/ui/camera` | `Camera`, `ZoomControl` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/grid` | `CanvasGrid` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/ruler` | `Ruler` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/guides` | `Guides` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/marquee` | `Marquee` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/measure` | `Measure`, the redlines between layers | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/spacing` | `SpacingMarkers`, `findSpacing` | [Canvas & rulers](/docs/canvas-and-rulers/) |
+| `pixi-silk/ui/gizmo` | `TransformGizmo` | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/ui/outline` | `SelectionOutline` and quad helpers | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/ui/group` | `SelectionGroup` | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/ui/snap` | `SnapEngine`, `SnapGuides` | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/selection` | `Selection`, `bindOutline`, `bindGizmo`, `bindMeasure` | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/history` | `History`, `recordGizmo`, `recordSignals`, `bindHistoryKeys` | [Gizmos & selection](/docs/gizmos-and-selection/) |
+| `pixi-silk/path` | Bezier path data and edits, `parseSvgPath`, `pathToSvg` | [Path editing](/docs/path-editing/) |
+| `pixi-silk/ui/pathgizmo` | `PathGizmo`, `PenTool` | [Path editing](/docs/path-editing/) |
+| `pixi-silk/ui/color` | `ColorPicker`, `ColorWheel`, `OklchPicker`, `Eyedropper`, swatches | [Colour pickers](/docs/color-pickers/) |
+| `pixi-silk/ui/halo` | `ContextHalo` | [Editor tools](/docs/editor-tools/) |
+| `pixi-silk/ui/brush` | `BrushCursor` | [Editor tools](/docs/editor-tools/) |
+| `pixi-silk/ui/modes` | `ModeSwitcher`, `SegmentedSwitch` | [Editor tools](/docs/editor-tools/) |
+| `pixi-silk/ui/keys` | `isKeyDown`, `shiftDown`, `altDown`, `modDown`, `onKey` | [Editor tools](/docs/editor-tools/) |
+| `pixi-silk/ui/dial` | `JogDial`, `Scrubber` | [Dials & timeline](/docs/dials-and-timeline/) |
+| `pixi-silk/ui/timeline` | `MiniTimeline` | [Dials & timeline](/docs/dials-and-timeline/) |
+| `pixi-silk/ui/arc` | angle helpers and `AngleAccumulator` for dials | [Dials & timeline](/docs/dials-and-timeline/) |
+| `pixi-silk/ui/panel` | `Panel`, `PanelDock`, `ScrollView` | [Panels](/docs/panels/) |
+| `pixi-silk/ui/layers` | `LayerTree`, `pixiTreeAdapter` | [Panels](/docs/panels/) |
+| `pixi-silk/ui/inspector` | `Inspector` and its fields | [Panels](/docs/panels/) |
+| `pixi-silk/ui/minimap` | `Minimap` | [Panels](/docs/panels/) |
+
+## Everything at once
+
+`pixi-silk/ui` re-exports every widget above, plus `pixi-silk/selection`, `pixi-silk/history` and
+`pixi-silk/path`. It is handy in a prototype. In an app, import from the widget's own path so the
+bundle holds only the widgets you use.
+
+The package has no side effects, so a bundler drops the widgets you do not use from either
+import. The narrow paths make that independent of how well your bundler tree-shakes.

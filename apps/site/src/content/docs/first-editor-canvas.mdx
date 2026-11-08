@@ -1,0 +1,114 @@
+---
+title: Your first editor canvas
+seoTitle: 'Tutorial: a pan and zoom editor canvas in PixiJS'
+description: 'Build an editor canvas in PixiJS v8 with the pixi-silk editor kit: a camera that pans and zooms, a grid, a selection store, outlines and a transform gizmo.'
+keywords: ['PixiJS editor', 'PixiJS pan zoom', 'PixiJS transform gizmo', 'PixiJS selection', 'canvas grid PixiJS']
+updated: 2026-11-08
+api: [Camera, CanvasGrid, Selection, SelectionOutline, TransformGizmo, bindGizmo, bindOutline]
+---
+
+This tutorial builds the core of a design tool canvas: a camera that pans and zooms, a grid,
+click to select and a gizmo that moves the selected layer.
+
+<Callout type="note">
+Experimental in 1.0: the API may change in a minor release.
+</Callout>
+
+<Demo name="editor-canvas" height={480} caption="Scroll to pan, pinch or ctrl + scroll to zoom. Click a layer, then drag its arrows." />
+
+The demo adds redlines and undo to what this page builds. Its source opens in Studio.
+
+## The whole canvas
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { bindGizmo, bindOutline, Selection } from 'pixi-silk/selection';
+import { Camera } from 'pixi-silk/ui/camera';
+import { TransformGizmo } from 'pixi-silk/ui/gizmo';
+import { CanvasGrid } from 'pixi-silk/ui/grid';
+import { SelectionOutline } from 'pixi-silk/ui/outline';
+
+// 1. a world the camera moves, and an overlay that stays in screen space
+const world = new Container();
+const overlay = new Container();
+const camera = new Camera({ world, element: app.canvas });
+const grid = new CanvasGrid({ camera, ticker: app.ticker });
+
+app.stage.addChild(grid, world, overlay);
+
+// 2. one selection store, with an outline and a gizmo that follow it
+const selection = new Selection<Container>();
+const outline = new SelectionOutline({ ticker: app.ticker });
+const gizmo = new TransformGizmo({ mode: 'move', ticker: app.ticker });
+
+overlay.addChild(outline, gizmo);
+bindOutline(selection, outline);
+bindGizmo(selection, gizmo);
+
+// 3. layers that select on click
+function layer(x: number, y: number, draw: (g: SilkGraphics) => void) {
+    const g = new SilkGraphics();
+
+    draw(g);
+    g.position.set(x, y);
+    g.eventMode = 'static';
+    g.cursor = 'pointer';
+    g.on('pointerdown', (e) => {
+        e.stopPropagation();
+        selection.pick(g, e.shiftKey ? 'toggle' : 'replace');
+    });
+    world.addChild(g);
+
+    return g;
+}
+
+const card = layer(0, 0, (g) => g.roundRect(0, 0, 200, 120, 18, 0.6).fill(0xffffff));
+
+layer(240, 20, (g) => g.circle(40, 40, 40).fill(0x30d158));
+
+// 4. a click on empty canvas clears the selection
+app.stage.eventMode = 'static';
+app.stage.hitArea = app.screen;
+app.stage.on('pointerdown', (e) => e.target === app.stage && selection.clear());
+
+selection.pick(card);
+camera.fit(world, 40, false);
+```
+
+## What each part does
+
+The camera moves and scales `world`. Scroll pans it, and pinch or ctrl + scroll zooms around the
+pointer. `camera.fit(world, 40, false)` frames the layers with 40 px of padding and no animation.
+
+The grid sits behind the world and reads the camera, so its lines stay `lineWidth` screen pixels
+wide (default 1) at every zoom. Finer levels fade in as you zoom in.
+
+`Selection` is a store with no drawing in it. `bindOutline` and `bindGizmo` subscribe the outline
+and the gizmo to it, and each returns a function that stops the binding. Everything that changes
+the selection goes through `selection.pick()` or `selection.clear()`.
+
+The outline and the gizmo live in `overlay`, outside the world. They follow their target's
+screen position, so the handles keep their size when you zoom. Put overlays inside the world and
+they scale with it.
+
+## Options worth changing
+
+| Option | Default | What it does |
+|---|---|---|
+| `Camera` `wheel` | `'pan'` | `'zoom'` makes the wheel zoom, like a map |
+| `Camera` `zoomRange` | `[0.02, 256]` | smallest and largest zoom |
+| `Camera` `touchPan` | `'two'` | `'one'` pans with one finger |
+| `CanvasGrid` `style` | `'lines'` | `'dots'` draws a dot grid |
+| `TransformGizmo` `mode` | `'universal'` | `'move'`, `'rotate'`, `'scale'` or `'box'` shows one kind of handle |
+
+## Where it stops
+
+The kit draws and tracks state. It does not save documents or decide what a layer is. The
+selection holds any value you give it, so your own layer objects work as well as containers.
+
+## Where next
+
+- [Canvas & rulers](/docs/canvas-and-rulers/) adds rulers, guides, a marquee and spacing markers.
+- [Gizmos & selection](/docs/gizmos-and-selection/) covers rotate and scale, snapping and undo.
+- [Panels](/docs/panels/) adds a layer tree and an inspector.

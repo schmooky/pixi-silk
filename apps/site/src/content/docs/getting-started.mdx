@@ -1,0 +1,106 @@
+---
+title: Getting started
+seoTitle: 'Get started with pixi-silk for PixiJS v8'
+description: 'Install pixi-silk next to pixi.js v8, create an app with createSilkApp and draw a squircle card, a gradient gauge and an area chart with SilkGraphics.'
+keywords: ['pixi-silk', 'install pixi-silk', 'PixiJS v8 Graphics', 'smooth graphics PixiJS', 'createSilkApp', 'SilkGraphics example']
+updated: 2026-11-08
+api: [SilkGraphics, createSilkApp, conic, vertical, enableSilkBatching]
+---
+
+pixi-silk adds `SilkGraphics`, a PixiJS v8 display object with an API close to `Graphics`. You
+add it to the stage like any other container.
+
+<Demo name="quick-start" height={220} caption="The scene this page builds." />
+
+## Install
+
+```bash
+npm install pixi-silk pixi.js
+```
+
+`pixi.js` 8.6 or newer is a peer dependency, so your app owns the renderer. The package is ESM
+with TypeScript declarations and has no side effects, so a bundler keeps only what you import.
+
+## Create the app
+
+```ts
+import { createSilkApp } from 'pixi-silk';
+
+const { app } = await createSilkApp({
+    parent: document.getElementById('stage')!, // the canvas fills this element
+    background: 0x000000,
+});
+```
+
+`createSilkApp` wraps `new Application()` and `app.init()`. It turns MSAA off, sizes the canvas
+so one canvas pixel is one device pixel, and follows changes of the device pixel ratio. You can
+keep your own `Application` instead. [Resolution](/docs/resolution/) lists the settings that matter.
+
+## Draw
+
+Shape methods add to the active path. `fill()` and `stroke()` paint it, and every call chains.
+
+```ts
+import { conic, SilkGraphics, vertical } from 'pixi-silk';
+
+const GAUGE = conic([0x30d158, 0xffd60a, 0xff453a]); // spans the arc it is drawn on
+const g = new SilkGraphics();
+
+g.roundRect(10, 10, 340, 140, 22, 0.6).fill(0x1c1c1e); // radius 22, squircle smoothing 0.6
+g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 1.5).stroke({ width: 12, cap: 'round', gradient: GAUGE });
+g.area([120, 100, 170, 80, 220, 92, 270, 60, 320, 70], 130, { smooth: 'monotone' })
+    .fill(vertical([[0, 0xff9f0a, 0.8], [1, 0xff9f0a, 0]]))
+    .stroke({ width: 2, color: 0xff9f0a, cap: 'round' }); // a stroke right after a fill draws the top line
+
+app.stage.addChild(g);
+```
+
+The card is a squircle, the gauge is one arc with a conic gradient along it, and the chart is a
+smoothed area with a fading fill.
+
+## Animate
+
+Redraw every frame. `clear()` keeps the GPU buffers, so a rebuild only rewrites numbers.
+
+```ts
+app.ticker.add((ticker) => {
+    const t = ticker.lastTime / 1000;
+
+    g.clear();
+    g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 2 * (0.5 + 0.4 * Math.sin(t)))
+        .stroke({ width: 12, cap: 'round', gradient: GAUGE });
+});
+```
+
+Create gradients once and reuse them. Ramps with the same stops share one row of the gradient
+atlas, and a reused object skips parsing the stops again.
+
+## What it does differently
+
+`Graphics` turns shapes into triangles when you draw, and only MSAA smooths their edges.
+`SilkGraphics` draws each shape as a quad. The fragment shader evaluates the shape's exact
+distance function at every pixel and turns the distance into coverage.
+
+Two things follow from that. Edges stay sharp at any zoom and in filters and render textures,
+because nothing was tessellated. And one `SilkGraphics` renders in one instanced draw call,
+whatever it holds. Call `enableSilkBatching()` before you create objects to draw runs of them in
+one call too. [Anti-aliasing compared](/docs/anti-aliasing-compared/) sets this against MSAA,
+`@pixi/graphics-smooth` and supersampling, and [How it works](/docs/how-it-works/) walks
+through the shader.
+
+It renders with WebGL2 by default. [Renderers](/docs/renderers/) shows how to turn on WebGPU.
+
+## Where it stops
+
+| You want | Use |
+|---|---|
+| Texture or pattern fills | a Pixi `Sprite` or `TilingSprite` |
+| A whole SVG file | Pixi's `Graphics.svg()`. `svgPath(d)` takes one path's `d` attribute |
+| Text | `SilkText` from `pixi-silk/text`, a separate entry point |
+
+## Where next
+
+- [Choose an entry point](/docs/choose-an-entry-point/) lists what each import holds.
+- [Migrating from Graphics](/docs/migrating-from-graphics/) maps your existing calls.
+- [Your first widget](/docs/first-widget/) builds a button with a glow, hover and press.
+- [Shapes](/docs/shapes/) lists every primitive.
