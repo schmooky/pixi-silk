@@ -37,6 +37,8 @@ export const Prim = {
     Heart: 6,
     Star: 7,
     Triangle: 8,
+    /** Filled path: its edges live in a float texture, `aShape0.xy` = first texel and edge count. */
+    Poly: 9,
 } as const;
 export type Prim = (typeof Prim)[keyof typeof Prim];
 
@@ -95,5 +97,8 @@ export type Extend = (typeof Extend)[keyof typeof Extend];
 /** Gradient ramp atlas: one gradient per row, RAMP_WIDTH samples per ramp. */
 export const RAMP_WIDTH = 256;
 export const ATLAS_ROWS = 256;
+
+/** Edges per row of a graphics' path texture (one edge per RGBA32F texel). */
+export const POLY_WIDTH = 256;
 
 export const TAU: number = Math.PI * 2;

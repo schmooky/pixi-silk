@@ -1,59 +1,124 @@
-import { Text } from 'pixi.js';
-import { radial, SilkGraphics } from 'pixi-silk';
-import { Glow, neon } from 'pixi-silk/glow';
+import { Container, Text } from 'pixi.js';
+import { linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt, Glow, neon } from 'pixi-silk/glow';
 import { defineDemo } from './runtime';
 
-const bolt = (s: number) => (g: SilkGraphics) =>
-    g
-        .triangle(s * 0.12, -s * 0.5, -s * 0.32, s * 0.08, s * 0.06, s * 0.02, s * 0.03)
-        .triangle(-s * 0.12, s * 0.5, s * 0.32, -s * 0.08, -s * 0.06, -s * 0.02, s * 0.03);
-
-const core = radial([0xfff3a0, 0xffc400, 0xff8a00], { center: [0.5, 0.42], radius: 0.7 });
+const YELLOW = 0xffd60a;
+const font = 'Inter, system-ui, sans-serif';
 
 export default defineDemo({
-    size: [720, 400],
-    background: 0x050505,
+    size: [760, 440],
+    background: 0x0b0b09,
     controls: {
         intensity: { type: 'range', label: 'glow', min: 0, max: 2, step: 0.05, value: 1 },
     },
     setup({ stage, params, tick }) {
-        const left = new Glow({ draw: bolt(170), layers: neon(0xffb800, { size: 170, core }) });
+        const room = new SilkGraphics();
+
+        // warm light spilling into the room, like the reference backdrop
+        room.rect(0, 0, 760, 440).fill(
+            radial(
+                [
+                    [0, 0x3a3410, 1],
+                    [0.55, 0x15140c, 1],
+                    [1, 0x0b0b09, 1],
+                ],
+                { center: [0.28, 0.4], radius: 0.75 },
+            ),
+        );
+
+        // the bolt alone: about 120 wide, so the recipe runs at size 120
+        const big = new Glow({ draw: (g) => bolt(g, -60, -84, 120, 168), layers: neon(YELLOW, { size: 120 }) });
+
+        big.position.set(190, 220);
+
+        // the ticket card
+        const card = new Container();
+        const back = new SilkGraphics();
         const ticket = new SilkGraphics();
         const ring = new SilkGraphics();
-        const right = new Glow({ draw: bolt(110), layers: neon(0xff9500, { size: 110, core, surface: 'light' }) });
+        const small = new Glow({ draw: (g) => bolt(g, -52, -74, 104, 148), layers: neon(YELLOW, { size: 104 }) });
+
+        // translucent yellow folder behind the ticket
+        back.roundRect(0, 0, 230, 250, 18, 0.6)
+            .fill({ color: 0x000000, alpha: 0.6, blur: 30, spread: 6 })
+            .roundRect(0, 0, 230, 250, 18, 0.6)
+            .fill({
+                gradient: linear(
+                    [
+                        [0, 0x8a7d1c, 0.95],
+                        [1, 0x4f4710, 0.95],
+                    ],
+                    { from: [0, 0], to: [0, 1] },
+                ),
+                innerShadow: { color: 0xfff6b0, alpha: 0.25, y: 1, blur: 1 },
+            });
+        small.position.set(118, 50);
+        // the white ticket with a notch where the ring sits
+        ticket
+            .beginPath()
+            .moveTo(14, 160)
+            .lineTo(146, 160)
+            .bezierCurveTo(160, 160, 160, 176, 176, 176)
+            .lineTo(244, 176)
+            .bezierCurveTo(252, 176, 258, 182, 258, 190)
+            .lineTo(258, 300)
+            .bezierCurveTo(258, 308, 252, 314, 244, 314)
+            .lineTo(14, 314)
+            .bezierCurveTo(6, 314, 0, 308, 0, 300)
+            .lineTo(0, 174)
+            .bezierCurveTo(0, 166, 6, 160, 14, 160)
+            .closePath()
+            .fill({ color: 0x000000, alpha: 0.55, blur: 18, spread: 2 })
+            .fill({
+                gradient: linear(
+                    [
+                        [0, 0xf4f5f0, 1],
+                        [1, 0xc9ccd2, 1],
+                    ],
+                    { from: [0, 0], to: [0.3, 1] },
+                ),
+                innerShadow: { color: 0xffffff, alpha: 0.9, y: 1, blur: 0.5 },
+            });
+        for (let i = 0; i < 46; i++) {
+            const w = [1, 2, 1, 3, 1, 2][i % 6];
+
+            ticket.rect(22 + i * 4.6, 284, w, 12).fill({ color: 0x1d2a3a, alpha: 0.85 });
+        }
         const title = new Text({
-            text: 'Charged',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 20, fontWeight: '700', fill: 0x1c1c1e },
+            text: 'Supercharged', // prose-ignore: copy from the design reference
+            style: { fontFamily: font, fontSize: 23, fontWeight: '700', fill: 0x18181b },
         });
+        const sub = new Text({
+            text: 'Experience network speed\nlike never before',
+            style: { fontFamily: font, fontSize: 11.5, fill: 0x52525b, lineHeight: 16 },
+        });
+
+        title.position.set(22, 222);
+        sub.position.set(22, 252);
+        ring.position.set(206, 172);
+        card.addChild(back, small, ticket, ring, title, sub);
+        card.position.set(445, 60);
+        stage.addChild(room, big, card);
+
         let last = -1;
 
-        left.position.set(190, 200);
-        ticket
-            .roundRect(410, 40, 250, 320, 34, 0.6)
-            .fill({ color: 0x000000, alpha: 0.5, blur: 24 })
-            .roundRect(410, 40, 250, 320, 34, 0.6)
-            .fill(0xf5f5f7)
-            .roundRect(430, 60, 210, 230, 24, 0.6)
-            .fill({ color: 0xffd60a, alpha: 0.28 })
-            .stroke({ width: 1, color: 0xffb800, alpha: 0.35, alignment: 'inside' });
-        right.position.set(535, 175);
-        title.anchor.set(0.5);
-        title.position.set(535, 322);
-        stage.addChild(left, ticket, ring, right, title);
-
         tick((t) => {
-            const pulse = 0.85 + Math.sin(t * 2.2) * 0.15;
+            const flicker = 0.92 + 0.08 * Math.sin(t * 7.3) * Math.sin(t * 2.1);
 
             if (params.intensity !== last) {
                 last = params.intensity;
-                left.setLayers(neon(0xffb800, { size: 170, core, intensity: params.intensity }));
-                right.setLayers(neon(0xff9500, { size: 110, core, intensity: params.intensity, surface: 'light' }));
+                big.setLayers(neon(YELLOW, { size: 120, intensity: params.intensity }));
+                small.setLayers(neon(YELLOW, { size: 104, intensity: params.intensity }));
             }
+            big.alpha = flicker;
             ring.clear()
-                .circle(535, 175, 82)
-                .stroke({ width: 14, color: 0xffb800, alpha: 0.3 * pulse, blur: 12 })
-                .circle(535, 175, 82)
-                .stroke({ width: 2, color: 0xffffff, alpha: 0.95 });
+                .circle(0, 0, 30)
+                .stroke({ width: 12, color: YELLOW, alpha: 0.75 * params.intensity, blur: 9, blend: 'add' })
+                .circle(0, 0, 30)
+                .stroke({ width: 3.5, color: 0xfff27a, blur: 0.8 })
+                .circle(0, 0, 30)
+                .stroke({ width: 2, color: 0xffffff, alpha: 0.9, blur: 3, blend: 'add' });
         });
 
         return undefined;

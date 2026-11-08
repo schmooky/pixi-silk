@@ -50,7 +50,7 @@ export const FAQ = [
     {
         area: 'start',
         q: 'Is pixi-silk a replacement for Graphics?',
-        a: 'Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It can only stroke free-form paths for now. It draws all joins round and does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.',
+        a: 'Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It draws all joins round and does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.',
     },
     {
         area: 'rendering',

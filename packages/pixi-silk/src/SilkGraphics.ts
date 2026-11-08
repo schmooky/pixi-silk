@@ -1,6 +1,7 @@
 import {
     Bounds,
     Buffer,
+    BufferImageSource,
     BufferUsage,
     Color,
     type ColorSource,
@@ -13,7 +14,18 @@ import {
 } from 'pixi.js';
 import { GradientAtlas } from './atlas';
 import { parseColor, type RGBA } from './color';
-import { CAP0_SHIFT, CAP1_SHIFT, Cap, Extend, Flag, INSTANCE_ATTRIBUTES, Prim, STRIDE, TAU } from './constants';
+import {
+    CAP0_SHIFT,
+    CAP1_SHIFT,
+    Cap,
+    Extend,
+    Flag,
+    INSTANCE_ATTRIBUTES,
+    POLY_WIDTH,
+    Prim,
+    STRIDE,
+    TAU,
+} from './constants';
 import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput, toFlat } from './curves';
 import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
@@ -255,7 +267,6 @@ const EXTEND: Record<string, Extend> = { pad: Extend.Pad, repeat: Extend.Repeat,
 const HEART_W = 1.2071; // width of the unit heart (height 1.1036)
 const HEART_H = 1.1036;
 
-let warnedPathFill = false;
 let warnedAreaRotation = false;
 
 function scalePaint<T extends Paint>(p: T, k: number): T {
@@ -525,13 +536,29 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     private readonly _box = [0, 0, 0, 0];
     private readonly _silk: Float32Array;
     private readonly _uniforms: UniformGroup;
+    /** Edges of filled paths, one (ax, ay, bx, by) texel each, read by the shader. */
+    private _poly = new Float32Array(POLY_WIDTH * 4);
+    private _polyCount = 0;
+    private _polyDirty = false;
+    private readonly _polySource: BufferImageSource;
 
     constructor(options: SilkGraphicsOptions = {}) {
         const geometry = new SilkGeometry();
         const settings = { ...SilkGraphics.defaults, ...options };
-        const shader = createSilkShader(settings);
+        const polys = new BufferImageSource({
+            resource: new Float32Array(POLY_WIDTH * 4),
+            width: POLY_WIDTH,
+            height: 1,
+            format: 'rgba32float',
+            alphaMode: 'premultiplied-alpha',
+            scaleMode: 'nearest',
+            autoGenerateMipmaps: false,
+            label: 'silk-paths',
+        });
+        const shader = createSilkShader(settings, polys);
 
         super({ geometry, shader, label: options.label ?? 'SilkGraphics' });
+        this._polySource = polys;
         this._f = geometry.instanceBuffer.data as Float32Array;
         this._uniforms = shader.resources.silkUniforms as UniformGroup;
         this._silk = this._uniforms.uniforms.uSilk as Float32Array;
@@ -909,7 +936,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this._begin({ kind: 'path', subpaths: [{ pts: this._pts(pts), closed }], k: this._k });
     }
 
-    /** Pixi-style polygon path. Only strokes are supported for arbitrary paths. */
+    /**
+     * Pixi-style polygon. `fill()` paints it as one exact shape (even-odd), so blur, spread, inner
+     * shadows and gradients work on bolts, drops and other free outlines.
+     */
     poly(points: PointsInput, close = true): this {
         return this.polyline(points, { closed: close });
     }
@@ -1071,12 +1101,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         for (const shape of shapes) {
             if (shape.kind === 'area') this._emitArea(shape, scalePaint(paint, shape.k));
             else if (CLOSED_KINDS.has(shape.kind)) this._emitClosed(shape, scalePaint(paint, shape.k), null);
-            else if (shape.kind === 'path' && !warnedPathFill) {
-                warnedPathFill = true;
-                console.warn(
-                    '[pixi-silk] fill() on free paths is not supported yet; use stroke(), area() or the closed shapes',
-                );
-            }
+            else if (shape.kind === 'path') this._emitClosed(shape, scalePaint(paint, shape.k), null);
         }
         this._last = { shapes, start, fill: paint };
         this._consumed = true;
@@ -1128,6 +1153,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     clear(): this {
         this._releaseRamps();
         this._count = 0;
+        this._polyCount = 0;
         this._pending = [];
         this._consumed = false;
         this._last = null;
@@ -1147,7 +1173,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
     override containsPoint(point: PointData): boolean {
         if (!this.geometry.localBounds.containsPoint(point.x, point.y)) return false;
 
-        return hitTest(this._f, this._count, point.x, point.y);
+        return hitTest(this._f, this._count, point.x, point.y, this._poly);
     }
 
     override destroy(options?: DestroyOptions): void {
@@ -1158,6 +1184,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         super.destroy(options);
         geometry.destroy(true);
         shader?.destroy();
+        this._polySource.destroy();
     }
 
     // ------------------------------------------------------------------------------ internals
@@ -1207,6 +1234,54 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
         geometry.instanceCount = this._count;
         geometry.instanceBuffer.update(Math.max(this._count, 1) * STRIDE * 4);
+        if (this._polyDirty) {
+            this._polyDirty = false;
+            const src = this._polySource;
+            const rows = Math.max(1, Math.ceil(this._polyCount / POLY_WIDTH));
+
+            if (src.resource !== this._poly || src.height !== rows) {
+                src.resource = this._poly.subarray(0, rows * POLY_WIDTH * 4);
+                src.resize(POLY_WIDTH, rows);
+            }
+            src.update();
+        }
+    }
+
+    /** Appends the edges of every subpath of a filled path (each closed). Returns the first texel. */
+    private _pushEdges(subpaths: SubPath[]): [start: number, count: number] {
+        const start = this._polyCount;
+        let n = start;
+
+        for (const { pts } of subpaths) {
+            const m = pts.length >> 1;
+
+            if (m < 3) continue;
+            const need = (n + m) * 4;
+
+            if (need > this._poly.length) {
+                const rows = Math.ceil((n + m) / POLY_WIDTH);
+                const bigger = new Float32Array(Math.max(this._poly.length * 2, rows * POLY_WIDTH * 4));
+
+                bigger.set(this._poly);
+                this._poly = bigger;
+            }
+            const e = this._poly;
+
+            for (let i = 0; i < m; i++) {
+                const j = (i + 1) % m;
+                const q = n * 4;
+
+                e[q] = pts[i * 2];
+                e[q + 1] = pts[i * 2 + 1];
+                e[q + 2] = pts[j * 2];
+                e[q + 3] = pts[j * 2 + 1];
+                n++;
+            }
+        }
+        this._polyCount = n;
+        this._polyDirty = true;
+
+        return [start, n - start];
     }
 
     private _setBounds(o: number, minX: number, minY: number, maxX: number, maxY: number): void {
@@ -1408,6 +1483,18 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
                 type = Prim.Triangle;
                 this._set4(o + 4, p[0], p[1], p[2], p[3]);
                 this._set4(o + 8, p[4], p[5], p[6], 0);
+                break;
+            }
+            case 'path': {
+                const [start, n] = this._pushEdges(shape.subpaths);
+
+                if (n === 0) {
+                    this._count--;
+
+                    return;
+                }
+                type = Prim.Poly;
+                this._set4(o + 4, start, n, 0, 0);
                 break;
             }
             default:

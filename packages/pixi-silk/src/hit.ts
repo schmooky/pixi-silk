@@ -40,7 +40,25 @@ function local(x: number, y: number, rot: number): [number, number] {
     return [c * x - s * y, s * x + c * y];
 }
 
-export function hitTest(f: Float32Array, count: number, x: number, y: number): boolean {
+/** Even-odd signed distance to edges `start .. start + n` of a path texture. */
+function polyDist(e: Float32Array, start: number, n: number, x: number, y: number): number {
+    let d = Infinity;
+    let inside = false;
+
+    for (let i = start; i < start + n; i++) {
+        const ax = e[i * 4];
+        const ay = e[i * 4 + 1];
+        const bx = e[i * 4 + 2];
+        const by = e[i * 4 + 3];
+
+        d = Math.min(d, segDist(x, y, ax, ay, bx, by));
+        if (ay <= y !== by <= y && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+    }
+
+    return inside ? -d : d;
+}
+
+export function hitTest(f: Float32Array, count: number, x: number, y: number, poly?: Float32Array): boolean {
     for (let i = count - 1; i >= 0; i--) {
         const o = i * STRIDE;
 
@@ -101,6 +119,10 @@ export function hitTest(f: Float32Array, count: number, x: number, y: number): b
                 if (y >= Math.min(top, bottom) && y <= Math.max(top, bottom)) return true;
                 continue;
             }
+            case Prim.Poly:
+                if (!poly) return true;
+                d = polyDist(poly, f[o + 4], f[o + 5], x, y);
+                break;
             default:
                 // hearts, stars, triangles: bounds are close enough for pointer events
                 return true;

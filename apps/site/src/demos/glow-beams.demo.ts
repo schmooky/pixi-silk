@@ -1,115 +1,166 @@
-import { Container } from 'pixi.js';
-import { linear, SilkGraphics } from 'pixi-silk';
+import { Container, Text } from 'pixi.js';
+import { along, linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt } from 'pixi-silk/glow';
 import { defineDemo } from './runtime';
 
 const W = 760;
+const mono = 'ui-monospace, SF Mono, Menlo, monospace';
 
-const hourglass = (g: SilkGraphics, cx: number, cy: number, w: number, h: number, waist: number) =>
-    g
-        .triangle(cx - w / 2, cy - h / 2, cx - w / 2, cy + h / 2, cx, cy + waist / 2)
-        .triangle(cx - w / 2, cy - h / 2, cx, cy - waist / 2, cx, cy + waist / 2)
-        .triangle(cx + w / 2, cy - h / 2, cx + w / 2, cy + h / 2, cx, cy + waist / 2)
-        .triangle(cx + w / 2, cy - h / 2, cx, cy - waist / 2, cx, cy + waist / 2);
+/** A beam pinched in the middle: full height `h` at both ends, `waist` at the centre. */
+function hourglass(g: SilkGraphics, cx: number, cy: number, w: number, h: number, waist: number): SilkGraphics {
+    const x0 = cx - w / 2;
+    const x1 = cx + w / 2;
+    const t = cy - h / 2;
+    const b = cy + h / 2;
 
-const bolt = (g: SilkGraphics, x: number, y: number, s: number) =>
-    g
-        .triangle(x + s * 0.12, y - s * 0.5, x - s * 0.32, y + s * 0.08, x + s * 0.06, y + s * 0.02, 3)
-        .triangle(x - s * 0.12, y + s * 0.5, x + s * 0.32, y - s * 0.08, x - s * 0.06, y - s * 0.02, 3);
+    return g
+        .beginPath()
+        .moveTo(x0, t)
+        .bezierCurveTo(x0 + w * 0.22, cy - h * 0.1, cx - w * 0.12, cy - waist / 2, cx, cy - waist / 2)
+        .bezierCurveTo(cx + w * 0.12, cy - waist / 2, x1 - w * 0.22, cy - h * 0.1, x1, t)
+        .lineTo(x1, b)
+        .bezierCurveTo(x1 - w * 0.22, cy + h * 0.1, cx + w * 0.12, cy + waist / 2, cx, cy + waist / 2)
+        .bezierCurveTo(cx - w * 0.12, cy + waist / 2, x0 + w * 0.22, cy + h * 0.1, x0, b)
+        .closePath();
+}
+
+function label(text: string, x: number, y: number, color: number, anchorX = 0): Text {
+    const t = new Text({ text, style: { fontFamily: mono, fontSize: 10, fill: color } });
+
+    t.anchor.set(anchorX, 0);
+    t.position.set(x, y);
+
+    return t;
+}
 
 export default defineDemo({
-    size: [W, 560],
-    background: 0x030305,
+    size: [W, 520],
+    background: 0x050508,
     setup({ stage, tick }) {
+        // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
+        const hero = new Container();
+        const heroBg = new SilkGraphics();
         const beam = new SilkGraphics();
-        const wave = new SilkGraphics();
-        const slices = new Container();
-        const strips = 9;
-        const paint = linear([0xff4fd8, 0x9b5cff], { from: [0, 0], to: [1, 1] });
-        const sliceArt: SilkGraphics[] = [];
+        const heroClip = new SilkGraphics();
 
-        beam.blendMode = 'add';
-        wave.blendMode = 'add';
+        heroBg.roundRect(0, 0, W, 240, 18, 0.6).fill(0x05031a);
+        heroClip.roundRect(0, 0, W, 240, 18, 0.6).fill(0xffffff);
+        beam.mask = heroClip;
+        hero.addChild(heroBg, beam, heroClip);
+
+        // 2. chromatic wave
+        const wavePanel = new Container();
+        const waveBg = new SilkGraphics();
+        const wave = new SilkGraphics();
+        const waveClip = new SilkGraphics();
+
+        waveBg.roundRect(0, 0, 370, 260, 18, 0.6).fill(0x0b0b0c);
+        waveClip.roundRect(0, 0, 370, 260, 18, 0.6).fill(0xffffff);
+        wave.mask = waveClip;
+        wavePanel.addChild(waveBg, wave, waveClip);
+        wavePanel.position.set(0, 260);
+
+        // 3. the bolt cut into strips, each smeared sideways
+        const speed = new Container();
+        const card = new SilkGraphics();
+        const strips = 14;
+        const top = 58;
+        const bh = 154;
+        const paint = linear(
+            [
+                [0, 0xffc2a8, 1],
+                [0.4, 0xe05bd0, 1],
+                [1, 0x6a3df0, 1],
+            ],
+            { from: [1, 0], to: [0.15, 1] },
+        );
+        const arts: SilkGraphics[] = [];
+        // the white core is brightest in the middle and lets the colour fringes show at the ends
+        const core = along([
+            [0, 0xffffff, 0.35],
+            [0.5, 0xffffff, 1],
+            [1, 0xffffff, 0.35],
+        ]);
+
+        card.roundRect(0, 0, 370, 260, 18, 0.6)
+            .fill(0x0f0d0f)
+            .roundRect(10, 10, 350, 240, 12, 0.6)
+            .fill(
+                radial(
+                    [
+                        [0, 0x241821, 1],
+                        [1, 0x120f12, 1],
+                    ],
+                    { center: [0.55, 0.5], radius: 0.7 },
+                ),
+            )
+            .stroke({ width: 1, color: 0xffffff, alpha: 0.05, alignment: 'inside' });
+        speed.addChild(card);
         for (let i = 0; i < strips; i++) {
             const art = new SilkGraphics();
             const clip = new SilkGraphics();
+            const y = top + (i * bh) / strips;
 
-            art.blendMode = 'add';
-            clip.rect(0, 440 + i * 20 - 90, W, 20).fill(0xffffff);
+            clip.rect(10, y, 350, bh / strips).fill(0xffffff);
             art.mask = clip;
-            slices.addChild(art, clip);
-            sliceArt.push(art);
+            art.blendMode = 'add';
+            speed.addChild(art, clip);
+            arts.push(art);
         }
-        stage.addChild(beam, wave, slices);
+        speed.addChild(
+            label('Test sample #07', 26, 24, 0x6b5866),
+            label('Render complete', 344, 24, 0xd9a0b8, 1),
+            label('Speed mode: ON', 26, 226, 0x6b5866),
+            label('Render time: 400 ms', 344, 226, 0x6b5866, 1),
+        );
+        speed.position.set(390, 260);
+
+        stage.addChild(hero, wavePanel, speed);
 
         tick((t) => {
-            const breathe = 1 + Math.sin(t * 1.3) * 0.08;
+            const breathe = 1 + Math.sin(t * 0.9) * 0.06;
 
             beam.clear();
-            hourglass(beam, W / 2, 95, 700, 150 * breathe, 10).fill({ color: 0x6a3cff, alpha: 0.75, blur: 34 });
-            hourglass(beam, W / 2, 95, 640, 70 * breathe, 4).fill({ color: 0xb59cff, alpha: 0.85, blur: 14 });
-            hourglass(beam, W / 2, 95, 720, 8, 1.5).fill({ color: 0xffffff, alpha: 0.9, blur: 2.5 });
-            beam.ellipse(W / 2, 95, 120, 16).fill({ color: 0xffffff, alpha: 0.75, blur: 16 });
+            hourglass(beam, W / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
+            hourglass(beam, W / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
+            hourglass(beam, W / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
 
-            const pts = (dy: number, phase: number) => {
+            const pts = (dy: number) => {
                 const out: number[] = [];
 
-                for (let x = 20; x <= W - 20; x += 6) out.push(x, 270 + dy + Math.sin(x / 70 + t * 1.4 + phase) * 42);
+                for (let x = -20; x <= 390; x += 5) {
+                    out.push(x, 128 + dy - Math.sin(x / 75 + 1.2 + t * 0.8) * 46 + x * 0.04);
+                }
 
                 return out;
             };
+            const smooth = { smooth: 'catmull' as const };
 
-            wave.clear();
-            wave.polyline(pts(0, 0), { smooth: 'catmull' }).stroke({
-                width: 34,
-                color: 0xffffff,
-                alpha: 0.12,
-                blur: 22,
-                cap: 'round',
-            });
-            wave.polyline(pts(-9, -0.08), { smooth: 'catmull' }).stroke({
-                width: 10,
-                color: 0xff3b1f,
-                alpha: 0.75,
-                blur: 9,
-                cap: 'round',
-            });
-            wave.polyline(pts(-4, -0.04), { smooth: 'catmull' }).stroke({
-                width: 6,
-                color: 0xffa500,
-                alpha: 0.7,
-                blur: 5,
-                cap: 'round',
-            });
-            wave.polyline(pts(9, 0.08), { smooth: 'catmull' }).stroke({
-                width: 10,
-                color: 0x2a5cff,
-                alpha: 0.8,
-                blur: 9,
-                cap: 'round',
-            });
-            wave.polyline(pts(4, 0.04), { smooth: 'catmull' }).stroke({
-                width: 6,
-                color: 0x00d4ff,
-                alpha: 0.6,
-                blur: 5,
-                cap: 'round',
-            });
-            wave.polyline(pts(0, 0), { smooth: 'catmull' }).stroke({
-                width: 3,
-                color: 0xffffff,
-                blur: 1.2,
-                cap: 'round',
-            });
+            wave.clear()
+                .polyline(pts(0), smooth)
+                .stroke({ width: 90, color: 0xffffff, alpha: 0.12, blur: 36, blend: 'add' })
+                .polyline(pts(-19), smooth)
+                .stroke({ width: 9, color: 0xff2a14, alpha: 0.95, blur: 3.5, blend: 'add' })
+                .polyline(pts(-12), smooth)
+                .stroke({ width: 9, color: 0xff9a1a, alpha: 0.95, blur: 3, blend: 'add' })
+                .polyline(pts(13), smooth)
+                .stroke({ width: 9, color: 0x2a62ff, alpha: 1, blur: 3, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 20, gradient: core, blur: 2.5, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 34, gradient: core, alpha: 0.45, blur: 9, blend: 'add' });
 
-            sliceArt.forEach((art, i) => {
-                const lag = Math.sin(t * 3 + i * 0.7) * 26 + (i % 2 ? 12 : -12);
+            arts.forEach((art, i) => {
+                // longer smears in the middle of the bolt, a slow ripple through the strips
+                const f = i / (strips - 1);
+                const smear = 30 + 70 * Math.sin(Math.PI * f) * (0.75 + 0.25 * Math.sin(t * 2.4 + i * 0.7));
 
                 art.clear();
                 for (let k = 3; k >= 0; k--) {
-                    bolt(art, W / 2 + lag + k * lag * 0.6, 440, 170).fill({
+                    bolt(art, 150 - smear * (k / 3), top, 120, bh).fill({
                         gradient: paint,
-                        alpha: k === 0 ? 1 : 0.22 / k,
-                        blur: k === 0 ? 1 : 3 + k * 3,
+                        alpha: k === 0 ? 0.9 : 0.22,
+                        blur: { from: 0.6 + k * 2, to: 10 + k * 6, angle: Math.PI },
                     });
                 }
             });

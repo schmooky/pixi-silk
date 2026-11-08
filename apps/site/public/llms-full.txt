@@ -366,7 +366,7 @@ Most `Graphics` code works after renaming the class:
 
 | `Graphics` | `SilkGraphics` |
 |---|---|
-| `fill()` on any polygon or path | fills closed primitives (rects, ellipses, sectors, polygons, stars, hearts, triangles) and areas. Free-form paths are stroke-only for now. |
+| `fill()` on any polygon or path | the same, even-odd, with blur, spread and inner shadows on any outline |
 | miter, bevel and round joins | always round (`join` is accepted and ignored) |
 | `texture` fills | not supported (use gradients) |
 | `svg()` | not supported |
@@ -693,7 +693,7 @@ joints are always round. Round is the only join that is continuous in distance.
 
 ## Paths
 
-The canvas-style path API works for strokes:
+The canvas-style path API strokes and fills:
 
 ```ts
 g.moveTo(10, 80)
@@ -703,8 +703,16 @@ g.moveTo(10, 80)
     .stroke({ width: 3, color: 0xff9f0a, cap: 'round' });
 ```
 
-Silk flattens curves adaptively into segments. Free-form paths are stroke-only. For filled
-regions, use closed primitives or [`area()`](https://pixi-silk.schmooky.dev/docs/charts/).
+Silk flattens curves adaptively into segments. A stroke draws them one by one. A fill draws the
+whole path as one exact shape, so a bolt, a drop or a logo outline blurs, spreads and takes inner
+shadows like a circle does. Overlapping subpaths follow the even-odd rule, so a square inside a
+square makes a hole.
+
+```ts
+g.poly([64, 0, 6, 58, 44, 58, 30, 100, 94, 40, 56, 40]).fill({ color: 0xffd60a, blur: 12 });
+```
+
+Each fill checks every edge of its path per pixel. Keep paths to a few hundred points.
 
 ## Tapered strokes
 
@@ -1943,7 +1951,7 @@ export default defineDemo({
         const core = new SilkGraphics();
         const glass = new Glass({
             width: 300,
-            height: 150,
+            height: 130,
             radius: 26,
             blur: 26,
             refraction: 10,
@@ -1955,29 +1963,32 @@ export default defineDemo({
         const title = label('Enable Efficient Teamwork', 20, 0xffffff, '600');
         const body = label('Create a culture of clarity across every project.', 12, 0xffd9b8);
 
-        core.blendMode = 'add';
         eyebrow.style.letterSpacing = 1.4;
         eyebrow.position.set(24, 26);
         title.position.set(24, 46);
         body.position.set(24, 86);
         glass.content.addChild(eyebrow, title, body);
-        glass.position.set(150, 250);
+        glass.position.set(170, 286);
         stage.addChild(orb, core, glass);
 
         tick((t) => {
-            const breathe = 1 + Math.sin(t * 0.8) * 0.04;
-            const drift = Math.sin(t * 0.5) * 18;
+            const breathe = 1 + Math.sin(t * 0.8) * 0.03;
+            const drift = Math.sin(t * 0.5) * 10;
 
+            // shape 1: a red disc under layer blur 226
             orb.clear()
-                .ellipse(300 + drift * 0.4, 190, 210 * breathe, 190 * breathe)
-                .fill({ color: 0xe8401c, alpha: 0.9, blur: 70 });
-            core.clear()
-                .ellipse(285 + drift, 250, 150 * breathe, 70)
-                .fill({ color: 0xffd23f, alpha: 0.95, blur: { from: 70, to: 6, angle: Math.PI / 2 } })
-                .ellipse(330 - drift * 0.5, 262, 120, 52)
-                .fill({ color: 0xffe36b, alpha: 0.9, blur: 45 })
-                .ellipse(300, 290, 170, 30)
-                .fill({ color: 0xfff4c2, alpha: 0.7, blur: 30 });
+                .circle(320 + drift * 0.3, 170, 150 * breathe)
+                .fill({ color: 0xe5400f, blur: 90 })
+                .circle(320, 190, 110)
+                .fill({ color: 0xff5a14, alpha: 0.55, blur: 50 });
+            // shape 2: a yellow peanut under layer blur 140, and shape 3: the same with a
+            // progressive blur, 100 at the top to 0 at the bottom, so it sits on a crisp horizon
+            const peanut = (g: SilkGraphics) =>
+                g.ellipse(310 + drift, 196, 92, 50).ellipse(330 + drift * 0.6, 228, 112, 46);
+
+            core.clear();
+            peanut(core).fill({ color: 0xffb21f, alpha: 0.7, blur: 60, spread: 10 });
+            peanut(core).fill({ color: 0xffe14a, blur: { from: 48, to: 0.5, angle: Math.PI / 2 } });
         });
 
         return undefined;
@@ -1987,76 +1998,144 @@ export default defineDemo({
 
 ## Neon
 
-`Glow` draws one shape as a stack of passes: a wide bloom and a coloured glow behind, a solid core,
-a hot white highlight and a thin rim. `neon()` is that recipe. Pass your own layers for anything else.
+`Glow` draws one shape as a stack of passes. `neon()` is the five-layer Figma recipe for a shape
+about `size` wide. Two blooms go behind. The core has a gradient, coloured drop glows and a pale
+inner shadow. A 60% white copy added on top burns the middle out, and a blurred white outline
+finishes it.
+`bolt()` and `drop()` add ready outlines. Any path works, since fills treat it as one shape.
 
 ```ts
 
-const bolt = new Glow({
-    draw: (g) => g.triangle(12, -50, -32, 8, 6, 2).triangle(-12, 50, 32, -8, -6, -2),
-    layers: neon(0xffb800, { size: 100 }),
+const spark = new Glow({
+    draw: (g) => bolt(g, -50, -70, 100, 140),
+    layers: neon(0xffd60a, { size: 100 }),
 });
 ```
 
 Live demo `glow-neon` (source):
 
 ```ts
-import { Text } from 'pixi.js';
-import { radial, SilkGraphics } from 'pixi-silk';
-import { Glow, neon } from 'pixi-silk/glow';
+import { Container, Text } from 'pixi.js';
+import { linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt, Glow, neon } from 'pixi-silk/glow';
 import { defineDemo } from './runtime';
 
-const bolt = (s: number) => (g: SilkGraphics) =>
-    g
-        .triangle(s * 0.12, -s * 0.5, -s * 0.32, s * 0.08, s * 0.06, s * 0.02, s * 0.03)
-        .triangle(-s * 0.12, s * 0.5, s * 0.32, -s * 0.08, -s * 0.06, -s * 0.02, s * 0.03);
-
-const core = radial([0xfff3a0, 0xffc400, 0xff8a00], { center: [0.5, 0.42], radius: 0.7 });
+const YELLOW = 0xffd60a;
+const font = 'Inter, system-ui, sans-serif';
 
 export default defineDemo({
-    size: [720, 400],
-    background: 0x050505,
+    size: [760, 440],
+    background: 0x0b0b09,
     controls: {
         intensity: { type: 'range', label: 'glow', min: 0, max: 2, step: 0.05, value: 1 },
     },
     setup({ stage, params, tick }) {
-        const left = new Glow({ draw: bolt(170), layers: neon(0xffb800, { size: 170, core }) });
+        const room = new SilkGraphics();
+
+        // warm light spilling into the room, like the reference backdrop
+        room.rect(0, 0, 760, 440).fill(
+            radial(
+                [
+                    [0, 0x3a3410, 1],
+                    [0.55, 0x15140c, 1],
+                    [1, 0x0b0b09, 1],
+                ],
+                { center: [0.28, 0.4], radius: 0.75 },
+            ),
+        );
+
+        // the bolt alone: about 120 wide, so the recipe runs at size 120
+        const big = new Glow({ draw: (g) => bolt(g, -60, -84, 120, 168), layers: neon(YELLOW, { size: 120 }) });
+
+        big.position.set(190, 220);
+
+        // the ticket card
+        const card = new Container();
+        const back = new SilkGraphics();
         const ticket = new SilkGraphics();
         const ring = new SilkGraphics();
-        const right = new Glow({ draw: bolt(110), layers: neon(0xff9500, { size: 110, core, surface: 'light' }) });
+        const small = new Glow({ draw: (g) => bolt(g, -52, -74, 104, 148), layers: neon(YELLOW, { size: 104 }) });
+
+        // translucent yellow folder behind the ticket
+        back.roundRect(0, 0, 230, 250, 18, 0.6)
+            .fill({ color: 0x000000, alpha: 0.6, blur: 30, spread: 6 })
+            .roundRect(0, 0, 230, 250, 18, 0.6)
+            .fill({
+                gradient: linear(
+                    [
+                        [0, 0x8a7d1c, 0.95],
+                        [1, 0x4f4710, 0.95],
+                    ],
+                    { from: [0, 0], to: [0, 1] },
+                ),
+                innerShadow: { color: 0xfff6b0, alpha: 0.25, y: 1, blur: 1 },
+            });
+        small.position.set(118, 50);
+        // the white ticket with a notch where the ring sits
+        ticket
+            .beginPath()
+            .moveTo(14, 160)
+            .lineTo(146, 160)
+            .bezierCurveTo(160, 160, 160, 176, 176, 176)
+            .lineTo(244, 176)
+            .bezierCurveTo(252, 176, 258, 182, 258, 190)
+            .lineTo(258, 300)
+            .bezierCurveTo(258, 308, 252, 314, 244, 314)
+            .lineTo(14, 314)
+            .bezierCurveTo(6, 314, 0, 308, 0, 300)
+            .lineTo(0, 174)
+            .bezierCurveTo(0, 166, 6, 160, 14, 160)
+            .closePath()
+            .fill({ color: 0x000000, alpha: 0.55, blur: 18, spread: 2 })
+            .fill({
+                gradient: linear(
+                    [
+                        [0, 0xf4f5f0, 1],
+                        [1, 0xc9ccd2, 1],
+                    ],
+                    { from: [0, 0], to: [0.3, 1] },
+                ),
+                innerShadow: { color: 0xffffff, alpha: 0.9, y: 1, blur: 0.5 },
+            });
+        for (let i = 0; i < 46; i++) {
+            const w = [1, 2, 1, 3, 1, 2][i % 6];
+
+            ticket.rect(22 + i * 4.6, 284, w, 12).fill({ color: 0x1d2a3a, alpha: 0.85 });
+        }
         const title = new Text({
-            text: 'Charged',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 20, fontWeight: '700', fill: 0x1c1c1e },
+            text: 'Supercharged', // prose-ignore: copy from the design reference
+            style: { fontFamily: font, fontSize: 23, fontWeight: '700', fill: 0x18181b },
         });
+        const sub = new Text({
+            text: 'Experience network speed\nlike never before',
+            style: { fontFamily: font, fontSize: 11.5, fill: 0x52525b, lineHeight: 16 },
+        });
+
+        title.position.set(22, 222);
+        sub.position.set(22, 252);
+        ring.position.set(206, 172);
+        card.addChild(back, small, ticket, ring, title, sub);
+        card.position.set(445, 60);
+        stage.addChild(room, big, card);
+
         let last = -1;
 
-        left.position.set(190, 200);
-        ticket
-            .roundRect(410, 40, 250, 320, 34, 0.6)
-            .fill({ color: 0x000000, alpha: 0.5, blur: 24 })
-            .roundRect(410, 40, 250, 320, 34, 0.6)
-            .fill(0xf5f5f7)
-            .roundRect(430, 60, 210, 230, 24, 0.6)
-            .fill({ color: 0xffd60a, alpha: 0.28 })
-            .stroke({ width: 1, color: 0xffb800, alpha: 0.35, alignment: 'inside' });
-        right.position.set(535, 175);
-        title.anchor.set(0.5);
-        title.position.set(535, 322);
-        stage.addChild(left, ticket, ring, right, title);
-
         tick((t) => {
-            const pulse = 0.85 + Math.sin(t * 2.2) * 0.15;
+            const flicker = 0.92 + 0.08 * Math.sin(t * 7.3) * Math.sin(t * 2.1);
 
             if (params.intensity !== last) {
                 last = params.intensity;
-                left.setLayers(neon(0xffb800, { size: 170, core, intensity: params.intensity }));
-                right.setLayers(neon(0xff9500, { size: 110, core, intensity: params.intensity, surface: 'light' }));
+                big.setLayers(neon(YELLOW, { size: 120, intensity: params.intensity }));
+                small.setLayers(neon(YELLOW, { size: 104, intensity: params.intensity }));
             }
+            big.alpha = flicker;
             ring.clear()
-                .circle(535, 175, 82)
-                .stroke({ width: 14, color: 0xffb800, alpha: 0.3 * pulse, blur: 12 })
-                .circle(535, 175, 82)
-                .stroke({ width: 2, color: 0xffffff, alpha: 0.95 });
+                .circle(0, 0, 30)
+                .stroke({ width: 12, color: YELLOW, alpha: 0.75 * params.intensity, blur: 9, blend: 'add' })
+                .circle(0, 0, 30)
+                .stroke({ width: 3.5, color: 0xfff27a, blur: 0.8 })
+                .circle(0, 0, 30)
+                .stroke({ width: 2, color: 0xffffff, alpha: 0.9, blur: 3, blend: 'add' });
         });
 
         return undefined;
@@ -2068,28 +2147,26 @@ Live demo `glow-button` (source):
 
 ```ts
 import { Container, Text } from 'pixi.js';
-import { conic, SilkGraphics } from 'pixi-silk';
+import { along, linear, radial, SilkGraphics } from 'pixi-silk';
 import { trackGesture } from 'pixi-silk/ui/gesture';
 import { defineDemo } from './runtime';
 
-const W = 260;
-const H = 64;
+const W = 400;
+const H = 128;
 
-/** Point at `u` (0..1) around a pill centred at (0, 0), clockwise from the top middle. */
+/** Point at `u` (0..1) around a pill centred at (0, 0), clockwise from the middle of its right end. */
 function onPill(u: number): [number, number] {
     const r = H / 2;
     const straight = W - H;
     const total = 2 * straight + 2 * Math.PI * r;
     let d = (((u % 1) + 1) % 1) * total;
 
-    if (d < straight / 2) return [d, -r];
-    d -= straight / 2;
-    if (d < Math.PI * r) {
-        const a = -Math.PI / 2 + d / r;
+    if (d < Math.PI * r * 0.5) {
+        const a = d / r;
 
         return [straight / 2 + Math.cos(a) * r, Math.sin(a) * r];
     }
-    d -= Math.PI * r;
+    d -= Math.PI * r * 0.5;
     if (d < straight) return [straight / 2 - d, r];
     d -= straight;
     if (d < Math.PI * r) {
@@ -2098,75 +2175,136 @@ function onPill(u: number): [number, number] {
         return [-straight / 2 + Math.cos(a) * r, Math.sin(a) * r];
     }
     d -= Math.PI * r;
+    if (d < straight) return [-straight / 2 + d, -r];
+    d -= straight;
+    const a = -Math.PI / 2 + d / r;
 
-    return [-straight / 2 + d, -r];
+    return [straight / 2 + Math.cos(a) * r, Math.sin(a) * r];
+}
+
+/** The border as an open path: it starts at `u0` and stops short of closing, leaving a gap. */
+function border(u0: number, gap: number): number[] {
+    const out: number[] = [];
+    const n = 220;
+
+    for (let i = 0; i <= n; i++) out.push(...onPill(u0 + (i / n) * (1 - gap)));
+
+    return out;
 }
 
 export default defineDemo({
-    size: [520, 300],
-    background: 0x050508,
+    size: [620, 360],
+    background: 0x05061a,
     touchAction: 'none',
     setup({ stage, tick }) {
+        const room = new SilkGraphics();
         const button = new Container();
         const bloom = new SilkGraphics();
         const body = new SilkGraphics();
-        const spark = new SilkGraphics();
-        const border = conic([0x7c3aed, 0x22d3ee, 0xa855f7, 0x7c3aed]);
+        const line = new SilkGraphics();
+        const dust = new SilkGraphics();
         const label = new Text({
-            text: '✦  Generate',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 18, fontWeight: '600', fill: 0xffffff },
+            text: 'Magic button',
+            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 34, fontWeight: '500', fill: 0xe4e2f4 },
         });
-        const sparkles = Array.from({ length: 14 }, (_, i) => ({
-            x: ((i * 97) % (W - 40)) - (W - 40) / 2,
-            y: ((i * 53) % 40) - 20,
-            p: i * 0.71,
+        // violet on the long run of the border, cooling to teal at its head
+        const tube = along([
+            [0, 0xffffff, 0],
+            [0.08, 0xd9c8ff, 1],
+            [0.55, 0xffffff, 1],
+            [0.85, 0xc8f4ff, 1],
+            [1, 0x7cf7e8, 0.9],
+        ]);
+        const halo = along([
+            [0, 0x8b3dff, 0],
+            [0.15, 0x9b4dff, 1],
+            [0.5, 0x6d5bff, 1],
+            [0.8, 0x3d8bff, 1],
+            [1, 0x2ee6d6, 1],
+        ]);
+        const dots = Array.from({ length: 70 }, (_, i) => ({
+            x: (((i * 0.618034) % 1) - 0.5) * 340,
+            y: ((((i * 0.7548777 + 0.31) * 7) % 1) - 0.5) * 90,
+            r: 0.6 + ((i * 31) % 10) / 10,
+            p: i * 1.37,
         }));
         let hover = 0;
         let hot = 0;
         let burst = 0;
-        let spin = 0;
+        let head = 0;
 
+        room.rect(0, 0, 620, 360).fill(
+            radial(
+                [
+                    [0, 0x1a1060, 1],
+                    [0.6, 0x0a0a2c, 1],
+                    [1, 0x05061a, 1],
+                ],
+                { center: [0.45, 0.5], radius: 0.8 },
+            ),
+        );
         bloom.blendMode = 'add';
-        spark.blendMode = 'add';
+        line.blendMode = 'add';
+        dust.blendMode = 'add';
         label.anchor.set(0.5);
-        button.position.set(260, 150);
-        button.addChild(bloom, body, spark, label);
+        button.position.set(310, 180);
+        button.addChild(bloom, body, dust, line, label);
         button.eventMode = 'static';
         button.cursor = 'pointer';
         button.hitArea = { contains: (x, y) => Math.abs(x) <= W / 2 && Math.abs(y) <= H / 2 };
         button.on('pointerover', () => (hot = 1));
         button.on('pointerout', () => (hot = 0));
         trackGesture(button, { onTap: () => (burst = 1) });
-        stage.addChild(button);
+        stage.addChild(room, button);
+
+        body.pill(-W / 2, -H / 2, W, H).fill({
+            gradient: linear(
+                [
+                    [0, 0x1d1a8a, 1],
+                    [1, 0x0f1150, 1],
+                ],
+                { from: [0, 0], to: [0, 1] },
+            ),
+            innerShadow: [
+                { color: 0x000000, alpha: 0.45, y: 18, blur: 22, spread: 4 },
+                { color: 0x8f7bff, alpha: 0.35, y: -2, blur: 6, blend: 'add' },
+            ],
+        });
 
         tick((t, dt) => {
             hover += (hot - hover) * Math.min(1, dt * 8);
-            burst = Math.max(0, burst - dt * 1.6);
-            spin += dt * (0.25 + hover * 0.35);
-            border.startAngle = spin * Math.PI * 2;
-            const [sx, sy] = onPill(spin);
-            const glow = 0.55 + hover * 0.35 + burst * 0.6;
+            burst = Math.max(0, burst - dt * 1.4);
+            head += dt * (0.05 + hover * 0.12 + burst * 0.4);
+            const glow = 0.8 + hover * 0.3 + burst * 0.7;
+            const pts = border(head, 0.035);
 
             bloom
                 .clear()
-                .pill(-W / 2 - 6, -H / 2 - 6, W + 12, H + 12)
-                .stroke({ width: 18, gradient: border, alpha: 0.35 * glow, blur: 22 })
-                .circle(sx, sy, 34)
-                .fill({ color: 0x9be7ff, alpha: 0.45 * glow, blur: 26 });
-            body.clear()
                 .pill(-W / 2, -H / 2, W, H)
-                .fill(0x0c0b14)
-                .stroke({ width: 1.6, gradient: border, alignment: 'inside' });
-            spark.clear().circle(sx, sy, 3).fill({ color: 0xffffff, blur: 2 });
-            for (const s of sparkles) {
-                const a = Math.max(0, Math.sin(t * 2.4 + s.p)) ** 6 * (0.5 + hover * 0.5 + burst);
+                .fill({ color: 0x5b3dff, alpha: 0.35 * glow, blur: 60, spread: 10 })
+                .polyline(pts)
+                .stroke({ width: 26, gradient: halo, alpha: 0.75 * glow, blur: 16 });
+            line.clear()
+                .polyline(pts)
+                .stroke({ width: 12, gradient: halo, alpha: glow, blur: 4 })
+                .polyline(pts)
+                .stroke({ width: 5, gradient: tube, cap: 'round' })
+                .polyline(pts)
+                .stroke({ width: 3, gradient: tube, alpha: 0.6, blur: 1.5 });
+            // a star of light sits on the head of the border
+            const [hx, hy] = onPill(head + 0.965);
 
-                if (a > 0.02)
-                    spark
-                        .star(s.x, s.y, 4, 4 + a * 3, 1, 0, 0)
-                        .fill({ color: 0xe9d5ff, alpha: Math.min(1, a), blur: 0.6 });
+            line.circle(hx, hy, 18)
+                .fill({ color: 0xbffff6, alpha: 0.5 * glow, blur: 14 })
+                .star(hx, hy, 4, 28 * glow, 1.2, 0, 0)
+                .fill({ color: 0xffffff, alpha: 0.5, blur: 2 });
+            dust.clear();
+            for (const d of dots) {
+                const a = (0.25 + 0.75 * Math.max(0, Math.sin(t * 1.6 + d.p)) ** 4) * (0.5 + hover * 0.5 + burst);
+
+                dust.circle(d.x, d.y, d.r).fill({ color: 0xc7d2ff, alpha: Math.min(1, a * 0.7), blur: 0.4 });
             }
-            button.scale.set(1 + burst * 0.04 - (hover > 0.5 && burst > 0.8 ? 0.02 : 0));
+            button.scale.set(1 + burst * 0.03);
         });
 
         return undefined;
@@ -2176,124 +2314,177 @@ export default defineDemo({
 
 ## Beams, waves and slices
 
-`ray()` adds a tapered beam as two triangles, `fan()` spreads several from one point and
-`spectrum()` colours them. Blurred and added, they make prisms, spotlights and hero lights.
+`ray()` adds a tapered beam, `fan()` spreads several from one point and `spectrum()` colours
+them. Blurred and added, they make prisms, spotlights and hero lights. The hero below is three
+pinched paths with blur 50, 27 and 12. The wave is a white stroke with red, orange and blue copies
+a few pixels off. The bolt is one shape cut into strips, each smeared sideways.
 
 Live demo `glow-beams` (source):
 
 ```ts
-import { Container } from 'pixi.js';
-import { linear, SilkGraphics } from 'pixi-silk';
+import { Container, Text } from 'pixi.js';
+import { along, linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt } from 'pixi-silk/glow';
 import { defineDemo } from './runtime';
 
 const W = 760;
+const mono = 'ui-monospace, SF Mono, Menlo, monospace';
 
-const hourglass = (g: SilkGraphics, cx: number, cy: number, w: number, h: number, waist: number) =>
-    g
-        .triangle(cx - w / 2, cy - h / 2, cx - w / 2, cy + h / 2, cx, cy + waist / 2)
-        .triangle(cx - w / 2, cy - h / 2, cx, cy - waist / 2, cx, cy + waist / 2)
-        .triangle(cx + w / 2, cy - h / 2, cx + w / 2, cy + h / 2, cx, cy + waist / 2)
-        .triangle(cx + w / 2, cy - h / 2, cx, cy - waist / 2, cx, cy + waist / 2);
+/** A beam pinched in the middle: full height `h` at both ends, `waist` at the centre. */
+function hourglass(g: SilkGraphics, cx: number, cy: number, w: number, h: number, waist: number): SilkGraphics {
+    const x0 = cx - w / 2;
+    const x1 = cx + w / 2;
+    const t = cy - h / 2;
+    const b = cy + h / 2;
 
-const bolt = (g: SilkGraphics, x: number, y: number, s: number) =>
-    g
-        .triangle(x + s * 0.12, y - s * 0.5, x - s * 0.32, y + s * 0.08, x + s * 0.06, y + s * 0.02, 3)
-        .triangle(x - s * 0.12, y + s * 0.5, x + s * 0.32, y - s * 0.08, x - s * 0.06, y - s * 0.02, 3);
+    return g
+        .beginPath()
+        .moveTo(x0, t)
+        .bezierCurveTo(x0 + w * 0.22, cy - h * 0.1, cx - w * 0.12, cy - waist / 2, cx, cy - waist / 2)
+        .bezierCurveTo(cx + w * 0.12, cy - waist / 2, x1 - w * 0.22, cy - h * 0.1, x1, t)
+        .lineTo(x1, b)
+        .bezierCurveTo(x1 - w * 0.22, cy + h * 0.1, cx + w * 0.12, cy + waist / 2, cx, cy + waist / 2)
+        .bezierCurveTo(cx - w * 0.12, cy + waist / 2, x0 + w * 0.22, cy + h * 0.1, x0, b)
+        .closePath();
+}
+
+function label(text: string, x: number, y: number, color: number, anchorX = 0): Text {
+    const t = new Text({ text, style: { fontFamily: mono, fontSize: 10, fill: color } });
+
+    t.anchor.set(anchorX, 0);
+    t.position.set(x, y);
+
+    return t;
+}
 
 export default defineDemo({
-    size: [W, 560],
-    background: 0x030305,
+    size: [W, 520],
+    background: 0x050508,
     setup({ stage, tick }) {
+        // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
+        const hero = new Container();
+        const heroBg = new SilkGraphics();
         const beam = new SilkGraphics();
-        const wave = new SilkGraphics();
-        const slices = new Container();
-        const strips = 9;
-        const paint = linear([0xff4fd8, 0x9b5cff], { from: [0, 0], to: [1, 1] });
-        const sliceArt: SilkGraphics[] = [];
+        const heroClip = new SilkGraphics();
 
-        beam.blendMode = 'add';
-        wave.blendMode = 'add';
+        heroBg.roundRect(0, 0, W, 240, 18, 0.6).fill(0x05031a);
+        heroClip.roundRect(0, 0, W, 240, 18, 0.6).fill(0xffffff);
+        beam.mask = heroClip;
+        hero.addChild(heroBg, beam, heroClip);
+
+        // 2. chromatic wave
+        const wavePanel = new Container();
+        const waveBg = new SilkGraphics();
+        const wave = new SilkGraphics();
+        const waveClip = new SilkGraphics();
+
+        waveBg.roundRect(0, 0, 370, 260, 18, 0.6).fill(0x0b0b0c);
+        waveClip.roundRect(0, 0, 370, 260, 18, 0.6).fill(0xffffff);
+        wave.mask = waveClip;
+        wavePanel.addChild(waveBg, wave, waveClip);
+        wavePanel.position.set(0, 260);
+
+        // 3. the bolt cut into strips, each smeared sideways
+        const speed = new Container();
+        const card = new SilkGraphics();
+        const strips = 14;
+        const top = 58;
+        const bh = 154;
+        const paint = linear(
+            [
+                [0, 0xffc2a8, 1],
+                [0.4, 0xe05bd0, 1],
+                [1, 0x6a3df0, 1],
+            ],
+            { from: [1, 0], to: [0.15, 1] },
+        );
+        const arts: SilkGraphics[] = [];
+        // the white core is brightest in the middle and lets the colour fringes show at the ends
+        const core = along([
+            [0, 0xffffff, 0.35],
+            [0.5, 0xffffff, 1],
+            [1, 0xffffff, 0.35],
+        ]);
+
+        card.roundRect(0, 0, 370, 260, 18, 0.6)
+            .fill(0x0f0d0f)
+            .roundRect(10, 10, 350, 240, 12, 0.6)
+            .fill(
+                radial(
+                    [
+                        [0, 0x241821, 1],
+                        [1, 0x120f12, 1],
+                    ],
+                    { center: [0.55, 0.5], radius: 0.7 },
+                ),
+            )
+            .stroke({ width: 1, color: 0xffffff, alpha: 0.05, alignment: 'inside' });
+        speed.addChild(card);
         for (let i = 0; i < strips; i++) {
             const art = new SilkGraphics();
             const clip = new SilkGraphics();
+            const y = top + (i * bh) / strips;
 
-            art.blendMode = 'add';
-            clip.rect(0, 440 + i * 20 - 90, W, 20).fill(0xffffff);
+            clip.rect(10, y, 350, bh / strips).fill(0xffffff);
             art.mask = clip;
-            slices.addChild(art, clip);
-            sliceArt.push(art);
+            art.blendMode = 'add';
+            speed.addChild(art, clip);
+            arts.push(art);
         }
-        stage.addChild(beam, wave, slices);
+        speed.addChild(
+            label('Test sample #07', 26, 24, 0x6b5866),
+            label('Render complete', 344, 24, 0xd9a0b8, 1),
+            label('Speed mode: ON', 26, 226, 0x6b5866),
+            label('Render time: 400 ms', 344, 226, 0x6b5866, 1),
+        );
+        speed.position.set(390, 260);
+
+        stage.addChild(hero, wavePanel, speed);
 
         tick((t) => {
-            const breathe = 1 + Math.sin(t * 1.3) * 0.08;
+            const breathe = 1 + Math.sin(t * 0.9) * 0.06;
 
             beam.clear();
-            hourglass(beam, W / 2, 95, 700, 150 * breathe, 10).fill({ color: 0x6a3cff, alpha: 0.75, blur: 34 });
-            hourglass(beam, W / 2, 95, 640, 70 * breathe, 4).fill({ color: 0xb59cff, alpha: 0.85, blur: 14 });
-            hourglass(beam, W / 2, 95, 720, 8, 1.5).fill({ color: 0xffffff, alpha: 0.9, blur: 2.5 });
-            beam.ellipse(W / 2, 95, 120, 16).fill({ color: 0xffffff, alpha: 0.75, blur: 16 });
+            hourglass(beam, W / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
+            hourglass(beam, W / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
+            hourglass(beam, W / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
 
-            const pts = (dy: number, phase: number) => {
+            const pts = (dy: number) => {
                 const out: number[] = [];
 
-                for (let x = 20; x <= W - 20; x += 6) out.push(x, 270 + dy + Math.sin(x / 70 + t * 1.4 + phase) * 42);
+                for (let x = -20; x <= 390; x += 5) {
+                    out.push(x, 128 + dy - Math.sin(x / 75 + 1.2 + t * 0.8) * 46 + x * 0.04);
+                }
 
                 return out;
             };
+            const smooth = { smooth: 'catmull' as const };
 
-            wave.clear();
-            wave.polyline(pts(0, 0), { smooth: 'catmull' }).stroke({
-                width: 34,
-                color: 0xffffff,
-                alpha: 0.12,
-                blur: 22,
-                cap: 'round',
-            });
-            wave.polyline(pts(-9, -0.08), { smooth: 'catmull' }).stroke({
-                width: 10,
-                color: 0xff3b1f,
-                alpha: 0.75,
-                blur: 9,
-                cap: 'round',
-            });
-            wave.polyline(pts(-4, -0.04), { smooth: 'catmull' }).stroke({
-                width: 6,
-                color: 0xffa500,
-                alpha: 0.7,
-                blur: 5,
-                cap: 'round',
-            });
-            wave.polyline(pts(9, 0.08), { smooth: 'catmull' }).stroke({
-                width: 10,
-                color: 0x2a5cff,
-                alpha: 0.8,
-                blur: 9,
-                cap: 'round',
-            });
-            wave.polyline(pts(4, 0.04), { smooth: 'catmull' }).stroke({
-                width: 6,
-                color: 0x00d4ff,
-                alpha: 0.6,
-                blur: 5,
-                cap: 'round',
-            });
-            wave.polyline(pts(0, 0), { smooth: 'catmull' }).stroke({
-                width: 3,
-                color: 0xffffff,
-                blur: 1.2,
-                cap: 'round',
-            });
+            wave.clear()
+                .polyline(pts(0), smooth)
+                .stroke({ width: 90, color: 0xffffff, alpha: 0.12, blur: 36, blend: 'add' })
+                .polyline(pts(-19), smooth)
+                .stroke({ width: 9, color: 0xff2a14, alpha: 0.95, blur: 3.5, blend: 'add' })
+                .polyline(pts(-12), smooth)
+                .stroke({ width: 9, color: 0xff9a1a, alpha: 0.95, blur: 3, blend: 'add' })
+                .polyline(pts(13), smooth)
+                .stroke({ width: 9, color: 0x2a62ff, alpha: 1, blur: 3, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 20, gradient: core, blur: 2.5, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 34, gradient: core, alpha: 0.45, blur: 9, blend: 'add' });
 
-            sliceArt.forEach((art, i) => {
-                const lag = Math.sin(t * 3 + i * 0.7) * 26 + (i % 2 ? 12 : -12);
+            arts.forEach((art, i) => {
+                // longer smears in the middle of the bolt, a slow ripple through the strips
+                const f = i / (strips - 1);
+                const smear = 30 + 70 * Math.sin(Math.PI * f) * (0.75 + 0.25 * Math.sin(t * 2.4 + i * 0.7));
 
                 art.clear();
                 for (let k = 3; k >= 0; k--) {
-                    bolt(art, W / 2 + lag + k * lag * 0.6, 440, 170).fill({
+                    bolt(art, 150 - smear * (k / 3), top, 120, bh).fill({
                         gradient: paint,
-                        alpha: k === 0 ? 1 : 0.22 / k,
-                        blur: k === 0 ? 1 : 3 + k * 3,
+                        alpha: k === 0 ? 0.9 : 0.22,
+                        blur: { from: 0.6 + k * 2, to: 10 + k * 6, angle: Math.PI },
                     });
                 }
             });
@@ -2308,68 +2499,139 @@ Live demo `glow-icons` (source):
 
 ```ts
 import { Container } from 'pixi.js';
-import { linear, SilkGraphics, type StopInput } from 'pixi-silk';
+import { linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt, drop } from 'pixi-silk/glow';
 import { defineDemo } from './runtime';
 
-const HOT: StopInput[] = [
-    [0, 0xfff1a8, 1],
-    [0.35, 0xff9f0a, 1],
-    [0.7, 0xff2d78, 0.9],
-    [1, 0xff2d78, 0],
-];
-const COLD: StopInput[] = [
-    [0, 0xd8fbff, 1],
-    [0.35, 0x00c8ff, 1],
-    [0.7, 0x5b4dff, 0.9],
-    [1, 0x7c4dff, 0],
-];
+const S = 176;
 
-type Shape = (g: SilkGraphics) => SilkGraphics;
-const S = 150;
-/** Shape, ramp, and where the light leads from and trails to (fractions of the tile). */
-const SHAPES: [Shape, StopInput[], [number, number], [number, number]][] = [
-    [(g) => g.triangle(95, -10, 20, 95, 80, 85, 6).triangle(55, 165, 130, 60, 70, 70, 6), HOT, [0, 0], [1, 1]],
-    [(g) => g.circle(80, 95, 55).triangle(80, 0, 30, 70, 130, 70, 8), COLD, [1, 0], [0, 1]],
-    [(g) => g.sector(20, 130, 120, -Math.PI / 2, 0), COLD, [0, 1], [1, 0]],
-    [(g) => g.arc(75, 130, 60, Math.PI, 0), HOT, [1, 1], [0, 0]],
+interface Palette {
+    lead: number;
+    mid: number;
+    deep: number;
+    rim: number;
+    accent: number;
+}
+
+const PALETTES: Record<string, Palette> = {
+    violet: { lead: 0x56d8ff, mid: 0x5636ff, deep: 0x2a0d73, rim: 0xc8f6ff, accent: 0xff4060 },
+    sunset: { lead: 0xffe45c, mid: 0xff5a36, deep: 0xc0129a, rim: 0xfff4c2, accent: 0xb43cff },
+    ice: { lead: 0x8af4ff, mid: 0x2d7dff, deep: 0x5b2bff, rim: 0xeaffff, accent: 0x7c4dff },
+};
+
+type Draw = (g: SilkGraphics) => SilkGraphics;
+
+/**
+ * A big shape that runs off the tile, the direction its light travels (lead edge to trailing side)
+ * and how far along its box the colour has faded out.
+ */
+const ICONS: [Draw, angle: number, reach: number][] = [
+    // bolt, cut by the top and right edges, lit from its left notch
+    [(g) => bolt(g, 34, -46, 168, 236), 0, 1],
+    // a dome rising from the bottom right corner, lit along its rim
+    [(g) => g.circle(S * 1.02, S * 1.04, S * 0.8), Math.PI / 4, 0.5],
+    // a drop sitting on the bottom edge, lit from the left
+    [(g) => drop(g, S * 0.5, S * 1.02, S * 0.4, S * 0.66), -Math.PI / 6, 1],
+    // a zigzag wall, lit along its left edge
+    [
+        (g) =>
+            g.poly([S * 0.96, -10, S * 0.3, S * 0.4, S * 0.74, S * 0.6, S * 0.5, S + 10, S + 10, S + 10, S + 10, -10]),
+        0,
+        0.8,
+    ],
 ];
 
 export default defineDemo({
-    size: [420, 420],
-    background: 0x070708,
-    setup({ stage }) {
-        SHAPES.forEach(([shape, stops, from, to], i) => {
+    size: [440, 440],
+    background: 0x08080a,
+    controls: {
+        palette: { type: 'select', label: 'palette', options: Object.keys(PALETTES), value: 'violet' },
+    },
+    setup({ stage, params, tick }) {
+        const arts: SilkGraphics[] = [];
+
+        ICONS.forEach((_, i) => {
             const tile = new Container();
             const plate = new SilkGraphics();
             const clip = new SilkGraphics();
             const art = new SilkGraphics();
-            const paint = linear(stops, { from, to });
-            const arch = i === 3;
+            const rim = new SilkGraphics();
 
-            plate.roundRect(0, 0, S, S, 34, 0.6).fill(0x111114);
-            clip.roundRect(0, 0, S, S, 34, 0.6).fill(0xffffff);
-            art.blendMode = 'add';
+            plate.roundRect(0, 0, S, S, 42, 0.6).fill(
+                radial(
+                    [
+                        [0, 0x16161c, 1],
+                        [1, 0x0a0a0d, 1],
+                    ],
+                    { center: [0.3, 0.2], radius: 1.1 },
+                ),
+            );
+            clip.roundRect(0, 0, S, S, 42, 0.6).fill(0xffffff);
             art.mask = clip;
-            // a copy whose blur grows from the lit edge to the trailing one, so the colour bleeds out
-            const blur = { from: 2, to: 34, angle: Math.atan2(to[1] - from[1], to[0] - from[0]) };
-
-            if (arch) shape(art).stroke({ width: 40, gradient: paint, alpha: 0.85, blur });
-            else shape(art).fill({ gradient: paint, alpha: 0.85, blur });
-            // leading side: crisp
-            if (arch) shape(art).stroke({ width: 26, gradient: paint });
-            else shape(art).fill({ gradient: paint, alpha: 0.95 });
-            plate.roundRect(0, 0, S, S, 34, 0.6).stroke({
-                width: 1.2,
-                gradient: linear([
-                    [0, 0xffffff, 0.35],
-                    [0.5, 0xffffff, 0.04],
-                    [1, 0xffffff, 0.18],
-                ]),
+            // a thin glassy rim on top of the art, brighter where the light is
+            rim.roundRect(0.5, 0.5, S - 1, S - 1, 42, 0.6).stroke({
+                width: 1.4,
+                gradient: linear(
+                    [
+                        [0, 0xffffff, 0.32],
+                        [0.5, 0xffffff, 0.06],
+                        [1, 0xffffff, 0.2],
+                    ],
+                    { from: [0, 0], to: [1, 1] },
+                ),
                 alignment: 'inside',
             });
-            tile.addChild(plate, art, clip);
-            tile.position.set(45 + (i % 2) * (S + 30), 45 + Math.floor(i / 2) * (S + 30));
+            tile.addChild(plate, art, clip, rim);
+            tile.position.set(30 + (i % 2) * (S + 28), 30 + Math.floor(i / 2) * (S + 28));
             stage.addChild(tile);
+            arts.push(art);
+        });
+
+        let last = '';
+
+        tick(() => {
+            if (params.palette === last) return;
+            last = params.palette;
+            const p = PALETTES[params.palette];
+
+            ICONS.forEach(([draw, angle, reach], i) => {
+                const art = arts[i];
+                const dx = Math.cos(angle);
+                const dy = Math.sin(angle);
+                const from: [number, number] = [0.5 - dx * 0.5, 0.5 - dy * 0.5];
+                const to: [number, number] = [0.5 + dx * 0.5, 0.5 + dy * 0.5];
+                const body = linear(
+                    [
+                        [0, p.lead, 1],
+                        [0.3 * reach, p.mid, 1],
+                        [0.7 * reach, p.deep, 0.85],
+                        [reach, p.deep, 0],
+                    ],
+                    { from, to },
+                );
+
+                art.clear();
+                // bloom that spills past the lit edge
+                draw(art).fill({ gradient: body, alpha: 0.45, blur: 20, spread: 6, blend: 'add' });
+                // the body: crisp on the lit side, dissolving towards the trailing side
+                draw(art).fill({ gradient: body, blur: { from: 0.8, to: 46 * reach, angle }, blend: 'add' });
+                // the lit edge: a shadow pushed towards the trailing side leaves a bright band along the lead
+                draw(art).fill({
+                    color: 0x000000,
+                    alpha: 0,
+                    innerShadow: [
+                        { color: p.rim, alpha: 0.8, x: dx * 4, y: dy * 4, blur: 1.5, blend: 'add' },
+                        { color: p.lead, alpha: 0.45, x: dx * 16, y: dy * 16, blur: 9, blend: 'add' },
+                    ],
+                });
+                // a warm or cool kick where the lit edge meets the tile
+                art.circle(S * (0.5 - dx * 0.35), S * 0.98, 26).fill({
+                    color: p.accent,
+                    alpha: 0.35,
+                    blur: 18,
+                    blend: 'add',
+                });
+            });
         });
 
         return undefined;
@@ -6901,8 +7163,8 @@ Geometry.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | [SilkGraphics.ts:447](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L447) |
-|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | [SilkGraphics.ts:449](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L449) |
+|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | [SilkGraphics.ts:458](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L458) |
+|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | [SilkGraphics.ts:460](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L460) |
 
 ## Accessors
 
@@ -6979,7 +7241,7 @@ Mesh<SilkGeometry, Shader>.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [SilkGraphics.ts:512](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L512) |
+|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [SilkGraphics.ts:523](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L523) |
 
 ## Accessors
 
@@ -7530,7 +7792,8 @@ Rounded rect with fully round ends.
 poly(points: PointsInput, close?: boolean): this;
 ```
 
-Pixi-style polygon path. Only strokes are supported for arbitrary paths.
+Pixi-style polygon. `fill()` paints it as one exact shape (even-odd), so blur, spread, inner
+shadows and gradients work on bolts, drops and other free outlines.
 
 #### Parameters
 
@@ -8430,8 +8693,8 @@ Options of `area()`: monotone smoothing of the series and its sample spacing.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [SilkGraphics.ts:129](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L129) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:131](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L131) |
+|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [SilkGraphics.ts:141](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L141) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:143](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L143) |
 
 ## ConicGradientOptions (Interface)
 
@@ -8470,13 +8733,13 @@ How a fill is painted: colour or gradient, opacity, blur with spread, blend mode
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:65](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L65) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [SilkGraphics.ts:79](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L79) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [SilkGraphics.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L72) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [SilkGraphics.ts:63](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L63) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [SilkGraphics.ts:67](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L67) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [SilkGraphics.ts:81](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L81) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [SilkGraphics.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L74) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:77](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L77) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [SilkGraphics.ts:75](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L75) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [SilkGraphics.ts:79](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L79) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
 
 ## GradientOptions (Interface)
 
@@ -8511,13 +8774,13 @@ moved by `x` and `y`, shrunk by `spread` and blurred. What it no longer covers i
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:47](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L47) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [SilkGraphics.ts:57](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L57) |
-|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [SilkGraphics.ts:53](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L53) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [SilkGraphics.ts:45](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L45) |
-|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [SilkGraphics.ts:55](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L55) |
-|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [SilkGraphics.ts:49](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L49) |
-|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [SilkGraphics.ts:51](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L51) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:59](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L59) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [SilkGraphics.ts:69](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L69) |
+|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [SilkGraphics.ts:65](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L65) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [SilkGraphics.ts:57](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L57) |
+|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [SilkGraphics.ts:67](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L67) |
+|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [SilkGraphics.ts:61](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L61) |
+|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [SilkGraphics.ts:63](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L63) |
 
 ## LinearGradientOptions (Interface)
 
@@ -8566,9 +8829,9 @@ Options of `polyline()`: closed loops and monotone or Catmull-Rom smoothing of t
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [SilkGraphics.ts:119](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L119) |
-|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [SilkGraphics.ts:121](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L121) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:123](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L123) |
+|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [SilkGraphics.ts:131](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L131) |
+|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [SilkGraphics.ts:133](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L133) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:135](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L135) |
 
 ## ProgressiveBlur (Interface)
 
@@ -8581,9 +8844,9 @@ A blur that changes across the shape, like Figma's progressive layer blur. The r
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [SilkGraphics.ts:36](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L36) |
-|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [SilkGraphics.ts:32](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L32) |
-|  `to` | `number` | Blur at the end edge. | [SilkGraphics.ts:34](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L34) |
+|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [SilkGraphics.ts:48](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L48) |
+|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [SilkGraphics.ts:44](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L44) |
+|  `to` | `number` | Blur at the end edge. | [SilkGraphics.ts:46](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L46) |
 
 ## RadialGradientOptions (Interface)
 
@@ -8688,10 +8951,10 @@ Per-object rendering settings of a [SilkGraphics](https://pixi-silk.schmooky.dev
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [SilkGraphics.ts:139](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L139) |
-|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [SilkGraphics.ts:137](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L137) |
-|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [SilkGraphics.ts:143](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L143) |
-|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [SilkGraphics.ts:141](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L141) |
+|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [SilkGraphics.ts:151](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L151) |
+|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [SilkGraphics.ts:149](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L149) |
+|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [SilkGraphics.ts:155](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L155) |
+|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [SilkGraphics.ts:153](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L153) |
 
 ## StrokeStyle (Interface)
 
@@ -8707,21 +8970,21 @@ How a stroke is painted: width (or tapered widths), alignment, caps, dashes, plu
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [SilkGraphics.ts:98](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L98) |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [SilkGraphics.ts:65](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L65) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [SilkGraphics.ts:79](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L79) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [SilkGraphics.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L72) |
-|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [SilkGraphics.ts:63](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L63) |
-|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [SilkGraphics.ts:102](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L102) |
-|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [SilkGraphics.ts:106](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L106) |
-|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [SilkGraphics.ts:104](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L104) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [SilkGraphics.ts:67](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L67) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [SilkGraphics.ts:81](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L81) |
-|  `join?` | `"round"` \| `"miter"` \| `"bevel"` | Accepted for Pixi compatibility. Joins are always round, the smoothest choice. | - | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
-|  `miterLimit?` | `number` | Accepted for Pixi compatibility and ignored. | - | [SilkGraphics.ts:110](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L110) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [SilkGraphics.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L74) |
-|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [SilkGraphics.ts:96](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L96) |
+|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [SilkGraphics.ts:110](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L110) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [SilkGraphics.ts:77](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L77) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [SilkGraphics.ts:112](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L112) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [SilkGraphics.ts:75](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L75) |
+|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [SilkGraphics.ts:114](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L114) |
+|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [SilkGraphics.ts:118](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L118) |
+|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [SilkGraphics.ts:116](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L116) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [SilkGraphics.ts:79](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L79) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `join?` | `"round"` \| `"miter"` \| `"bevel"` | Accepted for Pixi compatibility. Joins are always round, the smoothest choice. | - | [SilkGraphics.ts:120](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L120) |
+|  `miterLimit?` | `number` | Accepted for Pixi compatibility and ignored. | - | [SilkGraphics.ts:122](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L122) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
 
 ## ColorSpace (Type)
 
@@ -8955,7 +9218,7 @@ A line thinner than one device pixel covers only part of each pixel. Sampling hi
 
 ## Is pixi-silk a replacement for Graphics?
 
-Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It can only stroke free-form paths for now. It draws all joins round and does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.
+Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It draws all joins round and does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.
 
 ## Does pixi-silk need MSAA or antialias: true?
 
