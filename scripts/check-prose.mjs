@@ -39,7 +39,7 @@ const SKIP = [
     /(^|\/)dist\//,
     /^apps\/site\/src\/pages\/api\//,
     /^apps\/site\/src\/generated\//,
-    /^apps\/site\/src\/lab\/_(sheets|widgets)\//,
+    /^apps\/site\/src\/lab\/_(sheets|widgets|cards)\//,
     /^apps\/site\/src\/og\/fonts\//,
     /^scripts\/check-prose\.mjs$/,
 ];

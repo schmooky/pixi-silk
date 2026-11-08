@@ -1,8 +1,10 @@
+import { sheet1Card } from './kit1';
+import { sheet4Backdrop, sheet4Card } from './kit4';
 import type { SheetOptions } from './sheet';
-import { sheet1, sheet1Card } from './sheet1';
+import { sheet1 } from './sheet1';
 import { sheet2 } from './sheet2';
 import { sheet3 } from './sheet3';
-import { sheet4, sheet4Backdrop, sheet4Card } from './sheet4';
+import { sheet4 } from './sheet4';
 import { sheet5 } from './sheet5';
 
 export interface SheetDef extends SheetOptions {

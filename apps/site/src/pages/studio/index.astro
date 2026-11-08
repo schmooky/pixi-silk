@@ -7,19 +7,51 @@ import { SITE } from '@/lib/site';
 
 // every demo and lab experiment, grouped the way the docs read: area, then page
 const words = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+// a reference sheet opens as its widgets, one entry each, instead of one page of twenty
+const cardSources = import.meta.glob<string>('../../lab/_cards/*.ts', { query: '?raw', import: 'default', eager: true });
+const SHEET_CARDS: Record<string, string> = {
+    '30-sheet-health': 's1',
+    '31-sheet-complications': 's2',
+    '32-sheet-fitness': 's3',
+    '33-sheet-live-activities': 's4',
+    '34-sheet-watch': 's5',
+};
+const sheetSources = import.meta.glob<string>('../../lab/_sheets/sheet[1-5].ts', { query: '?raw', import: 'default', eager: true });
+// in the order the sheet lays them out
+const cardsOf = (prefix: string) => {
+    const sheet = sheetSources[`../../lab/_sheets/sheet${prefix.slice(1)}.ts`] ?? '';
+
+    return Object.entries(cardSources)
+        .map(([path, code]) => ({ name: path.replace(/^.*\/(.*)\.ts$/, '$1'), code }))
+        .filter((c) => c.name.startsWith(`${prefix}-`))
+        .sort((a, b) => sheet.indexOf(`['${a.name}'`) - sheet.indexOf(`['${b.name}'`))
+        .map((c) => ({
+            id: `card:${c.name}`,
+            kind: 'card' as const,
+            name: c.name,
+            title: /name: '((?:[^'\\]|\\.)*)'/.exec(c.code)?.[1].replace(/\\'/g, "'") ?? words(c.name),
+        }));
+};
 const groups: StudioGroup[] = (await docsAreas())
     .map((a) => ({
         area: a.title,
-        pages: a.pages
-            .map((p) => ({
+        pages: a.pages.flatMap((p) => {
+            const sheets = p.lab.filter((l) => SHEET_CARDS[l.slug]);
+            const page = {
                 title: p.title,
                 href: p.href,
                 entries: [
                     ...p.demos.map((name) => ({ id: `demo:${name}`, kind: 'demo' as const, name, title: words(name) })),
-                    ...p.lab.map((l) => ({ id: `lab:${l.slug}`, kind: 'lab' as const, name: l.slug, title: l.name })),
+                    ...p.lab
+                        .filter((l) => !SHEET_CARDS[l.slug])
+                        .map((l) => ({ id: `lab:${l.slug}`, kind: 'lab' as const, name: l.slug, title: l.name })),
                 ],
-            }))
-            .filter((p) => p.entries.length > 0),
+            };
+
+            return [page, ...sheets.map((l) => ({ title: l.name, href: p.href, entries: cardsOf(SHEET_CARDS[l.slug]) }))].filter(
+                (x) => x.entries.length > 0,
+            );
+        }),
     }))
     .filter((g) => g.pages.length > 0);
 const description = `Every ${SITE.name} demo and experiment as code next to its canvas. Edit the source and it runs again as you type.`;

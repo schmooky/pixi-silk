@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /** One runnable module: a docs demo or a lab experiment. */
 export interface StudioEntry {
-    /** `demo:<name>` or `lab:<slug>`, also the URL query (`?demo=` / `?lab=`). */
+    /** `demo:<name>`, `lab:<slug>` or `card:<id>`, also the URL query (`?demo=`, `?lab=`, `?card=`). */
     id: string;
-    kind: 'demo' | 'lab';
+    /** A docs demo, a lab page, or one widget of a reference sheet. */
+    kind: 'demo' | 'lab' | 'card';
     /** File name without extension. */
     name: string;
     title: string;
@@ -19,10 +20,16 @@ export interface StudioGroup {
 
 const demoSources = import.meta.glob<string>('../../demos/*.demo.ts', { query: '?raw', import: 'default' });
 const labSources = import.meta.glob<string>('../../lab/[0-9]*.ts', { query: '?raw', import: 'default' });
+const cardSources = import.meta.glob<string>('../../lab/_cards/*.ts', { query: '?raw', import: 'default' });
 
+const fileOf = (e: StudioEntry) =>
+    e.kind === 'demo'
+        ? `src/demos/${e.name}.demo.ts`
+        : e.kind === 'card'
+          ? `src/lab/_cards/${e.name}.ts`
+          : `src/lab/${e.name}.ts`;
 const sourceOf = (e: StudioEntry) =>
-    (e.kind === 'demo' ? demoSources[`../../demos/${e.name}.demo.ts`] : labSources[`../../lab/${e.name}.ts`])?.();
-const fileOf = (e: StudioEntry) => (e.kind === 'demo' ? `src/demos/${e.name}.demo.ts` : `src/lab/${e.name}.ts`);
+    (e.kind === 'demo' ? demoSources : e.kind === 'card' ? cardSources : labSources)[`../../${fileOf(e).slice(4)}`]?.();
 
 type Status = { state: 'idle' | 'running' | 'ok' } | { state: 'error'; message: string };
 
@@ -37,7 +44,11 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
     );
     const [current, setCurrent] = useState(() => {
         const q = new URLSearchParams(location.search);
-        const id = q.has('lab') ? `lab:${q.get('lab')}` : `demo:${q.get('demo') ?? ''}`;
+        const id = q.has('lab')
+            ? `lab:${q.get('lab')}`
+            : q.has('card')
+              ? `card:${q.get('card')}`
+              : `demo:${q.get('demo') ?? ''}`;
 
         return all.find((e) => e.id === id) ?? all[0];
     });

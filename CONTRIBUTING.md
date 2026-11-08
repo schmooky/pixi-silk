@@ -77,7 +77,7 @@ Docs, FAQ answers, UI text, JSDoc and changesets use plain, short English.
 - Bold only the one term a reader scans for. Keep numbers, API names and code exact.
 
 `scripts/check-prose.mjs` enforces the mechanical rules. The lab's reference-sheet widgets
-(`apps/site/src/lab/_sheets`, `_widgets`) reproduce design text as it is and are not checked.
+(`apps/site/src/lab/_sheets`, `_widgets`, `_cards`) reproduce design text as it is and are not checked.
 Add `prose-ignore` to a line that must keep a symbol.
 
 ## Releasing

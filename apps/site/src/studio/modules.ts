@@ -42,18 +42,36 @@ const PACKAGES: Record<string, Loader> = {
 };
 
 // the lab's shared helpers, widgets and sheets, addressed the way a lab page imports them
-const LAB = import.meta.glob(['../lab/_shared/*.{ts,css}', '../lab/_widgets/*.ts', '../lab/_sheets/*.ts']);
+const LAB = import.meta.glob([
+    '../lab/_shared/*.{ts,css}',
+    '../lab/_widgets/*.ts',
+    '../lab/_sheets/*.ts',
+    '../lab/_cards/*.ts',
+]);
 
 function loader(specifier: string): Loader | undefined {
     if (PACKAGES[specifier]) return PACKAGES[specifier];
-    if (!specifier.startsWith('./_')) return undefined;
-    const base = `../lab/${specifier.slice(2)}`;
+    // a lab page imports './_sheets/x', a widget card in lab/_cards imports '../_sheets/x'
+    const rest = specifier.startsWith('./_')
+        ? specifier.slice(2)
+        : specifier.startsWith('../_')
+          ? specifier.slice(3)
+          : null;
+
+    if (rest === null) return undefined;
+    const base = `../lab/${rest}`;
 
     return (LAB[base] ?? LAB[`${base}.ts`]) as Loader | undefined;
 }
 
 /** Specifiers a module may import, for error messages. */
-export const IMPORTABLE: string[] = [...Object.keys(PACKAGES), './_shared/*', './_widgets/*', './_sheets/*'];
+export const IMPORTABLE: string[] = [
+    ...Object.keys(PACKAGES),
+    './_shared/*',
+    './_widgets/*',
+    './_sheets/*',
+    '../_sheets/* (from a card)',
+];
 
 /** Compiles TypeScript module source and runs it. Resolves with its exports. */
 export async function runModule(source: string): Promise<Record<string, unknown>> {
