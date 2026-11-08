@@ -1825,7 +1825,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         if (!box || depth.max > OP_STACK) {
             if (box && !warnedOpDepth) {
                 warnedOpDepth = true;
-                console.warn(`pixi-silk: shape operations nest deeper than ${OP_STACK} levels and are skipped`);
+                console.warn(`[pixi-silk] shape operations nest deeper than ${OP_STACK} levels and are skipped`);
             }
             this._count--;
 
