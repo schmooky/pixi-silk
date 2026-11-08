@@ -3430,6 +3430,9 @@ const pill = new ValuePill({ label: silkLabel({ tabularNumbers: true }) });
 pill.show('42 px');
 ```
 
+To let people click and type into a text, wrap it in a `TextEditor`. [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/)
+covers the caret, selection, input methods and undo.
+
 ## Fonts and the atlas
 
 Glyphs are drawn with Canvas2D at 48 px the first time they appear, then turned into a distance
@@ -3456,6 +3459,394 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
   Latin, Greek and Cyrillic UI text works. Arabic and Indic scripts need PixiJS `Text`.
 - **Kerning** is per pair, measured with `measureText`. It matches Canvas for Latin text.
 - **Renderers**: WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.
+
+---
+
+# Editing text
+
+URL: https://pixi-silk.schmooky.dev/docs/editing-text/
+Section: UI widgets
+
+> TextEditor makes SilkText clickable and editable like a design tool text layer: caret, selection, undo, clipboard and input methods, sharp at any zoom.
+
+Live demo `text-edit-canvas` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History } from 'pixi-silk/history';
+import { SilkText, silkLabel } from 'pixi-silk/text';
+import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// Click a text to edit it, drag to select, double click a word. Pinch or ctrl + scroll to zoom in
+// and keep typing: the caret, the selection and the glyphs stay sharp. Scroll pans.
+export default defineDemo({
+    size: [760, 440],
+    background: 0x151517,
+    touchAction: 'none',
+    ownsCamera: true,
+    setup({ silk }) {
+        const app = silk.app;
+        const world = new Container();
+        const camera = new Camera({ world, element: app.canvas });
+        const zoom = new ZoomControl(camera, { label: silkLabel() });
+        // one undo stack for the whole canvas: text edits sit in it with everything else
+        const history = new History();
+        const font = 'Inter, system-ui, sans-serif';
+
+        app.stage.addChild(world, zoom);
+
+        const card = new SilkGraphics()
+            .roundRect(0, 0, 420, 260, 28, 0.6)
+            .fill(linear([0x2c2c30, 0x1c1c1f], { from: [0, 0], to: [0, 1] }))
+            .roundRect(0.5, 0.5, 419, 259, 28, 0.6)
+            .stroke({ color: 0xffffff, alpha: 0.08, width: 1 });
+        const caption = new SilkText({ text: 'Frame 1', fontFamily: font, fontSize: 11, fill: 0x8e8e93 });
+
+        caption.position.set(2, -18);
+        world.addChild(card, caption);
+
+        const title = new TextEditor({
+            text: 'Edit me',
+            fontFamily: font,
+            fontSize: 30,
+            fontWeight: 700,
+            fill: 0xffffff,
+            multiline: false,
+            history,
+            element: app.canvas,
+        });
+        const body = new TextEditor({
+            text: 'Text on an infinite canvas. Zoom to 800% and the caret is still one crisp pixel and a half wide.\n\nDouble click a word, triple click a paragraph.',
+            fontFamily: font,
+            fontSize: 15,
+            lineHeight: 22,
+            fill: 0xc7c7cc,
+            width: 356,
+            placeholder: 'Write something',
+            history,
+            element: app.canvas,
+        });
+
+        title.position.set(32, 30);
+        body.position.set(32, 86);
+        world.addChild(title, body);
+
+        // a tiny caption follows the title as you type
+        const count = new SilkText({ fontFamily: font, fontSize: 11, fill: 0x636366, tabularNumbers: true });
+
+        count.position.set(32, 230);
+        world.addChild(count);
+        const update = () => {
+            const words = body.value.split(/\s+/).filter(Boolean).length;
+
+            count.text = `${title.value.length} characters in the title, ${words} words below`;
+        };
+        const stops = [title.state.text.subscribe(update), body.state.text.subscribe(update), bindHistoryKeys(history)];
+
+        update();
+        const place = () =>
+            zoom.position.set(app.screen.width - zoom.size[0] - 12, app.screen.height - zoom.size[1] - 12);
+
+        app.renderer.on('resize', place);
+        place();
+        camera.fit({ x: -20, y: -40, width: 460, height: 320 }, 24, false);
+
+        return () => {
+            for (const stop of stops) stop();
+            app.renderer.off('resize', place);
+            title.destroy();
+            body.destroy();
+            camera.destroy();
+        };
+    },
+});
+```
+
+## A text layer you can type into
+
+`TextEditor` from `pixi-silk/ui/textedit` wraps a [SilkText](https://pixi-silk.schmooky.dev/docs/text/) with a caret, a selection
+and keyboard input. It lives in the scene like any display object, so it pans and zooms with a
+[camera](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/) and stays sharp at 800%.
+
+```ts
+
+declare const world: Container;
+declare const canvas: HTMLCanvasElement;
+
+const note = new TextEditor({
+    text: 'Edit me',
+    fontSize: 15,
+    width: 320, // wraps at 320, grows in height
+    placeholder: 'Write something',
+    element: canvas,
+});
+
+note.on('change', (text: string) => console.log('saved', text));
+world.addChild(note);
+```
+
+Click to place the caret, drag to select and Shift + click to extend. A double click selects a word
+and a triple click its paragraph. Words come from `Intl.Segmenter`, so they follow the language.
+
+## How typing works
+
+The keys do not go to the canvas. On focus, the editor puts a hidden `<textarea>` on the page, right
+at the caret, and keeps its text and selection in step with its own. The browser types into it, and
+the editor applies each change.
+
+That is why the platform's own text input works:
+
+- **Input methods** for Japanese, Chinese and Korean, and dead keys for accents. The text being
+  composed shows inline with an underline, and becomes one undo step when you confirm it.
+- Mobile keyboards, autocorrect and the emoji picker.
+- Copy, cut and paste, with the system clipboard.
+
+The field follows the caret as you type, pan or zoom, so input method popups open next to the text.
+Pass `element` (usually `app.canvas`) to place it. Without it, the editor uses the element of the first press.
+
+## Keys
+
+| Keys | What they do |
+| --- | --- |
+| Left, Right | Move by grapheme, so an emoji or an accented letter is one step |
+| Option + Left / Right on Mac, Ctrl elsewhere | Move by word |
+| Up, Down | Move by line, keeping the column you started from |
+| Home, End, or cmd + Left / Right on Mac | Start and end of the line on screen |
+| Shift with any of these | Extend the selection |
+| cmd or ctrl + A | Select all |
+| Backspace, Delete | Delete a grapheme, or a word with Option or Ctrl |
+| Enter | A new line, or commit in a single-line field |
+| cmd or ctrl + Enter | Commit and leave a multi-line field |
+| Tab | Move to the next field, or insert a tab with `tab: 'insert'` |
+| Escape | Leave the field |
+| cmd or ctrl + Z, Shift + cmd or ctrl + Z | Undo and redo |
+
+## Fields and forms
+
+Live demo `text-edit-form` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { watch } from 'pixi-silk/signal';
+import { SilkText } from 'pixi-silk/text';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// Single-line fields drawn on the canvas. Tab moves to the next field, Enter in the last one sends
+// the form. Japanese or Chinese input, dead keys and the emoji picker type into them as usual.
+export default defineDemo({
+    size: [520, 330],
+    background: 0x0f0f11,
+    setup({ silk, stage }) {
+        const font = 'Inter, system-ui, sans-serif';
+        const fields: TextEditor[] = [];
+        const stops: (() => void)[] = [];
+        const field = (label: string, y: number, options: ConstructorParameters<typeof TextEditor>[0]) => {
+            const row = new Container();
+            const name = new SilkText({ text: label, fontFamily: font, fontSize: 12, fontWeight: 600, fill: 0x8e8e93 });
+            const box = new SilkGraphics();
+            const editor = new TextEditor({
+                fontFamily: font,
+                fontSize: 15,
+                fill: 0xf2f2f7,
+                multiline: false,
+                width: 276,
+                element: silk.app.canvas,
+                ...options,
+            });
+
+            editor.position.set(12, 31);
+            // a press anywhere on the box focuses the field
+            box.eventMode = 'static';
+            box.cursor = 'text';
+            box.on('pointerdown', (e) => {
+                (e.nativeEvent as Event).preventDefault();
+                editor.focus();
+            });
+            row.addChild(name, box, editor);
+            row.position.set(40, y);
+            // the box lights up while its field has focus
+            stops.push(
+                watch(editor.state.focused, (on) => {
+                    box.clear()
+                        .roundRect(0, 20, 300, 40, 10, 0.6)
+                        .fill(on ? 0x1c1c22 : 0x18181b)
+                        .roundRect(0, 20, 300, 40, 10, 0.6)
+                        .stroke({ color: on ? 0x0a84ff : 0x3a3a3c, width: on ? 1.5 : 1, alignment: 'inside' });
+                }),
+            );
+            stage.addChild(row);
+            fields.push(editor);
+
+            return editor;
+        };
+
+        const name = field('Name', 24, { placeholder: 'Ada Lovelace' });
+        const email = field('Email', 104, { placeholder: 'ada@example.com' });
+        const code = field('Promo code, 8 characters at most', 184, { placeholder: 'SILK2026', maxLength: 8 });
+        const result = new SilkText({
+            fontFamily: font,
+            fontSize: 12,
+            fill: 0x30d158,
+            wordWrap: true,
+            wordWrapWidth: 150,
+        });
+        const button = new Container();
+        const pill = new SilkGraphics().pill(0, 0, 140, 40).fill(0x0a84ff);
+        const label = new SilkText({ text: 'Send', fontFamily: font, fontSize: 14, fontWeight: 600, anchor: 0.5 });
+
+        label.position.set(70, 20);
+        button.addChild(pill, label);
+        button.position.set(360, 228);
+        button.eventMode = 'static';
+        button.cursor = 'pointer';
+        result.position.set(360, 52);
+        stage.addChild(button, result);
+        const send = () => {
+            const values = [name.value || 'no name', email.value || 'no email', code.value || 'no code'];
+
+            result.text = `Sent\n${values.join('\n')}`;
+            TextEditor.active?.blur();
+        };
+
+        button.on('pointertap', send);
+        code.on('submit', send);
+        // Enter in the first fields moves on, like a sign-up form
+        name.on('submit', () => email.focus(true));
+        email.on('submit', () => code.focus(true));
+        stops.push(TextEditor.chain(fields));
+
+        return () => {
+            for (const stop of stops) stop();
+            for (const f of fields) f.destroy();
+        };
+    },
+});
+```
+
+With `multiline: false` the editor is an input. Enter commits instead of breaking the line. A
+`width` clips the text and scrolls it to keep the caret in view. `TextEditor.chain()` links fields in
+Tab order.
+
+```ts
+
+const email = new TextEditor({ multiline: false, width: 260, placeholder: 'ada@example.com' });
+const code = new TextEditor({ multiline: false, width: 260, maxLength: 8 });
+
+TextEditor.chain([email, code]);
+code.on('submit', () => console.log(email.value, code.value));
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `multiline` | true | A text area, or a single-line input |
+| `width` | none | Wraps a text area, clips and scrolls an input |
+| `placeholder` | empty | Shown while the text is empty |
+| `maxLength` | none | Longest text in UTF-16 code units, like `maxlength`. Never splits an emoji |
+| `readOnly` | false | Selectable and copyable, not editable |
+| `selectable` | true | False turns pointer input off |
+| `enter` | `newline` or `commit` | `newline`, `commit` or `blur` |
+| `tab` | `next` | `next` emits `tab` and leaves, `insert` types a tab |
+| `history` | its own | A `HistoryLike` to share the app's undo stack |
+| `theme` | blue | Caret, selection and underline colours |
+
+Every SilkText style option works too: font, size, weight, fill, letter spacing, line height and alignment.
+
+## Read-only text
+
+Live demo `text-edit-readonly` (source):
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+import { defineDemo } from './runtime';
+
+// A read-only paragraph: select with the mouse or a long press, cmd or ctrl + C copies.
+// There is no caret and typing does nothing.
+export default defineDemo({
+    size: [520, 260],
+    background: 0x0b0b0d,
+    setup({ silk, stage }) {
+        const font = 'Inter, system-ui, sans-serif';
+        const paragraph = new TextEditor({
+            text: 'Release notes. Text layers now edit on the canvas. Selection, the clipboard and input methods go through a hidden text field, so they behave the way the platform does. Double click a word to select it.',
+            fontFamily: font,
+            fontSize: 15,
+            lineHeight: 23,
+            fill: 0xd1d1d6,
+            width: 440,
+            readOnly: true,
+            element: silk.app.canvas,
+            theme: { selection: 0xffd60a, selectionAlpha: 0.28 },
+        });
+        const readout = new SilkText({ fontFamily: font, fontSize: 12, fill: 0x8e8e93 });
+
+        paragraph.position.set(40, 36);
+        readout.position.set(40, 214);
+        stage.addChild(paragraph, readout);
+        const stop = paragraph.state.selection.subscribe(() => {
+            const n = paragraph.selectedText.length;
+
+            readout.text = n ? `${n} characters selected. Cmd or ctrl + C copies them.` : '';
+        });
+
+        return () => {
+            stop();
+            paragraph.destroy();
+        };
+    },
+});
+```
+
+`readOnly: true` keeps clicking, selecting and copying, and drops the caret and editing. Use it for
+release notes, logs or error messages that people want to copy.
+
+## Events, signals and undo
+
+The editor emits `focus`, `blur`, `input` on every edit, `change` when the text was committed with a
+new value, `submit` on Enter in a single-line field, and `tab`. The same state is on
+`editor.state` as [signals](https://pixi-silk.schmooky.dev/docs/selection-and-history/): `text`, `committed`, `focused`, `selection`
+and `composing`.
+
+Undo is built in. Consecutive typing folds into one step, and a click or an arrow key starts the
+next. To put text edits in line with the rest of an editor, pass its history:
+
+```ts
+
+const history = new History();
+const title = new TextEditor({ text: 'Frame 1', multiline: false, history });
+
+bindHistoryKeys(history); // cmd + Z outside the field undoes text edits too
+```
+
+## Hit testing for other tools
+
+The caret math is in the layout, so other tools can use it. `SilkText` has `caretAt(point)` for the
+caret nearest to a local point. `caretRect(index)` gives where a caret sits and `rangeRects(from, to)`
+the highlight boxes of a range. They follow wrapped lines, alignment, letter spacing, line height,
+empty lines and trailing spaces. `pixi-silk/text` also exports the same functions on a `TextLayout`,
+plus `graphemeStops`, `wordAt` and the word jumps.
+
+```ts
+
+const label = new SilkText({ text: 'Hello world', wordWrap: true, wordWrapWidth: 60 });
+const hit = label.caretAt({ x: 30, y: 8 });
+const caret = label.caretRect(hit.index, hit.upstream);
+
+console.log(hit.index, caret.x, label.rangeRects(0, 5));
+```
+
+## Limits
+
+- **Right-to-left and mixed direction text** is not supported. Arabic and Hebrew lay out left to
+  right, and the caret moves in source order.
+- **Emoji** count as one caret step, but draw as one-colour silhouettes, as in [SilkText](https://pixi-silk.schmooky.dev/docs/text/).
+- **Shaping**: no ligatures and no combining marks drawn on their base letter. Each code point is a glyph.
+- **Spell check** underlines are off: the hidden field is invisible.
 
 ---
 
@@ -3994,6 +4385,743 @@ batch(() => {
 
 Widgets animate on `Ticker.shared` and leave the ticker once nothing moves. Pass `ticker` to use
 your application's ticker, or `null` to step them yourself with `tick(dt)`.
+
+---
+
+# Layout and smart containers
+
+URL: https://pixi-silk.schmooky.dev/docs/layout/
+Section: UI widgets
+
+> Place HUD boxes on any screen the way slot games do, with portrait and landscape records, then lay out what is inside them with a small flex engine.
+
+Live demo `layout-hud` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import {
+    DEVICES,
+    FlexContainer,
+    layoutDebug,
+    SmartContainer,
+    type SmartContainerOptions,
+    simulateViewport,
+} from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// A slot game HUD built from SmartContainers, each placed by a portrait and a landscape record.
+// The balance pins to the top left corner, the menu to the top right, the reels stay centred and
+// fit, and the bar stretches along the bottom with a flex row inside. Pick a device: the page
+// previews it letterboxed, and the HUD glides to the new breakpoint. Press L, or tick debug, for
+// the layout overlay. Hover a box for its readout.
+
+const GOLD = 0xffd60a;
+const font = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+
+/** A 5 by 3 reel window with a few vector symbols, 1040x640 design units. */
+function reels(): Container {
+    const g = new SilkGraphics();
+
+    g.roundRect(0, 0, 1040, 640, 40, 0.6).fill(0x1c1c1e);
+    for (let c = 0; c < 5; c++) {
+        for (let r = 0; r < 3; r++) {
+            const x = 20 + c * 200 + 100;
+            const y = 20 + r * 200 + 100;
+            const kind = (c * 7 + r * 3) % 5;
+
+            g.roundRect(x - 88, y - 88, 176, 176, 32, 0.6).fill(0x2c2c2e);
+            if (kind === 0) g.heart(x, y + 4, 104, 8).fill(0xff375f);
+            else if (kind === 1) g.circle(x, y, 52).fill(0x0a84ff);
+            else if (kind === 2) g.regularPoly(x, y, 60, 6, 0, 12).fill(0x30d158);
+            else if (kind === 3) g.triangle(x, y - 56, x + 56, y + 44, x - 56, y + 44, 12).fill(0xbf5af2);
+            else g.regularPoly(x, y, 60, 4, Math.PI / 4, 8).fill(GOLD);
+        }
+    }
+
+    return g;
+}
+
+/** A pill with a label and a value. The value shrinks to fit the pill, never below 0.55. */
+function pill(label: string, value: string, color: number): { box: FlexContainer; value: SilkText } {
+    const box = new FlexContainer({ layout: { direction: 'column', padding: [14, 28], gap: 2 } });
+    const bg = new SilkGraphics();
+    const v = new SilkText({ text: value, fontFamily: font, fontWeight: 700, fontSize: 52, fill: color });
+
+    box.add(bg, {
+        position: 'absolute',
+        inset: 0,
+        onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 30, 0.6).fill(0x1c1c1e),
+    });
+    box.add(new SilkText({ text: label, fontFamily: font, fontSize: 24, fill: 0x8e8e93 }));
+    box.add(v, { fit: 'scale-down', minScale: 0.55 });
+
+    return { box, value: v };
+}
+
+/** A round button with a label on it. */
+function button(radius: number, color: number, text: string): Container {
+    const c = new Container();
+
+    c.addChild(
+        new SilkGraphics().circle(0, 0, radius).fill(color),
+        new SilkText({ text, fontFamily: font, fontWeight: 800, fontSize: radius * 0.4, fill: 0xffffff, anchor: 0.5 }),
+    );
+    c.eventMode = 'static';
+    c.cursor = 'pointer';
+
+    return c;
+}
+
+const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default defineDemo({
+    size: [920, 520],
+    background: 0x0b0b0d,
+    controls: {
+        device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
+        notch: { type: 'toggle', label: 'notch', value: false },
+        debug: { type: 'toggle', label: 'debug', value: false },
+    },
+    setup({ silk, stage, params, tick }) {
+        // a device window previewed inside the page. Every SmartContainer follows it.
+        const sim = simulateViewport({ area: { x: 0, y: 0, width: 920, height: 520 }, device: 'desktop' });
+        const debug = layoutDebug(silk.app, { key: 'KeyL' });
+        const all: SmartContainer[] = [];
+        const make = (label: string, options: SmartContainerOptions) => {
+            const c = new SmartContainer({
+                ticker: silk.app.ticker,
+                viewport: sim,
+                // games usually snap. The demo glides on the switch to show where things go.
+                switchTransition: { stiffness: 160, damping: 22 },
+                ...options,
+            });
+
+            c.label = label;
+            all.push(c);
+            sim.content.addChild(c);
+
+            return c;
+        };
+
+        // background: covers the whole window, under the notch too
+        const bg = make('background', {
+            portraitData: { width: 1080, height: 1920, fitCover: true, ignoreSafeArea: true },
+            landscapeData: { width: 1920, height: 1080, fitCover: true, ignoreSafeArea: true },
+        });
+
+        bg.addChild(new SilkGraphics().rect(0, 0, 1920, 1920).fill(0x101014));
+
+        // reels: centred, fit to the reference resolution, moved up to leave room for the bar
+        make('reels', {
+            portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
+            landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
+        }).addChild(reels());
+
+        // balance pinned to the top left corner, menu to the top right
+        const corner = make('balance', {
+            layout: { padding: 24 },
+            portraitData: { align: 'left', valign: 'top', width: 440, height: 170 },
+            landscapeData: { align: 'left', valign: 'top', width: 440, height: 170 },
+        });
+
+        corner.add(pill('BALANCE', '$12,480.00', 0xffffff).box, { grow: 1 });
+
+        make('menu', {
+            layout: { justifyContent: 'center', alignItems: 'center' },
+            portraitData: { align: 'right', valign: 'top', width: 140, height: 140 },
+            landscapeData: { align: 'right', valign: 'top', width: 140, height: 140 },
+        }).add(button(40, 0x2c2c2e, 'MENU'));
+
+        // the bar: along the bottom and as wide as the window, with a flex row inside
+        const bar = make('bar', {
+            layout: {
+                padding: [16, 32, 28],
+                gap: 24,
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                media: [{ breakpoint: 'portrait', style: { wrap: 'wrap', justifyContent: 'center', rowGap: 16 } }],
+            },
+            portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
+            landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
+        });
+        const win = pill('WIN', '$0.00', GOLD);
+        const bet = pill('BET', '$2.00', 0xffffff);
+        const spin = button(76, 0x30d158, 'SPIN');
+
+        // in portrait the spin button takes a row of its own above the two pills
+        bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+        bar.add(bet.box, { grow: 1, basis: 0, maxWidth: 440 });
+        bar.add(win.box, { grow: 1, basis: 0, maxWidth: 440 });
+
+        spin.on('pointertap', () => {
+            win.value.text = money(Math.random() < 0.3 ? 0 : 10 ** (1 + Math.random() * 5));
+            // new text, new size: measure it again
+            win.box.invalidate(win.value);
+        });
+
+        stage.addChild(sim);
+
+        let last = '';
+        let debugParam = false;
+
+        tick(() => {
+            // the checkbox and the L key both toggle the overlay
+            if (params.debug !== debugParam) {
+                debugParam = params.debug;
+                if (debug.enabled !== debugParam) debug.toggle();
+            }
+            const key = `${params.device}|${params.notch}`;
+
+            if (key === last) return;
+            last = key;
+            const [w, h] = DEVICES[params.device];
+
+            for (const c of all)
+                c.setSafeArea(params.notch ? (w > h ? { left: 44, right: 44 } : { top: 47, bottom: 34 }) : {});
+            sim.setDevice(params.device);
+        });
+
+        return () => {
+            debug.destroy();
+            for (const c of all) c.destroy({ children: true });
+        };
+    },
+});
+```
+
+The HUD above is five SmartContainers. Each one places a design box in the window from a
+portrait record and a landscape record:
+
+- **Balance** pins to the top left corner, and the **menu** to the top right.
+- **Reels** stay centred and fit the reference resolution.
+- **The bar** runs along the bottom, as wide as the window, with a flex row inside.
+- **The background** covers the whole window, under the notch too.
+
+Everything lives in one entry point, plus the headless engine:
+
+```ts
+```
+
+## Which one
+
+- **SmartContainer** places a whole block on the screen: a HUD corner, the reels, a bottom bar, a
+  background. It anchors and scales to the window from layout records, per breakpoint.
+- **FlexContainer** arranges children inside a block: a row of buttons, a pill with a label and a
+  value, a card list. It knows nothing about the window.
+
+They compose. A SmartContainer with a `layout` is a flex container for its children, and it can
+hold FlexContainers. A FlexContainer can hold a SmartContainer, which then places itself and
+takes no slot. Both run on one update loop: layout once per frame after a change, springs while
+something moves, nothing when idle.
+
+## SmartContainer
+
+```ts
+
+const reels = new SmartContainer({
+    viewport: app,
+    portraitData: { width: 1040, height: 640, correctionOffsetY: -200 },
+    landscapeData: { width: 1040, height: 640, correctionOffsetY: -50 },
+});
+
+app.stage.addChild(reels);
+```
+
+A SmartContainer has two layout records. It uses `portraitData` when the window is taller than
+wide and `landscapeData` otherwise. Each record describes a design box and how it sits in the
+window:
+
+- **`width` and `height`** are the design box, in design units.
+- **`viewportWidth` and `viewportHeight`** are the reference resolution. The defaults are 1080x1920
+  in portrait and 1920x1080 in landscape.
+- **`align` and `valign`** anchor the scaled box: `left`, `center` or `right`, and `top`, `center` or `bottom`.
+- **`fitCover`** scales to cover the window instead of fitting inside it.
+- **`stretchWidth` and `stretchHeight`** scale one axis so the box spans the window. That distorts
+  the content, which suits backgrounds.
+- **`correctionScaleX` and `correctionScaleY`** multiply the scale. `correctionOffsetX` and
+  `correctionOffsetY` move the box in design units.
+
+The scale is the window size over the reference resolution, the smaller ratio or the larger one
+with `fitCover`. Stretch replaces it per axis, and the corrections apply last. The position is the
+window origin, plus the aligned offset of the scaled box, plus the correction offset times the scale.
+
+These names and numbers match the SmartContainer many slot games already use, so a game can bring
+its records over unchanged. `placeBox(record, window)` gives the same placement without a container.
+
+### What it adds
+
+- **A viewport source, not window listeners.** Pass an Application or a renderer, and the
+  container updates on its `resize`. A signal of a rectangle works too. With a plain rectangle,
+  call `updateContainer()` after you change it.
+- **Named breakpoints.** `breakpoints` lists records with a `when(width, height)` test. The first
+  match wins, before portrait and landscape.
+- **Safe areas.** `safeArea` insets, in screen pixels, shrink the window the boxes are placed in.
+  A record with `ignoreSafeArea` places its box in the whole window, for backgrounds.
+- **A glide on switch.** With `switchTransition`, the container glides on a spring to its new
+  place and scale when the breakpoint changes. Resizes within a breakpoint snap. It is off by
+  default, as games usually want.
+- **`extendWidth` and `extendHeight`.** They keep the uniform scale and grow the box to the
+  window instead of stretching it. Content keeps its proportions and a flex layout spreads out.
+
+```ts
+
+const background = new SmartContainer({
+    viewport: app.renderer,
+    safeArea: { top: 44, bottom: 34 },
+    breakpoints: [
+        { name: 'ultrawide', when: (w, h) => w / h > 2.1, data: { width: 2560, height: 1080, viewportWidth: 2560, fitCover: true } },
+    ],
+    portraitData: { width: 1080, height: 1920, fitCover: true, ignoreSafeArea: true },
+    landscapeData: { width: 1920, height: 1080, fitCover: true, ignoreSafeArea: true },
+});
+```
+
+### A flex layout inside the box
+
+Without a `layout`, the children stay where you put them, in design units. Give the container a
+`layout`, or a record its own, and the design box becomes a flex container:
+
+```ts
+
+const bar = new SmartContainer({
+    viewport: app,
+    layout: {
+        padding: [16, 32, 28],
+        gap: 24,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        media: [{ breakpoint: 'portrait', style: { wrap: 'wrap', justifyContent: 'center' } }],
+    },
+    portraitData: { valign: 'bottom', width: 1080, height: 420, extendWidth: true },
+    landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
+});
+const spin = new Container();
+
+bar.add(spin, { media: [{ breakpoint: 'portrait', style: { basis: '100%' } }] });
+```
+
+A `media` rule with `breakpoint` applies while that record is active. Everything below about
+children, fit modes and text works the same inside a SmartContainer.
+
+## Debug overlay
+
+```ts
+
+const debug = layoutDebug(app, { key: 'KeyL' });
+
+debug.toggle();
+```
+
+`layoutDebug` draws over the whole stage and is off until you toggle it, with the key or the
+handle. It shows, for each SmartContainer:
+
+- the design box and a tag with the breakpoint and the scale,
+- the reference resolution at the fit scale, in purple,
+- the alignment anchor in the window, as a dot,
+- the safe-area insets, in orange, and the stretched or extended axes, in yellow.
+
+For each FlexContainer it shows the box, the content box, the padding in green and the gaps in
+pink. Each child's slot is blue and its real bounds white, or red when the child overflows its slot.
+Hover a box for a readout of its name, size, scale and alignment.
+
+## Previewing devices
+
+```ts
+
+const sim = simulateViewport({ area: app.screen, device: 'phone portrait' });
+const hud = new SmartContainer({ viewport: sim, portraitData: { width: 1080, height: 300, valign: 'bottom' } });
+
+sim.content.addChild(hud);
+app.stage.addChild(sim);
+sim.setDevice('phone landscape');
+```
+
+`simulateViewport` shows a device window inside a desktop page, scaled down to fit and
+letterboxed. Pass it as the `viewport` of your SmartContainers and add them to its `content`. They
+lay out as they would on that device, so you can flip orientations without resizing the browser.
+`DEVICES` lists the preset sizes. A `[width, height]` pair works too.
+
+## FlexContainer
+
+Live demo `layout-stack` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import type { AlignItems, FlexDirection, JustifyContent } from 'pixi-silk/layout';
+import { SilkText } from 'pixi-silk/text';
+import { FlexContainer, layoutDebug } from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// An auto-layout stack, like a Figma frame. Change the item count, direction, gap, padding and
+// alignment: cards glide to their new slots on springs. The debug overlay draws the boxes and
+// slots (blue), the padding (green), the gaps (pink) and real bounds (white). Hover a card.
+
+const COLORS = [0x0a84ff, 0x5e5ce6, 0xbf5af2, 0xff375f, 0xff9f0a, 0x30d158, 0x64d2ff, 0xffd60a];
+const W = 860;
+const H = 420;
+
+/** A card of its own size that redraws at its slot size, so `align: stretch` shows. */
+function card(frame: FlexContainer, i: number): Container {
+    const c = new Container();
+    const g = new SilkGraphics();
+    const t = new SilkText({ text: String(i + 1), fontWeight: 700, fontSize: 22, fill: 0xffffff, anchor: 0.5 });
+
+    c.addChild(g, t);
+
+    return frame.add(c, {
+        minWidth: 70 + ((i * 37) % 4) * 18,
+        minHeight: 56 + ((i * 53) % 3) * 22,
+        onSize: (w, h) => {
+            g.clear()
+                .roundRect(0, 0, w, h, 14, 0.6)
+                .fill(COLORS[i % COLORS.length]);
+            t.position.set(w / 2, h / 2);
+        },
+    });
+}
+
+export default defineDemo({
+    size: [W, H],
+    background: 0x151517,
+    controls: {
+        items: { type: 'range', label: 'items', min: 1, max: 14, step: 1, value: 6 },
+        direction: {
+            type: 'select',
+            label: 'direction',
+            options: ['row', 'column', 'row-reverse', 'column-reverse'],
+            value: 'row',
+        },
+        wrap: { type: 'toggle', label: 'wrap', value: true },
+        gap: { type: 'range', label: 'gap', min: 0, max: 40, step: 1, value: 12, unit: 'px' },
+        padding: { type: 'range', label: 'padding', min: 0, max: 60, step: 1, value: 24, unit: 'px' },
+        justify: {
+            type: 'select',
+            label: 'justify',
+            options: ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'],
+            value: 'start',
+        },
+        align: { type: 'select', label: 'align', options: ['start', 'center', 'end', 'stretch'], value: 'start' },
+        debug: { type: 'toggle', label: 'debug', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const frame = new FlexContainer({ ticker: silk.app.ticker, transition: true });
+        // the layout debug overlay: boxes, padding, gaps, slots against real bounds. Hover a card.
+        const debug = layoutDebug(silk.app, { enabled: true });
+        const bg = new SilkGraphics();
+        const cards: Container[] = [];
+        let last = '';
+
+        frame.resize(W, H);
+        frame.add(bg, {
+            position: 'absolute',
+            inset: 0,
+            animate: false,
+            onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 20, 0.6).fill(0x1c1c1e),
+        });
+        stage.addChild(frame);
+
+        tick(() => {
+            const key = JSON.stringify(params);
+
+            if (key === last) return;
+            last = key;
+            while (cards.length < params.items) cards.push(card(frame, cards.length));
+            while (cards.length > params.items) cards.pop()?.destroy({ children: true });
+            frame.setStyle({
+                direction: params.direction as FlexDirection,
+                wrap: params.wrap ? 'wrap' : 'nowrap',
+                gap: params.gap,
+                padding: params.padding,
+                justifyContent: params.justify as JustifyContent,
+                alignItems: params.align as AlignItems,
+                alignContent: 'start',
+            });
+            if (debug.enabled !== params.debug) debug.toggle();
+        });
+
+        return () => {
+            debug.destroy();
+            frame.destroy({ children: true });
+        };
+    },
+});
+```
+
+`FlexContainer` lays out its children with flexbox inside any box. The demo runs with the debug
+overlay on. Hover a card to read its slot. Call `resize(width, height)` on
+a root one, or nest it in another FlexContainer or a SmartContainer.
+
+```ts
+
+const row = new FlexContainer({ layout: { gap: 12, padding: 16, alignItems: 'center' } });
+
+row.add(Sprite.from('coin.png'), { width: 48, height: 48, fit: 'contain' });
+row.add(new Text({ text: 'Balance' }), { grow: 1 });
+row.resize(480, 80);
+```
+
+Give a child a style with `add(child, style)` or `setLayout(child, style)`. Children with no style
+take part with the defaults. A child is measured by its local bounds, or with the style's
+`measure` (for wrapped text, use the `wrapText` helper). Pixi `Text` and `SilkText` both report real
+text metrics.
+
+The container lays out once per frame, and only after something changed. That is a child added,
+removed or restyled, a new size, or `invalidate(child)` after new text or a new texture. Set
+`watch: true` to check the children's bounds every frame instead. An idle container is off the
+ticker and costs nothing.
+
+With `transition`, children glide to their new slots on springs, scale included. A new child lands
+in place. Set `animate: false` on a child to keep it from gliding.
+
+A child with `onSize` is called with its slot size whenever that changes. Use it to draw a panel at
+the size of its slot. Such a child measures as zero, so size it with `inset`, `grow` or a size:
+
+```ts
+
+const panel = new FlexContainer({ layout: { padding: 16 } });
+const bg = new SilkGraphics();
+
+panel.add(bg, {
+    position: 'absolute',
+    inset: 0,
+    onSize: (w, h) => bg.clear().roundRect(0, 0, w, h, 18, 0.6).fill(0x1c1c1e),
+});
+```
+
+### Fit modes and text shrink-to-fit
+
+Live demo `layout-fit` (source):
+
+```ts
+import type { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+import { type FitMode, FlexContainer } from 'pixi-silk/ui/layout';
+import { defineDemo } from './runtime';
+
+// The same 200x120 artwork in five slots, one per fit mode, like CSS object-fit. Resize the
+// slots and move the alignment. The last slot shrinks a long text to fit, down to a floor.
+
+const MODES: FitMode[] = ['none', 'contain', 'cover', 'scale-down', 'fill'];
+const ALIGN: Record<string, [number, number]> = { center: [0.5, 0.5], start: [0, 0], end: [1, 1] };
+
+/** A 200x120 card: sky, sun and hills. */
+function artwork(): Container {
+    const g = new SilkGraphics();
+
+    // everything stays inside the card, so its bounds are exactly 200x120
+    g.roundRect(0, 0, 200, 120, 16, 0.6).fill(0x0a84ff);
+    g.circle(150, 38, 18).fill(0xffd60a);
+    g.poly([0, 84, 50, 62, 110, 86, 160, 70, 200, 82, 200, 104, 184, 120, 16, 120, 0, 104]).fill(0x30d158);
+
+    return g;
+}
+
+export default defineDemo({
+    size: [900, 360],
+    background: 0x151517,
+    controls: {
+        width: { type: 'range', label: 'slot width', min: 60, max: 130, step: 1, value: 120, unit: 'px' },
+        height: { type: 'range', label: 'slot height', min: 60, max: 220, step: 1, value: 180, unit: 'px' },
+        align: { type: 'select', label: 'fitAlign', options: ['center', 'start', 'end'], value: 'center' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const row = new FlexContainer({
+            ticker: silk.app.ticker,
+            layout: { gap: 14, padding: [24, 16], justifyContent: 'center', alignItems: 'start' },
+        });
+        const slots: { box: FlexContainer; art: Container }[] = [];
+        const label = (text: string) => new SilkText({ text, fontSize: 14, fill: 0x8e8e93 });
+        const slot = (title: string) => {
+            const column = row.add(
+                new FlexContainer({ layout: { direction: 'column', gap: 10, alignItems: 'center' } }),
+            );
+            const box = column.add(new FlexContainer());
+            const frame = new SilkGraphics();
+            const clip = new SilkGraphics();
+
+            // the slot outline, drawn at its size
+            box.add(frame, {
+                position: 'absolute',
+                inset: 0,
+                onSize: (w, h) => {
+                    frame.clear().roundRect(0, 0, w, h, 10).fill(0x232326).stroke({ width: 1, color: 0x48484a });
+                    clip.clear().roundRect(0, 0, w, h, 10).fill(0xffffff);
+                },
+            });
+            // the mask clips cover and fill to the slot. It goes on the slot, not on the child:
+            // a masked child measures only what its mask shows.
+            box.add(clip, { position: 'absolute', inset: 0, onSize: () => {} });
+            box.mask = clip;
+            column.add(label(title));
+
+            return box;
+        };
+
+        for (const fit of MODES) {
+            const box = slot(fit);
+
+            slots.push({ box, art: box.add(artwork(), { fit }) });
+        }
+        // text shrink-to-fit: scale-down with a minimum scale
+        const textBox = slot('scale-down text');
+        const text = textBox.add(
+            new SilkText({ text: 'MEGA WIN 1,250,000', fontWeight: 800, fontSize: 30, fill: 0xffd60a }),
+            {
+                fit: 'scale-down',
+                minScale: 0.35,
+            },
+        );
+
+        stage.addChild(row);
+        row.resize(900, 360);
+
+        let last = '';
+
+        tick(() => {
+            const key = JSON.stringify(params);
+
+            if (key === last) return;
+            last = key;
+            const fitAlign = ALIGN[params.align];
+
+            for (const { box, art } of slots) {
+                box.setStyle({ width: params.width, height: params.height });
+                box.setLayout(art, { ...box.getLayout(art), fitAlign });
+            }
+            textBox.setStyle({ width: params.width, height: params.height });
+            textBox.setLayout(text, { ...textBox.getLayout(text), fitAlign });
+        });
+
+        return () => row.destroy({ children: true });
+    },
+});
+```
+
+`fit` scales a child into its slot, like CSS `object-fit`:
+
+- **`none`** keeps the child's size. This is the default.
+- **`contain`** fits it inside the slot.
+- **`cover`** fills the slot and overflows. Mask the slot to clip it, not the child: a masked
+  child measures only what its mask shows.
+- **`scale-down`** is `contain` that never enlarges.
+- **`fill`** stretches both axes.
+
+`fitAlign` places the child in its slot, from `[0, 0]` (top left) to `[1, 1]` (bottom right). The
+default is the centre. `minScale` and `maxScale` clamp the fit scale.
+
+**Text shrink-to-fit** is `fit: 'scale-down'` with a floor. The text keeps its size while it fits
+and scales down when its slot gets narrow, never below `minScale`:
+
+```ts
+
+const pill = new FlexContainer({ layout: { direction: 'column', padding: [10, 18] } });
+
+pill.add(new SilkText({ text: '$1,250,000.00', fontSize: 30 }), { fit: 'scale-down', minScale: 0.55 });
+```
+
+### Responsive styles
+
+Any child style can carry `portrait` and `landscape` values, and `media` rules for widths and
+breakpoints. Rules apply in order over the base values. Width and orientation rules test the root
+container's layout area. A child with `display: 'none'` is hidden too.
+
+```ts
+
+const main = new FlexContainer({
+    layout: {
+        gap: 20,
+        landscape: { direction: 'row' },
+        portrait: { direction: 'column' },
+        media: [{ maxWidth: 600, style: { gap: 10 } }],
+    },
+});
+const banner = new FlexContainer();
+
+main.add(banner, { landscape: { display: 'none' } });
+```
+
+## The flex engine
+
+```ts
+
+const root = new LayoutNode({ direction: 'row', gap: 8, padding: 16 });
+const icon = new LayoutNode({ width: 100 });
+const label = new LayoutNode({ grow: 1 });
+
+root.add(icon).add(label);
+root.calculate(400, 120);
+
+label.layout; // { x: 124, y: 16, width: 260, height: 88 }
+```
+
+`pixi-silk/layout` is the engine under both containers. It works on plain nodes and has no Pixi
+in it, so it runs in tests, workers and on a server. It is about 3.5 kB gzipped.
+
+A node has a style, children and an optional `measure` function. `calculate(width, height)` lays out
+the tree. Each node's `layout` holds its box relative to its parent. Leave a size out to fit that
+axis to the content.
+
+The style follows CSS flexbox, with `box-sizing: border-box` everywhere:
+
+- **Container.** `direction` (`row`, `column` and their `-reverse`), `wrap`, `gap`, `rowGap`,
+  `columnGap`, `padding`, `justifyContent`, `alignItems` and `alignContent`.
+- **Item.** `grow`, `shrink`, `basis`, `alignSelf` and `margin`. An `auto` margin takes the free
+  space, which centres an item or pushes it to the far end.
+- **Size.** `width`, `height`, their `min` and `max`, and `aspectRatio`. Sizes are pixels, a percent
+  of the parent's content box such as `'50%'`, or `'auto'`.
+- **Position.** `position: 'absolute'` with `top`, `right`, `bottom`, `left` or `inset`. Anchors may
+  be percents. `display: 'none'` takes a node out of the flow.
+
+Grow and shrink run the CSS loop: items that hit their `min` or `max` freeze there, and the rest of
+the space goes round again. Shrinking is weighted by the basis, as in a browser.
+
+### Measuring text
+
+A leaf with content gets a `measure` function. It receives the space offered and returns the content
+size. Either argument is `Infinity` when that axis is free.
+
+```ts
+
+const charWidth = 9;
+const lineHeight = 20;
+const copy = 'Free spins start on three scatters';
+
+const text = new LayoutNode({}, (availableWidth) => {
+    const perLine = Math.max(1, Math.floor(availableWidth / charWidth));
+    const lines = Math.ceil(copy.length / perLine);
+
+    return { width: Math.min(copy.length, perLine) * charWidth, height: lines * lineHeight };
+});
+
+new LayoutNode({ direction: 'column', width: 160 }).add(text).calculate();
+```
+
+Return a `baseline` too and `alignItems: 'baseline'` lines up text in a row.
+
+### Incremental layout
+
+Changing a style, adding or removing a child, or calling `markDirty()` marks the node and its
+ancestors dirty. The next `calculate()` skips every clean subtree whose space did not change. A
+measured leaf keeps its sizes per available space, so it is measured again only after `markDirty()`.
+
+## Differences from CSS
+
+The engine follows CSS flexbox where results differ in practice. A few things are simpler:
+
+- **Minimum size.** An item's default minimum is 0, not its content size. Set `minWidth` or
+  `shrink: 0` to keep an item from shrinking below its content.
+- **Aspect ratio and stretch.** As in CSS, a stretched cross size wins over `aspectRatio`. Set
+  `alignSelf` to keep the ratio.
+- **Baseline.** A container's baseline is its first item's. Only measured leaves report one of their
+  own.
+- **Absolute items** without anchors sit where the parent's `justifyContent` and `alignItems` put
+  them, not at their static position.
+- **Not there.** `order`, `overflow`, borders and `flex-basis: content` are not part of the engine.
+  Rotated children keep their slot but are measured unrotated.
 
 ---
 
@@ -9022,13 +10150,13 @@ new ConicGradient(options: ConicGradientOptions): ConicGradient;
 
 | Property | Modifier | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-|  `center` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Centre of the ramp. | - | gradient.ts:347 |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | gradient.ts:140 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | gradient.ts:136 |
-|  `startAngle?` | `public` | `number` | Angle where the ramp starts. Unset follows the arc, or 12 o'clock for other shapes. | - | gradient.ts:349 |
-|  `sweep?` | `public` | `number` | Angular length of the ramp. Unset follows the arc, or a full turn for other shapes. | - | gradient.ts:351 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | gradient.ts:142 |
+|  `center` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Centre of the ramp. | - | [gradient.ts:347](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L347) |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `startAngle?` | `public` | `number` | Angle where the ramp starts. Unset follows the arc, or 12 o'clock for other shapes. | - | [gradient.ts:349](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L349) |
+|  `sweep?` | `public` | `number` | Angular length of the ramp. Unset follows the arc, or a full turn for other shapes. | - | [gradient.ts:351](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L351) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## Gradient (Class)
 
@@ -9067,10 +10195,10 @@ new Gradient(options: GradientOptions): Gradient;
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | gradient.ts:140 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | gradient.ts:136 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | gradient.ts:142 |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## GradientAtlas (Class)
 
@@ -9096,7 +10224,7 @@ new GradientAtlas(): GradientAtlas;
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `source` | `readonly` | `BufferImageSource` | The half-float texture that holds the ramps. | atlas.ts:27 |
+|  `source` | `readonly` | `BufferImageSource` | The half-float texture that holds the ramps. | [atlas.ts:27](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/atlas.ts#L27) |
 
 ## Accessors
 
@@ -9190,12 +10318,12 @@ new LinearGradient(options: LinearGradientOptions): LinearGradient;
 
 | Property | Modifier | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | gradient.ts:140 |
-|  `from` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Start point. | - | gradient.ts:267 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | gradient.ts:136 |
-|  `to` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | End point. | - | gradient.ts:269 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | gradient.ts:142 |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `from` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Start point. | - | [gradient.ts:267](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L267) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `to` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | End point. | - | [gradient.ts:269](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L269) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## MeshGradient (Class)
 
@@ -9243,14 +10371,14 @@ new MeshGradient(
 
 | Property | Modifier | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-|  `cols` | `readonly` | `number` | Columns of control colours. | - | gradient.ts:480 |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | gradient.ts:140 |
-|  `from` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Top-left corner of the grid. | - | gradient.ts:484 |
-|  `rows` | `readonly` | `number` | Rows of control colours. | - | gradient.ts:482 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | gradient.ts:136 |
-|  `to` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Bottom-right corner of the grid. | - | gradient.ts:486 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | gradient.ts:142 |
+|  `cols` | `readonly` | `number` | Columns of control colours. | - | [gradient.ts:480](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L480) |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `from` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Top-left corner of the grid. | - | [gradient.ts:484](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L484) |
+|  `rows` | `readonly` | `number` | Rows of control colours. | - | [gradient.ts:482](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L482) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `to` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Bottom-right corner of the grid. | - | [gradient.ts:486](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L486) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## PathGradient (Class)
 
@@ -9288,10 +10416,10 @@ new PathGradient(options: GradientOptions): PathGradient;
 
 | Property | Modifier | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | gradient.ts:140 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | gradient.ts:136 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | gradient.ts:142 |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## RadialGradient (Class)
 
@@ -9329,13 +10457,13 @@ new RadialGradient(options: RadialGradientOptions): RadialGradient;
 
 | Property | Modifier | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-|  `center` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Centre of the ramp. | - | gradient.ts:304 |
-|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | gradient.ts:138 |
-|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | gradient.ts:140 |
-|  `innerRadius` | `public` | `number` | Radius where the ramp starts. | - | gradient.ts:308 |
-|  `radius` | `public` | `number` | Radius where the ramp ends. | - | gradient.ts:306 |
-|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | gradient.ts:136 |
-|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | gradient.ts:142 |
+|  `center` | `public` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Centre of the ramp. | - | [gradient.ts:304](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L304) |
+|  `easing` | `readonly` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`easing`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#easing) | [gradient.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L138) |
+|  `extend` | `readonly` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`extend`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#extend) | [gradient.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L140) |
+|  `innerRadius` | `public` | `number` | Radius where the ramp starts. | - | [gradient.ts:308](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L308) |
+|  `radius` | `public` | `number` | Radius where the ramp ends. | - | [gradient.ts:306](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L306) |
+|  `space` | `readonly` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`space`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#space) | [gradient.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L136) |
+|  `units` | `readonly` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii. | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/).[`units`](https://pixi-silk.schmooky.dev/api/classes/Gradient/#units) | [gradient.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L142) |
 
 ## SilkGeometry (Class)
 
@@ -9370,8 +10498,8 @@ Geometry.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | SilkGraphics.ts:555 |
-|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | SilkGraphics.ts:557 |
+|  `instanceBuffer` | `readonly` | `Buffer` | Per-primitive data, grown on demand and reused across `clear()`. | [SilkGraphics.ts:555](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L555) |
+|  `localBounds` | `readonly` | `Bounds` | Bounds of everything drawn, in local units (includes stroke widths and blur). | [SilkGraphics.ts:557](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L557) |
 
 ## Accessors
 
@@ -9448,7 +10576,7 @@ Mesh<SilkGeometry, Shader>.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | SilkGraphics.ts:620 |
+|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [SilkGraphics.ts:620](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L620) |
 
 ## Accessors
 
@@ -10515,9 +11643,9 @@ new SilkPipe(renderer: Renderer): SilkPipe;
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `extension` | `static` | \{ `name`: `string`; `type`: `ExtensionType`[]; \} | Pixi extension metadata, for `extensions.add(SilkPipe)` if you register it yourself. | batch.ts:217 |
-| `extension.name` | `public` | `string` | Key in `renderer.renderPipes`, and the `renderPipeId` of batched objects. | batch.ts:221 |
-| `extension.type` | `public` | `ExtensionType`[] | Renderer pipe lists the pipe joins. | batch.ts:219 |
+|  `extension` | `static` | \{ `name`: `string`; `type`: `ExtensionType`[]; \} | Pixi extension metadata, for `extensions.add(SilkPipe)` if you register it yourself. | [batch.ts:217](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L217) |
+| `extension.name` | `public` | `string` | Key in `renderer.renderPipes`, and the `renderPipeId` of batched objects. | [batch.ts:221](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L221) |
+| `extension.type` | `public` | `ExtensionType`[] | Renderer pipe lists the pipe joins. | [batch.ts:219](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/batch.ts#L219) |
 
 ## Methods
 
@@ -10673,11 +11801,11 @@ new Spring(
 
 | Property | Type | Default value | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `damping` | `number` | `undefined` | Friction. Lower bounces more. | motion.ts:35 |
-|  `stiffness` | `number` | `undefined` | Pull towards the target. Higher is faster. | motion.ts:33 |
-|  `target` | `number` | `undefined` | Value the spring moves towards. | motion.ts:29 |
-|  `value` | `number` | `undefined` | Current value. | motion.ts:27 |
-|  `velocity` | `number` | `0` | Current speed, in units per second. | motion.ts:31 |
+|  `damping` | `number` | `undefined` | Friction. Lower bounces more. | [motion.ts:35](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L35) |
+|  `stiffness` | `number` | `undefined` | Pull towards the target. Higher is faster. | [motion.ts:33](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L33) |
+|  `target` | `number` | `undefined` | Value the spring moves towards. | [motion.ts:29](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L29) |
+|  `value` | `number` | `undefined` | Current value. | [motion.ts:27](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L27) |
+|  `velocity` | `number` | `0` | Current speed, in units per second. | [motion.ts:31](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L31) |
 
 ## Accessors
 
@@ -11157,8 +12285,8 @@ Options of `area()`: monotone smoothing of the series and its sample spacing.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | SilkGraphics.ts:181 |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | SilkGraphics.ts:183 |
+|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [SilkGraphics.ts:181](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L181) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:183](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L183) |
 
 ## ConicGradientOptions (Interface)
 
@@ -11174,14 +12302,14 @@ Options of [conic](https://pixi-silk.schmooky.dev/api/functions/conic/): stops p
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `center?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Default `[0.5, 0.5]`. | - | gradient.ts:332 |
-|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | gradient.ts:44 |
-|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | gradient.ts:46 |
-|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | gradient.ts:42 |
-|  `startAngle?` | `number` | Angle (radians, y-down so positive is clockwise) where the ramp starts. Defaults to the arc start for arcs/sectors, otherwise 12 o'clock. | - | gradient.ts:337 |
-|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | gradient.ts:40 |
-|  `sweep?` | `number` | Angular length of the ramp. Defaults to the arc sweep for arcs/sectors, otherwise a full turn. | - | gradient.ts:339 |
-|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | gradient.ts:48 |
+|  `center?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Default `[0.5, 0.5]`. | - | [gradient.ts:332](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L332) |
+|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | [gradient.ts:44](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L44) |
+|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | [gradient.ts:46](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L46) |
+|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | [gradient.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L42) |
+|  `startAngle?` | `number` | Angle (radians, y-down so positive is clockwise) where the ramp starts. Defaults to the arc start for arcs/sectors, otherwise 12 o'clock. | - | [gradient.ts:337](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L337) |
+|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | [gradient.ts:40](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L40) |
+|  `sweep?` | `number` | Angular length of the ramp. Defaults to the arc sweep for arcs/sectors, otherwise a full turn. | - | [gradient.ts:339](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L339) |
+|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [gradient.ts:48](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L48) |
 
 ## FillStyle (Interface)
 
@@ -11197,15 +12325,15 @@ How a fill is painted: colour or gradient, opacity, blur with spread, blend mode
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | SilkGraphics.ts:84 |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | SilkGraphics.ts:98 |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | SilkGraphics.ts:91 |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | SilkGraphics.ts:82 |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | SilkGraphics.ts:86 |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | SilkGraphics.ts:100 |
-|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | SilkGraphics.ts:117 |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | SilkGraphics.ts:93 |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | SilkGraphics.ts:108 |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [SilkGraphics.ts:98](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L98) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [SilkGraphics.ts:82](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L82) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [SilkGraphics.ts:117](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L117) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
 
 ## GradientOptions (Interface)
 
@@ -11223,11 +12351,11 @@ Options shared by every gradient: colour stops, interpolation space, easing, ext
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | gradient.ts:44 |
-|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | gradient.ts:46 |
-|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | gradient.ts:42 |
-|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | gradient.ts:40 |
-|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | gradient.ts:48 |
+|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [gradient.ts:44](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L44) |
+|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [gradient.ts:46](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L46) |
+|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [gradient.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L42) |
+|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [gradient.ts:40](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L40) |
+|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [gradient.ts:48](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L48) |
 
 ## InnerShadow (Interface)
 
@@ -11240,13 +12368,13 @@ moved by `x` and `y`, shrunk by `spread` and blurred. What it no longer covers i
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | SilkGraphics.ts:66 |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | SilkGraphics.ts:76 |
-|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | SilkGraphics.ts:72 |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | SilkGraphics.ts:64 |
-|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | SilkGraphics.ts:74 |
-|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | SilkGraphics.ts:68 |
-|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | SilkGraphics.ts:70 |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [SilkGraphics.ts:66](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L66) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [SilkGraphics.ts:76](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L76) |
+|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [SilkGraphics.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L72) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [SilkGraphics.ts:64](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L64) |
+|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [SilkGraphics.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L74) |
+|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [SilkGraphics.ts:68](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L68) |
+|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [SilkGraphics.ts:70](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L70) |
 
 ## LinearGradientOptions (Interface)
 
@@ -11262,13 +12390,13 @@ Options of [linear](https://pixi-silk.schmooky.dev/api/functions/linear/): stops
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | gradient.ts:44 |
-|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | gradient.ts:46 |
-|  `from?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Start point. Default `[0, 0]` (top). | - | gradient.ts:257 |
-|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | gradient.ts:42 |
-|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | gradient.ts:40 |
-|  `to?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | End point. Default `[0, 1]` (bottom). | - | gradient.ts:259 |
-|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | gradient.ts:48 |
+|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | [gradient.ts:44](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L44) |
+|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | [gradient.ts:46](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L46) |
+|  `from?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Start point. Default `[0, 0]` (top). | - | [gradient.ts:257](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L257) |
+|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | [gradient.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L42) |
+|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | [gradient.ts:40](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L40) |
+|  `to?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | End point. Default `[0, 1]` (bottom). | - | [gradient.ts:259](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L259) |
+|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [gradient.ts:48](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L48) |
 
 ## MeshGradientOptions (Interface)
 
@@ -11280,10 +12408,10 @@ Options of [mesh](https://pixi-silk.schmooky.dev/api/functions/mesh/): where the
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `from?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Top-left corner of the grid. Default `[0, 0]`. | gradient.ts:426 |
-|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. Default `oklab`. | gradient.ts:432 |
-|  `to?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Bottom-right corner of the grid. Default `[1, 1]`. | gradient.ts:428 |
-|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | `shape` (default): fractions of each painted shape's box. `local`: the graphics' local units. | gradient.ts:430 |
+|  `from?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Top-left corner of the grid. Default `[0, 0]`. | [gradient.ts:426](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L426) |
+|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. Default `oklab`. | [gradient.ts:432](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L432) |
+|  `to?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Bottom-right corner of the grid. Default `[1, 1]`. | [gradient.ts:428](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L428) |
+|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | `shape` (default): fractions of each painted shape's box. `local`: the graphics' local units. | [gradient.ts:430](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L430) |
 
 ## PolylineOptions (Interface)
 
@@ -11295,9 +12423,9 @@ Options of `polyline()`: closed loops and monotone or Catmull-Rom smoothing of t
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | SilkGraphics.ts:171 |
-|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | SilkGraphics.ts:173 |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | SilkGraphics.ts:175 |
+|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [SilkGraphics.ts:171](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L171) |
+|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [SilkGraphics.ts:173](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L173) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [SilkGraphics.ts:175](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L175) |
 
 ## ProgressiveBlur (Interface)
 
@@ -11310,9 +12438,9 @@ A blur that changes across the shape, like Figma's progressive layer blur. The r
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | SilkGraphics.ts:55 |
-|  `from` | `number` | Blur at the start edge (standard deviation, local units). | SilkGraphics.ts:51 |
-|  `to` | `number` | Blur at the end edge. | SilkGraphics.ts:53 |
+|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [SilkGraphics.ts:55](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L55) |
+|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [SilkGraphics.ts:51](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L51) |
+|  `to` | `number` | Blur at the end edge. | [SilkGraphics.ts:53](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L53) |
 
 ## RadialGradientOptions (Interface)
 
@@ -11328,14 +12456,14 @@ Options of [radial](https://pixi-silk.schmooky.dev/api/functions/radial/): stops
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `center?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Default `[0.5, 0.5]`. | - | gradient.ts:292 |
-|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | gradient.ts:44 |
-|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | gradient.ts:46 |
-|  `innerRadius?` | `number` | Radius where the ramp starts. Default `0`. | - | gradient.ts:296 |
-|  `radius?` | `number` | Outer radius. In shape units it is a fraction of the larger side. Default `0.5`. | - | gradient.ts:294 |
-|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | gradient.ts:42 |
-|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | gradient.ts:40 |
-|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | gradient.ts:48 |
+|  `center?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | Default `[0.5, 0.5]`. | - | [gradient.ts:292](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L292) |
+|  `easing?` | [`Easing`](https://pixi-silk.schmooky.dev/api/types/Easing/) | How the ramp moves between stops. Default `linear`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`easing`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#easing) | [gradient.ts:44](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L44) |
+|  `extend?` | [`ExtendMode`](https://pixi-silk.schmooky.dev/api/types/ExtendMode/) | What the gradient does outside 0..1. Default `pad`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`extend`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#extend) | [gradient.ts:46](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L46) |
+|  `innerRadius?` | `number` | Radius where the ramp starts. Default `0`. | - | [gradient.ts:296](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L296) |
+|  `radius?` | `number` | Outer radius. In shape units it is a fraction of the larger side. Default `0.5`. | - | [gradient.ts:294](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L294) |
+|  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | [gradient.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L42) |
+|  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | [gradient.ts:40](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L40) |
+|  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [gradient.ts:48](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L48) |
 
 ## SilkApp (Interface)
 
@@ -11347,10 +12475,10 @@ What [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `app` | `public` | `Application` | The Pixi application. | app.ts:35 |
-|  `height` | `readonly` | `number` | Current height in CSS pixels. | app.ts:39 |
-|  `resolution` | `readonly` | `number` | Current renderer resolution (device pixels per CSS pixel). | app.ts:41 |
-|  `width` | `readonly` | `number` | Current width in CSS pixels. | app.ts:37 |
+|  `app` | `public` | `Application` | The Pixi application. | [app.ts:35](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L35) |
+|  `height` | `readonly` | `number` | Current height in CSS pixels. | [app.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L39) |
+|  `resolution` | `readonly` | `number` | Current renderer resolution (device pixels per CSS pixel). | [app.ts:41](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L41) |
+|  `width` | `readonly` | `number` | Current width in CSS pixels. | [app.ts:37](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L37) |
 
 ## Methods
 
@@ -11400,13 +12528,13 @@ Options of [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSi
 
 | Property | Type | Description | Overrides | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `fixedResolution?` | `number` | Force a resolution instead of following devicePixelRatio. | - | app.ts:10 |
-|  `inheritFilterResolution?` | `boolean` | Pixi filters render at resolution 1 by default, which blurs everything behind a filter on retina screens. When true (default) new filters inherit the renderer resolution. | - | app.ts:17 |
-|  `maxResolution?` | `number` | Upper bound for the resolution (DPR). Default 3. | - | app.ts:8 |
-|  `onResize?` | (`width`: `number`, `height`: `number`, `resolution`: `number`) => `void` | Called after every size / resolution change with the size in CSS pixels. | - | app.ts:12 |
-|  `parent` | `HTMLElement` | Element the canvas fills (it must have a size). | - | app.ts:6 |
-|  `preference?` | `RendererPreference` \| `RendererPreference`[] | Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU where the browser has it. Pixi falls back to WebGL2 when it does not. On WebGPU the app loads the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either. | `Partial.preference` | app.ts:29 |
-|  `touchAction?` | `string` | CSS touch-action for the canvas. Pixi sets `none`, which blocks page scrolling on touch screens. The default `pan-y pinch-zoom` lets pages scroll while taps and hovers still reach Pixi. Use `none` for canvases that handle drags themselves. | - | app.ts:23 |
+|  `fixedResolution?` | `number` | Force a resolution instead of following devicePixelRatio. | - | [app.ts:10](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L10) |
+|  `inheritFilterResolution?` | `boolean` | Pixi filters render at resolution 1 by default, which blurs everything behind a filter on retina screens. When true (default) new filters inherit the renderer resolution. | - | [app.ts:17](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L17) |
+|  `maxResolution?` | `number` | Upper bound for the resolution (DPR). Default 3. | - | [app.ts:8](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L8) |
+|  `onResize?` | (`width`: `number`, `height`: `number`, `resolution`: `number`) => `void` | Called after every size / resolution change with the size in CSS pixels. | - | [app.ts:12](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L12) |
+|  `parent` | `HTMLElement` | Element the canvas fills (it must have a size). | - | [app.ts:6](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L6) |
+|  `preference?` | `RendererPreference` \| `RendererPreference`[] | Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU where the browser has it. Pixi falls back to WebGL2 when it does not. On WebGPU the app loads the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either. | `Partial.preference` | [app.ts:29](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L29) |
+|  `touchAction?` | `string` | CSS touch-action for the canvas. Pixi sets `none`, which blocks page scrolling on touch screens. The default `pan-y pinch-zoom` lets pages scroll while taps and hovers still reach Pixi. Use `none` for canvases that handle drags themselves. | - | [app.ts:23](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L23) |
 
 ## SilkGraphicsOptions (Interface)
 
@@ -11418,11 +12546,11 @@ Per-object rendering settings of a [SilkGraphics](https://pixi-silk.schmooky.dev
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | SilkGraphics.ts:191 |
-|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | SilkGraphics.ts:200 |
-|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | SilkGraphics.ts:189 |
-|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | SilkGraphics.ts:195 |
-|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | SilkGraphics.ts:193 |
+|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [SilkGraphics.ts:191](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L191) |
+|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | [SilkGraphics.ts:200](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L200) |
+|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [SilkGraphics.ts:189](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L189) |
+|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [SilkGraphics.ts:195](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L195) |
+|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [SilkGraphics.ts:193](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L193) |
 
 ## StrokeStyle (Interface)
 
@@ -11438,23 +12566,23 @@ How a stroke is painted: width (or tapered widths), alignment, caps, dashes, plu
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | SilkGraphics.ts:140 |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | SilkGraphics.ts:84 |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | SilkGraphics.ts:98 |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | SilkGraphics.ts:91 |
-|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | SilkGraphics.ts:142 |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | SilkGraphics.ts:82 |
-|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | SilkGraphics.ts:144 |
-|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | SilkGraphics.ts:148 |
-|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | SilkGraphics.ts:146 |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | SilkGraphics.ts:86 |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | SilkGraphics.ts:100 |
-|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | SilkGraphics.ts:154 |
-|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | SilkGraphics.ts:159 |
-|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`op`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#op) | SilkGraphics.ts:117 |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | SilkGraphics.ts:93 |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | SilkGraphics.ts:108 |
-|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | SilkGraphics.ts:138 |
+|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [SilkGraphics.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L140) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. It stays in the same draw call. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [SilkGraphics.ts:98](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L98) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [SilkGraphics.ts:91](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L91) |
+|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [SilkGraphics.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L142) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [SilkGraphics.ts:82](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L82) |
+|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [SilkGraphics.ts:144](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L144) |
+|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [SilkGraphics.ts:148](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L148) |
+|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [SilkGraphics.ts:146](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L146) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | [SilkGraphics.ts:154](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L154) |
+|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | [SilkGraphics.ts:159](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L159) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape, exact on its outline. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`op`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#op) | [SilkGraphics.ts:117](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L117) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | [SilkGraphics.ts:108](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L108) |
+|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [SilkGraphics.ts:138](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L138) |
 
 ## ColorSpace (Type)
 
@@ -11620,9 +12748,9 @@ A color stop: a bare color (stops are spread evenly), `[offset, color]`,
 
 | Name | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| `alpha?` | `number` | Opacity of the stop, from 0 to 1. Default 1. | gradient.ts:19 |
-| `color` | `ColorSource` | Colour of the stop. | gradient.ts:17 |
-| `offset` | `number` | Position on the ramp, from 0 to 1. | gradient.ts:15 |
+| `alpha?` | `number` | Opacity of the stop, from 0 to 1. Default 1. | [gradient.ts:19](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L19) |
+| `color` | `ColorSource` | Colour of the stop. | [gradient.ts:17](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L17) |
+| `offset` | `number` | Position on the ramp, from 0 to 1. | [gradient.ts:15](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L15) |
 
 ## StrokeInput (Type)
 
@@ -11666,10 +12794,10 @@ Easing curves for tweens (t from 0 to 1): inOutCubic, outCubic, inOutSine, outEx
 
 | Name | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `inOutCubic()` | (`t`: `number`) => `number` | Slow start, fast middle, slow end. | motion.ts:70 |
-|  `inOutSine()` | (`t`: `number`) => `number` | Gentle start and end. | motion.ts:74 |
-|  `outCubic()` | (`t`: `number`) => `number` | Fast start, slow end. | motion.ts:72 |
-|  `outExpo()` | (`t`: `number`) => `number` | Sharp start, long soft landing. | motion.ts:76 |
+|  `inOutCubic()` | (`t`: `number`) => `number` | Slow start, fast middle, slow end. | [motion.ts:70](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L70) |
+|  `inOutSine()` | (`t`: `number`) => `number` | Gentle start and end. | [motion.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L74) |
+|  `outCubic()` | (`t`: `number`) => `number` | Fast start, slow end. | [motion.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L72) |
+|  `outExpo()` | (`t`: `number`) => `number` | Sharp start, long soft landing. | [motion.ts:76](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/motion.ts#L76) |
 
 ---
 

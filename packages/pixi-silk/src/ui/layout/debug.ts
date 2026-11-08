@@ -187,17 +187,17 @@ export function layoutDebug(app: Application, options: LayoutDebugOptions = {}):
                     slot.y + slot.height > h - b + 0.5);
 
             if (nested) continue;
+            // bounds are in screen pixels, and so is the layer
             const real = child.getBounds();
-            const inv = layer.worldTransform;
-            const [x0, y0] = [real.minX - inv.tx, real.minY - inv.ty];
+            const [x0, y0] = [real.minX, real.minY];
             const [sx0, sy0] = pt(slot.x, slot.y);
             const [sx1, sy1] = pt(slot.x + slot.width, slot.y + slot.height);
             const spill =
                 over ||
                 x0 < Math.min(sx0, sx1) - 1 ||
                 y0 < Math.min(sy0, sy1) - 1 ||
-                real.maxX - inv.tx > Math.max(sx0, sx1) + 1 ||
-                real.maxY - inv.ty > Math.max(sy0, sy1) + 1;
+                real.maxX > Math.max(sx0, sx1) + 1 ||
+                real.maxY > Math.max(sy0, sy1) + 1;
 
             g.rect(x0, y0, real.width, real.height).stroke({
                 width: spill ? 1.5 : 1,
@@ -285,6 +285,10 @@ export function layoutDebug(app: Application, options: LayoutDebugOptions = {}):
         if (layer.parent !== app.stage || app.stage.children[app.stage.children.length - 1] !== layer) {
             app.stage.addChild(layer);
         }
+        // A camera may move and scale the stage itself: undo that, so the layer stays in screen space.
+        // Use the transform from the last render, the one the world transforms read below came from,
+        // so the overlay does not lag a moving camera.
+        layer.setFromMatrix(app.stage.worldTransform.clone().invert());
         visit(options.root ?? app.stage);
         for (let i = used; i < pool.length; i++) pool[i].visible = false;
         if (options.hover === false || !pointer) return;
