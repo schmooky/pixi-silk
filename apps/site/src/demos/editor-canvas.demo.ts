@@ -1,5 +1,8 @@
 import { Container, Text } from 'pixi.js';
 import { linear, SilkGraphics } from 'pixi-silk';
+import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
+import { bindGizmo, bindMeasure, bindOutline, Selection } from 'pixi-silk/selection';
+import { watch } from 'pixi-silk/signal';
 import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
 import { TransformGizmo } from 'pixi-silk/ui/gizmo';
 import { altDown } from 'pixi-silk/ui/keys';
@@ -8,7 +11,8 @@ import { SelectionOutline } from 'pixi-silk/ui/outline';
 import { defineDemo } from './runtime';
 
 // Scroll to pan, pinch or ctrl + scroll to zoom, right drag or Space + drag to pan.
-// Click a layer to select it. Hover another to measure the distance to it.
+// Click a layer to select it, Shift + click to add more. Hover another to measure the distance
+// to it. Drag the arrows to move a layer, cmd or ctrl + Z undoes and Shift + cmd + Z redoes.
 export default defineDemo({
     size: [760, 480],
     background: 0x151517,
@@ -23,34 +27,40 @@ export default defineDemo({
         const overlay = new Container();
         const camera = new Camera({ world, element: app.canvas });
         const hover = new SelectionOutline({ ticker: app.ticker });
-        const selection = new SelectionOutline({ ticker: app.ticker });
+        const outline = new SelectionOutline({ ticker: app.ticker });
         const gizmo = new TransformGizmo({ ticker: app.ticker });
         const measure = new Measure({ space: world, ticker: app.ticker });
         const zoom = new ZoomControl(camera);
-        let selected: Container | null = null;
-        let hovered: Container | null = null;
+        // one selection store drives the outlines, the gizmo and the redlines
+        const selection = new Selection<Container>();
+        const history = new History();
 
         gizmo.state.mode.set('move');
-        overlay.addChild(hover, selection, gizmo, measure, zoom);
+        overlay.addChild(hover, outline, gizmo, measure, zoom);
         app.stage.addChild(world, overlay);
         app.stage.eventMode = 'static';
         app.stage.hitArea = app.screen;
-        app.stage.on('pointerdown', () => select(null));
+        app.stage.on('pointerdown', (e) => e.target === app.stage && !e.shiftKey && selection.clear());
 
-        const select = (item: Container | null) => {
-            selected = item;
-            selection.select(item);
-            gizmo.attach(item);
-            measure.size(item);
-        };
-        const sync = () => {
-            const show = params.redlines === 'on hover' || altDown();
-            const pair = show && selected && hovered && hovered !== selected;
+        const redlines = () => params.redlines === 'on hover' || altDown();
+        const measured = bindMeasure(selection, measure, { between: redlines });
+        // while measuring, the hovered layer gets the red outline instead of the blue one
+        const syncHover = () => {
+            const over = selection.state.hovered.value;
+            const quiet = !over || selection.has(over) || (redlines() && selection.primary);
 
-            // while measuring the hovered layer gets the red outline instead of the blue one
-            measure.between(pair ? selected : null, pair ? hovered : null);
-            hover.hover(pair || hovered === selected ? null : hovered);
+            hover.hover(quiet ? null : over);
         };
+        const stops = [
+            bindOutline(selection, outline),
+            watch(selection.state.hovered, syncHover),
+            watch(selection.state.items, syncHover),
+            bindGizmo(selection, gizmo),
+            measured.stop,
+            // every gizmo drag is one undo step, and the keys undo it
+            recordGizmo(gizmo, history),
+            bindHistoryKeys(history),
+        ];
 
         // an artboard with a few layers on it
         const title = new Text({
@@ -71,18 +81,13 @@ export default defineDemo({
             item.position.set(x, y);
             item.eventMode = 'static';
             item.cursor = 'pointer';
-            item.on('pointerover', () => {
-                hovered = item;
-                sync();
-            });
+            item.on('pointerover', () => selection.state.hovered.set(item));
             item.on('pointerout', () => {
-                if (hovered === item) hovered = null;
-                sync();
+                if (selection.state.hovered.value === item) selection.state.hovered.set(null);
             });
             item.on('pointerdown', (e) => {
                 e.stopPropagation();
-                select(item);
-                sync();
+                selection.pick(item, e.shiftKey ? 'toggle' : 'replace');
             });
             world.addChild(item);
 
@@ -110,17 +115,21 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        select(card);
+        selection.pick(card);
         camera.fit(board, 40, false);
 
         // Alt shows the redlines without moving the pointer
-        const onKey = (e: KeyboardEvent) => e.key === 'Alt' && sync();
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Alt') return;
+            measured.sync();
+            syncHover();
+        };
 
         addEventListener('keydown', onKey);
         addEventListener('keyup', onKey);
-        app.ticker.add(sync);
 
         return () => {
+            for (const stop of stops) stop();
             removeEventListener('keydown', onKey);
             removeEventListener('keyup', onKey);
             camera.destroy();
