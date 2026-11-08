@@ -102,7 +102,12 @@ for (const slug of fs.readdirSync(docsDir).sort()) {
     }
 }
 const labs = fs.existsSync(path.join(DIST, 'lab'))
-    ? fs.readdirSync(path.join(DIST, 'lab')).filter((s) => fs.existsSync(path.join(DIST, 'lab', s, 'index.html')))
+    ? fs.readdirSync(path.join(DIST, 'lab')).filter((s) => {
+          const file = path.join(DIST, 'lab', s, 'index.html');
+
+          // a removed experiment leaves a redirect page behind
+          return fs.existsSync(file) && !/<meta http-equiv="refresh"/i.test(fs.readFileSync(file, 'utf8'));
+      })
     : [];
 const wanted = (name) => !only || only.includes(name);
 
@@ -132,6 +137,8 @@ for (const [demo, href] of demoHome) if (wanted(demo)) byPage.set(href, [...(byP
 
 for (const [href, demos] of byPage) {
     await page.goto(BASE + href, { waitUntil: 'load' });
+    // a widened frame can reach under the sticky header and the on-this-page column
+    await page.addStyleTag({ content: 'header, aside { visibility: hidden !important; }' });
     for (const demo of demos) {
         try {
             const figure = page.locator(`figure[data-demo="${demo}"]`).first();
