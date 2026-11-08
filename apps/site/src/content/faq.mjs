@@ -1,130 +1,179 @@
 /**
  * Frequently asked questions. Answers lead with the answer (they are quoted by search and AI
- * engines), may use `code`, and stay short. Rendered on /faq/ with FAQPage structured data.
+ * engines), may use `code`, and stay at one to three sentences. Name the limit, skip the plug.
  *
  * Each answer belongs to one docs area: its hub lists it, and /faq/ groups the answers by area.
  *
  * @type {{ area: string, q: string, a: string }[]}
  */
 export const FAQ = [
+    // Learn
     {
-        area: 'rendering',
-        q: 'How do I enable anti-aliasing in PixiJS v8?',
-        a: 'Pass `antialias: true` to `app.init()` for MSAA on the main canvas. For sharp output on retina screens, add `resolution: window.devicePixelRatio`. Set `autoDensity: true` too. MSAA uses four samples per pixel. It skips filters and render textures unless you opt them in. For exact anti-aliasing everywhere, draw vector shapes with `SilkGraphics` from pixi-silk and keep `antialias: false`.',
-    },
-    {
-        area: 'rendering',
-        q: 'Why do PixiJS v8 Graphics look jagged or blurry?',
-        a: 'PixiJS v8 tessellates Graphics into triangles when you draw, and only MSAA (`antialias: true`) anti-aliases them. Scaled curves show facets, and thin lines crawl between pixels. Filters and render textures stay aliased unless you opt them into MSAA. Filters default to resolution 1, which blurs them on retina screens. pixi-silk replaces the triangles with exact per-pixel distance fields.',
-    },
-    {
-        area: 'start',
+        area: 'learn',
         q: 'What is pixi-silk?',
-        a: 'pixi-silk is an MIT-licensed TypeScript library for PixiJS v8. Its `SilkGraphics` display object has a Graphics-like API. It draws rects, squircles, circles, arcs, lines, paths, areas and more as signed distance fields with analytic anti-aliasing. You also get OKLab gradients, glows, dashes and a DPR-exact app helper, `createSilkApp`.',
+        a: 'An MIT-licensed TypeScript library for PixiJS v8. Its `SilkGraphics` display object has a Graphics-like API and draws each shape as a distance field, anti-aliased per pixel in the shader.',
     },
     {
-        area: 'rendering',
-        q: 'What is analytic anti-aliasing?',
-        a: "Analytic anti-aliasing computes each edge pixel's coverage exactly from the shape's geometry, not from a few samples. For each pixel, pixi-silk divides the signed distance to the shape by the size of one device pixel. Edges stay smooth and exact at any zoom, rotation and resolution.",
-    },
-    {
-        area: 'rendering',
-        q: 'MSAA or SDF anti-aliasing: which is better for 2D graphics?',
-        a: "SDF (signed distance field) anti-aliasing is better for vector UI, charts and icons. It gives continuous coverage, not MSAA's five levels per pixel. It handles hairlines and zoom, and works inside filters and render textures without extra memory. MSAA is simpler for arbitrary triangle meshes.",
-    },
-    {
-        area: 'rendering',
-        q: 'Is there a PixiJS v8 version of @pixi/graphics-smooth?',
-        a: "Not as of September 2026. `@pixi/graphics-smooth` targets PixiJS v7 (its 1.1 line requires PixiJS 7.2 or newer v7). For smooth, anti-aliased Graphics on PixiJS v8, use pixi-silk's `SilkGraphics`. It has a v8-style `fill()` and `stroke()` API.",
-    },
-    {
-        area: 'drawing',
-        q: 'How do I draw smooth circles and curves in PixiJS?',
-        a: 'Use `SilkGraphics`. It evaluates `circle`, `ellipse`, `arc` and rounded corners exactly per pixel, so they stay round at any zoom. With plain Graphics, raise `bezierSmoothness` in `app.init()` and enable MSAA. Curves get finer but stay polygons.',
-    },
-    {
-        area: 'drawing',
-        q: 'Why do thin lines flicker or disappear in PixiJS?',
-        a: 'A line thinner than one device pixel covers only part of each pixel. Sampling hits it on some pixels and misses it on others. pixi-silk keeps these hairlines one pixel wide and scales their opacity with their width. They fade smoothly instead of breaking up.',
-    },
-    {
-        area: 'start',
+        area: 'learn',
         q: 'Is pixi-silk a replacement for Graphics?',
-        a: 'Yes, for most UI and chart drawing. `SilkGraphics` has the same active-path, fill and stroke API. It supports miter, bevel and round joins. It does not support texture fills or `svg()`. You can use Graphics and SilkGraphics side by side.',
+        a: 'For UI, chart and icon drawing, yes: `SilkGraphics` keeps the active path, `fill()` and `stroke()`. It has no texture fills and no `svg()` import (`svgPath(d)` reads one path string), and both classes work side by side.',
     },
     {
-        area: 'rendering',
-        q: 'Does pixi-silk need MSAA or antialias: true?',
-        a: "No. pixi-silk computes coverage analytically per pixel, so create the app with `antialias: false` (`createSilkApp` does). MSAA only adds memory bandwidth and does not improve Silk's edges.",
+        area: 'learn',
+        q: 'Which entry point do I import?',
+        a: 'The root `pixi-silk` import holds SilkGraphics, gradients, `createSilkApp` and batching. Text, layout, glass, glow, WebGPU and every UI widget are separate entry points, such as `pixi-silk/text` or `pixi-silk/ui/gizmo`, so an app bundles only what it imports.',
     },
     {
-        area: 'rendering',
-        q: 'How fast is pixi-silk?',
-        a: 'Each SilkGraphics is one instanced draw call. Every primitive writes 40 floats. Rebuilding 50,000 primitives every frame costs about 12 ms of CPU on a laptop. Typical UIs with a few hundred primitives cost well under half a millisecond.',
+        area: 'learn',
+        q: 'Can I use pixi-silk in React, Vue or Svelte?',
+        a: 'Yes. Create the app in a mount hook with `createSilkApp({ parent: element })` and call its `destroy()` on unmount.',
     },
     {
-        area: 'rendering',
-        q: 'Does pixi-silk work with WebGPU?',
-        a: "Yes. Pass `preference: 'webgpu'` to `createSilkApp`, and it loads the WGSL shader when Pixi picks WebGPU. Without WebGPU, Pixi falls back to WebGL2. For your own Pixi app, call `enableWebGPU()` from `pixi-silk/webgpu` before you create any SilkGraphics.",
+        area: 'learn',
+        q: 'What license is pixi-silk under?',
+        a: 'MIT, for commercial and open-source use.',
     },
+    // Shapes & strokes
     {
-        area: 'drawing',
+        area: 'shapes-and-strokes',
         q: 'How do I draw a squircle (iOS-style rounded rectangle) in PixiJS?',
-        a: 'Use `g.roundRect(x, y, width, height, radius, smoothing)` with smoothing between 0 and 1. iOS uses about 0.6. The corners become superellipse arcs with continuous curvature. At 45 degrees, they are exactly as deep as a circular corner of the same radius.',
+        a: 'Call `g.roundRect(x, y, width, height, radius, smoothing)` with smoothing between 0 and 1. iOS uses about 0.6.',
     },
+    {
+        area: 'shapes-and-strokes',
+        q: 'Why do thin lines flicker or disappear in PixiJS?',
+        a: 'A line thinner than one device pixel covers only part of each pixel, so sampling hits some pixels and misses others. SilkGraphics keeps such hairlines one pixel wide and lowers their opacity with their width.',
+    },
+    {
+        area: 'shapes-and-strokes',
+        q: 'Can SilkGraphics fill a free-form path?',
+        a: 'Yes. A path from `moveTo()`, `lineTo()`, the curve calls or `svgPath(d)` fills with the even-odd rule and strokes with miter, bevel or round joins.',
+    },
+    {
+        area: 'shapes-and-strokes',
+        q: 'How do I cut one shape out of another?',
+        a: "Use `g.boolean('subtract', a, b)` with two callbacks that draw the shapes, or pass `op` to `fill()`. Union, intersect, subtract and exclude are supported.",
+    },
+    // Paint
     {
         area: 'paint',
         q: 'How do I make gradients in PixiJS without banding?',
-        a: "Use pixi-silk's `linear`, `vertical`, `radial`, `conic` or `along`, and pass the gradient to `fill` or `stroke`. pixi-silk bakes every gradient into a half-float atlas. Dithering each sample by half an 8-bit step hides banding in dark, wide gradients. Interpolation happens in OKLab by default, so mixes stay bright and even.",
+        a: 'Fill with `linear`, `radial`, `conic` or `along` from pixi-silk. Gradients are baked into a half-float atlas and dithered by half an 8-bit step, which hides the bands in dark, wide ramps.',
     },
     {
         area: 'paint',
-        q: 'How do I add a glow or soft shadow to a shape in PixiJS without filters?',
-        a: "Give the paint a `blur`: `g.circle(0, 0, 40).fill({ color: 0xff375f, blur: 12 })`. pixi-silk blurs the shape's distance field analytically with a gaussian. Glows and soft shadows cost the same as a normal shape and need no filter or render texture.",
+        q: 'How do I add a glow or soft shadow without a filter?',
+        a: 'Give the paint a `blur`, for example `g.circle(0, 0, 40).fill({ color: 0xff375f, blur: 12 })`. Add `spread` to grow the shape before the blur.',
     },
     {
-        area: 'rendering',
-        q: 'Why is my PixiJS canvas blurry on retina or high-DPI screens?',
-        a: 'Usually the canvas backing store does not match the device pixels, or a filter renders at resolution 1. Use `createSilkApp`. It sizes the canvas from `devicePixelContentBoxSize`, so each canvas pixel is one screen pixel, even at fractional ratios like 1.5. It also makes filters inherit the screen resolution.',
+        area: 'paint',
+        q: 'Are glass and glow part of the root import?',
+        a: 'No. Glass lives in `pixi-silk/glass` and glow in `pixi-silk/glow`. Both are filters, so they cost a render pass where plain blur does not.',
+    },
+    // Text
+    {
+        area: 'typography',
+        q: 'Why is PixiJS Text blurry when I zoom in?',
+        a: 'PixiJS `Text` is a bitmap, so scaling it stretches its pixels. `SilkText` from `pixi-silk/text` draws glyphs from a distance field atlas and keeps its edges under a zooming camera.',
     },
     {
-        area: 'start',
-        q: 'Can I use pixi-silk in React, Vue or Svelte?',
-        a: 'Yes. SilkGraphics is a plain PixiJS display object. Create the app in an effect or mount hook with `createSilkApp({ parent: element })`. Keep references to your SilkGraphics objects and call `destroy()` on unmount. The docs site mounts its live demos from React components this way.',
+        area: 'typography',
+        q: 'Which scripts does SilkText support?',
+        a: 'Latin, Greek and Cyrillic UI text. There is no shaping, so right-to-left text, ligatures and combining marks do not work, and emoji come out as one-colour silhouettes. Use PixiJS `Text` for those.',
     },
     {
-        area: 'ui',
+        area: 'typography',
+        q: 'Do IME and mobile keyboards work in the text editor?',
+        a: '`TextEditor` types through a hidden `<textarea>` that follows the caret, so input methods, mobile keyboards, autocorrect and the clipboard work. Spell check underlines do not show.',
+    },
+    // Game UI
+    {
+        area: 'game-ui',
         q: 'Do pointer events work on SilkGraphics?',
-        a: "Yes. Set `eventMode = 'static'` and listen as usual. Hit tests evaluate the real distance fields on the CPU. A stroked circle is hollow, and a line reacts only within its stroke width.",
+        a: "Yes. Set `eventMode = 'static'` and listen as usual. Hit tests use the real shapes, so a stroked circle is hollow and a line reacts only within its stroke width.",
     },
     {
-        area: 'ui',
-        q: 'How do I draw charts with PixiJS?',
-        a: "With `SilkGraphics`, use `area(points, baseline, { smooth: 'monotone' })` for filled areas, `polyline` for lines, `roundRect` for bars and dashed `line`s for guides. Monotone smoothing never overshoots the data. A typical area fill is a vertical gradient that fades to transparent.",
+        area: 'game-ui',
+        q: 'Why does my SmartContainer not move or scale?',
+        a: 'It needs a `viewport`: pass the Pixi `Application`, a signal or a rectangle as `viewport` or call `setViewport()`. Without one it has no window to place itself in.',
     },
     {
-        area: 'start',
-        q: 'What license is pixi-silk under?',
-        a: 'MIT. It is free for commercial and open-source use.',
+        area: 'game-ui',
+        q: 'How close is the layout engine to CSS flexbox?',
+        a: "It follows flexbox for direction, wrap, grow, shrink, gaps and alignment. It has no `order`, `overflow` or borders, and an item's default minimum size is 0, not its content size.",
     },
     {
-        area: 'ui',
-        q: 'Does pixi-silk come with UI widgets?',
-        a: 'Yes. Radial menus, animated buttons and a button dock ship under `pixi-silk/ui/*`, each as its own entry point, so an app bundles only what it imports. Their state lives in tiny signals from `pixi-silk/signal`, which plug into React, MobX or plain callbacks.',
+        area: 'game-ui',
+        q: 'Are the slot game HUD controls part of pixi-silk?',
+        a: 'The spin button, autoplay picker, meters and wallet are site examples built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the demo file and restyle it.',
+    },
+    // Editor kit
+    {
+        area: 'editor-kit',
+        q: 'Is the editor kit stable?',
+        a: 'No. The editor kit is experimental in 1.0, and its API may change in a minor release.',
     },
     {
-        area: 'editor-ui',
-        q: 'Can I build an editor or design tool with pixi-silk?',
-        a: 'Yes. `pixi-silk/ui/gizmo` has transform gizmos, selection outlines and smart guides. `pixi-silk/ui/color` has colour pickers, `pixi-silk/ui/halo`, `brush` and `modes` the tools around a selection, and `pixi-silk/ui/dial` and `timeline` the value controls. All of it draws on the canvas, with no DOM.',
+        area: 'editor-kit',
+        q: 'Does the editor kit keep my document?',
+        a: 'No. The widgets draw and report. You keep the document, and `pixi-silk/selection` and `pixi-silk/history` hold the selection and the undo stack if you want them.',
     },
     {
-        area: 'editor-ui',
+        area: 'editor-kit',
         q: 'Do I need DOM panels over the canvas for a scene editor?',
-        a: 'No. `pixi-silk/ui/panel` draws dockable panels on the canvas, and `layers`, `inspector` and `minimap` fill them with a layer tree, a property inspector and a minimap. They are Pixi containers, so they share the scene, its pointer events and its undo history.',
+        a: 'No. `pixi-silk/ui/panel` draws dockable panels on the canvas, and `layers`, `inspector` and `minimap` fill them. They are Pixi containers, so they share the scene, its pointer events and its undo history.',
+    },
+    // Examples
+    {
+        area: 'examples',
+        q: 'How do I draw charts with PixiJS?',
+        a: "Use `area(points, baseline, { smooth: 'monotone' })` for filled areas, `polyline` for lines and `roundRect` for bars. Monotone smoothing never overshoots the data.",
     },
     {
         area: 'examples',
-        q: 'Are the slot game HUD controls part of pixi-silk?',
-        a: 'No. The spin button, autoplay picker, meters and wallet on the slot HUD page are examples. Each is one demo file built from library pieces such as `RadialMenu`, `Odometer` and `JogDial`. Copy the file into your game and restyle it.',
+        q: 'Can I copy the showcase widgets into my app?',
+        a: 'Yes, they are MIT like the library. They are site code, not exports, so copy the lab file you need from the repository.',
+    },
+    // Reference
+    {
+        area: 'reference',
+        q: 'Does pixi-silk work with WebGPU?',
+        a: "Yes. Pass `preference: 'webgpu'` to `createSilkApp`, or call `enableWebGPU()` from `pixi-silk/webgpu` before the first SilkGraphics in your own Pixi app. WebGL2 is the default and the fallback.",
+    },
+    {
+        area: 'reference',
+        q: 'How do I draw many SilkGraphics in one draw call?',
+        a: 'Call `enableSilkBatching()` before you create the objects. It is off by default and works on WebGL2 and WebGPU. Without it, each SilkGraphics is one instanced draw call.',
+    },
+    {
+        area: 'reference',
+        q: 'Why is my PixiJS canvas blurry on retina or high-DPI screens?',
+        a: 'The canvas backing store does not match the device pixels, or a filter renders at resolution 1. `createSilkApp` sizes the canvas from `devicePixelContentBoxSize` and makes filters inherit the screen resolution.',
+    },
+    {
+        area: 'reference',
+        q: 'Does pixi-silk need antialias: true?',
+        a: 'No. Coverage is computed per pixel, so create the app with `antialias: false`, as `createSilkApp` does. MSAA would only cost memory bandwidth.',
+    },
+    // Architecture
+    {
+        area: 'architecture',
+        q: 'How do I enable anti-aliasing in PixiJS v8?',
+        a: 'Pass `antialias: true` to `app.init()` for MSAA on the main canvas, with `resolution: window.devicePixelRatio` and `autoDensity: true` for retina screens. MSAA skips filters and render textures unless you opt them in.',
+    },
+    {
+        area: 'architecture',
+        q: 'Why do PixiJS v8 Graphics look jagged or blurry?',
+        a: 'Graphics are tessellated into triangles, and only MSAA smooths their edges. Scaled curves show facets, thin lines crawl between pixels, and filters render at resolution 1 by default.',
+    },
+    {
+        area: 'architecture',
+        q: 'What is analytic anti-aliasing?',
+        a: "Each edge pixel's coverage is computed from the shape's geometry, not from a few samples. pixi-silk divides the signed distance to the shape by the size of one device pixel.",
+    },
+    {
+        area: 'architecture',
+        q: 'Is there a PixiJS v8 version of @pixi/graphics-smooth?',
+        a: '`@pixi/graphics-smooth` targets PixiJS v7, and its 1.1 line needs PixiJS 7.2 or a newer v7. SilkGraphics has a v8-style `fill()` and `stroke()` API.',
     },
 ];
