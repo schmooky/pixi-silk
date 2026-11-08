@@ -95,6 +95,10 @@
       "types": "./dist/glow.d.ts",
       "default": "./dist/glow.js"
     },
+    "./webgpu": {
+      "types": "./dist/webgpu.d.ts",
+      "default": "./dist/webgpu.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -148,6 +152,7 @@
     "signed-distance-field",
     "shader",
     "webgl",
+    "webgpu",
     "squircle",
     "gradient",
     "oklab",

@@ -1,15 +1,18 @@
 {
   "everything": {
-    "gzip": 19339
+    "gzip": 19458
   },
   "SilkGraphics": {
-    "gzip": 17151
+    "gzip": 17178
   },
   "SilkGraphics + gradients": {
-    "gzip": 17612
+    "gzip": 17639
   },
   "createSilkApp": {
-    "gzip": 883
+    "gzip": 930
+  },
+  "webgpu (enableWebGPU)": {
+    "gzip": 6149
   },
   "gradients": {
     "gzip": 2224
@@ -24,43 +27,43 @@
     "gzip": 371
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 22545
+    "gzip": 22572
   },
   "ui/button (SilkButton)": {
-    "gzip": 20216
+    "gzip": 20244
   },
   "ui/dock (ButtonDock)": {
     "gzip": 1044
   },
   "ui/gizmo": {
-    "gzip": 24459
+    "gzip": 24480
   },
   "ui/outline": {
-    "gzip": 19356
+    "gzip": 19382
   },
   "ui/snap": {
-    "gzip": 19869
+    "gzip": 19897
   },
   "ui/snap (SnapEngine only)": {
     "gzip": 1303
   },
   "ui/color": {
-    "gzip": 27061
+    "gzip": 27076
   },
   "ui/halo": {
-    "gzip": 21181
+    "gzip": 21206
   },
   "ui/brush": {
-    "gzip": 19977
+    "gzip": 20003
   },
   "ui/modes": {
-    "gzip": 24769
+    "gzip": 24796
   },
   "ui/dial": {
-    "gzip": 21739
+    "gzip": 21766
   },
   "ui/timeline": {
-    "gzip": 21060
+    "gzip": 21081
   },
   "ui/odometer": {
     "gzip": 2159
@@ -69,12 +72,12 @@
     "gzip": 940
   },
   "glass": {
-    "gzip": 19512
+    "gzip": 20404
   },
   "glow": {
-    "gzip": 19587
+    "gzip": 19614
   },
   "ui (everything)": {
-    "gzip": 54545
+    "gzip": 54569
   }
 }
