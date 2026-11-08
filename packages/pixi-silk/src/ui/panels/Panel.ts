@@ -15,23 +15,33 @@ export type PanelDock = 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-
 
 /** Space kept free along each screen edge, such as a toolbar or another docked panel. */
 export interface PanelInsets {
+    /** Free space below the top edge. Default 0. */
     top?: number;
+    /** Free space left of the right edge. Default 0. */
     right?: number;
+    /** Free space above the bottom edge. Default 0. */
     bottom?: number;
+    /** Free space right of the left edge. Default 0. */
     left?: number;
 }
 
 /** A rectangle in the panel's parent space. */
 export interface PanelRect {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
+    /** Width, at least 0. */
     width: number;
+    /** Height, at least 0. */
     height: number;
 }
 
 /** The screen a panel docks in: numbers, or signals such as `camera.state.width` and `height`. */
 export interface PanelViewport {
+    /** Screen width in the panel's parent units. A signal re-docks the panel when it changes. */
     width: number | ReadSignal<number>;
+    /** Screen height in the panel's parent units. A signal re-docks the panel when it changes. */
     height: number | ReadSignal<number>;
 }
 
@@ -39,17 +49,17 @@ export interface PanelViewport {
 export interface PanelOptions {
     /** Text of the title bar. */
     title?: string;
-    /** Width. Default 260. */
+    /** Width in the parent's units. Default 260. */
     width?: number;
     /** Height when floating or docked to a corner. Default 360. */
     height?: number;
-    /** Position when floating. Default 0, 0. */
+    /** Left edge when floating. Default 0. */
     x?: number;
-    /** Position when floating. Default 0, 0. */
+    /** Top edge when floating. Default 0. */
     y?: number;
-    /** Smallest size a resize leaves. Default 160 by 96. */
+    /** Smallest width a resize leaves. Default 160. */
     minWidth?: number;
-    /** Smallest size a resize leaves. Default 160 by 96. */
+    /** Smallest height a resize leaves. Default 96. */
     minHeight?: number;
     /** Largest width a resize allows. Default no limit. */
     maxWidth?: number;
@@ -60,7 +70,7 @@ export interface PanelOptions {
      * and bottom ones its width. Needs `viewport`. Default floating.
      */
     dock?: PanelDock | null;
-    /** The screen the panel docks in. */
+    /** The screen the panel docks in. Without it the panel only floats. */
     viewport?: PanelViewport;
     /** Gap between a docked panel and the screen edge. Default 8. */
     margin?: number;
@@ -68,7 +78,7 @@ export interface PanelOptions {
     insets?: PanelInsets;
     /** Dock when a drag ends near an edge, with a preview while it is near. Default true. */
     dockable?: boolean;
-    /** How near an edge, in pixels, a drag docks. Default 28. */
+    /** How near an edge a drag docks, in the parent's units. Default 28. */
     snapDistance?: number;
     /** A chevron in the title bar folds the body away. Default true. */
     collapsible?: boolean;
@@ -91,6 +101,7 @@ export interface PanelOptions {
     theme?: Partial<PanelTheme>;
     /** Glyph atlas of the title. Default the shared one. */
     atlas?: SdfAtlas;
+    /** Ticker driving the motion. Default `Ticker.shared`. `null` for manual {@link Panel.tick}. */
     ticker?: Ticker | null;
 }
 
@@ -227,8 +238,7 @@ export function panelHitTest(
 /**
  * A panel drawn on the canvas, with no DOM: a title bar, a body that scrolls, edges to resize and a
  * chevron that folds it. Drag the title bar to move it, and drop it near a screen edge to dock it
- * there. Size, position and folding glide on springs. Text is SilkText, so it stays sharp at any
- * scale.
+ * there. Size, position and folding glide on springs. Text is SilkText.
  *
  * The body is {@link Panel.content}, a flex column. Add rows, fields or a widget to it. With
  * `scroll: false` it fills the body instead, for widgets that scroll on their own like the layer tree.
@@ -240,11 +250,18 @@ export function panelHitTest(
  * panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
  * app.stage.addChild(panel);
  * ```
+ *
+ * Panels do not stack or tab into each other: two panels docked to the same edge overlap unless
+ * you set `insets`.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class Panel extends Container {
     /** Folding, docking and drag state, as signals. */
     readonly state: PanelState;
-    /** Colours, radius and font. */
+    /** Colours, radius and font, resolved from the `theme` option. */
     readonly theme: PanelTheme;
     /** The body: a flex column. With `scroll`, it scrolls inside {@link Panel.scroll}. */
     readonly content: FlexContainer;
@@ -256,17 +273,17 @@ export class Panel extends Container {
     readonly actions: FlexContainer;
     /** The title text. */
     readonly titleText: SilkText;
-    /** Smallest size. */
+    /** Smallest width a resize leaves. Applies from the next resize. */
     minWidth: number;
-    /** Smallest size. */
+    /** Smallest height a resize leaves. Applies from the next resize. */
     minHeight: number;
-    /** Largest size. */
+    /** Largest width a resize allows. `Infinity` for no limit. */
     maxWidth: number;
-    /** Largest size. */
+    /** Largest height a resize allows. `Infinity` for no limit. */
     maxHeight: number;
-    /** Gap to the screen edge when docked. */
+    /** Gap to the screen edge when docked. Applies from the next layout. */
     margin: number;
-    /** Space kept free along the screen edges. */
+    /** Space kept free along the screen edges. Applies from the next layout. */
     insets: PanelInsets;
 
     private readonly _opts: PanelOptions;
@@ -449,7 +466,7 @@ export class Panel extends Container {
         this.header.invalidate(this.titleText);
     }
 
-    /** Sets the screen the panel docks in, for apps that track the size themselves. */
+    /** Sets the screen size the panel docks in, for apps that track the size themselves instead of passing signals. */
     setViewport(width: number, height: number): this {
         if (width === this._vw && height === this._vh) return this;
         this._vw = width;
@@ -467,7 +484,7 @@ export class Panel extends Container {
         return this;
     }
 
-    /** Floats at (`x`, `y`). Undocks a docked panel. */
+    /** Floats at (`x`, `y`) in the parent's space. Undocks a docked panel. `animate: false` jumps there. */
     moveTo(x: number, y: number, animate = true): this {
         this._float = { ...this._float, x, y };
         if (this._dock.value) this._dock.set(null);
@@ -476,7 +493,7 @@ export class Panel extends Container {
         return this;
     }
 
-    /** Sets the size, within the limits. A panel docked to an edge keeps spanning it. */
+    /** Sets the floating size, within the limits. A panel docked to an edge keeps spanning it. `animate: false` jumps. */
     resizeTo(width: number, height: number, animate = true): this {
         this._float = { ...this._float, width: this._clampW(width), height: this._clampH(height) };
         this._aim(animate);
@@ -523,6 +540,7 @@ export class Panel extends Container {
         return a || b || c || d;
     }
 
+    /** Stops the motion and signal subscriptions. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         for (const stop of this._stops) stop();
         this._driver.sleep();

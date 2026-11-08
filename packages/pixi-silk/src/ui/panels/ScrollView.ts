@@ -27,8 +27,9 @@ export interface ScrollViewOptions {
     drag?: 'touch' | 'all' | 'none';
     /** Stretch past the ends and spring back. Default true. */
     overscroll?: boolean;
-    /** Colours. */
+    /** Colours that replace parts of `PANEL_THEME`. The view only draws the scrollbar. */
     theme?: Partial<PanelTheme>;
+    /** Ticker driving the motion. Default `Ticker.shared`. `null` for manual {@link ScrollView.tick}. */
     ticker?: Ticker | null;
 }
 
@@ -53,7 +54,8 @@ function rubber(over: number, size: number): number {
  * the ends, and a slim scrollbar fades in while it moves.
  *
  * Put children in `content` and set `contentHeight`. Lists that only draw their visible rows (the
- * layer tree) read `state.scrollY` and listen to the `scroll` event instead.
+ * layer tree) read `state.scrollY` and listen to the `scroll` event instead. It scrolls vertically
+ * only.
  *
  * @example
  * ```ts
@@ -62,13 +64,17 @@ function rubber(over: number, size: number): number {
  * view.content.addChild(list);
  * view.contentHeight = list.height;
  * ```
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class ScrollView extends Container {
     /** What scrolls. It moves up as the view scrolls down. */
     readonly content: Container;
     /** Scroll position and drag state, as signals. */
     readonly state: ScrollViewState;
-    /** Colours. */
+    /** Resolved colours. */
     readonly theme: PanelTheme;
 
     private readonly _clip = new Graphics();
@@ -122,17 +128,17 @@ export class ScrollView extends Container {
         this._layout();
     }
 
-    /** View width. */
+    /** Width of the clipped area. */
     get viewWidth(): number {
         return this._w;
     }
 
-    /** View height. */
+    /** Height of the clipped area. */
     get viewHeight(): number {
         return this._h;
     }
 
-    /** Height of what scrolls. */
+    /** Height of what scrolls, as set. The view does not measure `content` itself. */
     get contentHeight(): number {
         return this._contentH;
     }
@@ -144,12 +150,12 @@ export class ScrollView extends Container {
         this._settleInRange();
     }
 
-    /** The largest scroll position. */
+    /** The largest scroll position: `contentHeight` minus the view height, at least 0. */
     get maxScroll(): number {
         return Math.max(0, this._contentH - this._h);
     }
 
-    /** The scroll position as drawn. */
+    /** The scroll position as drawn. It can pass 0 or {@link ScrollView.maxScroll} while it stretches. */
     get scrollY(): number {
         return this._y.value;
     }
@@ -159,7 +165,7 @@ export class ScrollView extends Container {
         return this._driver.running;
     }
 
-    /** Changes the view size. */
+    /** Changes the size of the clipped area. The position stays inside the new range. */
     resize(width: number, height: number): this {
         if (width === this._w && height === this._h) return this;
         this._w = Math.max(0, width);
@@ -208,6 +214,7 @@ export class ScrollView extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });

@@ -10,15 +10,15 @@ import { ValuePill } from './ValuePill';
 
 /** Options of {@link BrushCursor}. Sizes are diameters in the cursor's coordinates. */
 export interface BrushCursorOptions {
-    /** Default 32. */
+    /** Starting diameter. Default 32. */
     size?: number;
     /** 0 (soft) to 1 (hard). Default 0.7. */
     hardness?: number;
-    /** 0 to 1. Default 1. */
+    /** Starting brush opacity, 0 to 1. Only stored on `state.opacity` for your brush engine. Default 1. */
     opacity?: number;
-    /** Default 1. */
+    /** Smallest diameter that resizing and {@link BrushCursor.setBrushSize} allow. Default 1. */
     minSize?: number;
-    /** Default 500. */
+    /** Largest diameter that resizing and {@link BrushCursor.setBrushSize} allow. Default 500. */
     maxSize?: number;
     /** Hold this key (a `KeyboardEvent.code`) and move to resize. Default `KeyF`. `null` turns it off. */
     resizeKey?: string | null;
@@ -30,7 +30,10 @@ export interface BrushCursorOptions {
     sizeRate?: number;
     /** Hardness change per unit of vertical drag while resizing. Default 1 / 200. */
     hardnessRate?: number;
-    /** Painting area. The OS cursor is hidden over it, and right-drags on it resize. */
+    /**
+     * Painting area. The OS cursor is hidden over it, and right-drags on it resize. Its `eventMode`
+     * becomes `static` if it was not interactive. Without a surface, `state.inside` stays true.
+     */
     surface?: Container;
     /** Hide the OS cursor over `surface`. Default true. */
     hideCursor?: boolean;
@@ -44,14 +47,17 @@ export interface BrushCursorOptions {
 
 /** The reactive state of a {@link BrushCursor}. */
 export interface BrushState {
+    /** Diameter in the cursor's coordinates, within `minSize` and `maxSize`. */
     size: Signal<number>;
+    /** 0 (soft) to 1 (hard). */
     hardness: Signal<number>;
+    /** 0 to 1. The cursor does not draw it: read it in your brush engine. */
     opacity: Signal<number>;
     /** Pen pressure, 0 to 1. Mice report 0.5 while a button is down. */
     pressure: Signal<number>;
     /** True while a resize gesture runs. */
     resizing: Signal<boolean>;
-    /** True while the pointer is over the canvas. */
+    /** True while the pointer is over `surface`. Always true without a surface. */
     inside: Signal<boolean>;
 }
 
@@ -65,8 +71,14 @@ export interface BrushState {
  * - `[` and `]` step the size.
  *
  * Size, hardness, opacity and pressure are signals on `state`: bind your brush engine to them.
+ * The cursor only shows the brush. It does not paint. Key handling listens on `window`.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class BrushCursor extends Container {
+    /** Size, hardness, opacity, pressure and gesture flags. Write to them or call the setters. */
     readonly state: BrushState;
 
     private readonly _opts: BrushCursorOptions;
@@ -145,7 +157,7 @@ export class BrushCursor extends Container {
         }
     }
 
-    /** Sets the size, clamped to the allowed range. */
+    /** Sets the diameter, clamped to `minSize` and `maxSize`. */
     setBrushSize(size: number): void {
         this.state.size.set(clamp(size, this._opts.minSize ?? 1, this._opts.maxSize ?? 500));
     }
@@ -155,7 +167,10 @@ export class BrushCursor extends Container {
         this.state.hardness.set(clamp(hardness, 0, 1));
     }
 
-    /** Moves the cursor to (x, y) in its own coordinates. Pointer moves call this. */
+    /**
+     * Moves the cursor to (x, y) in its own coordinates. Pointer moves call this. During a resize the
+     * ring stays put and the move changes size and hardness instead.
+     */
     setPointer(x: number, y: number): void {
         if (this._anchor) {
             const rate = this._opts.sizeRate ?? 1;
@@ -180,7 +195,7 @@ export class BrushCursor extends Container {
         this.state.resizing.set(true);
     }
 
-    /** Ends the resize gesture. */
+    /** Ends the resize gesture. The ring jumps to the pointer with a short pop. No-op without a resize. */
     endResize(): void {
         if (!this._anchor) return;
         this._anchor = null;
@@ -199,6 +214,7 @@ export class BrushCursor extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation and input listeners and gives `surface` its `auto` cursor back. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         for (const stop of this._stops) stop();

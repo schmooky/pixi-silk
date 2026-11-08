@@ -5,19 +5,27 @@ import { Driver } from './driver';
 import type { LabelFactory, TextLabel } from './label';
 import { hex } from './paint';
 
-/** A rectangle in world units. */
+/** A rectangle in world units (the local space of {@link CameraOptions.world}). */
 export interface WorldRect {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
+    /** Width, 0 or more. */
     width: number;
+    /** Height, 0 or more. */
     height: number;
 }
 
-/** Space to keep free on each side of the view, in element pixels. */
+/** Space to keep free on each side of the view, in CSS pixels. A side left out is 0. */
 export interface CameraInsets {
+    /** Free space above the content. */
     top?: number;
+    /** Free space right of the content. */
     right?: number;
+    /** Free space below the content. */
     bottom?: number;
+    /** Free space left of the content. */
     left?: number;
 }
 
@@ -27,7 +35,7 @@ export interface CameraOptions {
     world: Container;
     /** The element that receives input, usually `app.canvas`. */
     element: HTMLElement;
-    /** Smallest and largest zoom. Silk shapes stay sharp at any zoom. Default `[0.02, 256]`. */
+    /** Smallest and largest zoom, where 1 is 100%. Default `[0.02, 256]`. */
     zoomRange?: [number, number];
     /**
      * What a plain wheel does. `pan` (default, like Figma): scroll pans, pinch or ctrl / cmd +
@@ -61,6 +69,10 @@ export interface CameraOptions {
      * scene instead. Use it for panels drawn over the view, with `panelHitTest` from `pixi-silk/ui/panel`.
      */
     ignore?: (point: PointData) => boolean;
+    /**
+     * Ticker that runs animations and flings. Default `Ticker.shared`. With `null` nothing animates
+     * until you call {@link Camera.tick}.
+     */
     ticker?: Ticker | null;
 }
 
@@ -68,13 +80,15 @@ export interface CameraOptions {
 export interface CameraState {
     /** Scale of the world. 1 is 100%. */
     zoom: ReadSignal<number>;
-    /** World position on screen (the world's origin, in element pixels). */
+    /** Screen x of the world's origin, in CSS pixels from the element's left edge. */
     x: ReadSignal<number>;
+    /** Screen y of the world's origin, in CSS pixels from the element's top edge. */
     y: ReadSignal<number>;
     /** True while the user drags the view. */
     panning: ReadSignal<boolean>;
-    /** Size of the element in CSS pixels, for overlays that span the view. Follows resizes where `ResizeObserver` exists. */
+    /** Element width in CSS pixels. Follows resizes where `ResizeObserver` exists. */
     width: ReadSignal<number>;
+    /** Element height in CSS pixels. Follows resizes where `ResizeObserver` exists. */
     height: ReadSignal<number>;
 }
 
@@ -85,21 +99,27 @@ const isTyping = (t: EventTarget | null): boolean => {
 };
 
 /**
- * Pans and zooms a world container over an infinite canvas, the way design tools do.
+ * Pans and zooms a world container over an unbounded canvas. It writes the world's `position`
+ * and `scale`, so do not set them yourself while a camera owns the world.
  *
- * - Zoom stays anchored under the cursor or between two fingers, smoothly, at any range.
- * - Trackpads pinch to zoom and scroll to pan. Mouse wheels follow {@link CameraOptions.wheel}.
- * - Middle or right drag, Space + drag, two-finger drag on touch. Flings keep gliding.
- * - Pans never reach the scene, so the scene keeps its own clicks and drags.
- * - `fit()`, `zoomTo()` and `centerOn()` animate. Every value is a signal for overlays and readouts.
+ * Zoom stays anchored under the cursor or between two fingers. Trackpads pinch to zoom and scroll
+ * to pan, mouse wheels follow {@link CameraOptions.wheel}. Middle or right drag, Space + drag and
+ * two-finger touch drags pan, and a fling keeps gliding. Pans never reach the scene, so the
+ * scene keeps its own clicks and drags.
  *
- * Overlays drawn beside the world (not inside it) keep a constant size on screen.
+ * The constructor adds listeners to the element and to `window`. Call {@link Camera.destroy} to
+ * remove them. Overlays drawn beside the world, not inside it, keep a constant size on screen.
+ * There is no rotation.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class Camera {
+    /** Signals for overlays and readouts. They follow animations frame by frame. */
     readonly state: CameraState;
     /** What `fit()` frames by default and Shift + 1 fits. Default the world. */
     content: Container;
-    /** Zoom limits. */
+    /** Smallest and largest zoom. Changing it does not re-clamp the current zoom until the next zoom call. */
     zoomRange: [number, number];
 
     private readonly _world: Container;
@@ -155,7 +175,7 @@ export class Camera {
         this._observe();
     }
 
-    /** The container the camera moves and scales. */
+    /** The container the camera moves and scales, as passed in {@link CameraOptions.world}. */
     get world(): Container {
         return this._world;
     }
@@ -165,7 +185,7 @@ export class Camera {
         return this._el;
     }
 
-    /** Current zoom (1 is 100%). */
+    /** Zoom on screen now, 1 is 100%. During an animated zoom it is between the start and the target. */
     get zoom(): number {
         return this._zoom.value;
     }
@@ -175,17 +195,17 @@ export class Camera {
         return this._driver.running;
     }
 
-    /** A point on the element (CSS pixels) in world units. */
+    /** Converts a point on the element (CSS pixels) to world units, using the view on screen now. */
     screenToWorld(p: PointData): PointData {
         return { x: (p.x - this._x.value) / this._zoom.value, y: (p.y - this._y.value) / this._zoom.value };
     }
 
-    /** A world point on the element, in CSS pixels. */
+    /** Converts a world point to CSS pixels on the element. The inverse of {@link Camera.screenToWorld}. */
     worldToScreen(p: PointData): PointData {
         return { x: p.x * this._zoom.value + this._x.value, y: p.y * this._zoom.value + this._y.value };
     }
 
-    /** The world rectangle on screen now. */
+    /** The part of the world the element shows now, in world units. Allocates a new object. */
     get view(): WorldRect {
         const a = this.screenToWorld({ x: 0, y: 0 });
         const k = this._zoom.value;
@@ -193,7 +213,10 @@ export class Camera {
         return { x: a.x, y: a.y, width: this._el.clientWidth / k, height: this._el.clientHeight / k };
     }
 
-    /** Zooms by `factor` keeping the screen point (`x`, `y`) still. Default the centre. */
+    /**
+     * Multiplies the zoom by `factor`, keeping the screen point `at` still (default the element's
+     * centre). The result is clamped to {@link Camera.zoomRange}. Animates unless `animate` is false.
+     */
     zoomBy(factor: number, at?: PointData, animate = true): this {
         const p = at ?? this._centre();
         const w = this._targetToWorld(p);
@@ -208,12 +231,12 @@ export class Camera {
         return this._go(animate);
     }
 
-    /** Zooms to `zoom` around a screen point (default the centre). */
+    /** Zooms to `zoom` (1 is 100%) around the screen point `at`, default the centre. Clamped like {@link Camera.zoomBy}. */
     zoomTo(zoom: number, at?: PointData, animate = true): this {
         return this.zoomBy(zoom / this._k, at, animate);
     }
 
-    /** Moves the view by screen pixels. */
+    /** Moves the world by `dx`, `dy` CSS pixels on screen. Jumps by default. During a zoom animation it shifts the target. */
     panBy(dx: number, dy: number, animate = false): this {
         this._tx += dx;
         this._ty += dy;
@@ -226,7 +249,7 @@ export class Camera {
         return this;
     }
 
-    /** Puts a world point in the middle of the element, optionally at a new zoom. */
+    /** Puts a world point in the middle of the element, optionally at a new zoom (clamped). Animates by default. */
     centerOn(p: PointData, zoom: number = this._k, animate = true): this {
         const c = this._centre();
         const k = this._clamp(zoom);
@@ -242,7 +265,8 @@ export class Camera {
 
     /**
      * Frames a world rectangle or a container (default {@link Camera.content}) with `padding`
-     * pixels around it. Padding per side (`{ left: 260 }`) keeps the content clear of docked panels.
+     * CSS pixels around it, default 48. Padding per side (`{ left: 260 }`) keeps the content clear
+     * of docked panels. An empty target keeps the zoom and only centres. Animates by default.
      */
     fit(target: WorldRect | Container = this.content, padding: number | CameraInsets = 48, animate = true): this {
         const r = 'width' in target && 'x' in target && !('children' in target) ? target : this._boundsOf(target);
@@ -277,12 +301,15 @@ export class Camera {
         return this._go(animate, true);
     }
 
-    /** Advances animations by `dt` seconds (only needed with `ticker: null`). */
+    /**
+     * Advances animations by `dt` seconds, clamped to 0..0.1. Only needed with `ticker: null`.
+     * Returns true while the view still moves.
+     */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
-    /** Removes every listener. The world keeps its last transform. */
+    /** Removes every listener and stops animations. The world keeps its last transform. Signals stay readable. */
     destroy(): void {
         for (const off of this._off) off();
         this._off.length = 0;
@@ -627,25 +654,28 @@ function pinchOf(touches: Map<number, PointData>): { d: number; cx: number; cy: 
 
 /** Options of {@link ZoomControl}. */
 export interface ZoomControlOptions {
-    /** Panel colour. Default a dark glassy grey. */
+    /** Panel colour, drawn at 92% alpha. Default `0x1c1c1e`. */
     fill?: number | string;
     /** Text and icon colour. Default white. */
     color?: number | string;
-    /** Zoom step of the buttons. Default 1.5. */
+    /** Zoom factor of one click on `-` or `+`. Default 1.5. */
     step?: number;
-    /** What a click on the percentage does. Default `fit`. */
+    /** What a click on the percentage does: fit the content, go to 100%, or nothing. Default `fit`. */
     onLabel?: 'fit' | 'reset' | 'none';
     /**
-     * Builds the percentage text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text`
-     * for text that stays sharp at any resolution.
+     * Builds the percentage text. Default a PixiJS `Text` at resolution 3. Pass `silkLabel()` from
+     * `pixi-silk/text` to draw it as SDF text instead.
      */
     label?: LabelFactory;
 }
 
 /**
- * `- 100% +` for a {@link Camera}, drawn with silk. The buttons zoom around the view's centre and
+ * A `- 100% +` pill for a {@link Camera}, 128x32 pixels. The buttons zoom around the view's centre and
  * the percentage fits the content (or resets). The readout follows the camera's zoom signal.
- * Place it in screen space, beside the world.
+ * Place it in screen space, beside the world. Destroying it unsubscribes from the camera.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class ZoomControl extends Container {
     private readonly _bg = new SilkGraphics();
@@ -716,7 +746,7 @@ export class ZoomControl extends Container {
         this._label.text = zoomLabel(camera.zoom);
     }
 
-    /** Width and height of the control. */
+    /** Width and height of the control in local units, `[128, 32]`. */
     get size(): [number, number] {
         return [this._w, this._h];
     }
@@ -727,7 +757,10 @@ export class ZoomControl extends Container {
     }
 }
 
-/** 100%, 2.5k%, 1.2M%: short enough for a readout at any zoom. */
+/**
+ * Formats a zoom (1 is 100%) as a short percentage. Below 10% it keeps one decimal (`2.5%`),
+ * from 10,000% it switches to `k` (`2.5k%`) and from 1,000,000% to `M` (`1.2M%`).
+ */
 export function zoomLabel(k: number): string {
     const p = k * 100;
 

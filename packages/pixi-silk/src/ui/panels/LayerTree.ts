@@ -41,34 +41,38 @@ export interface LayerTreeOptions<T> {
     selection?: Selection<T>;
     /** Where renames, toggles and moves go for undo. Each gesture is one step. */
     history?: HistoryLike;
-    /** Default 240. */
+    /** List width in local units. Default 240. */
     width?: number;
-    /** Default 320. */
+    /** List height in local units. Rows past it scroll. Default 320. */
     height?: number;
-    /** Row height. Default 28. */
+    /** Row height in local units. Default 28. */
     rowHeight?: number;
-    /** Indent per depth. Default 14. */
+    /** Indent per depth level in local units. Default 14. */
     indent?: number;
     /** Nodes that start expanded. Default the top rows. */
     expanded?: Iterable<T>;
     /** Drag rows to reorder and reparent them (needs `adapter.move`). Default true. */
     dragDrop?: boolean;
-    /** Arrow keys, Home, End, Enter and F2 work while the tree has focus. Default true. */
+    /**
+     * Arrow keys, Home, End, Enter and F2 work while the tree has focus. Adds `keydown` and
+     * `pointerdown` listeners on `window`. Default true.
+     */
     keyboard?: boolean;
     /** Hovering a row sets `selection.state.hovered`, so the canvas can outline it. Default true. */
     hoverSync?: boolean;
-    /** The element the scene is drawn on, usually `app.canvas`, for the rename field. */
+    /** The element the scene is drawn on, usually `app.canvas`. The rename field positions its hidden input against it. */
     element?: HTMLElement;
     /** Colours, radius and font. Default the dark theme. */
     theme?: Partial<PanelTheme>;
     /** Glyph atlas of the row names. Default the shared one. */
     atlas?: SdfAtlas;
+    /** Ticker driving the motion. Default `Ticker.shared`. `null` for manual {@link LayerTree.tick}. */
     ticker?: Ticker | null;
 }
 
 /** The reactive state of a {@link LayerTree}. */
 export interface LayerTreeState<T> {
-    /** The visible rows, top to bottom. */
+    /** The listed rows, top to bottom: every node under expanded groups. */
     rows: ReadSignal<readonly FlatRow<T>[]>;
     /** True while the tree takes the arrow keys. A press on it focuses it, a press elsewhere blurs it. */
     focused: Signal<boolean>;
@@ -120,17 +124,15 @@ class RowView extends FlexContainer {
 
 /**
  * A layer list for editors: rows with expand arrows, icons, names, and eye and lock toggles. It
- * shows any tree through a {@link TreeAdapter}, and only draws the rows in view, so it stays fast
- * with thousands of nodes.
+ * shows any tree through a {@link TreeAdapter}. Only the rows in view are drawn, from a pool.
  *
  * - Click selects, Shift + click selects a range, cmd or ctrl + click toggles. The rows follow a
  *   {@link Selection} store, so the canvas and the list stay in sync both ways.
  * - Drag rows to reorder them, or onto a group to move them inside. The pointer's x picks the
  *   depth below the last row of a group. On touch, hold a row to drag it.
  * - Double click a name, or press Enter or F2, to rename it in place.
- * - Arrow keys move the selection, Left and Right fold and unfold.
  *
- * Call {@link LayerTree.refresh} when the data changes outside the tree.
+ * Call {@link LayerTree.refresh} when the data changes outside the tree: it does not watch your data.
  *
  * @example
  * ```ts
@@ -138,6 +140,10 @@ class RowView extends FlexContainer {
  *
  * panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
  * ```
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class LayerTree<T> extends Container {
     /** Rows, focus, hover, drag and rename state, as signals. */
@@ -150,11 +156,11 @@ export class LayerTree<T> extends Container {
     readonly root: T;
     /** The scroller the rows sit in. */
     readonly scroll: ScrollView;
-    /** Colours, radius and font. */
+    /** Colours, radius and font, resolved from the `theme` option. */
     readonly theme: PanelTheme;
-    /** Row height. */
+    /** Row height in local units. */
     readonly rowHeight: number;
-    /** Indent per depth. */
+    /** Indent per depth level in local units. */
     readonly indent: number;
 
     private readonly _opts: LayerTreeOptions<T>;
@@ -254,7 +260,7 @@ export class LayerTree<T> extends Container {
         this.refresh();
     }
 
-    /** The visible rows. */
+    /** The listed rows, top to bottom: every row under expanded groups, not only those scrolled into view. */
     get rows(): readonly FlatRow<T>[] {
         return this._rows.value;
     }
@@ -269,7 +275,7 @@ export class LayerTree<T> extends Container {
         return this._h;
     }
 
-    /** Changes the size of the list. */
+    /** Changes the size of the list. Call it from the panel's `onSize`. */
     resize(width: number, height: number): this {
         if (width === this._w && height === this._h) return this;
         const widthChanged = width !== this._w;
@@ -475,6 +481,7 @@ export class LayerTree<T> extends Container {
         return a || b;
     }
 
+    /** Removes the window listeners and the rename field, and stops the motion. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         for (const stop of this._stops) stop();
         this._stops.length = 0;

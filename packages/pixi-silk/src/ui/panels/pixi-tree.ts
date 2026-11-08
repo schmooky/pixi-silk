@@ -18,7 +18,7 @@ export interface PixiTreeOptions {
 
 /** What {@link pixiTreeAdapter} returns: an adapter for containers, plus the lock state it keeps. */
 export interface PixiTreeAdapter extends Required<Omit<TreeAdapter<Container>, 'getIcon'>> {
-    /** The row icon. */
+    /** The row icon: the `icon` option's result, or one picked from the kind of display object. */
     getIcon(node: Container): LayerIcon | null;
 }
 
@@ -36,7 +36,7 @@ const NAMES = { text: 'Text', image: 'Image', shape: 'Shape', group: 'Group' };
 
 /**
  * A {@link TreeAdapter} for a Pixi scene graph. Rows list a container's children front to back,
- * the way design tools do, so the last child is the top row. Names are `label`. Hiding sets
+ * so the last child is the top row. Names are `label`. Hiding sets
  * `visible`. Locking turns pointer events off for the node and everything under it. Moves keep
  * each node where it is on screen.
  *

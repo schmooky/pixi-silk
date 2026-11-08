@@ -21,30 +21,36 @@ export interface MarqueeOptions {
     camera: Camera;
     /**
      * Where presses on empty canvas land, usually `app.stage` with `hitArea = app.screen`. A drag
-     * starts only when the press hit this container itself, not one of its children.
+     * starts only when the press hit this container itself, not one of its children. Its
+     * `eventMode` is set to `static` when it was `none`, `passive` or `auto`.
      */
     surface: Container;
-    /** Objects the rectangle can pick, or a function returning them. Ignored when `hit` is given. */
+    /**
+     * Objects the rectangle can pick, or a function called on every move that returns them.
+     * Hidden, destroyed and detached ones are skipped. Ignored when `hit` is given.
+     */
     candidates?: readonly Container[] | (() => readonly Container[]);
     /** Your own hit test: what the world rectangle picks. Use it for spatial indexes or custom shapes. */
     hit?: (rect: WorldRect, mode: MarqueeMode) => readonly Container[];
-    /** Default `intersect`. */
+    /** Initial value of {@link Marquee.mode}. Default `intersect`. */
     mode?: MarqueeMode;
-    /** The selection before the drag, for Shift and Alt. Default empty. */
+    /** Returns the selection before the drag, read once on press, for Shift and Alt. Default empty. */
     selection?: () => readonly Container[];
-    /** Called on every change with the new selection and what the rectangle covers. */
+    /** Called when the selection changes during a drag, with the new selection and what the rectangle covers. */
     onChange?: (selection: readonly Container[], hits: readonly Container[]) => void;
-    /** Called when a drag starts. */
+    /** Called when the pointer has moved past the tap slop and the rectangle appears. */
     onStart?: () => void;
-    /** Called when a drag ends with the final selection. */
+    /** Called when a drag ends with the final selection. Not called on cancel. */
     onEnd?: (selection: readonly Container[]) => void;
     /** A click on empty canvas without Shift clears the selection (calls `onChange` with `[]`). Default true. */
     clearOnClick?: boolean;
-    /** Pan the camera when the pointer nears the edge of the view. Default true. */
+    /** Pans the camera while the pointer is within 24 pixels of the view's edge, up to 600 pixels a second. Default true. */
     autoPan?: boolean;
-    /** Colour of the rectangle. Default blue. */
+    /** Colour of the rectangle's fill and border. Default `0x0a84ff`. */
     color?: ColorSource;
+    /** Per pointer kind overrides of `slop`, how far a press moves before the rectangle starts. */
     profiles?: InputProfiles;
+    /** Ticker that runs fades and auto-pan. Default `Ticker.shared`. With `null`, call {@link Marquee.tick} yourself. */
     ticker?: Ticker | null;
 }
 
@@ -52,9 +58,9 @@ export interface MarqueeOptions {
 export interface MarqueeState {
     /** True while a rectangle is being dragged. */
     active: Signal<boolean>;
-    /** The rectangle in world units, or null. */
+    /** The rectangle in world units, or null when no drag is live. */
     rect: Signal<WorldRect | null>;
-    /** What the rectangle covers now. */
+    /** What the rectangle covers now. Only changes when the list itself changes. */
     hits: Signal<readonly Container[]>;
 }
 
@@ -69,7 +75,10 @@ interface Drag {
     slop: number;
 }
 
-/** Does a quad touch an axis-aligned rectangle? Separating axes: the rectangle's two and the quad's two. */
+/**
+ * True when a parallelogram quad (corners in order, as {@link boundsQuad} returns) touches an
+ * axis-aligned rectangle. Edges that only touch count. Uses separating axes, so other quads may be wrong.
+ */
 export function quadIntersects(q: Quad, r: WorldRect): boolean {
     const rect: Quad = [
         { x: r.x, y: r.y },
@@ -109,12 +118,15 @@ export function quadIntersects(q: Quad, r: WorldRect): boolean {
     return true;
 }
 
-/** Is a quad fully inside an axis-aligned rectangle? */
+/** True when all four corners of a quad are inside an axis-aligned rectangle, edges included. */
 export function quadInside(q: Quad, r: WorldRect): boolean {
     return q.every((p) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height);
 }
 
-/** Combines a selection with what a marquee covers. */
+/**
+ * Combines a selection with what a marquee covers. `add` appends hits not in `base`, keeping
+ * order. `subtract` removes them. Always returns a new array.
+ */
 export function combineSelection(
     base: readonly Container[],
     hits: readonly Container[],
@@ -133,21 +145,26 @@ const sameList = (a: readonly Container[], b: readonly Container[]): boolean =>
  * Rubber-band selection: drag on empty canvas to pick every object the rectangle touches (or
  * fully contains). Shift adds to the selection, Alt takes away, Escape cancels.
  *
- * - Left drags only, from the bare `surface`. A {@link Camera} keeps middle, right, Space and
- *   two-finger drags, and a pan that starts mid-drag cancels the marquee.
- * - The selection updates live through `onChange`. The rectangle fades in and out.
- * - Near the edge of the view the camera pans, and the rectangle keeps its world corner.
+ * Only left drags from the bare `surface` start it. A {@link Camera} keeps middle, right, Space
+ * and two-finger drags, and a pan that starts mid-drag cancels the marquee. The selection updates
+ * live through `onChange`. Near the edge of the view the camera pans, and the rectangle keeps
+ * its world corner.
  *
- * It holds no selection of its own: plain arrays of containers in, plain arrays out. Put it in
- * screen space above the world.
+ * It holds no selection of its own: plain arrays of containers in, plain arrays out. Hit tests
+ * use each object's transformed bounds box, not its exact shape. Put it in screen space above the
+ * world. It listens for Escape on `window`.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class Marquee extends Container {
+    /** Drag state, rectangle and hits, as signals. */
     readonly state: MarqueeState = {
         active: signal(false),
         rect: signal<WorldRect | null>(null),
         hits: signal<readonly Container[]>([], sameList),
     };
-    /** Hit mode. Change it at any time. */
+    /** Hit mode. Takes effect on the next pointer move. */
     mode: MarqueeMode;
 
     private readonly _opts: MarqueeOptions;
@@ -200,7 +217,7 @@ export class Marquee extends Container {
         );
     }
 
-    /** The rectangle on screen now, or null. */
+    /** The rectangle in this overlay's space (CSS pixels) now, or null when no drag is live. */
     get screenRect(): WorldRect | null {
         const d = this._drag;
 
@@ -216,7 +233,7 @@ export class Marquee extends Container {
         };
     }
 
-    /** What a world rectangle picks, by `hit` or by testing the candidates. */
+    /** What a world rectangle picks, by `hit` or by testing the candidates. Does not change the selection. */
     pick(rect: WorldRect, mode: MarqueeMode = this.mode): readonly Container[] {
         if (this._opts.hit) return this._opts.hit(rect, mode);
         const c = this._opts.candidates;
@@ -227,7 +244,10 @@ export class Marquee extends Container {
         return list.filter((t) => !t.destroyed && t.visible && t.parent && test(boundsQuad(t, world), rect));
     }
 
-    /** Stops the drag and puts the selection back the way it was. */
+    /**
+     * Stops the drag. A live drag calls `onChange` with the selection from before the drag. Escape
+     * and a camera pan call it too. No-op without a drag.
+     */
     cancel(): void {
         const d = this._drag;
 
@@ -239,7 +259,7 @@ export class Marquee extends Container {
         }
     }
 
-    /** Advances the fades by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances fades and auto-pan by `dt` seconds (clamped to 0..0.1). Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
