@@ -233,7 +233,7 @@ export default function Studio({ groups }: { groups: StudioGroup[] }) {
                             {g.area}
                         </div>
                         {g.pages.map((p) => (
-                            <div key={p.href} className="mb-1">
+                            <div key={`${p.href}#${p.title}`} className="mb-1">
                                 <div className="px-4 pt-1 text-xs text-muted-foreground/80">{p.title}</div>
                                 {p.entries.map((e) => (
                                     <button
