@@ -30,8 +30,10 @@ const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
 export default defineDemo({
     title: 'Layer tree',
     size: [720, 460],
+    // phones: the readout goes under the panel
+    phone: { size: [360, 600] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -76,7 +78,9 @@ export default defineDemo({
         };
         const selection = new Selection<Item>();
         const history = new History();
-        const panel = new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
+        const panel = phone
+            ? new Panel({ title: 'Layers', x: 16, y: 16, width: 328, height: 420, scroll: false })
+            : new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
         const tree = new LayerTree({ adapter, root, selection, history, element: canvas });
         const info = new SilkText({
             fontFamily: PANEL_THEME.fontFamily,
@@ -84,7 +88,7 @@ export default defineDemo({
             lineHeight: 20,
             fill: INK.muted,
             wordWrap: true,
-            wordWrapWidth: 340,
+            wordWrapWidth: phone ? 328 : 340,
         });
         const onKey = (e: KeyboardEvent) => {
             const mod = e.metaKey || e.ctrlKey;
@@ -98,7 +102,8 @@ export default defineDemo({
         addEventListener('keydown', onKey);
         tree.expand(root.children[0], true);
         panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
-        info.position.set(352, 40);
+        if (phone) info.position.set(16, 452);
+        else info.position.set(352, 40);
         stage.addChild(panel, info);
         const show = () => {
             const picked = selection.items.map((n) => n.name);

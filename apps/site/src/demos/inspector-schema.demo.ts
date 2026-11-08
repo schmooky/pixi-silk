@@ -86,8 +86,10 @@ const schema: InspectorField[] = [
 export default defineDemo({
     title: 'Inspector from a schema',
     size: [720, 480],
+    // phones: the cards above the panel
+    phone: { size: [360, 730] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -96,12 +98,16 @@ export default defineDemo({
         const history = new History();
         const scene = new Container();
         const outline = new SelectionOutline({ ticker: silk.app.ticker });
-        const panel = new Panel({ title: 'Inspector', x: 412, y: 24, width: 284, height: 432 });
+        const panel = phone
+            ? new Panel({ title: 'Inspector', x: 16, y: 324, width: 328, height: 390 })
+            : new Panel({ title: 'Inspector', x: 412, y: 24, width: 284, height: 432 });
         const inspector = new Inspector({ schema, history, element: canvas, popoverLayer: stage });
         const cards = [new Card('Blue', PALETTE.blue), new Card('Pink', PALETTE.pink), new Card('Mint', PALETTE.green)];
 
         cards.forEach((card, i) => {
-            card.position.set(48 + (i % 2) * 180, 56 + Math.floor(i / 2) * 210 + (i % 2) * 40);
+            // phones: two cards side by side and the third under them
+            if (phone) card.position.set(i === 2 ? 120 : 40 + i * 160, i === 2 ? 184 : 44);
+            else card.position.set(48 + (i % 2) * 180, 56 + Math.floor(i / 2) * 210 + (i % 2) * 40);
             card.eventMode = 'static';
             card.cursor = 'pointer';
             card.on('pointerdown', (e) => {

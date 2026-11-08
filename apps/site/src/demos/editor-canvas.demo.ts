@@ -17,12 +17,14 @@ import { defineDemo, INK } from './runtime';
 export default defineDemo({
     title: 'Editor canvas',
     size: [720, 480],
+    // phones: a taller frame and a tighter fit, so the artboard starts near 85%
+    phone: { size: [360, 600] },
     touchAction: 'none',
     ownsCamera: true,
     controls: {
         redlines: { type: 'select', label: 'redlines', options: ['on hover', 'with Alt'], value: 'on hover' },
     },
-    setup({ silk, params }) {
+    setup({ silk, params, phone }) {
         const app = silk.app;
         const world = new Container();
         const overlay = new Container();
@@ -119,7 +121,7 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        camera.fit(board, 40, false);
+        camera.fit(board, phone ? 16 : 40, false);
 
         // Alt shows the redlines without moving the pointer
         const onKey = (e: KeyboardEvent) => {

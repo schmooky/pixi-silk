@@ -9,11 +9,13 @@ import { BG, defineDemo } from './runtime';
 export default defineDemo({
     title: 'Docking panels',
     size: [720, 460],
+    // phones: the notes dock to the bottom, under the floating list
+    phone: { size: [360, 540] },
     touchAction: 'none',
     controls: {
         theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
     },
-    setup({ silk, stage, width, height, params, tick }) {
+    setup({ silk, stage, width, height, params, tick, phone }) {
         const viewport = { width, height };
         const canvas = silk.app.canvas;
         // the panels scroll with the wheel: keep the page still while the pointer is over the demo
@@ -32,8 +34,12 @@ export default defineDemo({
                 .clear()
                 .rect(0, 0, width, height)
                 .fill(light ? 0xe6e6eb : BG);
-            const colours = new Panel({ title: 'Colours', x: 200, y: 60, width: 240, height: 320, viewport, theme });
-            const notes = new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
+            const colours = phone
+                ? new Panel({ title: 'Colours', x: 16, y: 16, width: 240, height: 300, viewport, theme })
+                : new Panel({ title: 'Colours', x: 200, y: 60, width: 240, height: 320, viewport, theme });
+            const notes = phone
+                ? new Panel({ title: 'Notes', dock: 'bottom', height: 170, viewport, theme })
+                : new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
 
             // forty swatch rows, laid out by the panel's flex column and clipped by its body
             for (let i = 0; i < 40; i++) {
@@ -67,7 +73,7 @@ export default defineDemo({
                 lineHeight: 18,
                 fill: theme.textDim,
                 wordWrap: true,
-                wordWrapWidth: 190,
+                wordWrapWidth: phone ? 320 : 190,
             });
 
             notes.content.add(text);

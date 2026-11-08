@@ -16,8 +16,10 @@ const COLORS = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2, 0x64d2ff];
 export default defineDemo({
     title: 'Selection and history',
     size: [760, 420],
+    // phones: the history list goes under the shapes
+    phone: { size: [360, 650] },
     touchAction: 'none',
-    setup({ stage, silk }) {
+    setup({ stage, silk, width, height, phone }) {
         const ticker = silk.app.ticker;
         const scene = new Container();
         const overlay = new Container();
@@ -31,7 +33,7 @@ export default defineDemo({
         overlay.addChild(hover, outline, gizmo);
         stage.addChild(scene, overlay);
         stage.eventMode = 'static';
-        stage.hitArea = { contains: (x: number, y: number) => x >= 0 && y >= 0 && x <= 760 && y <= 420 };
+        stage.hitArea = { contains: (x: number, y: number) => x >= 0 && y >= 0 && x <= width && y <= height };
         // a press on the background (not on a button or a shape) clears the selection
         stage.on('pointerdown', (e) => e.target === stage && !e.shiftKey && selection.clear());
 
@@ -62,14 +64,11 @@ export default defineDemo({
 
             return item;
         };
-        const items = [
-            shape('circle', 110, 150, 0),
-            shape('square', 240, 150, 1),
-            shape('circle', 370, 150, 2),
-            shape('square', 110, 290, 3),
-            shape('circle', 240, 290, 4),
-            shape('square', 370, 290, 5),
-        ];
+        // two rows of three, 130 px apart (110 on phones, under the Studio link)
+        const [x0, dx, y0, dy] = phone ? [70, 110, 176, 120] : [110, 130, 150, 140];
+        const items = [0, 1, 2, 3, 4, 5].map((i) =>
+            shape(i % 2 ? 'square' : 'circle', x0 + (i % 3) * dx, y0 + Math.floor(i / 3) * dy, i),
+        );
         const stops = [
             bindOutline(selection, outline, hover),
             bindGizmo(selection, gizmo),
@@ -83,23 +82,26 @@ export default defineDemo({
         const dark = { fill: 0x2c2c2e, fillHover: 0x3a3a3c, fillPress: 0x1c1c1e, fillDisabled: 0x232325 };
         let tint = 0;
         const button = (label: string, x: number, onPress: () => void) => {
-            const b = new SilkButton({ ticker, label, width: 84, height: 32, theme: dark, onPress });
+            const b = new SilkButton({ ticker, label, width: phone ? 76 : 84, height: 32, theme: dark, onPress });
 
-            b.position.set(x, 40);
+            b.position.set(x, phone ? 76 : 40);
             overlay.addChild(b);
 
             return b;
         };
 
-        button('Circles', 66, () => selection.selectWhere(items, (s) => s.label === 'circle'));
-        button('Tint', 160, () => {
+        // button centres: 94 px apart, 82 on phones
+        const bx = (i: number) => (phone ? 57 + i * 82 : 66 + i * 94);
+
+        button('Circles', bx(0), () => selection.selectWhere(items, (s) => s.label === 'circle'));
+        button('Tint', bx(1), () => {
             tint++;
             // one handler, one step: every colour set here undoes together
             for (const item of selection.items)
                 colors.get(item)?.set(COLORS[(COLORS.indexOf(colors.get(item)?.value ?? 0) + tint) % COLORS.length]);
         });
-        const undo = button('Undo', 254, () => history.undo());
-        const redo = button('Redo', 348, () => history.redo());
+        const undo = button('Undo', bx(2), () => history.undo());
+        const redo = button('Redo', bx(3), () => history.redo());
 
         stops.push(
             watch(history.state.canUndo, (v) => undo.state.enabled.set(v)),
@@ -110,7 +112,9 @@ export default defineDemo({
         const panel = new SilkGraphics();
         const list = new Container();
 
-        panel.roundRect(470, 24, 266, 372, 18, 0.6).fill(0x1c1c1e);
+        const [px, py] = phone ? [16, 384] : [470, 24];
+
+        panel.roundRect(px, py, phone ? 328 : 266, phone ? 250 : 372, 18, 0.6).fill(0x1c1c1e);
         stage.addChildAt(panel, 0);
         stage.addChild(list);
         const style = (fill: number) => ({ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fill });
@@ -119,18 +123,18 @@ export default defineDemo({
                 c.destroy();
             });
             const rows = [
-                ...history.past.slice(-8).map((s) => ({ label: s.label, done: true })),
-                ...history.future.slice(0, 4).map((s) => ({ label: s.label, done: false })),
+                ...history.past.slice(phone ? -5 : -8).map((s) => ({ label: s.label, done: true })),
+                ...history.future.slice(0, phone ? 2 : 4).map((s) => ({ label: s.label, done: false })),
             ];
             const title = new Text({ text: 'History', style: style(0x8e8e93), resolution: 4 });
 
-            title.position.set(494, 42);
+            title.position.set(px + 24, py + 18);
             list.addChild(title);
             if (!rows.length) rows.push({ label: 'Nothing yet', done: false });
             rows.forEach((row, i) => {
                 const t = new Text({ text: row.label, style: style(row.done ? 0xf2f2f7 : 0x636366), resolution: 4 });
 
-                t.position.set(494, 74 + i * 26);
+                t.position.set(px + 24, py + 50 + i * 26);
                 list.addChild(t);
             });
         };
