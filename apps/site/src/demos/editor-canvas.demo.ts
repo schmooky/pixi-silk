@@ -1,8 +1,9 @@
-import { Container, Text } from 'pixi.js';
+import { Container } from 'pixi.js';
 import { linear, SilkGraphics } from 'pixi-silk';
 import { bindHistoryKeys, History, recordGizmo } from 'pixi-silk/history';
 import { bindGizmo, bindMeasure, bindOutline, Selection } from 'pixi-silk/selection';
 import { watch } from 'pixi-silk/signal';
+import { SilkText, silkLabel } from 'pixi-silk/text';
 import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
 import { TransformGizmo } from 'pixi-silk/ui/gizmo';
 import { altDown } from 'pixi-silk/ui/keys';
@@ -29,8 +30,10 @@ export default defineDemo({
         const hover = new SelectionOutline({ ticker: app.ticker });
         const outline = new SelectionOutline({ ticker: app.ticker });
         const gizmo = new TransformGizmo({ ticker: app.ticker });
-        const measure = new Measure({ space: world, ticker: app.ticker });
-        const zoom = new ZoomControl(camera);
+        // SilkText labels: distance fields stay sharp at any zoom
+        const label = silkLabel();
+        const measure = new Measure({ space: world, ticker: app.ticker, label });
+        const zoom = new ZoomControl(camera, { label });
         // one selection store drives the outlines, the gizmo and the redlines
         const selection = new Selection<Container>();
         const history = new History();
@@ -63,10 +66,11 @@ export default defineDemo({
         ];
 
         // an artboard with a few layers on it
-        const title = new Text({
+        const title = new SilkText({
             text: 'Home',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fill: 0x8e8e93 },
-            resolution: 4,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 13,
+            fill: 0x8e8e93,
         });
 
         title.position.set(0, -20);

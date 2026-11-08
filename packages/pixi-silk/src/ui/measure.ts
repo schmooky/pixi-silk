@@ -2,6 +2,7 @@ import { Container, type PointData, Text, type Ticker } from 'pixi.js';
 import { Spring } from '../motion';
 import { SilkGraphics } from '../SilkGraphics';
 import { Driver } from './driver';
+import type { LabelFactory, TextLabel } from './label';
 import { hex } from './paint';
 
 /** A box in the measured space, the way {@link Measure} reads it. */
@@ -32,6 +33,11 @@ export interface MeasureOptions {
     format?: (value: number) => string;
     /** Label font size. Default 11. */
     fontSize?: number;
+    /**
+     * Builds the label text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
+     * labels that stay sharp at any zoom and resolution.
+     */
+    label?: LabelFactory;
     /** Outline the hovered object in the redline colour. Default true. */
     outline?: boolean;
     ticker?: Ticker | null;
@@ -120,17 +126,20 @@ export function redlines(a: Box, b: Box): Redline[] {
 /** A label: a rounded pill with text, pooled. */
 class Tag extends Container {
     readonly bg = new SilkGraphics();
-    readonly text: Text;
+    readonly text: TextLabel;
     private _value = '';
     private _color = -1;
 
-    constructor(fontSize: number, textColor: number) {
+    constructor(fontSize: number, textColor: number, label?: LabelFactory) {
         super();
-        this.text = new Text({
-            text: '',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize, fontWeight: '600', fill: textColor },
-            resolution: 3,
-        });
+        const style = {
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize,
+            fontWeight: '600',
+            fill: textColor,
+        } as const;
+
+        this.text = label ? label(style) : new Text({ text: '', style, resolution: 3 });
         this.text.anchor.set(0.5);
         this.addChild(this.bg, this.text);
     }
@@ -287,7 +296,7 @@ export class Measure extends Container {
         let tag = this._pool[i];
 
         if (!tag) {
-            tag = new Tag(this._opts.fontSize ?? 11, this._textColor);
+            tag = new Tag(this._opts.fontSize ?? 11, this._textColor, this._opts.label);
             this._pool.push(tag);
             this._tags.addChild(tag);
         }

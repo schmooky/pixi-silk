@@ -1,5 +1,6 @@
 import { Container, type FederatedPointerEvent } from 'pixi.js';
 import { linear, SilkGraphics } from 'pixi-silk';
+import { silkLabel } from 'pixi-silk/text';
 import { Camera, ZoomControl } from 'pixi-silk/ui/camera';
 import { TransformGizmo } from 'pixi-silk/ui/gizmo';
 import { CanvasGrid } from 'pixi-silk/ui/grid';
@@ -32,14 +33,16 @@ export default defineDemo({
         const overlay = new Container();
         const camera = new Camera({ world, element: app.canvas });
         const grid = new CanvasGrid({ camera, ticker: app.ticker });
-        const ruler = new Ruler({ camera, ticker: app.ticker });
+        // SilkText labels: distance fields stay sharp at any zoom
+        const label = silkLabel();
+        const ruler = new Ruler({ camera, ticker: app.ticker, label });
         const engine = new SnapEngine();
-        const guides = new Guides({ camera, ruler, snap: engine, ticker: app.ticker });
+        const guides = new Guides({ camera, ruler, snap: engine, ticker: app.ticker, label });
         const group = new SelectionGroup();
         const hover = new SelectionOutline({ ticker: app.ticker });
         const outline = new SelectionOutline({ ticker: app.ticker, brackets: false });
         const spacing = new SpacingMarkers({ space: world, ticker: app.ticker });
-        const measure = new Measure({ space: world, ticker: app.ticker });
+        const measure = new Measure({ space: world, ticker: app.ticker, label });
         const layers: Container[] = [];
         let selected: readonly Container[] = [];
         let hovered: Container | null = null;
@@ -79,7 +82,7 @@ export default defineDemo({
             onChange: (list) => (marquee.state.active.value ? preview(list) : select(list)),
             onEnd: (list) => select(list),
         });
-        const zoom = new ZoomControl(camera);
+        const zoom = new ZoomControl(camera, { label });
 
         world.addChild(group);
         guides.bindSnap(engine);

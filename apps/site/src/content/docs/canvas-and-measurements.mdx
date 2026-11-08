@@ -69,3 +69,21 @@ measure.between(selected, hovered);
 
 Distances are measured in `space`, usually the camera's world. A gap of 24 reads 24 at any zoom.
 `format` turns values into labels, for units or rounding.
+
+`Measure` and `ZoomControl` draw their text with PixiJS `Text` by default. Pass
+`label: silkLabel()` from `pixi-silk/text` to draw it with SilkText instead, which stays sharp at
+any zoom and resolution. The widgets never import SilkText on their own, so apps that skip the
+option do not ship it.
+
+```ts
+import type { Container } from 'pixi.js';
+import { silkLabel } from 'pixi-silk/text';
+import { type Camera, ZoomControl } from 'pixi-silk/ui/camera';
+import { Measure } from 'pixi-silk/ui/measure';
+
+declare const camera: Camera, world: Container;
+
+const label = silkLabel();
+const measure = new Measure({ space: world, label });
+const zoom = new ZoomControl(camera, { label });
+```

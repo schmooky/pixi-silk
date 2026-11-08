@@ -6,6 +6,7 @@ import type { Camera } from './camera';
 import { Driver } from './driver';
 import { type InputKind, type InputProfiles, inputKind, inputProfile } from './input';
 import { modDown } from './keys';
+import type { LabelFactory } from './label';
 import { hex } from './paint';
 import type { Ruler } from './ruler';
 import type { SnapEngine } from './snap';
@@ -49,6 +50,11 @@ export interface GuidesOptions {
     round?: number;
     /** Turns a guide position into the pill text. Default whole numbers. */
     format?: (value: number) => string;
+    /**
+     * Builds the pill text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
+     * text that stays sharp at any resolution.
+     */
+    label?: LabelFactory;
     /** Guides to start with. */
     guides?: readonly Omit<Guide, 'id'>[];
     profiles?: InputProfiles;
@@ -134,7 +140,13 @@ export class Guides extends Container {
         this._opts = options;
         this._camera = options.camera;
         this._color = hex(options.color ?? 0xff375f);
-        this._pill = new ValuePill({ fill: this._color, color: 0xffffff, fontSize: 11, height: 18 });
+        this._pill = new ValuePill({
+            fill: this._color,
+            color: 0xffffff,
+            fontSize: 11,
+            height: 18,
+            label: options.label,
+        });
         this.addChild(this._g, this._pill);
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
         this.eventMode = 'static';

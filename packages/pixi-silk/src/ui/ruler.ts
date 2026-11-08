@@ -4,6 +4,7 @@ import { SilkGraphics } from '../SilkGraphics';
 import { type Signal, signal } from '../signal';
 import type { Camera, WorldRect } from './camera';
 import { Driver } from './driver';
+import type { LabelFactory, TextLabel } from './label';
 import { boundsQuad, unionQuad } from './outline';
 import { hex } from './paint';
 
@@ -35,6 +36,11 @@ export interface RulerOptions {
     fontSize?: number;
     /** Turns a world value into a label. `step` is the distance between labels. Default whole numbers. */
     format?: (value: number, step: number) => string;
+    /**
+     * Builds the label text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
+     * labels that stay sharp at any resolution.
+     */
+    label?: LabelFactory;
     /** Follow the pointer over the camera's element with a marker. Default true. */
     trackCursor?: boolean;
     ticker?: Ticker | null;
@@ -75,7 +81,7 @@ const defaultFormat = (v: number, step: number): string => {
 const isRect = (t: RulerTarget): t is WorldRect => !Array.isArray(t) && !('children' in (t as object));
 
 interface Label {
-    text: Text;
+    text: TextLabel;
     key: string;
     fade: number;
     live: boolean;
@@ -103,7 +109,7 @@ export class Ruler extends Container {
     private readonly _marks = new SilkGraphics({ label: 'RulerMarks' });
     private readonly _labels = new Container();
     private readonly _pool: Label[] = [];
-    private readonly _edges: Text[] = [];
+    private readonly _edges: TextLabel[] = [];
     private readonly _driver: Driver;
     private readonly _off: (() => void)[] = [];
     private readonly _c: Record<'bg' | 'tick' | 'text' | 'accent', number>;
@@ -208,19 +214,15 @@ export class Ruler extends Container {
         });
     }
 
-    private _text(fill: number): Text {
-        const t = new Text({
-            text: '',
-            style: {
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: this._opts.fontSize ?? 10,
-                fontWeight: '500',
-                fill,
-            },
-            resolution: 3,
-        });
+    private _text(fill: number): TextLabel {
+        const style = {
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: this._opts.fontSize ?? 10,
+            fontWeight: '500',
+            fill,
+        } as const;
 
-        return t;
+        return this._opts.label ? this._opts.label(style) : new Text({ text: '', style, resolution: 3 });
     }
 
     private _extent(): WorldRect | null {

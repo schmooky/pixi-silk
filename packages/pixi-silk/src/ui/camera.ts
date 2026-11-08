@@ -2,6 +2,7 @@ import { Container, type PointData, Text, type Ticker } from 'pixi.js';
 import { SilkGraphics } from '../SilkGraphics';
 import { type ReadSignal, type Signal, signal } from '../signal';
 import { Driver } from './driver';
+import type { LabelFactory, TextLabel } from './label';
 import { hex } from './paint';
 
 /** A rectangle in world units. */
@@ -580,6 +581,11 @@ export interface ZoomControlOptions {
     step?: number;
     /** What a click on the percentage does. Default `fit`. */
     onLabel?: 'fit' | 'reset' | 'none';
+    /**
+     * Builds the percentage text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text`
+     * for text that stays sharp at any resolution.
+     */
+    label?: LabelFactory;
 }
 
 /**
@@ -590,7 +596,7 @@ export interface ZoomControlOptions {
 export class ZoomControl extends Container {
     private readonly _bg = new SilkGraphics();
     private readonly _hl = new SilkGraphics();
-    private readonly _label: Text;
+    private readonly _label: TextLabel;
     private readonly _off: () => void;
     private readonly _w = 128;
     private readonly _h = 32;
@@ -610,16 +616,15 @@ export class ZoomControl extends Container {
             .pill(0, 0, w, h)
             .fill({ color: hex(options.fill ?? 0x1c1c1e), alpha: 0.92 })
             .stroke({ width: 1, color: 0xffffff, alpha: 0.12, alignment: 'inside' });
-        this._label = new Text({
-            text: '100%',
-            style: {
-                fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
-                fontSize: 12,
-                fontWeight: '600',
-                fill: color,
-            },
-            resolution: 3,
-        });
+        const style = {
+            fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
+            fontSize: 12,
+            fontWeight: '600',
+            fill: color,
+        } as const;
+
+        this._label = options.label ? options.label(style) : new Text({ text: '100%', style, resolution: 3 });
+        this._label.text = '100%';
         this._label.anchor.set(0.5);
         this._label.position.set(w / 2, h / 2);
         minus.position.set(h / 2, h / 2);

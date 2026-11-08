@@ -63,7 +63,9 @@ ruler.highlight(selected);
 
 `highlight()` takes objects or a world rectangle. The ruler bands their extent and labels its
 edges in the accent colour, following the objects every frame. `format` turns world values into
-labels, for units such as `pt` or `mm`.
+labels, for units such as `pt` or `mm`. Pass `label: silkLabel()` from `pixi-silk/text` to draw
+the labels with SilkText, which stays sharp at any resolution. `Guides` takes the same option for
+its pill.
 
 ## Guides
 
