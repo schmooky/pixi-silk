@@ -27,8 +27,9 @@ app.stage.addChild(card); // after the scene it frosts
 
 The pane needs the canvas behind it, which WebGL keeps in a back buffer. `Glass` turns it on the
 first time it draws, so the first frame shows a plain pane. Pass `useBackBuffer: true` to
-`createSilkApp` to have glass from the first frame. On WebGPU the pane draws a frosted fill
-instead. The pane stays axis aligned: scale it freely, but do not rotate it.
+`createSilkApp` to have glass from the first frame. WebGPU copies the backdrop without a back
+buffer, so there the glass shows from the first frame. The pane stays axis aligned: scale it
+freely, but do not rotate it.
 
 | Option | Default | What it does |
 | --- | --- | --- |

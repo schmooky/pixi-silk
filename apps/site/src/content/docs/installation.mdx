@@ -1,9 +1,9 @@
 ---
 title: Installation
 seoTitle: 'Install pixi-silk: anti-aliased graphics for PixiJS v8'
-description: 'Install pixi-silk with npm, pnpm, yarn or bun next to pixi.js v8. It needs WebGL2 and ships tree-shakeable ESM with TypeScript types, about 15 kB gzipped.'
+description: 'Install pixi-silk with npm, pnpm, yarn or bun next to pixi.js v8. It runs on WebGL2 or WebGPU and ships typed, tree-shakeable ESM, about 15 kB gzipped.'
 keywords: ['install pixi-silk', 'npm pixi-silk', 'PixiJS v8 plugin', 'pixi.js graphics library']
-updated: 2026-09-26
+updated: 2026-11-08
 ---
 
 pixi-silk is on npm. Its one peer dependency is `pixi.js` version 8.
@@ -38,8 +38,8 @@ import { createSilkApp, SilkGraphics, linear, conic } from 'pixi-silk';
 ## Requirements
 
 - PixiJS 8.6 or newer. `pixi.js` is a peer dependency, so your app owns the renderer.
-- WebGL2, which every current browser supports. The WebGPU renderer is not supported yet. Create
-  your application with `preference: 'webgl'`. `createSilkApp` does this for you.
+- WebGL2 or WebGPU. `createSilkApp` uses WebGL2 by default, which every current browser has. Pass
+  `preference: 'webgpu'` to use WebGPU where the browser has it. See [WebGPU & WebGL2](/docs/webgpu/).
 - Any bundler that understands ES modules (Vite, webpack, Rollup, esbuild, Parcel), or a
   `<script type="module">` with an import map.
 
