@@ -1,6 +1,6 @@
 {
   "name": "pixi-silk",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Smooth vector graphics for PixiJS v8: analytic anti-aliased SDF primitives, squircles, arcs, polylines, dashes, OKLab gradients, glows and DPR-exact canvases, one draw call per object.",
   "type": "module",
   "sideEffects": false,
