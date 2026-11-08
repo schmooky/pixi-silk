@@ -86,6 +86,30 @@ export {
     type TransformGizmoOptions,
 } from './gizmo';
 export {
+    CanvasGrid,
+    type CanvasGridOptions,
+    type CanvasGridState,
+    type GridLevel,
+    type GridLevelOptions,
+    type GridStyle,
+    gridLevels,
+} from './grid';
+export {
+    SelectionGroup,
+    type SelectionGroupHooks,
+    type SelectionGroupOptions,
+    type SelectionGroupState,
+} from './group';
+export {
+    type Guide,
+    type GuideDrag,
+    type GuideSnap,
+    Guides,
+    type GuidesOptions,
+    type GuidesState,
+    snapValue,
+} from './guides';
+export {
     ContextHalo,
     type ContextHaloOptions,
     HALO_THEME,
@@ -99,6 +123,16 @@ export type { IconSource } from './icon';
 export type { InputKind, InputProfile, InputProfiles } from './input';
 export { altDown, isKeyDown, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
+export {
+    combineSelection,
+    Marquee,
+    type MarqueeMode,
+    type MarqueeOp,
+    type MarqueeOptions,
+    type MarqueeState,
+    quadInside,
+    quadIntersects,
+} from './marquee';
 export { Measure, type MeasureOptions, type MeasureRect, type MeasureTarget, type Redline, redlines } from './measure';
 export {
     ModeSwitcher,
@@ -145,6 +179,15 @@ export {
     type RadialTriggerOptions,
 } from './RadialMenu';
 export {
+    niceStep,
+    Ruler,
+    type RulerOptions,
+    type RulerSide,
+    type RulerState,
+    type RulerTarget,
+    tickDivisions,
+} from './ruler';
+export {
     BUTTON_THEME,
     type ButtonPhase,
     type ButtonState,
@@ -161,6 +204,17 @@ export {
     type SnapRect,
     type SnapResult,
 } from './snap';
+export {
+    type AlignLine,
+    type FindSpacingOptions,
+    findSpacing,
+    type GapMarker,
+    gapsBetween,
+    SpacingMarkers,
+    type SpacingMarkersOptions,
+    type SpacingResult,
+    spacingFromSnap,
+} from './spacing';
 export {
     MiniTimeline,
     type MiniTimelineOptions,

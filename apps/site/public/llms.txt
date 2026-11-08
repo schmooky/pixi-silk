@@ -101,8 +101,9 @@ The docs are grouped into areas. Each area overview tours its features with live
 
 ### Editor UI
 
-- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): An infinite canvas, measurements, transform gizmos, colour pickers, editor tools, dials and a timeline for editors and design apps.
+- [Editor UI overview](https://pixi-silk.schmooky.dev/docs/editor-ui/): An infinite canvas with grid, rulers, guides and selection, measurements, transform gizmos, colour pickers, dials and a timeline.
 - [Canvas and measurements](https://pixi-silk.schmooky.dev/docs/canvas-and-measurements/): Pan and zoom a PixiJS scene like a design tool, with pinch, fling and fit, and measure the distances between objects with redlines and size badges. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-and-measurements.md)
+- [Grid, rulers and selection](https://pixi-silk.schmooky.dev/docs/canvas-tools/): Add a zoom-aware grid, rulers, draggable guides, rubber-band selection, group transforms and Figma-style smart spacing to a PixiJS canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/canvas-tools.md)
 - [Transform gizmos](https://pixi-silk.schmooky.dev/docs/transform-gizmos/): Move, rotate, scale and bounding-box handles with snapping, selection outlines that follow rotated objects, and smart guides for edges, centres and gaps. (Markdown: https://pixi-silk.schmooky.dev/docs/transform-gizmos.md)
 - [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/): Hue ring with triangle or square, colour wheel, OKLCH plane, channel sliders, swatches, a radial swatch popup and an eyedropper, all on one colour model. (Markdown: https://pixi-silk.schmooky.dev/docs/color-pickers.md)
 - [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/): Action buttons that orbit the selection, a brush cursor with live resize and pen pressure, a hold-to-show mode ring and a sliding segmented switch. (Markdown: https://pixi-silk.schmooky.dev/docs/editor-tools.md)
