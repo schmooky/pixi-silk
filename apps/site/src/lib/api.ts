@@ -3,6 +3,9 @@
  *
  * The files are read as raw text: importing them as modules would be circular, because every
  * API page renders through the Docs layout, which builds this list.
+ *
+ * Layout (scripts/api-paths.mjs): the root import's symbols at `/api/<kind>/<Name>/`, each
+ * subpath's overview at `/api/<subpath>/` and its symbols at `/api/<subpath>/<kind>/<Name>/`.
  */
 const files = import.meta.glob<string>('../pages/api/**/*.md', { query: '?raw', import: 'default', eager: true });
 
@@ -14,12 +17,16 @@ const GROUPS: [folder: string, title: string][] = [
     ['type-aliases', 'Types'],
     ['variables', 'Variables'],
 ];
+const FOLDERS = new Set(GROUPS.map(([folder]) => folder));
 
 export interface ApiLink {
     title: string;
     href: string;
     description: string;
+    /** Kind folder (`classes`, `functions` ...), or `entry` for an entry point overview. */
     kind: string;
+    /** Import path of the entry point, `pixi-silk` for the root import. */
+    entry: string;
 }
 
 /** Reads a single-quoted YAML scalar written by scripts/postprocess-api.mjs. */
@@ -34,9 +41,17 @@ let cache: ApiLink[] | null = null;
 export function apiPages(): ApiLink[] {
     cache ??= Object.entries(files).map(([file, raw]) => {
         const rel = file.replace('../pages/api/', '').replace(/\.md$/, '');
+        const parts = rel.split('/');
         const href = rel === 'index' ? '/api/' : `/api/${rel.replace(/\/index$/, '')}/`;
+        const folder = parts.length > 1 ? parts[parts.length - 2] : '';
 
-        return { title: field(raw, 'title'), href, description: field(raw, 'description'), kind: rel.split('/')[0] };
+        return {
+            title: field(raw, 'title'),
+            href,
+            description: field(raw, 'description'),
+            kind: parts[parts.length - 1] === 'index' ? 'entry' : FOLDERS.has(folder) ? folder : 'other',
+            entry: field(raw, 'entry'),
+        };
     });
 
     return cache;
@@ -44,15 +59,20 @@ export function apiPages(): ApiLink[] {
 
 export function apiNav(): { title: string; items: { label: string; href: string }[] }[] {
     const all = apiPages();
+    const root = all.filter((p) => p.entry === 'pixi-silk');
+    const entries = all
+        .filter((p) => p.kind === 'entry' && p.href !== '/api/')
+        .sort((a, b) => a.title.localeCompare(b.title));
 
     return [
         { title: 'Reference', items: [{ label: 'Overview', href: '/api/' }] },
         ...GROUPS.map(([folder, title]) => ({
             title,
-            items: all
+            items: root
                 .filter((p) => p.kind === folder)
                 .sort((a, b) => a.title.localeCompare(b.title))
                 .map((p) => ({ label: p.title, href: p.href })),
         })).filter((g) => g.items.length > 0),
+        { title: 'Entry points', items: entries.map((p) => ({ label: p.title, href: p.href })) },
     ];
 }
