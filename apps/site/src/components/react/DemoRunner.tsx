@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { type Control, type Demo, initialValues, type MountedDemo, mountDemo } from '@/demos/runtime';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type Control, type Demo, initialValues, type MountedDemo, mountDemo, runsPhone } from '@/demos/runtime';
 
 /** Import failures after a deploy: the page asks for script files that no longer exist. */
 const STALE =
@@ -15,8 +15,10 @@ interface Props {
     label?: string;
     /** The demo has controls: the bar under the canvas is drawn before the module loads. */
     hasControls?: boolean;
-    /** Studio URL of this demo. */
+    /** Studio URL of this demo, for the control bar. */
     studio?: string;
+    /** `W / H` of the demo's phone layout: narrow frames take this aspect ratio from CSS. */
+    phoneRatio?: string;
 }
 
 /**
@@ -75,7 +77,7 @@ function releaseFilterBindings(mounted: MountedDemo) {
  * (browsers allow ~16 WebGL contexts per page) and renders its controls. Scrolled away, the
  * frame keeps a still of its last frame.
  */
-export default function DemoRunner({ name, height = 280, label, hasControls = false, studio }: Props) {
+export default function DemoRunner({ name, height = 280, label, hasControls = false, studio, phoneRatio }: Props) {
     const frame = useRef<HTMLDivElement>(null);
     const host = useRef<HTMLDivElement>(null);
     const mounted = useRef<MountedDemo | null>(null);
@@ -98,7 +100,10 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
         }
         load().then(
             (m) => {
-                values.current = initialValues(m.default.controls);
+                values.current = initialValues(
+                    m.default.controls,
+                    runsPhone(m.default, host.current?.clientWidth ?? 0),
+                );
                 setParams(values.current);
                 setDemo(m.default);
             },
@@ -173,7 +178,7 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
         mounted.current?.setParam(key, value);
     };
     const reset = () => {
-        values.current = initialValues(demo?.controls);
+        values.current = initialValues(demo?.controls, !!demo && runsPhone(demo, host.current?.clientWidth ?? 0));
         setParams(values.current);
         setGeneration((g) => g + 1);
     };
@@ -188,15 +193,9 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
                 aria-label={label}
                 aria-busy={!live && !error}
                 data-live={live || undefined}
-                className="relative w-full overflow-hidden bg-demo"
-                style={{ height }}
+                className={`relative w-full overflow-hidden bg-demo${phoneRatio ? ' demo-phone' : ''}`}
+                style={{ height, ...(phoneRatio ? { '--phone-ratio': phoneRatio } : {}) } as CSSProperties}
             >
-                {!bar && studio && (
-                    <a href={studio} className="demo-chip" title="Open this demo in Studio">
-                        <StudioIcon />
-                        Studio
-                    </a>
-                )}
                 {error && (
                     <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center gap-3 bg-demo p-4 text-center font-mono text-xs text-red-400">
                         {STALE.test(error) ? (

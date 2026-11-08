@@ -21,7 +21,9 @@ export default defineDemo({
 
         surface.eventMode = 'static';
         surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
-        stage.addChild(new Sprite(canvas), surface, brush);
+        const paper = new Sprite(canvas);
+
+        stage.addChild(paper, surface, brush);
 
         const stamp = (x: number, y: number, pressure: number) => {
             const { size, hardness, opacity } = brush.state;
@@ -88,6 +90,10 @@ export default defineDemo({
         surface.on('pointerup', stop);
         surface.on('pointerupoutside', stop);
 
-        return () => canvas.destroy(true);
+        return () => {
+            // take the sprite off the stage first, then free the texture once the GPU is done with it
+            paper.destroy();
+            requestAnimationFrame(() => canvas.destroy(true));
+        };
     },
 });

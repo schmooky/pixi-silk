@@ -1425,65 +1425,7 @@ Area: Learn
 
 Most `Graphics` code runs after you rename the class.
 
-Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
-
-Live demo `versus` (source):
-
-```ts
-import { Container, Graphics, Text } from 'pixi.js';
-import { SilkGraphics } from 'pixi-silk';
-import { defineDemo } from './runtime';
-
-// Left: Pixi v8 Graphics (tessellated, no MSAA). Right: SilkGraphics (distance fields).
-export default defineDemo({
-    title: 'Graphics and SilkGraphics',
-    size: [480, 240],
-    controls: {
-        zoom: { type: 'range', label: 'zoom', min: 1, max: 6, step: 0.01, value: 1 },
-        rotate: { type: 'toggle', label: 'rotate', value: true },
-    },
-    setup({ stage, params, tick }) {
-        const sides = [new Container(), new Container()];
-        const pixi = new Graphics();
-        const silk = new SilkGraphics();
-
-        sides[0].addChild(pixi);
-        sides[1].addChild(silk);
-        sides.forEach((side, i) => {
-            const mask = new Graphics().rect(i * 240, 0, 240, 240).fill(0xffffff);
-            const label = new Text({
-                text: i ? 'SilkGraphics' : 'Graphics',
-                style: { fill: 0x8e8e93, fontSize: 12, fontFamily: 'system-ui' },
-            });
-
-            label.position.set(i * 240 + 12, 10);
-            side.mask = mask;
-            stage.addChild(side, mask, label);
-        });
-        let angle = 0;
-
-        tick((_t, dt) => {
-            if (params.rotate) angle += dt * 0.15;
-            for (const [i, side] of sides.entries()) {
-                side.pivot.set(120, 130);
-                side.position.set(i * 240 + 120, 130);
-                side.scale.set(params.zoom);
-                side.rotation = angle;
-            }
-            for (const g of [pixi, silk]) {
-                g.clear();
-                g.circle(120, 130, 62).stroke({ width: 3, color: 0x64d2ff });
-                g.roundRect(70, 90, 100, 80, 24).stroke({ width: 1, color: 0xffffff });
-                g.circle(120, 130, 18).fill(0xff375f);
-                for (let k = 0; k < 6; k++)
-                    g.moveTo(40, 60 + k * 3)
-                        .lineTo(200, 64 + k * 5)
-                        .stroke({ width: 0.6, color: 0xffd60a });
-            }
-        });
-    },
-});
-```
+Live demo `versus`: source at https://github.com/schmooky/pixi-silk/blob/main/apps/site/src/demos/versus.demo.ts
 
 ```diff
 - const g = new Graphics();
@@ -2382,10 +2324,14 @@ const MODES = ['inside', 'center', 'outside'] as const;
 export default defineDemo({
     title: 'Stroke alignment',
     size: [480, 200],
+    // phones: smaller squares, so the three fit at full size text
+    phone: { size: [360, 180] },
     controls: {
         width: { type: 'range', label: 'stroke width', min: 1, max: 24, step: 1, value: 12, unit: 'px' },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, phone }) {
+        // left edge, step and size of the squares
+        const [left, step, side] = phone ? [24, 120, 72] : [40, 150, 100];
         const g = new SilkGraphics();
 
         stage.addChild(g);
@@ -2393,19 +2339,19 @@ export default defineDemo({
             const label = new Text({ text: mode, style: { fill: 0x8e8e93, fontSize: 13, fontFamily: 'system-ui' } });
 
             label.anchor.set(0.5, 0);
-            label.position.set(90 + i * 150, 168);
+            label.position.set(left + side / 2 + i * step, 40 + side + 28);
             stage.addChild(label);
         });
         tick(() => {
             g.clear();
             MODES.forEach((alignment, i) => {
-                const x = 40 + i * 150;
+                const x = left + i * step;
 
                 // fill + stroke on the same shape share one instance and never leave a seam
-                g.roundRect(x, 40, 100, 100, 22, 0.6)
+                g.roundRect(x, 40, side, side, side * 0.22, 0.6)
                     .fill(0x2c2c2e)
                     .stroke({ width: params.width, color: 0x30d158, alpha: 0.85, alignment });
-                g.roundRect(x, 40, 100, 100, 22, 0.6).stroke({ width: 1, color: 0xffffff, alpha: 0.6 }); // the geometric edge
+                g.roundRect(x, 40, side, side, side * 0.22, 0.6).stroke({ width: 1, color: 0xffffff, alpha: 0.6 }); // the geometric edge
             });
         });
     },
@@ -2432,16 +2378,20 @@ import { defineDemo, INK, label } from './runtime';
 export default defineDemo({
     title: 'Hairlines',
     size: [720, 240],
+    phone: { size: [360, 230] },
     controls: {
         scale: { type: 'range', label: 'width scale', min: 0.05, max: 2, step: 0.01, value: 0.5 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, phone }) {
         const g = new SilkGraphics();
-        const cx = 360;
-        const cy = 210;
-        const r = 180;
-        const thinnest = label('', cx - r - 12, cy - 8, {}, 1);
-        const widest = label('', cx + r + 12, cy - 8);
+        const cx = width / 2;
+        const cy = phone ? 180 : 210;
+        const r = phone ? 150 : 180;
+        // the width readouts sit beside the fan, or under its ends on phones
+        const thinnest = phone ? label('', cx - r, cy + 12) : label('', cx - r - 12, cy - 8, {}, 1);
+        const widest = phone ? label('', cx + r, cy + 12) : label('', cx + r + 12, cy - 8);
+
+        if (phone) widest.anchor.set(1, 0);
 
         stage.addChild(g, thinnest, widest);
         tick((t) => {
@@ -2639,12 +2589,17 @@ import { defineDemo } from './runtime';
 export default defineDemo({
     title: 'Gradients',
     size: [480, 240],
+    // phones: the same rows, 320 wide
+    phone: { size: [360, 240] },
     controls: {
         space: { type: 'select', label: 'space', options: ['oklab', 'linear', 'srgb'], value: 'oklab' },
         easing: { type: 'select', label: 'easing', options: ['linear', 'smooth'], value: 'linear' },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, phone }) {
         const g = new SilkGraphics();
+        const bar = width - 40;
+        // centres of the radial, the conic and the arc
+        const xs = phone ? [60, 140, 220] : [80, 160, 240];
         const label = new Text({ text: '', style: { fill: 0x8e8e93, fontSize: 12, fontFamily: 'system-ui' } });
 
         label.position.set(20, 214);
@@ -2654,11 +2609,11 @@ export default defineDemo({
 
             g.clear();
             // gradient objects are cheap: ramps with the same stops share one atlas row
-            g.roundRect(20, 20, 440, 50, 14).fill(linear([0x0a84ff, 0xffd60a], options));
-            g.roundRect(20, 84, 440, 50, 14).fill(linear([0xff375f, 0x30d158, 0x5e5ce6], options));
-            g.circle(80, 180, 26).fill(radial([0xffffff, 0xff9f0a, [1, 0xff375f, 0]], options));
-            g.circle(160, 180, 26).fill(conic([0xff375f, 0xffd60a, 0x30d158, 0x64d2ff, 0xbf5af2, 0xff375f], options));
-            g.arcSweep(240, 180, 22, 0, Math.PI * 1.6).stroke({
+            g.roundRect(20, 20, bar, 50, 14).fill(linear([0x0a84ff, 0xffd60a], options));
+            g.roundRect(20, 84, bar, 50, 14).fill(linear([0xff375f, 0x30d158, 0x5e5ce6], options));
+            g.circle(xs[0], 180, 26).fill(radial([0xffffff, 0xff9f0a, [1, 0xff375f, 0]], options));
+            g.circle(xs[1], 180, 26).fill(conic([0xff375f, 0xffd60a, 0x30d158, 0x64d2ff, 0xbf5af2, 0xff375f], options));
+            g.arcSweep(xs[2], 180, 22, 0, Math.PI * 1.6).stroke({
                 width: 10,
                 cap: 'round',
                 gradient: conic([0x30d158, 0xff453a], options),
@@ -3327,8 +3282,11 @@ import { defineDemo, INK, label } from './runtime';
 export default defineDemo({
     title: 'Odometer counter',
     size: [720, 240],
+    // the counter is centred on the width: phones get a narrower panel
+    phone: { size: [360, 240] },
     touchAction: 'none',
-    setup({ silk, stage, tick }) {
+    setup({ silk, stage, tick, width, height, phone }) {
+        const cx = width / 2;
         const ticker = silk.app.ticker;
         const panel = new SilkGraphics();
         const downloads = new Odometer({ ticker, value: 12480, fontSize: 44 });
@@ -3344,11 +3302,11 @@ export default defineDemo({
         const hit = new Container();
         let f = 0;
 
-        panel.roundRect(140, 24, 440, 130, 22, 0.6).fill(INK.surface);
-        downloads.position.set(360, 100);
-        frame.position.set(360, 196);
+        panel.roundRect(phone ? 20 : 140, 24, phone ? 320 : 440, 130, 22, 0.6).fill(INK.surface);
+        downloads.position.set(cx, 100);
+        frame.position.set(cx, 196);
         hit.eventMode = 'static';
-        hit.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 720 && y <= 240 };
+        hit.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
         hit.cursor = 'pointer';
         hit.on('pointertap', () => {
             if (downloads.state.counting.value) {
@@ -3364,9 +3322,9 @@ export default defineDemo({
         });
         stage.addChild(
             panel,
-            label('Downloads', 360, 40, {}, 0.5),
+            label('Downloads', cx, 40, {}, 0.5),
             downloads,
-            label('Frame', 360, 162, {}, 0.5),
+            label('Frame', cx, 162, {}, 0.5),
             frame,
             hit,
         );
@@ -3657,14 +3615,17 @@ import { defineDemo, INK, PALETTE, readout } from './runtime';
 export default defineDemo({
     title: 'Stress test',
     size: [720, 280],
+    // phones: a taller strip with the stats on two lines, a narrower spiral
+    phone: { size: [360, 300] },
     controls: {
         count: { type: 'range', label: 'primitives', min: 500, max: 30000, step: 500, value: 5000 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, phone }) {
         const g = new SilkGraphics();
         // the stats sit in a strip above the drawing
-        const strip = new Graphics().rect(0, 0, 720, 40).fill(INK.surface).rect(0, 40, 720, 1).fill(INK.line);
-        const stats = readout('', 24, 13, { fontSize: 13 });
+        const top = phone ? 58 : 40;
+        const strip = new Graphics().rect(0, 0, width, top).fill(INK.surface).rect(0, top, width, 1).fill(INK.line);
+        const stats = readout('', phone ? 16 : 24, 13, phone ? { fontSize: 13, lineHeight: 18 } : { fontSize: 13 });
 
         stage.addChild(g, strip, stats);
         let cpu = 0;
@@ -3676,15 +3637,15 @@ export default defineDemo({
             for (let i = 0; i < params.count; i++) {
                 const a = i * 2.399963 + t * 0.2;
                 const r = Math.sqrt(i / params.count) * 100;
-                const x = 360 + Math.cos(a) * r * 2.6;
-                const y = 160 + Math.sin(a) * r;
+                const x = width / 2 + Math.cos(a) * r * (phone ? 1.6 : 2.6);
+                const y = (phone ? 180 : 160) + Math.sin(a) * r;
 
                 if (i % 3 === 0) g.circle(x, y, 2.2).fill(PALETTE.pink);
                 else if (i % 3 === 1) g.roundRect(x - 2, y - 2, 4, 4, 1).fill(PALETTE.blue);
                 else g.line(x, y, x + 5, y + 2).stroke({ width: 1, color: PALETTE.green });
             }
             cpu = cpu * 0.9 + (performance.now() - start) * 0.1;
-            stats.text = `${params.count} primitives   1 draw call   rebuilt in ${cpu.toFixed(1)} ms`;
+            stats.text = `${params.count} primitives   1 draw call${phone ? '\n' : '   '}rebuilt in ${cpu.toFixed(1)} ms`;
         });
     },
 });

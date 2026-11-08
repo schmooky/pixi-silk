@@ -1443,7 +1443,13 @@ export default defineDemo({
     // phones: a tall area, so a portrait device shows at about 0.85 of its real size
     phone: { size: [360, 700] },
     controls: {
-        device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
+        device: {
+            type: 'select',
+            label: 'device',
+            options: Object.keys(DEVICES),
+            value: 'desktop',
+            phoneValue: 'phone portrait',
+        },
         notch: { type: 'toggle', label: 'notch', value: false },
         debug: { type: 'toggle', label: 'debug', value: false },
     },
@@ -3796,7 +3802,9 @@ export default defineDemo({
 
         surface.eventMode = 'static';
         surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
-        stage.addChild(new Sprite(canvas), surface, brush);
+        const paper = new Sprite(canvas);
+
+        stage.addChild(paper, surface, brush);
 
         const stamp = (x: number, y: number, pressure: number) => {
             const { size, hardness, opacity } = brush.state;
@@ -3863,7 +3871,11 @@ export default defineDemo({
         surface.on('pointerup', stop);
         surface.on('pointerupoutside', stop);
 
-        return () => canvas.destroy(true);
+        return () => {
+            // take the sprite off the stage first, then free the texture once the GPU is done with it
+            paper.destroy();
+            requestAnimationFrame(() => canvas.destroy(true));
+        };
     },
 });
 ```

@@ -21,6 +21,8 @@ export interface RangeControl {
     max: number;
     step?: number;
     value: number;
+    /** Starting value while the demo runs its phone layout. Default `value`. */
+    phoneValue?: number;
     unit?: string;
 }
 
@@ -28,6 +30,8 @@ export interface ToggleControl {
     type: 'toggle';
     label?: string;
     value: boolean;
+    /** Starting value while the demo runs its phone layout. Default `value`. */
+    phoneValue?: boolean;
 }
 
 export interface SelectControl {
@@ -35,6 +39,8 @@ export interface SelectControl {
     label?: string;
     options: readonly string[];
     value: string;
+    /** Starting value while the demo runs its phone layout. Default `value`. */
+    phoneValue?: string;
 }
 
 export type Control = RangeControl | ToggleControl | SelectControl;
@@ -107,8 +113,13 @@ export interface MountedDemo {
     destroy(): void;
 }
 
-export const initialValues = (controls: Controls = {}): Record<string, unknown> =>
-    Object.fromEntries(Object.entries(controls).map(([key, c]) => [key, c.value]));
+/** Starting control values. `phone` picks each control's `phoneValue` where it has one. */
+export const initialValues = (controls: Controls = {}, phone = false): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(controls).map(([key, c]) => [key, phone ? (c.phoneValue ?? c.value) : c.value]));
+
+/** True when a frame this wide runs the demo's phone layout. */
+export const runsPhone = (demo: Pick<Demo, 'phone'>, frameWidth: number): boolean =>
+    demo.phone !== undefined && frameWidth > 0 && frameWidth < (demo.phone.below ?? 560);
 
 /** `?renderer=webgpu` (or `webgl`) in the page URL: a switch to check every demo on one renderer. */
 function urlRenderer(): RendererPreference | null {

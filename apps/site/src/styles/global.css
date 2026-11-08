@@ -436,32 +436,35 @@
         background: hsl(var(--accent));
         color: hsl(var(--foreground));
     }
-    /* Studio link on a demo with no controls: a small chip over the canvas */
-    .demo-chip {
-        position: absolute;
-        right: 0.6rem;
-        top: 0.6rem;
-        z-index: 2;
-        display: inline-flex;
-        height: 1.75rem;
-        align-items: center;
-        gap: 0.35rem;
-        border-radius: 999px;
-        border: 1px solid hsl(0 0% 100% / 0.14);
-        background: hsl(240 9% 5% / 0.72);
-        padding-inline: 0.6rem;
-        font-size: 11px;
-        font-weight: 500;
-        color: hsl(0 0% 100% / 0.72);
-        opacity: 0.7;
-        backdrop-filter: blur(8px);
-        transition: opacity 0.15s;
+    /* narrow frames run a demo's phone layout: take its aspect ratio before the module loads */
+    .demo {
+        container-type: inline-size;
     }
-    .demo-chip:hover,
-    .demo-chip:focus-visible,
-    .demo:hover .demo-chip {
-        opacity: 1;
-        color: #fff;
+    @container (max-width: 559.98px) {
+        .demo-phone {
+            height: auto !important;
+            aspect-ratio: var(--phone-ratio);
+        }
+    }
+    /* controls shrink and wrap instead of running past the frame */
+    .demo-controls > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .demo-controls select {
+        min-width: 0;
+        max-width: 100%;
+    }
+    /* Studio link of a demo with no control bar: in the caption line, under the canvas */
+    .demo-studio-link {
+        flex-shrink: 0;
+        color: hsl(var(--muted-foreground));
+        text-decoration: underline;
+        text-decoration-color: hsl(var(--border));
+        text-underline-offset: 3px;
+    }
+    .demo-studio-link:hover {
+        color: hsl(var(--foreground));
     }
 
     /* ------------------------------------------------------------------ docs prose */

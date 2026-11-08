@@ -6,6 +6,15 @@
 
 - pixi-silk 1.0. The core API (`SilkGraphics`, `createSilkApp`, gradients, paint effects, `pixi-silk/glass`, `pixi-silk/glow`, `pixi-silk/text`, `pixi-silk/layout`, `pixi-silk/webgpu`) is now stable and follows semver. The editor kit under `pixi-silk/ui` (camera, rulers, guides, marquee, gizmos, text editor, path gizmo, panels and the other editor widgets) is marked `@experimental` and may change in a minor release. The package ships agent skills in `skills/`.
 
+### Fixes in 1.0.0
+
+- `Glass` panes rotate and take an uneven scale: the shape, rim and refraction follow the transform on WebGL2 and WebGPU. `GlassFilter.setRotation()` sets the angle when you use the filter alone.
+- `ChannelSliders` built without a `model` share one model across their tracks and expose it as `model`.
+- `MiniTimeline` takes `fontSize`, `fontFamily` and a `label` factory for its ruler numbers.
+- `Camera` sets the CSS `touch-action` of its element to `none` while it lives, so a pinch zooms the camera, not the page. Two-finger flings glide at finger speed.
+- `createSilkApp` ends drags when the browser cancels a pointer, so a touch the page takes over for a scroll no longer leaves a scrubber, gizmo or panel stuck mid-drag.
+- `SdfAtlas` moves to a new texture when it grows and frees the old one after the frame, which removes a WebGPU "Destroyed texture used in a submit" warning.
+
 ### Minor Changes
 
 - New `pixi-silk/ui/camera`. `Camera` pans and zooms a world container like a design tool: pinch, ctrl or cmd + wheel, scroll, middle, right and Space drags, two-finger touch and flings. `fit`, `zoomTo` and `centerOn` animate, and zoom and position are signals. `ZoomControl` draws a `- 100% +` bar for it.

@@ -83,7 +83,13 @@ export default defineDemo({
     // phones: a tall area, so a portrait device shows at about 0.85 of its real size
     phone: { size: [360, 700] },
     controls: {
-        device: { type: 'select', label: 'device', options: Object.keys(DEVICES), value: 'desktop' },
+        device: {
+            type: 'select',
+            label: 'device',
+            options: Object.keys(DEVICES),
+            value: 'desktop',
+            phoneValue: 'phone portrait',
+        },
         notch: { type: 'toggle', label: 'notch', value: false },
         debug: { type: 'toggle', label: 'debug', value: false },
     },
