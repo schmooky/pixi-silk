@@ -39,6 +39,7 @@ export default defineConfig({
         'src/ui/arc.ts',
         'src/ui/keys.ts',
         'src/ui/pill.ts',
+        'src/ui/textedit.ts',
     ],
     // ESM only, one output file per source module: with `sideEffects: false` an app's bundler
     // drops every module it does not use (motion helpers never pull in the shader)

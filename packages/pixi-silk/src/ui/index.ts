@@ -298,6 +298,15 @@ export {
     spacingFromSnap,
 } from './spacing';
 export {
+    TEXT_EDITOR_THEME,
+    type TextEditKind,
+    TextEditor,
+    type TextEditorOptions,
+    type TextEditorState,
+    type TextEditorTheme,
+    type TextSelection,
+} from './textedit';
+export {
     MiniTimeline,
     type MiniTimelineOptions,
     TIMELINE_THEME,

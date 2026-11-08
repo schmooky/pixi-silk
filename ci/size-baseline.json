@@ -120,18 +120,21 @@
     "gzip": 25172
   },
   "text": {
-    "gzip": 10342
+    "gzip": 11900
   },
   "text (SilkText)": {
-    "gzip": 10117
+    "gzip": 11083
   },
   "text (layoutText, sdfFromAlpha)": {
-    "gzip": 1434
+    "gzip": 1795
+  },
+  "ui/textedit (TextEditor)": {
+    "gzip": 39344
   },
   "ui/pill (ValuePill)": {
     "gzip": 23408
   },
   "ui (everything)": {
-    "gzip": 83616
+    "gzip": 99322
   }
 }
