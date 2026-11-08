@@ -4,23 +4,30 @@ import AreaHub from '@/components/AreaHub.astro';
 import Callout from '@/components/Callout.astro';
 import Demo from '@/components/Demo.astro';
 import Glossary from '@/components/Glossary.astro';
+import SectionHub from '@/components/SectionHub.astro';
+import { docsSections } from '@/components/sections';
 import Docs from '@/layouts/Docs.astro';
 import { apiPages } from '@/lib/api';
-import { docsAreas } from '@/lib/docs';
 
-// `/docs/<page>/` renders a guide, `/docs/<area>/` the hub that introduces an area.
+// `/docs/<page>/` renders a guide, `/docs/<area>/` the hub that introduces an area, and
+// `/docs/<section>/` the hub of a section that no area of the same id introduces (Features).
 // Area ids never equal page ids (checked in lib/docs.ts).
 export async function getStaticPaths() {
     const docs = await getCollection('docs');
-    const areas = await docsAreas();
+    const sections = await docsSections();
+    const areas = sections.flatMap((s) => s.areas.map((area) => ({ area, section: s })));
+    const taken = new Set([...docs.map((d) => d.id), ...areas.map((a) => a.area.id)]);
 
     return [
-        ...docs.map((entry) => ({ params: { slug: entry.id }, props: { entry, area: undefined } })),
-        ...areas.map((area) => ({ params: { slug: area.id }, props: { entry: undefined, area } })),
+        ...docs.map((entry) => ({ params: { slug: entry.id }, props: { entry, area: undefined, section: undefined } })),
+        ...areas.map(({ area, section }) => ({ params: { slug: area.id }, props: { entry: undefined, area, section } })),
+        ...sections
+            .filter((s) => s.hub && !taken.has(s.id))
+            .map((section) => ({ params: { slug: section.id }, props: { entry: undefined, area: undefined, section } })),
     ];
 }
 
-const { entry, area } = Astro.props;
+const { entry, area, section } = Astro.props;
 const reference = apiPages();
 const page = entry ? { ...(await render(entry)), data: entry.data, id: entry.id } : null;
 const refs = (page?.data.api ?? []).map((name) => ({ name, href: reference.find((p) => p.title === name)?.href ?? '/api/' }));
@@ -28,7 +35,12 @@ const refs = (page?.data.api ?? []).map((name) => ({ name, href: reference.find(
 
 {area && (
     <Docs title={area.title} seoTitle={`${area.title}: pixi-silk docs for smooth PixiJS v8 graphics`} description={area.summary} area={area.id} markdown={`/docs/${area.id}.md`}>
-        <AreaHub area={area} />
+        <AreaHub area={area} section={section} />
+    </Docs>
+)}
+{!area && !entry && section && (
+    <Docs title={section.title} seoTitle={`${section.title}: every pixi-silk feature for PixiJS v8`} description={`${section.summary} Each page opens with live demos and their source.`} hubSection={section.id} image="/og/section/docs.png">
+        <SectionHub section={section} />
     </Docs>
 )}
 {page && (
