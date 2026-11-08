@@ -442,6 +442,7 @@
     }
     @container (max-width: 559.98px) {
         .demo-phone {
+            /* biome-ignore lint/complexity/noImportantStyles: beats the frame's inline height until the demo mounts */
             height: auto !important;
             aspect-ratio: var(--phone-ratio);
         }
