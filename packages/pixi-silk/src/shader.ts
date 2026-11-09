@@ -185,12 +185,14 @@ const float TAU = 6.28318530717959;
 float gPx;
 float gSigma;
 int gBase; // first path texel of this object in uPolys (non-zero in batched draws)
+// Width of uPolys, read once in main. ANGLE's Direct3D 11 backend turns textureSize into
+// GetDimensions, and FXC fails on it inside the path loops ("invalid access of unbound variable").
+int gPolysW;
 
 vec4 polyTexel(int i)
 {
-    int w = textureSize(uPolys, 0).x;
-    i += gBase;
-    return texelFetch(uPolys, ivec2(i % w, i / w), 0);
+    int t = i + gBase;
+    return texelFetch(uPolys, ivec2(t % gPolysW, t / gPolysW), 0);
 }
 
 float erfApprox(float x)
@@ -815,6 +817,7 @@ void main(void)
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
     gBase = int(vBase + 0.5);
+    gPolysW = textureSize(uPolys, 0).x;
 
     int type = int(vMeta.x + 0.5);
     if (type == 10)

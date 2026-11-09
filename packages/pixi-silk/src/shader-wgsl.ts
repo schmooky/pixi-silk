@@ -209,11 +209,12 @@ var<private> gL: f32;
 var<private> gHwEff: f32;
 var<private> gAlign: f32;
 var<private> gBase: i32; // first path texel of this object in uPolys (non-zero in batched draws)
+// width of uPolys, read once in fs_main, as in the GLSL twin (FXC fails on it inside the path loops)
+var<private> gPolysW: i32;
 
 fn polyTexel(i0: i32) -> vec4<f32> {
-    let w = i32(textureDimensions(uPolys, 0).x);
     let i = i0 + gBase;
-    return textureLoad(uPolys, vec2<i32>(i % w, i / w), 0);
+    return textureLoad(uPolys, vec2<i32>(i % gPolysW, i / gPolysW), 0);
 }
 
 // GLSL mod: x - y * floor(x / y)
@@ -876,6 +877,7 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
     gBase = i32(input.vBase + 0.5);
+    gPolysW = i32(textureDimensions(uPolys, 0).x);
 
     let prim = i32(vMeta.x + 0.5);
     if (prim == 10) {
