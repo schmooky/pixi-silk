@@ -40,11 +40,33 @@ jobs:
         shell: pwsh
         env:
           CHROME_PATH: C:\Program Files\Google\Chrome\Application\chrome.exe
-          CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu --enable-logging=stderr --v=0
+          CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu --enable-logging=stderr --v=0 --enable-gpu-service-logging
           DEBUG: pw:browser
         run: node scripts/check-render.mjs --renderer=webgl 2>&1 | Tee-Object -FilePath render.log; exit $LASTEXITCODE
 
       - name: Compiler errors from Chrome's log
         if: failure()
         shell: pwsh
-        run: Select-String -Path render.log -Pattern 'error X|HLSL|D3DCompile|Failed to compile|ANGLE' | Select-Object -First 80
+        run: Select-String -Path render.log -Pattern 'error X|warning X|HLSL|D3DCompile|Failed to compile|compiler' | Select-Object -First 80
+
+      - name: Translated HLSL, compiled with FXC
+        # what ANGLE handed to Direct3D, compiled on its own so FXC prints the reason and the time
+        if: always()
+        shell: pwsh
+        env:
+          CHROME_PATH: C:\Program Files\Google\Chrome\Application\chrome.exe
+          CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu
+        run: |
+          node scripts/dump-hlsl.mjs --out=hlsl
+          $fxc = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter fxc.exe | Where-Object FullName -like '*x64*' | Select-Object -First 1
+          Write-Output "fxc: $($fxc.FullName)"
+          Select-String -Path hlsl/fragment.hlsl -Pattern '@@|main\(|gl_main|PS_OUTPUT' | Select-Object -First 20
+          $t = Measure-Command { & $fxc.FullName /nologo /T ps_5_0 /E main /O1 /Fo hlsl/fragment.cso hlsl/fragment.hlsl 2>&1 | Tee-Object -FilePath hlsl/fxc.log | Select-Object -First 60 | Out-Host }
+          Write-Output "fxc took $([math]::Round($t.TotalSeconds, 1)) s"
+          exit 0
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: hlsl
+          path: hlsl/
