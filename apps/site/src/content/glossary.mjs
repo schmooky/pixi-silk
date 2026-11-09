@@ -10,7 +10,7 @@ export const GLOSSARY = [
         aka: ['antialiasing', 'AA'],
         definition:
             'Techniques that remove the jagged "staircase" look of edges on a pixel grid. Each edge pixel gets a partial colour proportional to how much of it the shape covers.',
-        see: '/docs/antialiasing-in-pixijs/',
+        see: '/docs/anti-aliasing-compared/',
     },
     {
         term: 'Aliasing',
@@ -29,7 +29,7 @@ export const GLOSSARY = [
         aka: ['multisample anti-aliasing'],
         definition:
             'A GPU technique that stores several coverage samples per pixel (typically 4) and averages them. In PixiJS, you enable it with antialias: true. By default it covers only the main canvas. Filters and render textures must opt in one by one.',
-        see: '/docs/antialiasing-in-pixijs/',
+        see: '/docs/anti-aliasing-compared/',
     },
     {
         term: 'SSAA',
@@ -76,27 +76,27 @@ export const GLOSSARY = [
         term: 'Hairline',
         definition:
             'A line thinner than one device pixel. pixi-silk keeps hairlines one pixel wide and scales their opacity with their width, so they fade instead of breaking up.',
-        see: '/docs/fills-and-strokes/#hairlines',
+        see: '/docs/strokes-and-dashes/',
     },
     {
         term: 'Squircle',
         aka: ['superellipse corner', 'continuous corner'],
         definition:
             'A rounded rectangle whose corners are superellipse arcs, so curvature grows gradually from the straight edge instead of jumping. iOS app icons and cards use it.',
-        see: '/docs/shapes/#rectangles-and-squircles',
+        see: '/docs/shapes/',
     },
     {
         term: 'OKLab',
         definition:
             'A perceptual colour space by Björn Ottosson, where equal steps look equally different. Gradients interpolated in OKLab stay bright and even, without muddy midpoints.',
-        see: '/docs/gradients/#colour-space',
+        see: '/docs/gradients/',
     },
     {
         term: 'Gradient banding',
         aka: ['colour banding'],
         definition:
             'Visible steps in a smooth gradient caused by 8-bit colour precision, most obvious in dark, wide gradients.',
-        see: '/docs/gradients/#no-banding',
+        see: '/docs/gradients/',
     },
     {
         term: 'Dithering',

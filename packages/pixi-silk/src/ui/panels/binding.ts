@@ -14,7 +14,7 @@ export interface InspectorBinding {
     subscribe?(fn: () => void): () => void;
 }
 
-/** The value at a dot path such as `position.x`. */
+/** The value at a dot path such as `position.x`. Undefined when a step on the way is missing. */
 export function getPath(target: unknown, path: string): unknown {
     let v: unknown = target;
 
@@ -26,7 +26,7 @@ export function getPath(target: unknown, path: string): unknown {
     return v;
 }
 
-/** Sets the value at a dot path such as `position.x`. Missing objects on the way are not created. */
+/** Sets the value at a dot path such as `position.x`. Missing objects on the way are not created, and the write is skipped. */
 export function setPath(target: unknown, path: string, value: unknown): void {
     const parts = path.split('.');
     const last = parts.pop() as string;
@@ -37,7 +37,8 @@ export function setPath(target: unknown, path: string, value: unknown): void {
 
 /**
  * Edits plain objects or display objects. Keys are dot paths, such as `position.x`, `alpha` or
- * `style.fill`. Pass the selection's items to edit several objects at once.
+ * `style.fill`. Pass the selection's items to edit several objects at once. The list is copied.
+ * The binding does not watch the objects: call `Inspector.refresh` after changing them elsewhere.
  *
  * @example
  * ```ts
@@ -59,6 +60,7 @@ export function bindObjects(targets: readonly object[]): InspectorBinding {
 
 /** A signal the inspector can write. */
 export interface WritableSignal<T = unknown> extends ReadSignal<T> {
+    /** Replaces the value and notifies subscribers. */
     set(value: T): void;
 }
 

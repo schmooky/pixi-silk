@@ -1,4 +1,4 @@
-// pixi-silk/ui/layout: SmartContainer places a design box in the window the way slot games do,
+// pixi-silk/ui/layout: SmartContainer places a design box in portrait and landscape windows,
 // FlexContainer lays out children with the headless flex engine inside it.
 
 export { type LayoutDebug, type LayoutDebugOptions, layoutDebug } from './layout/debug';

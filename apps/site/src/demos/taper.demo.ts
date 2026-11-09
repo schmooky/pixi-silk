@@ -4,6 +4,7 @@ import { defineDemo } from './runtime';
 const INK = along([0xff9f0a, 0xff375f, 0xbf5af2]);
 
 export default defineDemo({
+    title: 'Tapered strokes',
     size: [480, 220],
     controls: {
         start: { type: 'range', label: 'start width', min: 0, max: 30, step: 0.5, value: 2 },

@@ -11,6 +11,6 @@ export interface TextLabel extends Container {
 /**
  * Builds the label of a widget from the style the widget asks for. Widgets that show text take one
  * as their `label` option, so they never import a text renderer you do not use. Pass `silkLabel()`
- * from `pixi-silk/text` for labels that stay sharp under a zooming camera.
+ * from `pixi-silk/text` for distance-field labels, which a zooming camera scales without re-rasterising.
  */
 export type LabelFactory = (style: TextStyleOptions) => TextLabel;

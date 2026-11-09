@@ -33,7 +33,7 @@ export interface ModeSwitcherOptions {
     menu?: Omit<RadialMenuOptions, 'items' | 'onSelect' | 'onClose' | 'ticker'>;
     /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link ModeSwitcher.tick}. */
     ticker?: Ticker | null;
-    /** The mode changed. */
+    /** Called after the mode changes, with the new id and the one before it. */
     onChange?: (mode: string, previous: string | null) => void;
 }
 
@@ -56,9 +56,15 @@ export interface ModeSwitcherState {
  * - Long-press `longPressTarget` on touch screens: the same ring, picked by sliding the finger.
  *
  * The keyboard only acts while the pointer is over the canvas (it moved there in the last few
- * seconds) and never while a text field has focus. Keep the switcher on top of the stage.
+ * seconds) and never while a text field has focus. Keep the switcher on top of the stage. Key
+ * handling listens on `window`. The switcher picks modes only: your app decides what each mode does.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class ModeSwitcher extends Container {
+    /** Current, previous and recent modes. Read them, and switch with {@link ModeSwitcher.set}. */
     readonly state: ModeSwitcherState;
     /** The ring. Style it through the `menu` option. */
     readonly menu: RadialMenu;
@@ -132,7 +138,7 @@ export class ModeSwitcher extends Container {
         this._opts.onChange?.(id, current);
     }
 
-    /** Swaps back to the previous mode. */
+    /** Swaps back to the previous mode. No-op before the first switch. */
     toggle(): void {
         const prev = this.state.previous.value;
 
@@ -162,11 +168,12 @@ export class ModeSwitcher extends Container {
         });
     }
 
-    /** Advances the ring's animation (only needed with `ticker: null`). */
+    /** Advances the ring's animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this.menu.tick(dt);
     }
 
+    /** Stops the hold timer, the key listener and the long-press gesture. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._clearTimer();
         this._waitClosed?.();
@@ -233,21 +240,29 @@ export class ModeSwitcher extends Container {
 
 /** One choice of a {@link SegmentedSwitch}. */
 export interface SegmentOption {
+    /** Value the switch reports when this segment is selected. Unique within the switch. */
     id: string;
+    /** Text shown when there is no `icon`. */
     label?: string;
+    /** Icon shown instead of `label`, sized by `iconSize`. */
     icon?: IconSource;
 }
 
 /** Colours of a {@link SegmentedSwitch} (any Pixi colour). */
 export interface SegmentedTheme {
+    /** Pill background. */
     track: number | string;
+    /** The sliding thumb behind the selected segment. */
     thumb: number | string;
+    /** Labels and icons of unselected segments. */
     content: number | string;
+    /** Label or icon of the selected segment. */
     contentActive: number | string;
+    /** Soft shadow under the thumb. */
     shadow: number | string;
 }
 
-/** Dark default theme. */
+/** Dark default theme of {@link SegmentedSwitch}. Override single colours with the `theme` option. */
 export const SEGMENTED_THEME: Readonly<SegmentedTheme> = {
     track: 0x2c2c2e,
     thumb: 0x636366,
@@ -258,28 +273,35 @@ export const SEGMENTED_THEME: Readonly<SegmentedTheme> = {
 
 /** Options of {@link SegmentedSwitch}. */
 export interface SegmentedSwitchOptions {
+    /** Segments from left to right. Fixed after construction. */
     options: SegmentOption[];
     /** Selected id. Default the first. */
     value?: string;
     /** Minimum width of a segment. Segments grow to fit their content. Default 64. */
     segmentWidth?: number;
-    /** Default 36. */
+    /** Pill height. Default 36. */
     height?: number;
     /** Gap between track and thumb. Default 3. */
     padding?: number;
-    /** Default 18. */
+    /** Icon size of segments with an `icon`. Default 18. */
     iconSize?: number;
+    /** Style of segment labels. Default font size 13. */
     textStyle?: TextStyleOptions;
+    /** Colours that replace parts of {@link SEGMENTED_THEME}. */
     theme?: Partial<SegmentedTheme>;
+    /** Per pointer kind overrides of `slop`, which sets how far off the pill a slide still counts. */
     profiles?: InputProfiles;
     /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link SegmentedSwitch.tick}. */
     ticker?: Ticker | null;
+    /** Called when `state.value` changes, by the user or by code. */
     onChange?: (id: string, previous: string) => void;
 }
 
 /** The reactive state of a {@link SegmentedSwitch}. Write `value` or `enabled` to change it. */
 export interface SegmentedState {
+    /** Selected segment id. Setting it slides the thumb and calls `onChange`. */
     value: Signal<string>;
+    /** False ignores input. Default true. */
     enabled: Signal<boolean>;
 }
 
@@ -295,9 +317,14 @@ interface Segment {
  *
  * Tap a segment, or press and slide along the pill (the thumb follows the finger and the choice
  * lands on release). Centred on its position. Works for toolbars (select, move, rotate) and for
- * slot speed modes.
+ * speed or quality settings. Segments cannot be added or removed after construction.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class SegmentedSwitch extends Container {
+    /** Selected id and enabled flag. Write to them to change the switch. */
     readonly state: SegmentedState;
 
     private readonly _opts: SegmentedSwitchOptions;
@@ -377,7 +404,7 @@ export class SegmentedSwitch extends Container {
         this._driver.wake();
     }
 
-    /** Width of the pill. */
+    /** Width of the pill: the sum of the segment widths. */
     get switchWidth(): number {
         return this._w;
     }
@@ -392,6 +419,7 @@ export class SegmentedSwitch extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });

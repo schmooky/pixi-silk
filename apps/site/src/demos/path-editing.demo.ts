@@ -7,14 +7,14 @@ import { SilkButton } from 'pixi-silk/ui/button';
 import { Camera } from 'pixi-silk/ui/camera';
 import { SegmentedSwitch } from 'pixi-silk/ui/modes';
 import { PathGizmo } from 'pixi-silk/ui/pathgizmo';
-import { defineDemo } from './runtime';
+import { defineDemo, FONT, INK } from './runtime';
 
 // Drag anchors and handles. Click the outline to add a point, double-click a point to switch it
 // between corner and smooth, Alt + drag a handle to break the curve. The pen adds points: click
 // for corners, drag for curves, click the first point to close. Cmd or ctrl + Z undoes.
 export default defineDemo({
-    size: [760, 480],
-    background: 0x151517,
+    title: 'Path editing',
+    size: [720, 480],
     touchAction: 'none',
     ownsCamera: true,
     controls: {
@@ -52,7 +52,7 @@ export default defineDemo({
         const tools = new SegmentedSwitch({
             ticker: app.ticker,
             value: 'edit',
-            segmentWidth: 64,
+            segmentWidth: 52,
             height: 32,
             options: [
                 { id: 'edit', label: 'Edit' },
@@ -60,7 +60,7 @@ export default defineDemo({
             ],
         });
         const button = (label: string, onPress: () => void) =>
-            new SilkButton({ ticker: app.ticker, label, width: 72, height: 32, theme: dark, onPress });
+            new SilkButton({ ticker: app.ticker, label, width: 60, height: 32, theme: dark, onPress });
         const undo = button('Undo', () => history.undo());
         const redo = button('Redo', () => history.redo());
         const fresh = button('New', () => {
@@ -69,16 +69,20 @@ export default defineDemo({
         });
         const hint = new Text({
             text: '',
-            style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fill: 0x8e8e93 },
+            style: { fontFamily: FONT, fontSize: 12, fill: INK.muted },
             resolution: 4,
         });
 
         overlay.addChild(tools, undo, redo, fresh, hint);
-        tools.position.set(76, 28);
-        undo.position.set(200, 28);
-        redo.position.set(280, 28);
-        fresh.position.set(360, 28);
-        hint.position.set(16, 452);
+        // one row from the left edge, 318 px wide in all: it fits a phone
+        tools.position.set(68, 32);
+        undo.position.set(156, 32);
+        redo.position.set(222, 32);
+        fresh.position.set(288, 32);
+        const placeHint = () => hint.position.set(16, app.screen.height - 28);
+
+        placeHint();
+        app.renderer.on('resize', placeHint);
         stops.push(
             // the switch and the gizmo share one tool
             watch(tools.state.value, (v) => gizmo.state.tool.set(v === 'pen' ? 'pen' : 'edit')),
@@ -95,10 +99,11 @@ export default defineDemo({
 
         const b = pathBounds(heart);
 
-        camera.fit(b, 72, false);
+        camera.fit(b, { left: 48, right: 48, top: 72, bottom: 48 }, false);
 
         return () => {
             for (const stop of stops) stop();
+            app.renderer.off('resize', placeHint);
             camera.destroy();
         };
     },

@@ -16,7 +16,7 @@
 @font-face {
     font-family: "Inter";
     src: url("/fonts/Inter-700.woff") format("woff");
-    font-weight: 700;
+    font-weight: 700 800;
     font-display: swap;
 }
 @font-face {
@@ -43,6 +43,8 @@
     --color-border: hsl(var(--border));
     --color-ring: hsl(var(--ring));
     --color-silk: hsl(var(--silk));
+    --color-silk-text: hsl(var(--silk-text));
+    --color-demo: hsl(var(--demo-bg));
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
@@ -63,45 +65,54 @@
 }
 
 @layer base {
+    /*
+     * Neutral zinc surfaces with one hue: the violet of the silk gradient. `--silk` fills and
+     * outlines (active marks, range inputs), `--silk-text` is the same hue dark or light enough to
+     * read as text on the page: eyebrows, links on hover, the current page.
+     */
     :root {
         color-scheme: light;
         --background: 0 0% 100%;
         --foreground: 240 10% 4%;
-        --card: 240 5% 98%;
+        --card: 240 6% 97.5%;
         --card-foreground: 240 10% 4%;
-        --muted: 240 5% 95%;
-        --muted-foreground: 240 4% 44%;
+        --muted: 240 5% 94.5%;
+        --muted-foreground: 240 4% 38%;
         --accent: 240 5% 94%;
         --accent-foreground: 240 6% 10%;
         --primary: 240 6% 10%;
         --primary-foreground: 0 0% 98%;
-        --border: 240 6% 90%;
-        --ring: 240 6% 10%;
-        /* brand: the violet of the silk gradient */
+        --border: 240 6% 88%;
+        --ring: 262 83% 58%;
         --silk: 262 83% 58%;
-        --radius: 0.8rem;
-        --code-bg: 240 10% 7%;
+        --silk-text: 262 72% 46%;
+        --radius: 0.75rem;
+        /* demos and code are dark in both themes */
+        --demo-bg: 240 9% 5%;
+        --code-bg: 240 9% 8%;
         --code-border: 240 6% 16%;
         --code-fg: 0 0% 93%;
     }
 
     .dark {
         color-scheme: dark;
-        --background: 240 10% 3.5%;
-        --foreground: 0 0% 97%;
-        --card: 240 6% 7%;
-        --card-foreground: 0 0% 97%;
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 240 7% 7%;
+        --card-foreground: 0 0% 98%;
         --muted: 240 4% 14%;
-        --muted-foreground: 240 5% 64%;
-        --accent: 240 4% 14%;
-        --accent-foreground: 0 0% 97%;
-        --primary: 0 0% 97%;
+        --muted-foreground: 240 5% 67%;
+        --accent: 240 4% 13%;
+        --accent-foreground: 0 0% 98%;
+        --primary: 0 0% 98%;
         --primary-foreground: 240 6% 10%;
-        --border: 240 4% 16%;
-        --ring: 240 5% 84%;
+        --border: 240 4% 15.5%;
+        --ring: 262 90% 74%;
         --silk: 262 90% 72%;
-        --code-bg: 240 6% 9%;
-        --code-border: 240 4% 18%;
+        --silk-text: 262 95% 78%;
+        --demo-bg: 240 9% 5%;
+        --code-bg: 240 7% 8.5%;
+        --code-border: 240 4% 17%;
     }
 
     * {
@@ -116,7 +127,17 @@
         font-feature-settings:
             "rlig" 1,
             "calt" 1,
-            "ss01" 1;
+            "ss01" 1,
+            "cv11" 1;
+    }
+
+    ::selection {
+        background: hsl(var(--silk) / 0.28);
+    }
+
+    :focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
     }
 
     /* code surfaces stay dark in both themes; Shiki's inline background would override the token */
@@ -133,9 +154,14 @@
         max-width: 1240px;
         padding-inline: 1.5rem;
     }
+    @media (max-width: 480px) {
+        .container-page {
+            padding-inline: 1rem;
+        }
+    }
 
     .glass {
-        background: hsl(var(--background) / 0.72);
+        background: hsl(var(--background) / 0.78);
         backdrop-filter: saturate(1.6) blur(14px);
         -webkit-backdrop-filter: saturate(1.6) blur(14px);
     }
@@ -161,88 +187,406 @@
         color: hsl(var(--code-fg));
     }
 
-    /* long-form docs typography */
+    /* ------------------------------------------------------------------ type scale */
+
+    /* small mono label above a heading: the one place the accent colours text by default */
+    .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        line-height: 1.4;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: hsl(var(--silk-text));
+    }
+    .display-1 {
+        font-size: clamp(2.5rem, 1.2rem + 4.6vw, 4.6rem);
+        font-weight: 750;
+        line-height: 1.02;
+        letter-spacing: -0.045em;
+        text-wrap: balance;
+    }
+    .display-2 {
+        font-size: clamp(1.9rem, 1.2rem + 2.2vw, 2.85rem);
+        font-weight: 750;
+        line-height: 1.06;
+        letter-spacing: -0.038em;
+        text-wrap: balance;
+    }
+    .display-3 {
+        font-size: clamp(1.9rem, 1.4rem + 1.4vw, 2.5rem);
+        font-weight: 750;
+        line-height: 1.08;
+        letter-spacing: -0.035em;
+        text-wrap: balance;
+    }
+    .heading-4 {
+        font-size: 1.3rem;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: -0.022em;
+    }
+    .lead {
+        font-size: 1.125rem;
+        line-height: 1.65;
+        color: hsl(var(--muted-foreground));
+        text-wrap: pretty;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid hsl(var(--silk) / 0.45);
+        padding: 0.05rem 0.45rem;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: hsl(var(--silk-text));
+        white-space: nowrap;
+    }
+
+    /* ------------------------------------------------------------------ buttons */
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        height: 2.6rem;
+        border-radius: 0.6rem;
+        padding-inline: 1.15rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition:
+            background-color 0.15s,
+            border-color 0.15s,
+            opacity 0.15s;
+    }
+    .btn-primary {
+        background: hsl(var(--foreground));
+        color: hsl(var(--background));
+    }
+    .btn-primary:hover {
+        opacity: 0.88;
+    }
+    .btn-outline {
+        border: 1px solid hsl(var(--border));
+        color: hsl(var(--foreground));
+    }
+    .btn-outline:hover {
+        border-color: hsl(var(--foreground) / 0.3);
+        background: hsl(var(--accent));
+    }
+    .link-arrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: hsl(var(--foreground));
+    }
+    .link-arrow:hover {
+        color: hsl(var(--silk-text));
+    }
+    .link-arrow svg {
+        transition: transform 0.15s;
+    }
+    .link-arrow:hover svg {
+        transform: translateX(2px);
+    }
+
+    /* ------------------------------------------------------------------ cards */
+
+    .card-link {
+        display: block;
+        border-radius: var(--radius);
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--card));
+        transition:
+            border-color 0.15s,
+            transform 0.15s;
+    }
+    .card-link:hover {
+        border-color: hsl(var(--foreground) / 0.28);
+    }
+
+    .thumb-card {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: var(--radius);
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--card));
+        transition:
+            border-color 0.15s,
+            transform 0.2s;
+    }
+    .thumb-card:hover {
+        border-color: hsl(var(--silk) / 0.55);
+        transform: translateY(-2px);
+    }
+    .thumb-card-media {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        overflow: hidden;
+        border-bottom: 1px solid hsl(var(--border));
+        background: hsl(var(--demo-bg));
+    }
+    .thumb-card-media img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.4s ease;
+    }
+    .thumb-card:hover .thumb-card-media img {
+        transform: scale(1.025);
+    }
+    .thumb-card-blank {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+            radial-gradient(circle at 50% 120%, hsl(var(--silk) / 0.22), transparent 60%),
+            radial-gradient(hsl(0 0% 100% / 0.08) 1px, transparent 1px) 0 0 / 16px 16px,
+            hsl(var(--demo-bg));
+    }
+    .thumb-card-blank span {
+        display: flex;
+        width: 3.25rem;
+        height: 3.25rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        border: 1px solid hsl(0 0% 100% / 0.14);
+        background: hsl(0 0% 100% / 0.04);
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: hsl(0 0% 100% / 0.7);
+    }
+    .thumb-card-body {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        padding: 0.9rem 1rem 1.05rem;
+    }
+    .thumb-card-title {
+        font-size: 0.975rem;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        color: hsl(var(--foreground));
+    }
+    .thumb-card-text {
+        margin-top: 0.3rem;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: hsl(var(--muted-foreground));
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .thumb-card-lg .thumb-card-body {
+        padding: 1.1rem 1.2rem 1.3rem;
+    }
+    .thumb-card-lg .thumb-card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+    .thumb-card-lg .thumb-card-text {
+        font-size: 0.9rem;
+    }
+
+    /* ------------------------------------------------------------------ demo frame */
+
+    .demo-bar {
+        display: flex;
+        min-height: 2.6rem;
+        align-items: center;
+        gap: 0.75rem;
+        border-top: 1px solid hsl(var(--border));
+        padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+        font-size: 12px;
+    }
+    .demo-controls {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 1.1rem;
+        padding-block: 0.2rem;
+    }
+    .demo-icon-btn {
+        display: inline-flex;
+        height: 1.85rem;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 0.45rem;
+        padding-inline: 0.5rem;
+        color: hsl(var(--muted-foreground));
+        transition:
+            background-color 0.15s,
+            color 0.15s;
+    }
+    .demo-icon-btn:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--foreground));
+    }
+    /* narrow frames run a demo's phone layout: take its aspect ratio before the module loads */
+    .demo {
+        container-type: inline-size;
+    }
+    @container (max-width: 559.98px) {
+        .demo-phone {
+            /* biome-ignore lint/complexity/noImportantStyles: beats the frame's inline height until the demo mounts */
+            height: auto !important;
+            aspect-ratio: var(--phone-ratio);
+        }
+    }
+    /* controls shrink and wrap instead of running past the frame */
+    .demo-controls > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .demo-controls select {
+        min-width: 0;
+        max-width: 100%;
+    }
+    /* Studio link of a demo with no control bar: in the caption line, under the canvas */
+    .demo-studio-link {
+        flex-shrink: 0;
+        color: hsl(var(--muted-foreground));
+        text-decoration: underline;
+        text-decoration-color: hsl(var(--border));
+        text-underline-offset: 3px;
+    }
+    .demo-studio-link:hover {
+        color: hsl(var(--foreground));
+    }
+
+    /* ------------------------------------------------------------------ docs prose */
+
     .prose-docs {
-        font-size: 15.5px;
+        font-size: 16px;
+        line-height: 1.72;
     }
     .prose-docs :where(h2, h3, h4) {
         scroll-margin-top: 5rem;
+        color: hsl(var(--foreground));
     }
-    .prose-docs h2 {
-        margin: 2.6rem 0 0.8rem;
-        font-size: 1.35rem;
+    .prose-docs :where(h2):not(.not-prose *) {
+        margin: 3rem 0 0.9rem;
+        font-size: 1.55rem;
+        font-weight: 750;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+    }
+    .prose-docs :where(h3):not(.not-prose *) {
+        margin: 2.2rem 0 0.6rem;
+        font-size: 1.15rem;
         font-weight: 650;
         letter-spacing: -0.015em;
     }
-    .prose-docs h3 {
-        margin: 2rem 0 0.6rem;
-        font-size: 1.1rem;
+    .prose-docs :where(h4):not(.not-prose *) {
+        margin: 1.8rem 0 0.5rem;
         font-weight: 650;
     }
-    .prose-docs h4 {
-        margin: 1.6rem 0 0.5rem;
-        font-weight: 650;
-    }
-    .prose-docs p {
+    .prose-docs :where(p):not(.not-prose *) {
         margin: 1rem 0;
-        line-height: 1.75;
         color: hsl(var(--foreground) / 0.84);
     }
-    .prose-docs ul,
-    .prose-docs ol {
+    .prose-docs :where(ul, ol):not(.not-prose *) {
         margin: 1rem 0;
         padding-left: 1.4rem;
-        line-height: 1.75;
         color: hsl(var(--foreground) / 0.84);
     }
-    .prose-docs ul {
+    .prose-docs :where(ul):not(.not-prose *) {
         list-style: disc;
     }
-    .prose-docs ol {
+    .prose-docs :where(ol):not(.not-prose *) {
         list-style: decimal;
     }
-    .prose-docs li {
+    .prose-docs :where(li):not(.not-prose *) {
         margin: 0.3rem 0;
     }
     .prose-docs li::marker {
         color: hsl(var(--muted-foreground));
     }
-    .prose-docs a {
+    .prose-docs :where(a):not(.not-prose *) {
         font-weight: 500;
+        color: hsl(var(--foreground));
         text-decoration: underline;
         text-underline-offset: 4px;
-        text-decoration-color: hsl(var(--foreground) / 0.3);
+        text-decoration-color: hsl(var(--silk) / 0.45);
+        transition: text-decoration-color 0.15s;
     }
-    .prose-docs a:hover {
-        text-decoration-color: hsl(var(--foreground));
+    .prose-docs :where(a):not(.not-prose *):hover {
+        text-decoration-color: hsl(var(--silk));
     }
     .prose-docs strong {
         font-weight: 650;
         color: hsl(var(--foreground));
     }
-    .prose-docs :not(pre) > code {
+    .prose-docs :where(:not(pre) > code):not(.not-prose *) {
         border-radius: 0.35rem;
         background: hsl(var(--muted));
         padding: 0.12rem 0.38rem;
         font-family: var(--font-mono);
         font-size: 0.84em;
         color: hsl(var(--foreground));
+        overflow-wrap: break-word;
     }
-    .prose-docs pre {
+    .prose-docs :where(pre):not(.not-prose *) {
         margin: 1.25rem 0;
+        max-width: 100%;
         overflow-x: auto;
-        border-radius: 0.75rem;
-        padding: 0.9rem 1.1rem;
+        border-radius: 0.6rem;
+        padding: 0.95rem 1.1rem;
         font-size: 13px;
-        line-height: 1.65;
+        line-height: 1.7;
         /* biome-ignore lint/complexity/noImportantStyles: Shiki writes the theme background inline on <pre> */
         background: hsl(var(--code-bg)) !important;
         border: 1px solid hsl(var(--code-border));
     }
+    /*
+     * A visible scrollbar, so a long line reads as scrollable instead of cut. Chrome ignores the
+     * ::-webkit-scrollbar rules once scrollbar-width is set, so Firefox gets its own default.
+     */
+    .prose-docs pre::-webkit-scrollbar {
+        height: 8px;
+    }
+    .prose-docs pre.scrolls {
+        mask-image: linear-gradient(90deg, #000 calc(100% - 2.5rem), transparent);
+    }
+    .prose-docs pre.scrolls.at-end {
+        mask-image: none;
+    }
+    .prose-docs pre::-webkit-scrollbar-thumb {
+        border-radius: 8px;
+        background: hsl(0 0% 100% / 0.2);
+    }
+    .prose-docs pre::-webkit-scrollbar-track {
+        background: transparent;
+    }
     .prose-docs pre code {
         font-family: var(--font-mono);
+        background: none;
+        padding: 0;
     }
-    .prose-docs blockquote {
+    @media (max-width: 640px) {
+        .prose-docs :where(pre):not(.not-prose *) {
+            margin-inline: -1rem;
+            border-radius: 0;
+            border-inline: 0;
+            font-size: 12.5px;
+            padding-inline: 1rem;
+        }
+    }
+    .prose-docs :where(blockquote):not(.not-prose *) {
         margin: 1.25rem 0;
         border-left: 3px solid hsl(var(--silk));
         padding-left: 1rem;
@@ -252,23 +596,24 @@
         margin: 2.5rem 0;
         border-color: hsl(var(--border));
     }
-    .prose-docs table {
-        margin: 1.25rem 0;
+    .prose-docs :where(table):not(.not-prose *) {
+        margin: 1.4rem 0;
         width: 100%;
         border-collapse: collapse;
         font-size: 14px;
         display: block;
         overflow-x: auto;
     }
-    .prose-docs th {
+    .prose-docs :where(th):not(.not-prose *) {
         text-align: left;
         font-weight: 600;
         border-bottom: 1px solid hsl(var(--border));
-        padding: 0.5rem 0.75rem 0.5rem 0;
+        padding: 0.5rem 1rem 0.5rem 0;
+        white-space: nowrap;
     }
-    .prose-docs td {
-        border-bottom: 1px solid hsl(var(--border) / 0.6);
-        padding: 0.5rem 0.75rem 0.5rem 0;
+    .prose-docs :where(td):not(.not-prose *) {
+        border-bottom: 1px solid hsl(var(--border) / 0.7);
+        padding: 0.55rem 1rem 0.55rem 0;
         vertical-align: top;
         color: hsl(var(--foreground) / 0.84);
     }
@@ -287,6 +632,40 @@
     @media (hover: none) {
         .prose-docs .heading-anchor {
             opacity: 0.6;
+        }
+    }
+
+    /* copy button that the Docs layout adds to each code block */
+    .code-wrap {
+        position: relative;
+    }
+    .code-copy {
+        position: absolute;
+        right: 0.5rem;
+        top: 0.5rem;
+        display: inline-flex;
+        height: 1.7rem;
+        align-items: center;
+        border-radius: 0.4rem;
+        border: 1px solid hsl(0 0% 100% / 0.12);
+        background: hsl(var(--code-bg));
+        padding-inline: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: hsl(0 0% 100% / 0.6);
+        opacity: 0;
+        transition: opacity 0.15s;
+    }
+    .code-wrap:hover .code-copy,
+    .code-copy:focus-visible {
+        opacity: 1;
+    }
+    .code-copy:hover {
+        color: #fff;
+    }
+    @media (hover: none) {
+        .code-copy {
+            display: none;
         }
     }
 }

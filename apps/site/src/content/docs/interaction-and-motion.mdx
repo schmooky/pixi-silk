@@ -1,0 +1,129 @@
+---
+title: Interaction and motion
+seoTitle: 'PixiJS hit testing and frame-rate independent motion'
+description: 'Pointer events test the painted shape, so rings are hollow and lines react only on their stroke. damp, Spring and ease move things the same at any refresh rate.'
+keywords: ['PixiJS hit test', 'containsPoint', 'pointer events shapes', 'frame-rate independent animation', 'spring animation', 'PixiJS animation', 'odometer counter']
+updated: 2026-11-08
+api: [SilkGraphics, damp, dampAngle, Spring, ease, Odometer]
+---
+
+A SilkGraphics answers pointer events with the shape it paints, not its bounding box. The motion
+helpers in the root import take the frame time, so an animation runs at the same speed on a 60 Hz
+and a 144 Hz screen.
+
+## React to the pointer
+
+<Demo name="hit-test" height={240} caption="Hover the shapes. Try the ring's hole and the space around the line." />
+
+Set `eventMode` and add listeners, as with any Pixi display object:
+
+```ts
+const button = new SilkGraphics();
+
+button.eventMode = 'static';
+button.cursor = 'pointer';
+button.on('pointertap', () => console.log('tap'));
+button.roundRect(0, 0, 160, 48, 24).fill(0x0a84ff);
+```
+
+The tap fires inside the rounded rect only, not in the corners its radius cuts away.
+
+`containsPoint()` checks the object's bounds first. Then it runs the shader's distance functions
+on the CPU for the primitives under the pointer, last drawn first. A point is inside when its
+distance to the painted region is negative. So a stroked circle is a ring with no centre, a line
+counts only within its stroke width, and a blurred paint counts only up to its geometric edge.
+
+You can call it yourself:
+
+```ts
+if (g.containsPoint(g.toLocal(pointerGlobal))) {
+    // hovered
+}
+```
+
+In a large interactive scene, split independent targets into separate SilkGraphics objects. Each
+one then tests only its own primitives. For drags, taps and long presses on any container, see
+`trackGesture` in `pixi-silk/ui/gesture`.
+
+## Move things at any refresh rate
+
+<Demo name="spring" height={220} caption="Drag the knob and let go. Change stiffness and damping." />
+
+Easing by a fixed fraction per frame (`x += (target - x) * 0.1`) runs twice as fast on a 120 Hz
+display. The helpers take the frame time in seconds instead:
+
+```ts
+import { damp, dampAngle, ease, Spring } from 'pixi-silk';
+
+x = damp(x, target, 10, dt);             // exponential approach, lambda is about 1 / seconds
+angle = dampAngle(angle, target, 8, dt); // the shortest way around the circle
+
+const spring = new Spring(0, 170, 26); // value, stiffness, damping
+spring.target = 1;
+app.ticker.add((t) => draw(spring.step(t.deltaMS / 1000)));
+
+ease.outCubic(0.5); // also inOutCubic, inOutSine, outExpo
+```
+
+`damp` closes a fixed share of the gap per second, whatever the frame rate. `Spring.step()`
+integrates in fixed sub-steps, so it stays stable when a frame takes long. `spring.settled` tells
+you when to stop redrawing.
+
+| Helper | Arguments | Use it for |
+| --- | --- | --- |
+| `damp` | current, target, lambda, dt | A value that follows a target without overshoot |
+| `dampAngle` | current, target, lambda, dt | An angle, the short way round |
+| `Spring` | value (0), stiffness (170), damping (26) | Motion with overshoot and a settle |
+| `ease` | t from 0 to 1 | Timed tweens |
+
+## Roll a number with an odometer
+
+<Demo name="odometer" height={240} caption="Tap to add an amount. Tap again while it counts to skip to the end." />
+
+```ts
+import { Odometer } from 'pixi-silk/ui/odometer';
+
+const total = new Odometer({ value: 1250, decimals: 2, prefix: '$', fontSize: 44 });
+
+total.set(9800); // counts up, longer for bigger jumps
+total.skip(); // straight to the end
+total.state.counting.subscribe((on) => console.log(on ? 'counting' : 'done'));
+```
+
+Every digit column rolls on its own. A column moves only while the one below it passes from 9 to
+0, so carries ripple like a mechanical counter. Glyphs come from a bitmap font made from the text
+style, so a frame only moves them, and one mask clips them all. `format(value)` returns the same
+text without rolling, for labels and screen readers.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `value` | 0 | Start value |
+| `decimals` | 0 | Digits after the point |
+| `prefix`, `suffix` | none | Text around the number, such as a currency |
+| `thousands`, `point` | `,` and `.` | Separators. `''` turns thousands off |
+| `minDigits` | 1 | Smallest number of whole digits |
+| `fontSize`, `color`, `textStyle` | 32, white | The look of the digits |
+| `duration` | 0.9 | Count-up time in seconds for a small change |
+| `speedUp` | true | Bigger jumps count for longer, up to three times |
+| `easing` | `outCubic` | Easing of the count |
+| `onDone` | none | Called with the value when the count ends |
+
+## Redraw every frame
+
+The simplest animation clears and redraws in the ticker. `clear()` keeps the GPU buffers, so a
+redraw only uploads the new primitive data.
+
+```ts
+app.ticker.add((ticker) => {
+    const t = ticker.lastTime / 1000;
+
+    g.clear();
+    g.arcSweep(80, 80, 44, -Math.PI / 2, Math.PI * 2 * (0.5 + 0.4 * Math.sin(t))).stroke({ width: 12, cap: 'round', color: 0x30d158 });
+});
+```
+
+Put the parts that do not move in a second SilkGraphics and draw it once.
+[Performance](/docs/performance/) has the numbers for large scenes.
+
+Slow shapes glide between pixels instead of snapping, because silk renders coordinates as given
+and `createSilkApp` turns pixel rounding off. The [sub-pixel experiment](/lab/04-subpixel/) shows it.

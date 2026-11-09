@@ -8,7 +8,10 @@ let scratch: Color | undefined;
 // hex numbers and strings repeat a lot when redrawing every frame: memoise them
 const cache = new Map<number | string, RGBA>();
 
-/** Any Pixi `ColorSource` as straight sRGB `[r, g, b, a]` (0..1), with `alpha` multiplied in. Memoised. */
+/**
+ * Converts any Pixi `ColorSource` to straight sRGB `[r, g, b, a]`, channels 0..1, with `alpha`
+ * multiplied in. Returns a new array. Numbers and strings are cached, up to 1024 of them.
+ */
 export function parseColor(value: ColorSource, alpha = 1): RGBA {
     const cacheable = typeof value === 'number' || typeof value === 'string';
     let base = cacheable ? cache.get(value) : undefined;
@@ -27,8 +30,10 @@ export function parseColor(value: ColorSource, alpha = 1): RGBA {
     return [base[0], base[1], base[2], base[3] * alpha];
 }
 
+/** sRGB transfer function, encoded 0..1 to linear light 0..1. */
 export const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 
+/** Inverse sRGB transfer function, linear light 0..1 to encoded 0..1. */
 export const linearToSrgb = (c: number): number => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
 
 /** Converts linear-light sRGB to OKLab (Björn Ottosson's perceptual colour space), used to interpolate gradients evenly. */
@@ -63,7 +68,7 @@ export function oklabToLinear(L: number, a: number, b: number): [number, number,
 /** Colour space gradients are interpolated in: perceptual OKLab (default), linear light, or plain sRGB. */
 export type ColorSpace = 'oklab' | 'srgb' | 'linear';
 
-/** sRGB (straight) -> working space coordinates. */
+/** Converts straight sRGB to coordinates in `space`. Alpha is dropped. */
 export function toSpace(rgb: RGBA, space: ColorSpace): [number, number, number] {
     if (space === 'srgb') return [rgb[0], rgb[1], rgb[2]];
     const lr = srgbToLinear(rgb[0]);
@@ -75,7 +80,7 @@ export function toSpace(rgb: RGBA, space: ColorSpace): [number, number, number] 
     return linearToOklab(lr, lg, lb);
 }
 
-/** Working space coordinates -> sRGB (straight, clamped to gamut). */
+/** Converts coordinates in `space` back to straight sRGB, clamped to 0..1. */
 export function fromSpace(c: [number, number, number], space: ColorSpace): [number, number, number] {
     const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -88,7 +93,7 @@ export function fromSpace(c: [number, number, number], space: ColorSpace): [numb
 const f32 = new Float32Array(1);
 const u32 = new Uint32Array(f32.buffer);
 
-/** Float -> IEEE 754 half float bits (round to nearest). */
+/** Encodes a number as IEEE 754 half float bits, rounded to nearest. Overflow gives infinity. */
 export function toHalf(value: number): number {
     f32[0] = value;
     const x = u32[0];

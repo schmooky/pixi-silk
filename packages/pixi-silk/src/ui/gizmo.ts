@@ -39,23 +39,31 @@ export type GizmoHandle =
 
 /** Position, rotation and scale of the target, in its parent's space. */
 export interface GizmoTransform {
+    /** Position in parent units. */
     x: number;
     y: number;
+    /** Rotation in radians. */
     rotation: number;
+    /** Scale along the target's own axes. Negative values mirror it. */
     scaleX: number;
     scaleY: number;
 }
 
 /** Colours of a {@link TransformGizmo} (any Pixi colour). */
 export interface GizmoTheme {
+    /** X axis arrow and scale handle. */
     x: number | string;
+    /** Y axis arrow and scale handle. */
     y: number | string;
+    /** Rotate ring, swept angle and the free move square. */
     accent: number | string;
+    /** Uniform scale ring and the box handles. */
     handle: number | string;
+    /** The handle being dragged. */
     active: number | string;
 }
 
-/** Default theme: red X, green Y, blue free handles, white box handles. */
+/** Default theme: red X, green Y, blue rotate and free move, white box handles, yellow while dragged. */
 export const GIZMO_THEME: Readonly<GizmoTheme> = {
     x: 0xff453a,
     y: 0x30d158,
@@ -70,7 +78,7 @@ export interface GizmoSnap {
     translate?: number;
     /** Angle step in radians. Default 15 degrees. */
     angle?: number;
-    /** Scale step. Default 0.1. */
+    /** Scale step, as a factor. Default 0.1. */
     scale?: number;
     /** Snap without Shift. Default false. */
     enabled?: boolean;
@@ -78,12 +86,15 @@ export interface GizmoSnap {
 
 /** The reactive state of a {@link TransformGizmo}. */
 export interface GizmoState {
+    /** Tools shown. Write it to switch tools. */
     mode: Signal<GizmoMode>;
+    /** Axes of the move handles. Write it to switch. */
     space: Signal<GizmoSpace>;
     /** Handle under the pointer. */
     hover: Signal<GizmoHandle | null>;
     /** Handle being dragged. */
     active: Signal<GizmoHandle | null>;
+    /** True while any handle is dragged. */
     dragging: Signal<boolean>;
     /** True while the current drag snaps to steps. */
     snapping: Signal<boolean>;
@@ -91,14 +102,15 @@ export interface GizmoState {
 
 /** Options of {@link TransformGizmo}. */
 export interface TransformGizmoOptions {
-    /** Default `universal`. */
+    /** Tools shown at first. Default `universal`. */
     mode?: GizmoMode;
-    /** Default `local`. Scale handles always follow the object's own axes. */
+    /** Axes of the move handles at first. Default `local`. Scale handles always follow the object's own axes. */
     space?: GizmoSpace;
-    /** Object to transform. */
+    /** Object to transform. It can sit in another container than the gizmo, which follows it on screen. */
     target?: Container | null;
-    /** Length of the axis handles, in gizmo units. Default 84. */
+    /** Length of the axis handles, in gizmo units. Default 84. Grows for touch. */
     size?: number;
+    /** Initial snap steps. Later changes go to {@link TransformGizmo.snap}. */
     snap?: GizmoSnap;
     /** Smart guides for free moves: aligns the target's bounds with other objects. Ctrl or Cmd turns them off. */
     snapEngine?: SnapEngine;
@@ -114,11 +126,17 @@ export interface TransformGizmoOptions {
     transition?: 'pop' | 'glide';
     /** Write the new transform into the target. Default true. Set false to apply it yourself in `onChange`. */
     apply?: boolean;
+    /** Colours merged over {@link GIZMO_THEME}. Read once, at construction. */
     theme?: Partial<GizmoTheme>;
+    /** Per pointer kind overrides of the hit tolerance and handle size. */
     profiles?: InputProfiles;
+    /** Ticker that runs the animation and follows the target. Default `Ticker.shared`. With `null`, call {@link TransformGizmo.tick} yourself. */
     ticker?: Ticker | null;
+    /** A drag started. `transform` is the target's transform before it. */
     onStart?: (handle: GizmoHandle, transform: GizmoTransform) => void;
+    /** Every drag step, with the new transform. Called whether or not `apply` writes it. */
     onChange?: (transform: GizmoTransform, handle: GizmoHandle) => void;
+    /** A drag ended, also when `attach` moves to another target mid-drag. */
     onEnd?: (transform: GizmoTransform, handle: GizmoHandle) => void;
 }
 
@@ -180,7 +198,7 @@ function inQuad(p: PointData, q: Quad): boolean {
 }
 
 /**
- * Transform handles for editors: move, rotate, scale and a design-tool bounding box.
+ * Transform handles for editors: move, rotate, scale and a bounding box with resize and rotate handles.
  *
  * - `move`: X and Y arrows lock to an axis, the centre square moves freely.
  * - `rotate`: a ring. The swept angle is shaded and read out, with snap ticks while snapping.
@@ -194,6 +212,7 @@ function inQuad(p: PointData, q: Quad): boolean {
  * scene. It follows the target every frame and writes the new transform into it.
  */
 export class TransformGizmo extends Container {
+    /** Signals to read and write. See {@link GizmoState}. */
     readonly state: GizmoState;
     /** Snap steps and whether snapping is on without Shift. Change it at any time. */
     snap: GizmoSnap;
@@ -263,7 +282,7 @@ export class TransformGizmo extends Container {
         return this._target;
     }
 
-    /** Transforms `target` from now on (null hides the gizmo). */
+    /** Transforms `target` from now on (null hides the gizmo). Ends a drag in progress. Uses `transition` when it moves to another object. */
     attach(target: Container | null): void {
         if (this._drag) this._end();
         const prev = this._target;
@@ -315,7 +334,7 @@ export class TransformGizmo extends Container {
         return Object.values(this._grp).some((sp) => sp.target < 1 || Math.abs(sp.value - 1) > 0.08);
     }
 
-    /** Current transform of the target. */
+    /** Current transform of the target. Identity when there is no target. */
     read(): GizmoTransform {
         const t = this._target;
 
@@ -324,11 +343,12 @@ export class TransformGizmo extends Container {
         return { x: t.x, y: t.y, rotation: t.rotation, scaleX: t.scale.x, scaleY: t.scale.y };
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children by default. The target is left alone. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -400,7 +420,7 @@ export class TransformGizmo extends Container {
         return base + (axis === 1 ? Math.PI / 2 : 0);
     }
 
-    /** The handle under (x, y) in gizmo space, or null. */
+    /** The handle under (x, y) in gizmo space, or null. Always null without a target or during a transition. */
     pick(x: number, y: number): GizmoHandle | null {
         if (!this._target || !this.visible || this.transitioning) return null;
         const mode = this.state.mode.value;

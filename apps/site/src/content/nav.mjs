@@ -7,6 +7,9 @@
  * its topic), a block on the `/docs/` index and its own sidebar. Pages keep their URLs at
  * `/docs/<page>/`, lab experiments at `/lab/<slug>/`.
  *
+ * Areas sit in four top-level sections (`section`): Learn, Features, Examples and Reference.
+ * {@link DOCS_SECTIONS} lists them in order.
+ *
  * Every docs page and every lab experiment belongs to exactly one place (checked at build time),
  * so the sidebar, hubs, sitemap, llms.txt and prev/next links can never drift apart.
  *
@@ -14,119 +17,120 @@
  * To attach a lab experiment: list its slug under the page it deepens (`{ page, lab: [...] }`).
  * To add an area: add an entry below. Its id becomes the hub URL and must not match a page id.
  * An area with no pages and no links yet is left out of the site until it has some.
+ * A removed page or experiment needs a redirect in astro.config.mjs.
  *
+ * @typedef {'learn' | 'features' | 'examples' | 'reference'} SectionId
  * @typedef {{ label: string, href: string, description: string }} AreaLink
  * @typedef {string | { page: string, lab: string[] }} AreaItem
  * @typedef {{
  *   id: string,
  *   title: string,
+ *   section: SectionId,
  *   summary: string,
  *   intro: string[],
  *   items: AreaItem[],
  *   links?: AreaLink[],
  *   aliases?: string[],
+ *   experimental?: boolean,
  * }} DocsArea
  * @type {DocsArea[]}
  */
 export const DOCS_AREAS = [
     {
-        id: 'start',
-        title: 'Get started',
-        summary: 'Install pixi-silk, draw a first scene and move code over from PixiJS Graphics.',
+        id: 'learn',
+        title: 'Learn',
+        section: 'learn',
+        summary:
+            'Install pixi-silk, pick the entry points you need and build a first widget and a first editor canvas.',
         intro: [
-            'Start here if pixi-silk is new to you. The introduction says what it is and when it helps.',
-            'Installation and the quick start get a smooth scene on screen in a few minutes. The migration page maps Graphics calls to SilkGraphics.',
+            'Start here if pixi-silk is new to you. Getting started installs it and draws a first scene.',
+            'The two tutorials build a button and an editor canvas from scratch. The migration page maps Graphics calls to SilkGraphics.',
         ],
         items: [
-            { page: 'introduction', lab: ['01-primitives'] },
-            'installation',
-            'quick-start',
-            { page: 'migrating-from-graphics', lab: ['02-versus'] },
+            'getting-started',
+            'migrating-from-graphics',
+            'choose-an-entry-point',
+            'first-widget',
+            'first-editor-canvas',
         ],
-        aliases: ['getting-started'],
+        aliases: ['start'],
     },
     {
-        id: 'drawing',
-        title: 'Drawing',
-        summary: 'Every shape SilkGraphics can draw, and how to fill, stroke and move it.',
+        id: 'shapes-and-strokes',
+        title: 'Shapes & strokes',
+        section: 'features',
+        summary: 'Every shape SilkGraphics draws, how to stroke and dash it, and how to combine shapes.',
         intro: [
-            'Everything SilkGraphics can draw, one primitive family per page. Each page opens with a live demo and its source.',
-            'Read shapes first. The other pages build on its fill and stroke calls, and transforms apply to all of them.',
+            'One primitive family per page. Read shapes first: the other pages build on its fill and stroke calls.',
         ],
         items: [
-            { page: 'shapes', lab: ['07-rounded-rects', '11-icons'] },
+            { page: 'shapes', lab: ['01-primitives', '07-rounded-rects', '11-icons'] },
+            'lines-and-paths',
+            'strokes-and-dashes',
             'shape-operations',
-            { page: 'arcs-and-rings', lab: ['08-activity-rings'] },
-            { page: 'lines-and-paths', lab: ['09-lines'] },
-            'fills-and-strokes',
-            { page: 'dashes', lab: ['10-dashes'] },
-            'transforms',
         ],
+        aliases: ['drawing'],
     },
     {
         id: 'paint',
         title: 'Paint',
-        summary: 'Gradients that do not band, and blur that turns any shape into a glow or a shadow.',
+        section: 'features',
+        summary: 'What goes inside a shape: gradients, shadows and blur, inner shadows, glass and glow.',
         intro: [
-            'What goes inside a shape once it is drawn. Gradients cover linear, radial, conic and along-the-path ramps.',
-            'Blur turns the same distance field into glows and shadows without a filter pass.',
+            'Gradients cover linear, radial, conic, mesh and along-the-path ramps.',
+            'Shadows and effects blur a shape without a filter pass. Glass and glow are filters for the panels and lights around it.',
         ],
-        items: [
-            { page: 'gradients', lab: ['12-gradients', '13-banding'] },
-            { page: 'blur-and-shadows', lab: ['14-glow'] },
-            'effects',
-            'glass-and-glow',
-        ],
+        items: [{ page: 'gradients', lab: ['13-banding'] }, 'shadows-and-effects', 'glass-and-glow'],
+    },
+    {
+        id: 'typography',
+        title: 'Text',
+        section: 'features',
+        summary: 'Labels and readouts drawn from distance fields, and text the reader can click and type into.',
+        intro: ['Text draws labels with SilkText. Editing text turns a label into a field the reader types into.'],
+        items: ['text', 'editing-text'],
     },
     {
         id: 'ui',
-        title: 'UI widgets',
-        summary: 'Charts and sharp text, plus the first ready-made widgets and how they react to input.',
+        title: 'Interface',
+        section: 'features',
+        summary: 'Buttons, radial menus, responsive layout, hit testing and motion for canvas interfaces.',
         intro: [
-            'Pages for building interface pieces out of the drawing primitives. Charts show smoothed series and fills.',
-            'Sharp text draws labels and readouts from distance fields, so they stay crisp under a zooming camera. Editing text makes them clickable and typeable, like a design tool text layer.',
-            'Hit testing and animation cover how a widget reacts to the pointer and how it moves.',
-            'Radial menus and buttons are the first ready-made widgets. Each lives under its own pixi-silk/ui entry point.',
-            'Layout places them: a flex engine with no Pixi in it, and a smart container for responsive game screens.',
+            'Ready-made widgets for canvas interfaces, each under its own pixi-silk/ui entry point.',
+            'Layout places them on portrait and landscape screens. Interaction and motion cover hit testing, springs and the odometer.',
         ],
-        items: [
-            { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
-            'text',
-            'editing-text',
-            'hit-testing',
-            { page: 'animation', lab: ['23-timers'] },
-            'radial-menus-and-buttons',
-            'layout',
-        ],
-        aliases: ['building-ui'],
+        items: ['radial-menus-and-buttons', 'layout', 'interaction-and-motion'],
+        aliases: ['game-ui', 'building-ui'],
     },
     {
-        id: 'editor-ui',
-        title: 'Editor UI',
-        summary: 'Everything a design tool draws on its canvas, from the camera and rulers to gizmos and undo.',
+        id: 'editor-kit',
+        title: 'Editor kit',
+        section: 'features',
+        experimental: true,
+        summary:
+            'The pieces of a design tool canvas: camera, rulers, gizmos, selection, path editing, pickers and panels.',
         intro: [
-            'Widgets for editors and design tools, built from the UI building blocks. Each one is its own pixi-silk/ui entry point.',
-            'Start with the camera and measurements, then the grid, rulers, guides and marquee around them. Transform gizmos move things. A selection store and an undo history tie them together, and the path gizmo edits vector shapes. Colour pickers, editor tools and dials add the controls. Panels hold a layer tree, an inspector and a minimap, all on the canvas.',
+            'Widgets for editors and level tools, each under its own pixi-silk/ui entry point. The editor kit is experimental in 1.0: its API may change in a minor release.',
+            'Start with the camera and rulers, then gizmos and selection. The other pages add path editing, colour pickers, tools, dials and panels.',
         ],
         items: [
-            'canvas-and-measurements',
-            'canvas-tools',
-            'transform-gizmos',
-            'selection-and-history',
+            'canvas-and-rulers',
+            'gizmos-and-selection',
             'path-editing',
             'color-pickers',
             'editor-tools',
             'dials-and-timeline',
             'panels',
         ],
+        aliases: ['editor-ui'],
     },
     {
         id: 'examples',
         title: 'Examples',
-        summary: 'Whole screens built with pixi-silk, from reference sheets rebuilt 1:1 to a live dashboard.',
+        section: 'examples',
+        summary: 'Whole screens built with pixi-silk: five design sheets rebuilt 1:1, gallery scenes and charts.',
         intro: [
-            'Complete scenes that combine the other areas. They are examples on the site, not library code.',
-            'The showcase compares five design sheets with their live rebuild, and every sheet and widget opens full screen. The slot HUD page has game controls to copy.',
+            'Complete scenes that combine the features. They are site code, not library code, so copy what you need.',
         ],
         items: [
             {
@@ -141,43 +145,29 @@ export const DOCS_AREAS = [
                     '17-pills-waves',
                     '19-health-cards',
                     '22-sleep',
+                    '23-timers',
                     '24-journeys',
                     '25-sky',
                     '26-dashboard',
                 ],
             },
-            'gallery',
-            'slot-hud',
+            { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
         ],
-    },
-    {
-        id: 'rendering',
-        title: 'Rendering',
-        summary: 'How the anti-aliasing works, crisp canvases on any screen and what it costs.',
-        intro: [
-            'The ideas under the API. The first three pages compare pixi-silk with the other ways to smooth PixiJS graphics.',
-            'Resolution, renderers and performance cover canvas setup and cost. How it works walks through the shader.',
-        ],
-        items: [
-            'smooth-graphics-pixijs',
-            { page: 'antialiasing-in-pixijs', lab: ['03-zoom', '04-subpixel'] },
-            'graphics-smooth-v8',
-            { page: 'resolution', lab: ['05-resolution', '06-render-texture'] },
-            'webgpu',
-            { page: 'performance', lab: ['27-stress'] },
-            'how-it-works',
-        ],
-        aliases: ['smooth-graphics'],
     },
     {
         id: 'reference',
         title: 'Reference',
-        summary: 'The API reference lists every export with its JSDoc. The other pages here are for looking things up.',
+        section: 'reference',
+        summary: 'The API reference, renderers, resolution, performance and the glossary.',
         intro: [
             'Look things up here once you know what you need. The API reference lists every export with its JSDoc.',
-            'The glossary defines the terms the guides use.',
         ],
-        items: ['glossary'],
+        items: [
+            'renderers',
+            { page: 'resolution', lab: ['05-resolution', '06-render-texture'] },
+            'performance',
+            'glossary',
+        ],
         links: [
             {
                 label: 'API reference',
@@ -193,7 +183,25 @@ export const DOCS_AREAS = [
             },
         ],
     },
+    {
+        id: 'architecture',
+        title: 'Architecture',
+        section: 'reference',
+        summary:
+            'How the shader draws a pixel, how pixi-silk compares with other anti-aliasing and how layout computes.',
+        intro: ['The ideas under the API. Read these when you want to know why a result looks the way it does.'],
+        items: ['how-it-works', { page: 'anti-aliasing-compared', lab: ['03-zoom', '04-subpixel'] }, 'layout-engine'],
+        aliases: ['rendering', 'smooth-graphics'],
+    },
 ];
+
+/** The four top-level sections, in order, with the areas in each. Derived from DOCS_AREAS. */
+export const DOCS_SECTIONS = /** @type {const} */ ([
+    { id: 'learn', title: 'Learn' },
+    { id: 'features', title: 'Features' },
+    { id: 'examples', title: 'Examples' },
+    { id: 'reference', title: 'Reference' },
+]).map((s) => ({ ...s, areas: DOCS_AREAS.filter((a) => a.section === s.id).map((a) => a.id) }));
 
 /** Page id of an area item. */
 export const itemPage = (/** @type {AreaItem} */ item) => (typeof item === 'string' ? item : item.page);

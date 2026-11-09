@@ -1,6 +1,9 @@
 import type { SilkGraphics } from '../../SilkGraphics';
 
-/** A disclosure chevron pointing right, rotated by `turn` (0 right, 1 down). */
+/**
+ * A disclosure chevron pointing right, rotated by `turn` quarter turns (0 right, 1 down).
+ * Centred on (x, y) in a `size` box. It adds to `g` and does not clear it.
+ */
 export function drawChevron(
     g: SilkGraphics,
     x: number,
@@ -23,7 +26,10 @@ export function drawChevron(
     g.moveTo(x0, y0).lineTo(x1, y1).lineTo(x2, y2).stroke({ width: 1.4, color, alpha, cap: 'round', join: 'round' });
 }
 
-/** An open eye, or a closed one with a slash when `open` is false. */
+/**
+ * An open eye, or a closed one with a slash when `open` is false.
+ * Centred on (x, y) in a `size` box. It adds to `g` and does not clear it.
+ */
 export function drawEye(
     g: SilkGraphics,
     x: number,
@@ -45,7 +51,7 @@ export function drawEye(
     else g.line(x - w * 0.8, y + h * 1.3, x + w * 0.8, y - h * 1.3).stroke({ width: 1.3, color, alpha, cap: 'round' });
 }
 
-/** A padlock, shut or open. */
+/** A padlock, shut or open. Centred on (x, y) in a `size` box. It adds to `g` and does not clear it. */
 export function drawLock(
     g: SilkGraphics,
     x: number,
@@ -69,7 +75,10 @@ export function drawLock(
         .stroke({ width: 1.2, color, alpha, cap: 'round' });
 }
 
-/** Two chain links: the aspect lock of a size field. */
+/**
+ * Two chain links: the aspect lock of a size field.
+ * Centred on (x, y) in a `size` box. It adds to `g` and does not clear it.
+ */
 export function drawLink(
     g: SilkGraphics,
     x: number,
@@ -91,7 +100,7 @@ export function drawLink(
 /** What a layer is, for the icon in its row. */
 export type LayerKind = 'frame' | 'group' | 'shape' | 'text' | 'image' | 'component';
 
-/** Draws the built-in icon of a layer kind. */
+/** Draws the built-in icon of a layer kind. Centred on (x, y) in a `size` box. It adds to `g` and does not clear it. */
 export function drawLayerIcon(
     g: SilkGraphics,
     kind: LayerKind,

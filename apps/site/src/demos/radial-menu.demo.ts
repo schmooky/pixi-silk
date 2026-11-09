@@ -1,8 +1,8 @@
 import { Container, Text } from 'pixi.js';
-import type { SilkGraphics } from 'pixi-silk';
+import { SilkGraphics } from 'pixi-silk';
 import { SilkButton } from 'pixi-silk/ui/button';
 import { bindRadialTrigger, type RadialItem, RadialMenu } from 'pixi-silk/ui/radial';
-import { defineDemo } from './runtime';
+import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
 
 // Vector icons: drawn once in white around (0, 0); the menu tints them.
 type Icon = (g: SilkGraphics, s: number) => void;
@@ -75,21 +75,25 @@ const tools: RadialItem[] = [
 ];
 
 // Press anywhere (or the round button) and drag to an item, or tap to keep the menu open.
-// The `+` button opens a half ring that turns away from the edge it sits on.
+// The `+` button opens a half ring that turns away from the edge it sits on. The artboard
+// on the right is only scenery: the menus pick tools, they do not edit it.
 export default defineDemo({
-    size: [640, 400],
+    title: 'Radial menu',
+    size: [720, 400],
+    // phones: the artboard goes under the round button
+    phone: { size: [360, 600] },
     touchAction: 'none',
     controls: {
         closeOnLeave: { type: 'toggle', label: 'close on leave', value: false },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, height, phone }) {
         const ticker = silk.app.ticker;
         const surface = new Container();
         const status = new Text({
             text: 'press, drag, release, or tap',
-            style: { fill: 0x8e8e93, fontFamily: 'system-ui, sans-serif', fontSize: 13 },
+            style: { fill: INK.muted, fontFamily: FONT, fontSize: 13 },
         });
-        const bounds = { x: 0, y: 0, width: 640, height: 400 };
+        const bounds = { x: 0, y: 0, width, height };
         const report = (_item: RadialItem, path: readonly RadialItem[]) => {
             status.text = `picked  ${path.map((i) => i.id).join(' › ')}`;
         };
@@ -111,12 +115,43 @@ export default defineDemo({
         const hub = new SilkButton({ shape: 'circle', height: 64, icon: gear, iconSize: 28, ticker });
         const add = new SilkButton({ shape: 'circle', height: 52, icon: plus, iconSize: 22, ticker });
 
+        // scenery: an artboard with a few layers, as in a drawing app
+        const board = new SilkGraphics()
+            .roundRect(330, 70, 300, 250, 16, 0.6)
+            .fill(INK.surface)
+            .stroke({ width: 1, color: INK.line, alignment: 'inside' })
+            .roundRect(360, 104, 120, 84, 14, 0.6)
+            .fill(PALETTE.blue)
+            .circle(550, 150, 44)
+            .fill(PALETTE.pink)
+            .star(420, 258, 5, 40, undefined, 0, 4)
+            .fill(PALETTE.yellow)
+            .roundRect(500, 224, 100, 64, 32)
+            .fill(PALETTE.green);
+
         surface.eventMode = 'static';
-        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= 640 && y <= 400 };
-        status.position.set(20, 18);
-        hub.position.set(200, 210);
-        add.position.set(586, 346);
-        stage.addChild(surface, status, hub, add, menu, quick);
+        surface.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+        // phones: the hub on top, the board drawn at (330, 70) moved under it
+        const hubAt = phone ? [180, 170] : [170, 200];
+        const addAt = phone ? [312, 556] : [670, 350];
+        const boardAt = phone ? [30, 300] : [330, 70];
+
+        board.position.set(boardAt[0] - 330, boardAt[1] - 70);
+        status.position.set(phone ? 16 : 24, 20);
+        hub.position.set(hubAt[0], hubAt[1]);
+        add.position.set(addAt[0], addAt[1]);
+        stage.addChild(
+            surface,
+            board,
+            label('Artboard', boardAt[0], boardAt[1] - 24),
+            label('tools', hubAt[0], hubAt[1] + 44, {}, 0.5),
+            label('quick add', addAt[0] - 36, addAt[1] - 8, {}, 1),
+            status,
+            hub,
+            add,
+            menu,
+            quick,
+        );
 
         bindRadialTrigger(surface, menu, { at: 'pointer' });
         bindRadialTrigger(hub, menu);

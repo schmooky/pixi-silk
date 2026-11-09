@@ -3,26 +3,37 @@ import { SilkGraphics } from '../SilkGraphics';
 import { GlassFilter } from './GlassFilter';
 import { type GlassStyle, lightVector, type ResolvedGlass, resolveGlass } from './options';
 
-/** Options of {@link Glass}: its size plus a {@link GlassStyle}. */
+/** Options of {@link Glass}: the pane size plus every {@link GlassStyle} field. */
 export interface GlassOptions extends GlassStyle {
-    /** Default 240. */
+    /** Pane width in local units. Default 240. */
     width?: number;
-    /** Default 160. */
+    /** Pane height in local units. Default 160. */
     height?: number;
 }
 
 /**
- * A pane of frosted glass. It blurs and bends whatever is drawn behind it, splits colours at its
- * curved rim, and catches light on the edge that faces the light.
+ * A pane of frosted glass from `pixi-silk/glass`. It blurs and bends whatever is drawn behind it,
+ * splits colours at its curved rim, and catches light on the edge that faces the light.
  *
- * Put labels and icons in {@link Glass.content}: they sit on top of the glass, sharp. The pane's
- * top-left corner is at (0, 0). It reads the canvas behind it, so on WebGL it turns on the
- * renderer's back buffer the first time it draws. Pass `useBackBuffer: true` to the application
- * to have it from the first frame. WebGPU reads the backdrop without a back buffer. On any other
- * renderer it draws a plain frosted fill instead.
+ * Put labels and icons in {@link Glass.content}. They sit on top of the glass, unblurred. The pane's
+ * top-left corner is at (0, 0). It only sees what was drawn before it in the same frame, so add it
+ * after its backdrop. You can rotate and scale it. The light stays fixed on screen, and under an uneven
+ * scale the corners keep the radius of the smaller scale. Skew is not supported.
+ *
+ * On WebGL the pane reads the canvas through the renderer's back buffer. It sets
+ * `renderer.backBuffer.useBackBuffer = true` the first time it draws and shows no glass on that one
+ * frame. Pass `useBackBuffer: true` to the application to have glass from the first frame. The back
+ * buffer costs a full-screen copy each frame for the whole app. WebGPU reads the backdrop without a
+ * back buffer. Any other renderer gets a plain frosted fill instead.
+ *
+ * ```ts
+ * const pane = new Glass({ width: 320, height: 200, radius: 32 });
+ * pane.content.addChild(label);
+ * app.stage.addChild(backdrop, pane);
+ * ```
  */
 export class Glass extends Container {
-    /** Children drawn on top of the glass. */
+    /** Children drawn on top of the glass, unfiltered, in the pane's local space. */
     readonly content: Container = new Container({ label: 'GlassContent' });
     private readonly _shadow = new SilkGraphics({ label: 'GlassShadow' });
     private readonly _body = new Container({ label: 'GlassBody' });
@@ -50,22 +61,22 @@ export class Glass extends Container {
         this._redraw();
     }
 
-    /** Pane width in local units. */
+    /** Pane width in local units. Change it with {@link Glass.resize}. */
     get paneWidth(): number {
         return this._w;
     }
 
-    /** Pane height in local units. */
+    /** Pane height in local units. Change it with {@link Glass.resize}. */
     get paneHeight(): number {
         return this._h;
     }
 
-    /** The current style, as given. */
+    /** The style as given, before defaults. Change it with {@link Glass.set}. */
     get style(): Readonly<GlassStyle> {
         return this._style;
     }
 
-    /** Resizes the pane. */
+    /** Resizes the pane, in local units, and redraws its outline and shadow. Returns this. */
     resize(width: number, height: number): this {
         this._w = width;
         this._h = height;
@@ -74,7 +85,11 @@ export class Glass extends Container {
         return this;
     }
 
-    /** Changes any part of the style. Fields left out keep their value. */
+    /**
+     * Merges `style` into the current style. Fields left out keep their value. Only a change of
+     * radius, smoothing, shadow or opacity redraws the outline (frost and tint too in the fallback fill).
+     * The rest goes to the filter on the next frame. Returns this.
+     */
     set(style: GlassStyle): this {
         const before = this._r;
 
@@ -127,12 +142,20 @@ export class Glass extends Container {
         }
         if (!filter || this._fallback) return;
         if (backBuffer && !backBuffer.useBackBuffer) backBuffer.useBackBuffer = true;
+        // The back buffer takes effect from the next frame. Until then the frame draws straight to the
+        // canvas, and an opaque canvas has no alpha channel: copying its backdrop into the filter's RGBA
+        // texture fails with GL_INVALID_OPERATION. Skip the filter for that frame.
+        filter.enabled = !(backBuffer && renderer.renderTarget.rootRenderTarget?.isRoot);
         const m = this._body.worldTransform;
-        const k = Math.hypot(m.a, m.b);
+        // scale along the pane's own axes, so an uneven scale sizes each side by its own factor
+        const kx = Math.hypot(m.a, m.b);
+        const ky = Math.hypot(m.c, m.d);
+        const k = Math.min(kx, ky);
         const r = this._r;
         const [lx, ly] = lightVector(r.lightAngle);
 
-        filter.setShape((this._w * k) / 2, (this._h * k) / 2, r.radius * k, r.smoothing);
+        filter.setShape((this._w * kx) / 2, (this._h * ky) / 2, r.radius * k, r.smoothing);
+        filter.setRotation(Math.atan2(m.b, m.a));
         filter.setOptics(r.blur * k, r.refraction * k, r.dispersion, r.bevel * k);
         filter.setTint(r.tint[0], r.tint[1], r.tint[2], r.tintAmount);
         filter.setLight(lx, ly, r.light, r.grain);

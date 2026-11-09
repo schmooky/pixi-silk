@@ -12,15 +12,19 @@ import type { Ruler } from './ruler';
 import type { SnapEngine } from './snap';
 import { ValuePill } from './ValuePill';
 
-/** A guide line. `axis: 'x'` is a vertical line at x = `at`, `'y'` a horizontal one, in world units. */
+/** A guide line. Guide objects are replaced, not mutated, when a guide moves. */
 export interface Guide {
+    /** Unique within its {@link Guides} layer, counting up from 1. */
     id: number;
+    /** `x` is a vertical line at x = `at`, `y` a horizontal line at y = `at`. */
     axis: 'x' | 'y';
+    /** Position in world units. */
     at: number;
 }
 
 /** A guide being dragged: where it is now, and whether letting go here removes it. */
 export interface GuideDrag {
+    /** A copy of the guide at its snapped position. A new guide's id is not in `state.guides` yet. */
     guide: Guide;
     /** True while the pointer is over the ruler: letting go removes the guide. */
     removing: boolean;
@@ -28,38 +32,43 @@ export interface GuideDrag {
     created: boolean;
 }
 
-/** Snaps a guide while it is dragged: returns where a guide at `at` (world units) should go. */
+/**
+ * Snaps a guide while it is dragged. Gets the raw position and the snap distance, both in world
+ * units, and returns where the guide should go. Return `at` unchanged to let rounding apply.
+ */
 export type GuideSnap = (axis: 'x' | 'y', at: number, threshold: number) => number;
 
 /** Options of {@link Guides}. */
 export interface GuidesOptions {
-    /** The camera the guides follow. */
+    /** The camera the guides follow. The layer redraws whenever the camera's signals change. */
     camera: Camera;
-    /** Drag new guides out of this ruler, and drop guides on it to remove them. */
+    /** Drag new guides out of this ruler, and drop guides on it to remove them. Adds listeners to the ruler. */
     ruler?: Ruler;
-    /** Line colour. Default pink. */
+    /** Line colour, also the drag pill's fill. Default `0xff375f`. */
     color?: ColorSource;
     /**
      * Snapping while dragging: a {@link SnapEngine} (edges and centres of its targets, its points
      * and lines) or your own function. Ctrl or Cmd turns it off for a drag.
      */
     snap?: SnapEngine | GuideSnap;
-    /** Snap distance, screen pixels. Default 6. */
+    /** Snap distance in CSS pixels. Default 6. */
     snapThreshold?: number;
-    /** Round guides to this world step while dragging (after snapping misses). Default 1. 0 turns it off. */
+    /** Rounds guides to this world step while dragging, when snapping misses. Default 1. 0 turns it off. */
     round?: number;
-    /** Turns a guide position into the pill text. Default whole numbers. */
+    /** Turns a guide position into the pill text. Default rounds to two decimals. */
     format?: (value: number) => string;
     /**
-     * Builds the pill text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
-     * text that stays sharp at any resolution.
+     * Builds the pill text. Default a PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` to
+     * draw it as SDF text instead.
      */
     label?: LabelFactory;
-    /** Guides to start with. */
+    /** Guides to start with. They get ids 1, 2 and so on, and do not call `onChange`. */
     guides?: readonly Omit<Guide, 'id'>[];
+    /** Per pointer kind overrides of `slop`, which widens the grab distance around a line. */
     profiles?: InputProfiles;
+    /** Ticker that runs fades and redraws. Default `Ticker.shared`. With `null`, call {@link Guides.tick} yourself. */
     ticker?: Ticker | null;
-    /** Called when a drag adds, moves or removes a guide. */
+    /** Called when a drag ends: a guide was added, moved or removed. Not called by the methods. */
     onChange?: (guides: readonly Guide[]) => void;
 }
 
@@ -69,7 +78,7 @@ export interface GuidesState {
     guides: Signal<readonly Guide[]>;
     /** The guide being dragged, or null. Updates on every move. */
     dragging: Signal<GuideDrag | null>;
-    /** Id of the guide under the pointer, or null. */
+    /** Id of the guide under the pointer, or null. Touch never hovers. */
     hover: Signal<number | null>;
 }
 
@@ -89,7 +98,7 @@ interface Drag {
     pointer: PointData;
 }
 
-/** The value of `candidates` within `threshold` of `v` that is nearest, or `v`. */
+/** The value of `candidates` within `threshold` of `v` that is nearest, or `v` when none is. A tie keeps the first. */
 export function snapValue(v: number, candidates: readonly number[], threshold: number): number {
     let best = v;
     let d = threshold;
@@ -107,16 +116,19 @@ export function snapValue(v: number, candidates: readonly number[], threshold: n
 }
 
 /**
- * Guide lines over a {@link Camera}'s world, the way design tools do them.
+ * Guide lines over a {@link Camera}'s world. Drag a guide out of a {@link Ruler}: the top ruler
+ * gives a horizontal one, the left a vertical one. Drag a guide to move it, drop it back on the
+ * ruler to remove it. A pill shows the position while dragging. {@link Guides.bindSnap} feeds the
+ * guides to a snap engine, so objects snap to them.
  *
- * - Drag a guide out of a {@link Ruler}: the top ruler gives a horizontal one, the left a vertical one.
- * - Drag a guide to move it, drop it back on the ruler to remove it.
- * - A pill shows the position while dragging. Guides snap to a {@link SnapEngine}'s objects.
- * - {@link Guides.bindSnap} feeds the guides to a snap engine, so objects snap to them.
+ * Works with mouse, pen and touch. Only the lines catch the pointer, so other presses reach the
+ * scene. Put it in screen space above the world, under the ruler.
  *
- * Works with mouse, pen and touch. Put it in screen space above the world, under the ruler.
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class Guides extends Container {
+    /** Guides, the drag and the hovered guide, as signals. */
     readonly state: GuidesState = {
         guides: signal<readonly Guide[]>([]),
         dragging: signal<GuideDrag | null>(null),
@@ -182,12 +194,12 @@ export class Guides extends Container {
         for (const g of options.guides ?? []) this.add(g.axis, g.at);
     }
 
-    /** Every guide now. */
+    /** Every guide now, the value of `state.guides`. A guide being dragged out of the ruler is not in it yet. */
     get guides(): readonly Guide[] {
         return this.state.guides.value;
     }
 
-    /** Adds a guide: `x` is a vertical line at x = `at`, `y` a horizontal one. */
+    /** Adds a guide at `at` world units and fades it in. `x` is a vertical line, `y` a horizontal one. */
     add(axis: 'x' | 'y', at: number): Guide {
         const guide = { id: this._next++, axis, at };
 
@@ -198,7 +210,7 @@ export class Guides extends Container {
         return guide;
     }
 
-    /** Moves a guide. */
+    /** Moves a guide to `at` world units, without snapping. An unknown id is a no-op. */
     move(id: number, at: number): this {
         const list = this.state.guides.value;
 
@@ -212,7 +224,7 @@ export class Guides extends Container {
         return this;
     }
 
-    /** Removes a guide. It fades out. */
+    /** Removes a guide at once from `state.guides`. Its line fades out. An unknown id is a no-op. */
     remove(id: number): this {
         const list = this.state.guides.value;
 
@@ -226,14 +238,14 @@ export class Guides extends Container {
         return this;
     }
 
-    /** Removes every guide. */
+    /** Removes every guide, one by one, so `state.guides` changes once per guide. */
     clear(): this {
         for (const g of this.state.guides.value) this.remove(g.id);
 
         return this;
     }
 
-    /** Guide positions in the shape {@link SnapEngine} takes for `lines`. */
+    /** Guide positions, world units, in the shape {@link SnapEngine} takes for `lines`. `x` holds the vertical guides. */
     lines(): { x: number[]; y: number[] } {
         const list = this.state.guides.value;
 
@@ -243,7 +255,10 @@ export class Guides extends Container {
         };
     }
 
-    /** Keeps `engine.lines` equal to the guides, so objects snap to them. Returns the unbind function. */
+    /**
+     * Keeps `engine.lines` equal to the guides, so objects snap to them. It overwrites any lines
+     * the engine had. Returns the unbind function. Destroying the layer unbinds too.
+     */
     bindSnap(engine: SnapEngine): () => void {
         const sync = () => {
             engine.lines = this.lines();
@@ -257,7 +272,10 @@ export class Guides extends Container {
         return off;
     }
 
-    /** The guide near a screen point, or null. */
+    /**
+     * The guide nearest a point in this layer's space, or null. The grab distance is 3 pixels plus
+     * part of the last pointer kind's `slop`. Points over the ruler return null.
+     */
     pick(p: PointData): Guide | null {
         const tol = 3 + inputProfile(this._kind, this._opts.profiles).slop * 0.6;
         const ruler = this._opts.ruler;
@@ -279,7 +297,7 @@ export class Guides extends Container {
         return best;
     }
 
-    /** Advances by `dt` seconds and redraws (only needed with `ticker: null`). */
+    /** Advances fades by `dt` seconds (clamped to 0..0.1) and redraws. Only needed with `ticker: null`. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

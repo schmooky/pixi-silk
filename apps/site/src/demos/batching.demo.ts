@@ -1,26 +1,28 @@
-import { Container, Text, type WebGLRenderer } from 'pixi.js';
+import { Container, Graphics, type WebGLRenderer } from 'pixi.js';
 import { enableSilkBatching, SilkGraphics } from 'pixi-silk';
-import { defineDemo } from './runtime';
+import { defineDemo, INK, readout, SERIES } from './runtime';
 
 // 2000 separate SilkGraphics that move every frame. With batching on, runs of them share a draw,
 // on WebGL2 and on WebGPU.
 enableSilkBatching();
 
 export default defineDemo({
-    size: [480, 300],
+    title: 'Batching',
+    size: [720, 320],
+    // phones: a taller strip with the stats on two lines, a narrower spiral
+    phone: { size: [360, 320] },
     controls: {
         batching: { type: 'toggle', label: 'batching', value: true },
         count: { type: 'range', label: 'objects', min: 200, max: 4000, step: 200, value: 2000 },
     },
-    setup({ silk, stage, params, tick }) {
+    setup({ silk, stage, params, tick, width, phone }) {
         const layer = new Container();
-        const caption = new Text({
-            text: '',
-            style: { fill: 0xffffff, fontSize: 12, fontFamily: 'ui-monospace, monospace' },
-        });
+        // the stats sit in a strip above the drawing
+        const top = phone ? 58 : 40;
+        const strip = new Graphics().rect(0, 0, width, top).fill(INK.surface).rect(0, top, width, 1).fill(INK.line);
+        const caption = readout('', phone ? 16 : 24, 13, phone ? { fontSize: 13, lineHeight: 18 } : { fontSize: 13 });
 
-        caption.position.set(12, 10);
-        stage.addChild(layer, caption);
+        stage.addChild(layer, strip, caption);
 
         // count draw calls: wrap the WebGL context, or the WebGPU render pass encoder
         const renderer = silk.app.renderer as WebGLRenderer;
@@ -61,7 +63,7 @@ export default defineDemo({
         silk.app.renderer.runners.postrender.add(counter);
 
         let built = '';
-        const colors = [0x0a84ff, 0x30d158, 0xff9f0a, 0xff375f, 0xbf5af2];
+        const colors = SERIES.slice(0, 5);
         const build = () => {
             for (const child of layer.removeChildren()) child.destroy();
             for (let i = 0; i < params.count; i++) {
@@ -82,12 +84,15 @@ export default defineDemo({
 
             layer.children.forEach((g, i) => {
                 const a = i * 2.399963 + t * 0.3;
-                const r = Math.sqrt(i / n) * 130;
+                const r = Math.sqrt(i / n) * 118;
 
-                g.position.set(240 + Math.cos(a) * r * 1.6, 150 + Math.sin(a) * r);
+                g.position.set(
+                    width / 2 + Math.cos(a) * r * (phone ? 1.4 : 2.6),
+                    (phone ? 190 : 184) + Math.sin(a) * r,
+                );
                 g.rotation = t + i;
             });
-            caption.text = `${n} objects, ${calls} draw calls last frame`;
+            caption.text = `${n} objects${phone ? '\n' : '   '}${calls} draw calls last frame`;
         });
 
         return () => {

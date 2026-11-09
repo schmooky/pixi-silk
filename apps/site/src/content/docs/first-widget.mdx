@@ -1,0 +1,119 @@
+---
+title: Your first widget
+seoTitle: 'Tutorial: a glowing pill button in PixiJS v8'
+description: 'Build a pill button with SilkGraphics: a soft glow from a blurred fill, springs for hover and press, and a SilkText label. Then compare it with SilkButton.'
+keywords: ['PixiJS button', 'PixiJS glow', 'PixiJS hover animation', 'SilkGraphics tutorial', 'SilkButton']
+updated: 2026-11-08
+api: [SilkGraphics, Spring, SilkText, SilkButton]
+---
+
+This tutorial builds a pill button that glows, brightens on hover and dips when pressed. It uses
+`SilkGraphics` for the shape and the glow, two springs for motion and `SilkText` for the label.
+
+## Draw the button
+
+A button is a container with a graphics object and a label in it. The pivot sits at the centre,
+so the press can scale it in place. `paint()` redraws the shape for a hover and a press amount
+from 0 to 1.
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkText } from 'pixi-silk/text';
+
+const W = 180;
+const H = 56;
+const button = new Container();
+const shape = new SilkGraphics();
+const label = new SilkText({ text: 'Play', fontSize: 20, fontWeight: 600, fill: 0xffffff, anchor: 0.5 });
+
+label.position.set(W / 2, H / 2);
+button.addChild(shape, label);
+button.pivot.set(W / 2, H / 2);
+button.position.set(200, 120);
+app.stage.addChild(button);
+
+function paint(hover: number, press: number) {
+    shape.clear();
+    shape.pill(0, 0, W, H).fill({ color: 0x0a84ff, alpha: 0.4 + 0.5 * hover, blur: 10 + 8 * hover, spread: 2, blend: 'add' });
+    shape.pill(0, 0, W, H).fill(press > 0.5 ? 0x0060df : 0x0a84ff);
+}
+
+paint(0, 0);
+```
+
+`SilkText` comes from `pixi-silk/text`, a separate entry point. Its glyphs are distance fields
+too, so the label stays sharp when the button scales.
+
+## The glow
+
+`paint()` draws the pill twice. The first copy is the glow: `blur` softens it, `spread` grows it
+before the blur so it keeps a bright core, and `blend: 'add'` brightens the background instead of
+covering it. Both pills render in the object's one draw call, with no filter and no extra texture.
+
+## Add hover and press
+
+`Spring` from the root import moves a value towards a target. This function wires pointer events
+to two springs and repaints while they move.
+
+```ts
+import type { Container, Ticker } from 'pixi.js';
+import { Spring } from 'pixi-silk';
+
+export function animate(button: Container, paint: (hover: number, press: number) => void, ticker: Ticker) {
+    const hover = new Spring(0, 300, 30); // value, stiffness, damping
+    const press = new Spring(0, 700, 32);
+
+    button.eventMode = 'static';
+    button.cursor = 'pointer';
+    button.on('pointerover', () => (hover.target = 1));
+    button.on('pointerout', () => {
+        hover.target = 0;
+        press.target = 0;
+    });
+    button.on('pointerdown', () => (press.target = 1));
+    button.on('pointerup', () => {
+        press.target = 0;
+        console.log('pressed');
+    });
+
+    ticker.add((t) => {
+        if (hover.settled && press.settled) return;
+        const h = hover.step(t.deltaMS / 1000);
+        const p = press.step(t.deltaMS / 1000);
+
+        paint(h, p);
+        button.scale.set(1 - 0.05 * p);
+    });
+}
+```
+
+Call `animate(button, paint, app.ticker)`. Hovering raises the glow over a few frames. Pressing
+shrinks the button by 5% and darkens it, and releasing springs it back. The ticker skips the repaint once both springs rest.
+
+Pointer events test the pill shape, not a bounding box, so the corners outside the rounded ends
+do not react.
+
+## The ready-made button
+
+`SilkButton` from `pixi-silk/ui/button` does all of this and handles the cases an app needs.
+
+```ts
+import { SilkButton } from 'pixi-silk/ui/button';
+
+const play = new SilkButton({ label: 'Play', width: 180, height: 56, onPress: () => console.log('pressed') });
+
+play.position.set(200, 200);
+app.stage.addChild(play);
+```
+
+It ignores input while it animates in or out, while it is disabled and while `state.busy` shows
+a spinner. A press that slides off still counts when it is released close by, and `holdMs` adds a
+long press. Write your own button when you need a look it does not draw, and use `SilkButton` for
+the input rules.
+
+## Where next
+
+- [Glass & glow](/docs/glass-and-glow/) has a glowing button demo and the `pixi-silk/glow` recipes.
+- [Radial menus & buttons](/docs/radial-menus-and-buttons/) lists every `SilkButton` option.
+- [Interaction & motion](/docs/interaction-and-motion/) covers hit testing and springs.

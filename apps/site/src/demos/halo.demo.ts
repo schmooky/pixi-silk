@@ -25,6 +25,7 @@ const paint = (g: SilkGraphics, s: number) => g.circle(0, 0, s * 0.36).fill(0xff
 
 // Click a shape to select it. Drag it around: the halo follows and turns away from the edges.
 export default defineDemo({
+    title: 'Selection halo',
     size: [640, 380],
     touchAction: 'none',
     controls: {

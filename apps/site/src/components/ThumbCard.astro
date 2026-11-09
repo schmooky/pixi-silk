@@ -1,0 +1,39 @@
+---
+/**
+ * A link card with a thumbnail on top: hubs, the docs index and the home page use it.
+ * Without a thumbnail it draws a neutral tile, so a page that has no capture yet still fits the grid.
+ */
+interface Props {
+    href: string;
+    title: string;
+    description?: string;
+    thumb?: string;
+    /** Small label above the title. */
+    eyebrow?: string;
+    /** Marks a page or area as experimental. */
+    badge?: string;
+    /** `lg` for the home page strip. */
+    size?: 'md' | 'lg';
+}
+const { href, title, description, thumb, eyebrow, badge, size = 'md' } = Astro.props;
+---
+
+<a href={href} class:list={['thumb-card group', size === 'lg' && 'thumb-card-lg']}>
+    <div class="thumb-card-media">
+        {thumb ? (
+            <img src={thumb} alt="" width="640" height="400" loading="lazy" decoding="async" />
+        ) : (
+            <div class="thumb-card-blank" aria-hidden="true">
+                <span>{title.replace(/[^A-Za-z]/g, '').slice(0, 1)}</span>
+            </div>
+        )}
+    </div>
+    <div class="thumb-card-body">
+        {eyebrow && <div class="eyebrow mb-1.5">{eyebrow}</div>}
+        <div class="flex items-center gap-2">
+            <span class="thumb-card-title">{title}</span>
+            {badge && <span class="badge">{badge}</span>}
+        </div>
+        {description && <p class="thumb-card-text">{description}</p>}
+    </div>
+</a>

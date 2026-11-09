@@ -4,11 +4,11 @@ import type { GlowLayer } from './Glow';
 
 /** Options of {@link neon}. */
 export interface NeonOptions {
-    /** Rough size of the shape, sets every blur radius. The recipe is tuned at 100. Default 100. */
+    /** Rough size of the shape in local units. Every blur and spread scales with it. Tuned at 100. Default 100. */
     size?: number;
-    /** Paint of the solid core. Default a radial gradient from a pale tint to the glow colour. */
+    /** Paint of the solid core, a colour or a gradient. Default a radial gradient from a pale tint to the glow colour. */
     core?: ColorSource | Gradient;
-    /** Strength of the bloom, from 0 to about 2. Default 1. */
+    /** Strength of the bloom, from 0 to about 2. Negative values count as 0. Default 1. */
     intensity?: number;
     /**
      * What the glow sits on. Light adds up on `dark` surfaces. On `light` ones (white cards) added
@@ -25,10 +25,10 @@ function tint(color: ColorSource, t: number): number {
 }
 
 /**
- * The neon recipe from Figma, five layers back to front, for a shape about `size` wide.
- * A wide bloom and a tighter one go behind, both Plus lighter. Then the core: a radial gradient
- * with two coloured drop glows and a pale inner shadow. A 60% white copy added on top makes the
- * middle burn towards white, and a thin blurred white outline finishes it.
+ * A neon glow as seven {@link GlowLayer}s, back to front, for a shape about `size` wide. Two blooms
+ * go behind. Then come two coloured drop glows and the core, a radial gradient with a pale inner
+ * shadow. A 60% white copy on top makes the middle burn towards white. A thin blurred white outline
+ * finishes it. On a `dark` surface the glows blend additively.
  */
 export function neon(color: ColorSource, options: NeonOptions = {}): GlowLayer[] {
     const { size = 100, intensity = 1, surface = 'dark' } = options;
@@ -77,7 +77,10 @@ export function neon(color: ColorSource, options: NeonOptions = {}): GlowLayer[]
     ];
 }
 
-/** A soft halo only: the shape blurred a few times, each wider and fainter. */
+/**
+ * A soft halo only, no core: `rings` additive passes of the shape (default 3), each wider and fainter,
+ * returned back to front. `size` (default 100) scales the blur and spread.
+ */
 export function halo(color: ColorSource, size = 100, rings = 3): GlowLayer[] {
     return Array.from({ length: rings }, (_, i) => {
         const t = (i + 1) / rings;
@@ -90,8 +93,9 @@ export function halo(color: ColorSource, size = 100, rings = 3): GlowLayer[] {
 }
 
 /**
- * Stacked white shadows behind a shape, as in CSS: `[blur, spread]` pairs with the CSS blur
- * radius (twice the gaussian sigma). The default is the classic 8 / 32+8 / 128+32 stack.
+ * Stacked additive shadows behind a shape, as in CSS. Each `[blur, spread]` pair uses the CSS blur
+ * radius, which is twice the gaussian sigma. The default stack is `[8, 0]`, `[32, 8]` and
+ * `[128, 32]` in white at alpha 0.6.
  */
 export function shadowStack(
     color: ColorSource = 0xffffff,

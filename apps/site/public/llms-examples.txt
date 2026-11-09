@@ -1,0 +1,1578 @@
+# pixi-silk: examples
+
+> Smooth vector graphics for PixiJS v8. Every shape is an exact signed distance field, anti-aliased per pixel in the shader, so edges stay smooth at any zoom, rotation and device pixel ratio without MSAA.
+
+pixi-silk 1.0.0 is an MIT-licensed TypeScript library. It needs pixi.js ^8.6 as a peer dependency, and a browser with WebGL2 or WebGPU.
+
+Site: https://pixi-silk.schmooky.dev
+Repository: https://github.com/schmooky/pixi-silk
+Package: https://www.npmjs.com/package/pixi-silk
+
+This file holds whole screens built with pixi-silk, with the full source of every demo. The demos run in the docs demo runner: `defineDemo({ setup({ stage, params, tick }) })`. In your app, `stage` is `app.stage` (or a container on it), `params` are your own values and `tick(fn)` is `app.ticker.add`.
+
+- [llms-full.txt](https://pixi-silk.schmooky.dev/llms-full.txt): core, paint and rendering: guides and API, SilkGraphics first.
+- [llms-ui.txt](https://pixi-silk.schmooky.dev/llms-ui.txt): text, layout, UI widgets and the editor kit: guides and API.
+
+---
+
+# Showcase
+
+URL: https://pixi-silk.schmooky.dev/docs/showcase/
+Area: Examples
+
+> Five design sheets rebuilt pixel for pixel, three dashboard scenes and four light scenes, all drawn with pixi-silk. Open any of them in Studio.
+
+Whole screens built with pixi-silk. They are site code, not library code, so copy the parts you
+need. Each demo opens in Studio with its source.
+
+### Design sheets, rebuilt 1:1
+
+Each pair shows the reference image and a still frame of the live render. Open a sheet to drag a
+compare slider over it. The widget viewer and the experiments listed at the end of this page open
+any single widget full screen.
+
+The five sheets open full screen from the experiments listed with this page.
+
+### Dashboards
+
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `weather-mono` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight } from 'pixi.js';
+import { damp, SilkGraphics } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+// A monochrome weather dashboard. Static shapes redraw only while the theme fades, the needle,
+// compass and sunrise arrow move on their own layer every frame.
+
+const W = 390;
+const H = 900;
+const MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+
+interface Palette {
+    bg: number;
+    card: number;
+    disc: number;
+    onDisc: number;
+    ink: number;
+    faint: number;
+}
+
+const LIGHT: Palette = {
+    bg: 0xdcdedb,
+    card: 0xebecea,
+    disc: 0x1d1d1d,
+    onDisc: 0xf2f2f2,
+    ink: 0x1d1d1d,
+    faint: 0x9a9c99,
+};
+const DARK: Palette = {
+    bg: 0x000000,
+    card: 0x1e1f21,
+    disc: 0xe9eaea,
+    onDisc: 0x111111,
+    ink: 0xf2f2f2,
+    faint: 0x6a6b6d,
+};
+
+const mix = (a: number, b: number, t: number) => {
+    const ch = (s: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * t) << s;
+
+    return ch(16) | ch(8) | ch(0);
+};
+const blend = (t: number): Palette => ({
+    bg: mix(LIGHT.bg, DARK.bg, t),
+    card: mix(LIGHT.card, DARK.card, t),
+    disc: mix(LIGHT.disc, DARK.disc, t),
+    onDisc: mix(LIGHT.onDisc, DARK.onDisc, t),
+    ink: mix(LIGHT.ink, DARK.ink, t),
+    faint: mix(LIGHT.faint, DARK.faint, t),
+});
+
+// layout: two columns of cards under the hero row
+const COL = [20, 205];
+const CARD_W = 165;
+const CARD_H = 165;
+const ROW = [330, 515, 700];
+const hair = (color: number, alpha = 1) => ({ width: 1.25, color, alpha });
+
+type Role = 'ink' | 'onDisc' | 'faint';
+
+export default defineDemo({
+    title: 'Weather card',
+    size: [W, H],
+    // phones: the same card, as tall as the frame width allows, with no text under 12 px
+    phone: { size: [W, H] },
+    controls: {
+        theme: { type: 'select', label: 'theme', options: ['light', 'dark'], value: 'dark' },
+    },
+    setup({ stage, params, tick, phone }) {
+        const base = new SilkGraphics();
+        const live = new SilkGraphics();
+        const texts = new Container();
+        const labels: [Text, Role][] = [];
+        let fade = params.theme === 'dark' ? 1 : 0;
+        let drawnFade = -1;
+
+        stage.addChild(base, live, texts);
+
+        const text = (
+            value: string,
+            x: number,
+            y: number,
+            size: number,
+            role: Role,
+            anchor = 0,
+            weight: TextStyleFontWeight = '400',
+        ) => {
+            // a phone frame shows the card at about 0.9: the small labels grow to stay readable
+            const t = new Text({
+                text: value,
+                style: {
+                    fill: 0xffffff,
+                    fontFamily: MONO,
+                    fontSize: phone ? Math.max(12, size) : size,
+                    fontWeight: weight,
+                    letterSpacing: size * 0.08,
+                },
+            });
+
+            t.anchor.set(anchor, 0.5);
+            t.position.set(x, y);
+            texts.addChild(t);
+            labels.push([t, role]);
+        };
+
+        // header
+        text('BROADGATE', W / 2, 92, 17, 'ink', 0.5);
+        // hero
+        text('12°', 115, 204, 66, 'onDisc', 0.5, '300');
+        text('H:14° L:9°', 115, 254, 13, 'onDisc', 0.5);
+        text('AIR QUALITY  21', 228, 162, 13, 'ink');
+        text('Fair', 228, 184, 13, 'ink');
+        text('UV INDEX 02', 228, 254, 13, 'ink');
+        text('Low', 228, 276, 13, 'ink');
+        // card titles and values
+        const card = (col: number, row: number, title: string, sub: string, value: string, unit = '') => {
+            const x = COL[col] + 16;
+            const y = ROW[row];
+
+            text(title, x, y + 22, 11, 'ink');
+            if (sub) text(sub, x, y + 38, 11, 'ink', 0, '700');
+            text(value, x, y + CARD_H - 26, 26, 'ink', 0, '300');
+            if (unit) text(unit, x + value.length * 17 + 4, y + CARD_H - 22, 10, 'ink');
+        };
+
+        card(0, 0, 'AIR QUALITY', 'Fair', '21');
+        card(1, 0, 'HUMIDITY', '', '79%');
+        card(0, 1, 'WIND SPEED', '', '7', 'MPH');
+        card(1, 1, 'UV INDEX', 'Low', '02');
+        card(0, 2, 'SUNRISE', '', '06:11');
+        text('N', COL[0] + CARD_W / 2, ROW[1] + 56, 9, 'ink', 0.5, '700');
+        text('FEELS LIKE', COL[1] + CARD_W / 2, ROW[2] + 60, 12, 'onDisc', 0.5);
+        text('11°', COL[1] + CARD_W / 2, ROW[2] + 100, 46, 'onDisc', 0.5, '300');
+
+        const drawBase = (p: Palette) => {
+            const g = base.clear();
+
+            g.rect(0, 0, W, H).fill(p.bg);
+            menuIcon(g, 28, 92, p.ink);
+            gearIcon(g, W - 38, 92, p);
+            g.circle(115, 218, 90).fill(p.disc);
+            g.pill(212, 130, 160, 74).fill(p.card);
+            g.pill(212, 222, 160, 74).fill(p.card);
+            g.line(20, 318, W - 20, 318).stroke(hair(p.ink));
+            for (const [col, row] of [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [1, 1],
+                [0, 2],
+            ]) {
+                g.roundRect(COL[col], ROW[row], CARD_W, CARD_H, 14).fill(p.card);
+            }
+            gaugeFace(g, COL[0] + CARD_W / 2, ROW[0] + 108, p);
+            g.circle(COL[1] + CARD_W / 2, ROW[0] + 82, 46).stroke(hair(p.ink, 0.6));
+            g.circle(COL[1] + CARD_W / 2, ROW[0] + 82, 37).fill(p.disc);
+            compassFace(g, COL[0] + CARD_W / 2, ROW[1] + 92, p);
+            uvStack(g, COL[1] + CARD_W / 2, ROW[1] + 120, p);
+            sunriseFace(g, COL[0] + CARD_W / 2, ROW[2] + 92, p);
+            g.circle(COL[1] + CARD_W / 2, ROW[2] + CARD_H / 2, 82).fill(p.disc);
+        };
+
+        tick((t, dt) => {
+            fade = damp(fade, params.theme === 'dark' ? 1 : 0, 6, dt);
+            const p = blend(fade);
+
+            if (Math.abs(fade - drawnFade) > 0.001) {
+                drawBase(p);
+                drawnFade = fade;
+                for (const [label, role] of labels) label.tint = p[role];
+            }
+            const g = live.clear();
+
+            gaugeNeedle(g, COL[0] + CARD_W / 2, ROW[0] + 108, 0.28 + Math.sin(t * 0.7) * 0.04, p.ink);
+            compassNeedle(g, COL[0] + CARD_W / 2, ROW[1] + 92, 0.45 + Math.sin(t * 0.9) * 0.08, p.onDisc);
+            sunriseArrow(g, COL[0] + CARD_W / 2, ROW[2] + 92, Math.sin(t * 1.6) * 2.5, p.ink);
+        });
+
+        return undefined;
+    },
+});
+
+function menuIcon(g: SilkGraphics, x: number, y: number, color: number) {
+    for (let i = -1; i <= 1; i++) {
+        g.circle(x, y + i * 7, 1.5).fill(color);
+        g.line(x + 6, y + i * 7, x + 24, y + i * 7).stroke({ width: 1.5, color, cap: 'round' });
+    }
+}
+
+function gearIcon(g: SilkGraphics, x: number, y: number, p: Palette) {
+    g.star(x, y, 8, 13, 10.5, 0, 1.2).fill(p.ink);
+    g.circle(x, y, 8.5).fill(p.bg);
+    g.circle(x, y, 4).fill(p.ink);
+    g.circle(x, y, 2.6).fill(p.bg);
+}
+
+function gaugeFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    const r = 50;
+
+    g.line(cx - 72, cy, cx + 72, cy).stroke(hair(p.ink));
+    g.arc(cx, cy, r, Math.PI, Math.PI * 2).stroke(hair(p.ink));
+    for (let i = 0; i <= 16; i++) {
+        const a = Math.PI + (i / 16) * Math.PI;
+        const inner = i % 4 === 0 ? r - 9 : r - 5;
+
+        g.line(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner, cx + Math.cos(a) * r, cy + Math.sin(a) * r).stroke(
+            hair(p.ink),
+        );
+    }
+}
+
+function gaugeNeedle(g: SilkGraphics, cx: number, cy: number, value: number, color: number) {
+    const a = Math.PI + value * Math.PI;
+    const tipX = cx + Math.cos(a) * 44;
+    const tipY = cy + Math.sin(a) * 44;
+    const head = 7;
+
+    g.line(cx, cy, tipX, tipY).stroke({ width: 1.5, color, cap: 'round' });
+    for (const side of [-0.45, 0.45]) {
+        g.line(tipX, tipY, tipX - Math.cos(a + side) * head, tipY - Math.sin(a + side) * head).stroke({
+            width: 1.5,
+            color,
+            cap: 'round',
+        });
+    }
+}
+
+function compassFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    g.circle(cx, cy, 44).stroke(hair(p.ink));
+    g.circle(cx, cy, 30).fill(p.disc);
+    g.regularPoly(cx, cy - 47, 3.5, 3, 0, 0.5).fill(p.ink);
+}
+
+function compassNeedle(g: SilkGraphics, cx: number, cy: number, angle: number, color: number) {
+    const dx = Math.sin(angle) * 24;
+    const dy = -Math.cos(angle) * 24;
+
+    g.line(cx + dx, cy + dy, cx - dx, cy - dy).stroke({ width: 1.4, color, cap: 'round' });
+    const back = Math.atan2(-dy, -dx);
+
+    for (const side of [-0.5, 0.5]) {
+        g.line(cx - dx, cy - dy, cx - dx - Math.cos(back + side) * 6, cy - dy - Math.sin(back + side) * 6).stroke({
+            width: 1.4,
+            color,
+            cap: 'round',
+        });
+    }
+}
+
+function uvStack(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    // `cy` is the shared base line: each ellipse sits on it, the tallest faintest
+    for (let i = 0; i < 5; i++) {
+        const ry = 36 - i * 6.5;
+
+        g.ellipse(cx, cy - ry, 46, ry).stroke(hair(p.ink, 0.22 + i * 0.13));
+    }
+    g.ellipse(cx, cy, 46, 4.5).stroke({ width: 1.8, color: p.ink });
+}
+
+function sunriseFace(g: SilkGraphics, cx: number, cy: number, p: Palette) {
+    g.line(cx - 72, cy, cx + 72, cy).stroke(hair(p.ink));
+    g.arc(cx, cy, 52, Math.PI, Math.PI * 2).stroke(hair(p.ink, 0.45));
+    g.arc(cx, cy, 40, Math.PI, Math.PI * 2).stroke({ width: 1.6, color: p.ink });
+    g.line(cx - 52, cy + 10, cx + 52, cy + 10).stroke(hair(p.ink, 0.7));
+    g.line(cx - 34, cy + 18, cx + 34, cy + 18).stroke(hair(p.ink, 0.7));
+    g.line(cx - 12, cy + 26, cx + 12, cy + 26).stroke(hair(p.ink, 0.7));
+}
+
+function sunriseArrow(g: SilkGraphics, cx: number, cy: number, lift: number, color: number) {
+    const top = cy - 26 - lift;
+
+    g.line(cx, cy - 8, cx, top).stroke({ width: 1.4, color, cap: 'round' });
+    g.line(cx, top, cx - 5, top + 6).stroke({ width: 1.4, color, cap: 'round' });
+    g.line(cx, top, cx + 5, top + 6).stroke({ width: 1.4, color, cap: 'round' });
+}
+```
+
+A weather board in two tones. It uses hairlines, discs and one monospace face. The needle, the
+compass and the sunrise arrow move on their own layer, so the rest is drawn once.
+
+Live demo `finance-bento` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight, type TextStyleOptions } from 'pixi.js';
+import { damp, ease, SilkGraphics } from 'pixi-silk';
+import { Odometer } from 'pixi-silk/ui/odometer';
+import { defineDemo } from './runtime';
+
+// A finance bento board. Every tile is its own container: it slides in on load, lifts on hover,
+// and animates its numbers and bars once it has landed.
+
+const W = 720;
+const H = 900;
+const GAP = 19;
+const COL_W = (W - GAP * 4) / 3;
+const col = (i: number) => GAP + i * (COL_W + GAP);
+const SANS = 'Inter, "Helvetica Neue", system-ui, sans-serif';
+
+const C = {
+    page: 0x2a2a2a,
+    orange: 0xf28a2e,
+    orangeDeep: 0xd9762a,
+    ink: 0x111111,
+    stone: 0x8f8f8b,
+    mist: 0xd9d9d6,
+    paper: 0xf2f2f0,
+    olive: 0x7f8b6c,
+    oliveDeep: 0x5e6950,
+    slate: 0x5a5a5a,
+    arrow: 0xc4c4c4,
+    clay: 0x7d5546,
+    taupe: 0x857a5c,
+    sand: 0xc8b88d,
+    donut: 0x4a4a4a,
+};
+
+interface Tile {
+    view: Container;
+    /** 0..1 entrance progress, starts after `delay`. */
+    enter: number;
+    delay: number;
+    lift: number;
+    hover: boolean;
+    /** Redraws the animated parts with the eased entrance value. */
+    update?: (p: number, t: number) => void;
+}
+
+type Label = (
+    text: string,
+    size: number,
+    color: number,
+    weight?: TextStyleFontWeight,
+    extra?: TextStyleOptions,
+) => Text;
+
+/** Text in the board's font. Sizes under `floor` grow to it, and so does their line height. */
+const labelWithFloor =
+    (floor: number): Label =>
+    (text, size, color, weight = '500', extra = {}) => {
+        const k = Math.max(1, floor / size);
+        const lineHeight = extra.lineHeight === undefined ? undefined : extra.lineHeight * k;
+
+        return new Text({
+            text,
+            style: { fill: color, fontFamily: SANS, fontSize: size * k, fontWeight: weight, ...extra, lineHeight },
+        });
+    };
+
+// phones: two columns instead of three, shown at about 0.73, so labels grow to 15 to stay readable
+const PHONE_W = 2 * COL_W + 3 * GAP;
+const PHONE_H = 1396;
+/** Tile positions on phones: column and top. */
+const PHONE: Record<string, [number, number]> = {
+    orange: [0, 20],
+    volume: [0, 279],
+    bars: [0, 628],
+    clock: [0, 1022],
+    send: [1, 20],
+    research: [1, 209],
+    currency: [1, 698],
+    arrow: [1, 907],
+    donut: [1, 1176],
+};
+
+function tile(x: number, y: number, w: number, h: number, fill: number, delay: number, radius = 10): Tile {
+    const view = new Container();
+    const bg = new SilkGraphics();
+
+    bg.roundRect(0, 0, w, h, radius).fill(fill);
+    view.addChild(bg);
+    view.position.set(x, y);
+    view.eventMode = 'static';
+    view.hitArea = { contains: (px, py) => px >= 0 && py >= 0 && px <= w && py <= h };
+
+    const t: Tile = { view, enter: 0, delay, lift: 0, hover: false };
+
+    view.on('pointerover', () => (t.hover = true));
+    view.on('pointerout', () => (t.hover = false));
+
+    return t;
+}
+
+function place(child: Container, x: number, y: number, ax = 0, ay = 0) {
+    if ('anchor' in child) (child as Text).anchor.set(ax, ay);
+    child.position.set(x, y);
+
+    return child;
+}
+
+export default defineDemo({
+    title: 'Finance bento',
+    size: [W, H],
+    phone: { size: [PHONE_W, PHONE_H] },
+    setup({ silk, stage, tick, width, height, phone }) {
+        const ticker = silk.app.ticker;
+        const tiles: Tile[] = [];
+        const bg = new SilkGraphics().rect(0, 0, width, height).fill(C.page);
+        const label = labelWithFloor(phone ? 15 : 0);
+        /** A tile's place: its wide column and top, or its phone place. */
+        const at = (name: string, column: number, y: number): [number, number] =>
+            phone ? [col(PHONE[name][0]), PHONE[name][1]] : [col(column), y];
+        const add = (t: Tile) => {
+            tiles.push(t);
+            stage.addChild(t.view);
+
+            return t;
+        };
+
+        stage.addChild(bg);
+
+        // the 78% card: orange, with a progress bar
+        {
+            const t = add(tile(...at('orange', 0, 20), COL_W, 240, C.orange, 0));
+            const value = new Odometer({
+                ticker,
+                prefix: '\u2248', // almost equal
+                suffix: '%',
+                fontSize: 52,
+                color: C.ink,
+                textStyle: { fontFamily: SANS },
+            });
+            const bar = new SilkGraphics();
+
+            t.view.addChild(
+                value,
+                place(label('●  Winning\nInvestors', 22, C.ink, '700', { lineHeight: 24 }), 14, 100),
+                place(label('2024 May', 22, 0xb5611d, '700'), 14, 150),
+                bar,
+            );
+            value.position.set(COL_W - 14, 52);
+            t.update = (p) => {
+                if (p > 0.2 && value.state.value.value === 0) value.set(78);
+                value.x = COL_W - 14 - value.width / 2;
+                bar.clear()
+                    .roundRect(10, 186, COL_W - 20, 44, 4)
+                    .fill(C.orangeDeep);
+                bar.roundRect(10, 186, (COL_W - 20) * 0.7 * p, 44, 4).fill(C.ink);
+            };
+        }
+
+        // up arrow tile
+        {
+            const t = add(tile(...at('arrow', 0, 280), COL_W, 250, C.slate, 0.08));
+            const g = new SilkGraphics();
+            const cx = COL_W / 2;
+
+            g.rect(cx - 9, 70, 18, 140).fill(C.arrow);
+            g.beginPath()
+                .moveTo(cx, 60)
+                .bezierCurveTo(cx - 8, 90, cx - 40, 110, cx - 72, 110)
+                .stroke({ width: 18, color: C.arrow });
+            g.beginPath()
+                .moveTo(cx, 60)
+                .bezierCurveTo(cx + 8, 90, cx + 40, 110, cx + 72, 110)
+                .stroke({ width: 18, color: C.arrow });
+            t.view.addChild(g);
+            t.update = (p, time) => {
+                g.y = (1 - p) * 30 + Math.sin(time * 1.4) * 3 * p;
+            };
+        }
+
+        // 24h trading volume
+        {
+            const t = add(tile(...at('volume', 0, 550), COL_W, 330, C.clay, 0.16));
+            const rows: [boolean, string, string][] = [
+                [true, 'Bitcoin', '$67,258.69'],
+                [false, 'Ethereum', '$2,631.39'],
+                [true, 'Tether', '$0.9992'],
+                [false, 'Solana', '$167.92'],
+                [true, 'Cardano', '$0.362'],
+                [false, 'Toncoin', '$5.25'],
+            ];
+            const lines = new SilkGraphics();
+
+            t.view.addChild(place(label('24h Trading\nVolume', 22, C.ink, '700', { lineHeight: 24 }), 16, 20), lines);
+            rows.forEach(([up, name, price], i) => {
+                const y = 330 - (rows.length - i) * 37 + 12;
+
+                lines.rect(0, y - 18, COL_W, 1).fill({ color: C.ink, alpha: 0.25 });
+                t.view.addChild(
+                    place(label(up ? '▲' : '▼', 10, C.ink), 16, y, 0, 0.5),
+                    place(label(name, 13, C.ink, '600'), 34, y, 0, 0.5),
+                    place(label(price, 13, C.ink, '600'), COL_W - 14, y, 1, 0.5),
+                );
+            });
+        }
+
+        // send / receive
+        {
+            const t = add(tile(...at('send', 1, 20), COL_W, 170, C.stone, 0.04));
+            const inner = new SilkGraphics();
+            const send = new Odometer({
+                ticker,
+                fontSize: 38,
+                color: C.ink,
+                textStyle: { fontFamily: SANS, fontWeight: '400' },
+            });
+
+            inner.roundRect(8, 8, COL_W - 16, 72, 7).fill(0xadada9);
+            inner.roundRect(8, 88, COL_W - 16, 74, 7).fill(C.mist);
+            t.view.addChild(
+                inner,
+                place(label('Send', 16, 0x3b3b3b, '400'), 22, 30, 0, 0.5),
+                place(label('USD', 11, 0x555555, '400'), 22, 64, 0, 0.5),
+                send,
+                place(label('Receive', 16, 0x3b3b3b, '400'), 22, 110, 0, 0.5),
+                place(label('BTC', 11, 0x555555, '400'), 22, 146, 0, 0.5),
+                place(label('0,0018', 38, C.ink, '400'), COL_W - 22, 136, 1, 0.5),
+            );
+            send.y = 54;
+            t.update = (p) => {
+                if (p > 0.2 && send.state.value.value === 0) send.set(134);
+                send.x = COL_W - 22 - send.width / 2;
+            };
+        }
+
+        // research card: a price, then three plan cards stacked on its lower half
+        {
+            const t = add(tile(...at('research', 1, 205), COL_W, 470, 0xbdbdba, 0.12));
+            const g = new SilkGraphics();
+            const plans: [string, string, number, number][] = [
+                ['Key\nBenefits', 'AI tools', 2, 0xdcdcda],
+                ['Pricing\nPlans', 'Premium', 15, C.paper],
+                ['Trusted\nInvestors', 'Trust', 54, C.taupe],
+            ];
+            const top = [214, 278, 342];
+            const bottom = 462;
+            const counters: Odometer[] = [];
+            const trust = new SilkGraphics();
+            const price = label('$23,485', 32, C.ink, '400');
+            const cents = label('.95', 32, 0x8c8c8a, '400');
+
+            t.view.addChild(
+                g,
+                place(label('Best Crypto\nResearch', 22, C.ink, '700', { lineHeight: 24 }), 16, 16),
+                place(price, 16, 186, 0, 0.5),
+                place(cents, 16 + price.width, 186, 0, 0.5),
+            );
+            plans.forEach(([name, sub, , fill], i) => {
+                const y = top[i];
+
+                g.roundRect(6, y, COL_W - 12, bottom - y, 8).fill(fill);
+                const counter = new Odometer({
+                    ticker,
+                    fontSize: 40,
+                    color: C.ink,
+                    textStyle: { fontFamily: SANS, fontWeight: '400' },
+                });
+
+                counter.y = y + 38;
+                counters.push(counter);
+                t.view.addChild(
+                    place(label(name, 11, C.ink, '700', { lineHeight: 12 }), 16, y + 10),
+                    place(label(sub, 9, 0x5d5d5b, '400'), 16, y + 52, 0, 0.5),
+                    counter,
+                );
+            });
+            t.view.addChild(
+                place(label('%', 18, 0x3b3b3b, '400'), COL_W - 80, top[2] + 44, 1, 0.5),
+                place(label('Do not trust', 9, 0x4a4535, '400'), COL_W - 16, top[2] + 74, 1, 0.5),
+                trust,
+            );
+            t.update = (p) => {
+                counters.forEach((c, i) => {
+                    if (p > 0.3 && c.state.value.value === 0) c.set(plans[i][2]);
+                    c.x = COL_W - 18 - c.width / 2;
+                });
+                const barY = top[2] + 84;
+
+                trust
+                    .clear()
+                    .roundRect(10, barY + 8, COL_W - 20, bottom - barY - 12, 6)
+                    .fill(0x6c6450);
+                trust.roundRect(10, barY, (COL_W - 20) * 0.54 * p, bottom - barY - 4, 6).fill(C.sand);
+            };
+        }
+
+        // currency tiles
+        {
+            const t = add(tile(...at('currency', 1, 690), COL_W, 190, 0xbdbdba, 0.2));
+            const g = new SilkGraphics();
+            const half = (COL_W - 24) / 2;
+
+            t.view.addChild(g);
+            ['₿', '$', '€', '¥'].forEach((sign, i) => {
+                const x = 8 + (i % 2) * (half + 8);
+                const y = 8 + Math.floor(i / 2) * 91;
+
+                g.roundRect(x, y, half, 83, 7).fill(C.paper);
+                t.view.addChild(place(label(sign, 38, C.ink, '400'), x + half / 2, y + 42, 0.5, 0.5));
+            });
+        }
+
+        // weekly bars
+        {
+            const t = add(tile(...at('bars', 2, 20), COL_W, 375, C.olive, 0.08));
+            const bars = new SilkGraphics();
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const totals = [0.86, 0.75, 0.6, 0.68, 0.84, 0.67, 0.78];
+            const filled = [0.3, 0.55, 0.18, 0.37, 0.75, 0.42, 0.28];
+            const total = new Odometer({
+                ticker,
+                decimals: 2,
+                prefix: '$',
+                fontSize: 22,
+                color: C.ink,
+                textStyle: { fontFamily: SANS, fontWeight: '400' },
+            });
+            const cell = (COL_W - 24) / 7;
+
+            t.view.addChild(
+                place(label('You Shop\nData Insights', 20, C.ink, '700', { lineHeight: 22 }), 14, 14),
+                bars,
+                place(label('All Time:', 12, 0x2f3527, '400'), 14, 350, 0, 0.5),
+                total,
+            );
+            // phones show the first letter only: the cells are narrow for the larger text
+            days.forEach((d, i) =>
+                t.view.addChild(
+                    place(label(phone ? d[0] : d, 10, 0x3a4130, '400'), 12 + cell * (i + 0.5), 316, 0.5, 0.5),
+                ),
+            );
+            total.y = 350;
+            t.update = (p) => {
+                if (p > 0.4 && total.state.value.value === 0) total.set(637.55);
+                total.x = COL_W - 14 - total.width / 2;
+                bars.clear();
+                totals.forEach((v, i) => {
+                    const x = 12 + cell * i + 3;
+                    const w = cell - 6;
+                    const grow = ease.outCubic(Math.min(1, Math.max(0, p * 1.4 - i * 0.06)));
+                    const full = 220 * v * grow;
+                    const fill = 220 * filled[i] * grow;
+
+                    if (full > 1) bars.roundRect(x, 300 - full, w, full, 6).fill(C.oliveDeep);
+                    if (fill > 1) bars.roundRect(x, 300 - fill, w, fill, 6).fill(C.ink);
+                });
+            };
+        }
+
+        // one quarter donut
+        {
+            const t = add(tile(...at('donut', 2, 415), COL_W, 200, C.page, 0.16));
+            const g = new SilkGraphics();
+            const cx = COL_W / 2;
+
+            t.view.addChild(g, place(label('¼', 40, C.paper, '500'), cx, 100, 0.5, 0.5));
+            t.update = (p) => {
+                g.clear().circle(cx, 100, 100).fill(C.donut);
+                g.sector(cx, 100, 100, -Math.PI / 2, -Math.PI / 2 + (Math.PI / 2) * p, 0).fill(C.mist);
+                g.circle(cx, 100, 46).fill(0x262626);
+            };
+        }
+
+        // clock dial with rotated numbers
+        {
+            const t = add(tile(...at('clock', 2, 630), COL_W, 250, C.page, 0.24));
+            const face = new SilkGraphics();
+            const numbers = new Container();
+            const cx = COL_W / 2;
+            const cy = 125;
+
+            face.circle(cx, cy, 122).fill(C.mist);
+            face.regularPoly(cx + 20, cy + 40, 8, 3, -Math.PI / 6, 1).fill(C.ink);
+            numbers.position.set(cx, cy);
+            for (let h = 1; h <= 12; h++) {
+                const a = (h / 12) * Math.PI * 2;
+                const n = place(label(String(h), 30, C.ink, '400'), Math.sin(a) * 96, -Math.cos(a) * 96, 0.5, 0.5);
+
+                n.rotation = a;
+                numbers.addChild(n);
+            }
+            t.view.addChild(face, numbers);
+            t.update = (p, time) => {
+                numbers.rotation = (1 - p) * -1.2 + Math.sin(time * 0.3) * 0.04;
+            };
+        }
+
+        tick((time, dt) => {
+            for (const t of tiles) {
+                const target = time > t.delay ? 1 : 0;
+
+                t.enter = damp(t.enter, target, 5, dt);
+                t.lift = damp(t.lift, t.hover ? 1 : 0, 14, dt);
+                const p = ease.outCubic(Math.min(1, t.enter));
+
+                t.view.alpha = p;
+                t.view.pivot.y = (1 - p) * -24 + t.lift * 4;
+                t.update?.(p, time);
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+Each tile is a small container with its own drawing. Lift any one of them into your app as it is.
+
+Live demo `spectra-hud` (source):
+
+```ts
+import { Container, Text, type TextStyleFontWeight } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { defineDemo, MONO } from './runtime';
+
+// A sci-fi spectrum readout. The frame, labels and gauges are drawn once, the heatmap cells and the
+// orientation square redraw every frame.
+
+const W = 720;
+const H = 460;
+const CX = 340;
+const CY = 226;
+const WHITE = 0xf2f2f2;
+const DIM = 0x9a9aa2;
+const RED = 0xff2b2b;
+const AMBER = 0xffb020;
+
+// heatmap grid: cells inside a circle around the centre
+const CELL = 10;
+const RADIUS = 120;
+const GRID = Math.ceil((RADIUS * 2) / CELL);
+// the orientation dial, top right
+const DIAL = { x: 618, y: 122, r: 40 };
+
+const hair = (alpha = 1) => ({ width: 1, color: WHITE, alpha });
+
+/** Blue to red to white, the palette of the hot spot. */
+function hot(v: number): number {
+    const stops = [0x1a2cff, 0xff1e1e, 0xffffff];
+    const x = Math.min(1, Math.max(0, v)) * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(x));
+    const t = x - i;
+    const ch = (s: number) => Math.round(((stops[i] >> s) & 255) * (1 - t) + ((stops[i + 1] >> s) & 255) * t) << s;
+
+    return ch(16) | ch(8) | ch(0);
+}
+
+const grey = (v: number) => {
+    const c = Math.round(30 + v * 170);
+
+    return (c << 16) | (c << 8) | c;
+};
+
+/** One block of the HUD: its own graphics and texts, so the phone layout can move it as a whole. */
+interface Part {
+    view: Container;
+    g: SilkGraphics;
+    text: TextFn;
+}
+
+function part(parent: Container, x = 0, y = 0): Part {
+    const view = new Container();
+    const g = new SilkGraphics();
+    const texts = new Container();
+
+    view.position.set(x, y);
+    view.addChild(g, texts);
+    parent.addChild(view);
+
+    return {
+        view,
+        g,
+        text: (value, tx, ty, size = 11, color = DIM, anchor = 0, weight = '400') => {
+            const t = new Text({
+                text: value,
+                style: { fill: color, fontFamily: MONO, fontSize: size, fontWeight: weight, letterSpacing: 0.4 },
+            });
+
+            t.anchor.set(anchor, 0.5);
+            t.position.set(tx, ty);
+            texts.addChild(t);
+
+            return t;
+        },
+    };
+}
+
+export default defineDemo({
+    title: 'Spectrum HUD',
+    size: [W, H],
+    // phones: the plot in the middle, the title and the dial above it, the rest below
+    phone: { size: [360, 780] },
+    setup({ stage, tick, width, height, phone }) {
+        const cells = new SilkGraphics();
+        const live = new SilkGraphics();
+        const blink = new SilkGraphics();
+        let frameCount = 0;
+
+        // the parts keep the wide coordinates, phones move each part to its own place
+        const at = (x: number, y: number): [number, number] => (phone ? [x, y] : [0, 0]);
+        const plot = part(stage, ...at(-160, 232));
+        const title = part(stage);
+        const times = part(stage, ...at(0, 360));
+        const badge = part(stage, ...at(-360, 40));
+        const dial = part(stage, ...at(-350, 38));
+        const controls = part(stage, ...at(-360, 362));
+        const footer = part(stage);
+
+        plot.view.addChildAt(cells, 0);
+        dial.view.addChild(live);
+        footer.view.addChild(blink);
+        drawTitle(title, times, badge);
+        drawPlot(plot);
+        drawDialFace(dial, controls);
+        drawFooter(footer, width, height);
+
+        tick((t) => {
+            // the heatmap redraws at half the frame rate: plenty for a slow drift
+            if (frameCount++ % 2 === 0) drawCells(cells, t);
+            live.clear();
+            const a = t * 0.35;
+
+            live.save().translateTransform(DIAL.x, DIAL.y).rotateTransform(a);
+            live.rect(-10, -10, 20, 20).stroke({ width: 1.5, color: AMBER });
+            live.restore();
+            live.line(DIAL.x, DIAL.y, DIAL.x + Math.cos(a - 1.2) * DIAL.r, DIAL.y + Math.sin(a - 1.2) * DIAL.r).stroke(
+                hair(0.5),
+            );
+            blink.clear();
+            blink.circle(30, height - 30, 3).fill({ color: AMBER, alpha: Math.sin(t * 4) > 0 ? 1 : 0.35 });
+        });
+
+        return undefined;
+    },
+});
+
+type TextFn = (
+    value: string,
+    x: number,
+    y: number,
+    size?: number,
+    color?: number,
+    anchor?: number,
+    weight?: TextStyleFontWeight,
+) => Text;
+
+function drawCells(g: SilkGraphics, t: number) {
+    g.clear();
+    const hotX = 0.22 + Math.sin(t * 0.4) * 0.05;
+    const hotY = -0.18 + Math.cos(t * 0.33) * 0.04;
+
+    for (let j = 0; j < GRID; j++) {
+        for (let i = 0; i < GRID; i++) {
+            const x = CX - RADIUS + i * CELL;
+            const y = CY - RADIUS + j * CELL;
+            const u = (x + CELL / 2 - CX) / RADIUS;
+            const v = (y + CELL / 2 - CY) / RADIUS;
+
+            if (u * u + v * v > 1) continue;
+            // a soft grey body, brighter towards its lower right, with a slow ripple
+            const body =
+                Math.max(0, 1 - Math.hypot((u - 0.05) / 0.9, (v - 0.15) / 0.75)) *
+                (0.6 + 0.4 * Math.sin(u * 6 + t * 0.7));
+            // the hot spot: a squashed blob that drifts inside the selection box
+            const heat =
+                Math.max(0, 1 - Math.hypot((u - hotX) / 0.42, (v - hotY) / 0.28)) * 1.25 +
+                Math.max(0, 0.6 - Math.hypot(u - 0.2, v + 0.55) * 1.6);
+
+            if (heat > 0.18) g.rect(x, y, CELL - 1, CELL - 1).fill(hot(heat - 0.18));
+            else if (body > 0.04) g.rect(x, y, CELL - 1, CELL - 1).fill({ color: grey(body), alpha: 0.85 });
+        }
+    }
+}
+
+function drawTitle({ text }: Part, times: Part, badge: Part) {
+    text('06F', 24, 42, 30, WHITE, 0, '700');
+    text('Neptune Spectra', 24, 76, 13, WHITE, 0, '600');
+    text('APHELION', 24, 108);
+    text('30.33 AU', 24, 124, 12, WHITE);
+    text('PERIHELION', 24, 150);
+    text('29.81 AU', 24, 166, 12, WHITE);
+    times.g.rect(24, 290, 104, 20).fill(WHITE);
+    times.text('SPECTRA / 06F', 30, 300, 11, 0x050505, 0, '700');
+    times.text('C 19:28:24', 24, 330);
+    times.text('P 17:06:47', 24, 348);
+    badge.text('THRESHOLD 84%', 696 - 52, 32, 11, WHITE, 1);
+    badge.g.roundRect(696 - 44, 23, 44, 18, 3).fill(RED);
+    badge.text('HIGH', 696 - 22, 32, 11, WHITE, 0.5, '700');
+}
+
+function drawPlot({ g, text }: Part) {
+    g.circle(CX, CY, RADIUS + 14).stroke(hair(0.35));
+    g.rect(CX - 100, CY - 84, 200, 200).stroke(hair(0.9));
+    g.rect(CX - 16, CY - 156, 184, 184).stroke({ width: 1, color: WHITE, alpha: 0.9, dash: [4, 4] });
+    g.roundRect(CX + 128, CY - 148, 36, 20, 3).fill(WHITE);
+    text('06F', CX + 146, CY - 138, 11, 0x050505, 0.5, '700');
+    for (const [i, exp] of ['1e-2', '1e-4', '1e-6', '1e-8'].entries()) {
+        text(exp, CX - 140, CY - 72 + i * 60, 11, WHITE, 1);
+    }
+    for (const [i, tick] of ['0.1', '1.0', '10.0'].entries()) text(tick, CX - 90 + i * 90, CY + 146, 11, WHITE, 0.5);
+    text('ENERGY [keV]', CX, CY + 166, 11, DIM, 0.5);
+    g.circle(CX - 6, CY + 2, 1.5).fill(WHITE);
+    // the cross hair, out to the edges
+    g.line(CX - RADIUS - 40, CY, CX - RADIUS - 18, CY).stroke(hair(0.6));
+    g.line(CX + RADIUS + 18, CY, CX + RADIUS + 40, CY).stroke(hair(0.6));
+    g.rect(CX - 3, 18, 6, 12).fill(WHITE);
+}
+
+function drawDialFace({ g, text }: Part, controls: Part) {
+    const { x, y, r } = DIAL;
+
+    g.circle(x, y, r).stroke(hair(0.6));
+    for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const r0 = i % 9 === 0 ? r - 7 : r - 3;
+
+        g.line(x + Math.cos(a) * r0, y + Math.sin(a) * r0, x + Math.cos(a) * r, y + Math.sin(a) * r).stroke(hair(0.6));
+    }
+    text('0', x, y - r - 12, 11, WHITE, 0.5);
+    text('90', x + r + 8, y, 11, WHITE, 0);
+    text('180', x, y + r + 12, 11, WHITE, 0.5);
+    text('-90', x - r - 8, y, 11, WHITE, 1);
+    text('ROT -17', x - r, y + r + 40);
+    text('SEQ 1.42', x - r, y + r + 58);
+    // play controls
+    for (const [i, flip] of [false, true].entries()) {
+        const cy = 300 + i * 32;
+        const s = flip ? -1 : 1;
+
+        controls.g.rect(668, cy - 12, 28, 24).stroke(hair(0.8));
+        controls.g.triangle(682 - 5 * s, cy - 6, 682 - 5 * s, cy + 6, 682 + 6 * s, cy).fill(WHITE);
+    }
+}
+
+function drawFooter({ g, text }: Part, w: number, h: number) {
+    g.line(24, h - 52, w - 24, h - 52).stroke(hair(0.2));
+    text('Selection  LDK 06F', 44, h - 30, 12, WHITE);
+    text('Form A  1039 / 3972', w - 24, h - 30, 12, WHITE, 1);
+}
+```
+
+The heatmap is about 700 cells in one `SilkGraphics`. It redraws at half the frame rate.
+
+### Light scenes
+
+These use `pixi-silk/glow` and `pixi-silk/glass`. [Glass and glow](https://pixi-silk.schmooky.dev/docs/glass-and-glow/) explains
+the pieces.
+
+Live demo `glass-prism` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Glass } from 'pixi-silk/glass';
+import { fan, ray, spectrum } from 'pixi-silk/glow';
+import { trackGesture } from 'pixi-silk/ui/gesture';
+import { defineDemo } from './runtime';
+
+const mono = (text: string, size = 12, alpha = 0.75) =>
+    new Text({
+        text,
+        style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: size, fill: 0xffffff },
+        alpha,
+    });
+const COLORS = spectrum(8);
+
+export default defineDemo({
+    title: 'Glass prism',
+    size: [720, 440],
+    // phones: the prism in the middle of a narrow frame, the light from the lower left
+    phone: { size: [360, 440] },
+    background: 0x000000,
+    touchAction: 'none',
+    controls: {
+        spread: { type: 'range', label: 'spread', min: 0.2, max: 1.2, step: 0.01, value: 0.62 },
+        frost: { type: 'range', label: 'frost', min: 0, max: 40, step: 1, value: 14 },
+    },
+    setup({ stage, params, tick, width, height }) {
+        const beam = new SilkGraphics();
+        const rainbow = new SilkGraphics();
+        const glass = new Glass({
+            width: 230,
+            height: 200,
+            radius: 30,
+            refraction: 18,
+            dispersion: 0.6,
+            grain: 0.06,
+            frost: 0.04,
+            light: 1,
+        });
+        const hit = new SilkGraphics();
+        const centre = { x: width / 2, y: height / 2 };
+        let source = { x: width / 8, y: height - 20 };
+
+        beam.blendMode = 'add';
+        rainbow.blendMode = 'add';
+        glass.position.set(centre.x - 115, centre.y - 100);
+        const edition = mono('2025 Edition');
+        const motto = mono('Reflect wealth');
+
+        edition.position.set(18, 16);
+        motto.anchor.set(1, 0);
+        motto.position.set(212, 16);
+        glass.content.addChild(edition, motto);
+        const brand = mono('F1', 54, 0.55);
+
+        brand.position.set(150, 120);
+        glass.content.addChild(brand);
+        hit.rect(0, 0, width, height).fill({ color: 0x000000, alpha: 0.001 });
+        stage.addChild(hit, beam, rainbow, glass);
+
+        trackGesture(hit, {
+            onDown: (p) => (source = { x: p.x, y: p.y }),
+            onDrag: (p) => (source = { x: p.x, y: p.y }),
+        });
+
+        tick((t) => {
+            const dx = centre.x - source.x;
+            const dy = centre.y - source.y;
+            const angle = Math.atan2(dy, dx);
+            const shimmer = 1 + Math.sin(t * 2.1) * 0.04;
+
+            glass.set({ blur: params.frost });
+            beam.clear();
+            ray(beam, { x0: source.x, y0: source.y, x1: centre.x, y1: centre.y, w0: 2, w1: 26 }).fill({
+                color: 0xffffff,
+                alpha: 0.35,
+                blur: 14,
+            });
+            ray(beam, { x0: source.x, y0: source.y, x1: centre.x, y1: centre.y, w0: 1, w1: 8 }).fill({
+                color: 0xffffff,
+                alpha: 0.9,
+                blur: 3,
+            });
+            beam.circle(centre.x, centre.y, 40).fill({ color: 0xffffff, alpha: 0.35, blur: 26 });
+
+            rainbow.clear();
+            fan(centre.x, centre.y, angle + 0.08, params.spread * shimmer, 620, COLORS.length, 18).forEach((r, i) => {
+                ray(rainbow, r).fill({ color: COLORS[i], alpha: 0.5, blur: 24 });
+                ray(rainbow, { ...r, w1: r.w1 * 0.45 }).fill({ color: COLORS[i], alpha: 0.6, blur: 4 });
+            });
+        });
+
+        return undefined;
+    },
+});
+```
+
+Live demo `glow-sunrise` (source):
+
+```ts
+import { Text, type TextStyleFontWeight } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Glass } from 'pixi-silk/glass';
+import { defineDemo } from './runtime';
+
+const label = (text: string, size: number, color: number, weight: TextStyleFontWeight = '500') =>
+    new Text({
+        text,
+        style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: size, fill: color, fontWeight: weight },
+    });
+
+export default defineDemo({
+    title: 'Sunrise glow',
+    size: [640, 440],
+    // phones: a narrower card under the same sun
+    phone: { size: [360, 440] },
+    background: 0x260600,
+    setup({ stage, tick, phone }) {
+        // the sun's centre moves with the frame width
+        const dx = phone ? -140 : 0;
+        const orb = new SilkGraphics();
+        const core = new SilkGraphics();
+        const glass = new Glass({
+            width: phone ? 312 : 360,
+            height: phone ? 156 : 136,
+            radius: 26,
+            blur: 26,
+            refraction: 10,
+            frost: 0.1,
+            tint: 0x3a0a00,
+            tintAmount: 0.12,
+        });
+        const eyebrow = label('WORK SPACE', 11, 0xffd9b8, '600');
+        const title = label('Enable Efficient Teamwork', phone ? 20 : 22, 0xffffff, '600');
+        const body = label('Create a culture of clarity across every project.', 13, 0xffd9b8);
+
+        eyebrow.style.letterSpacing = 1.4;
+        eyebrow.position.set(24, 26);
+        title.position.set(24, 44);
+        body.position.set(24, 88);
+        if (phone) {
+            body.style.wordWrap = true;
+            body.style.wordWrapWidth = 264;
+        }
+        glass.content.addChild(eyebrow, title, body);
+        glass.position.set(phone ? 24 : 140, phone ? 268 : 280);
+        stage.addChild(orb, core, glass);
+
+        tick((t) => {
+            const breathe = 1 + Math.sin(t * 0.8) * 0.03;
+            const drift = Math.sin(t * 0.5) * 10;
+
+            // shape 1: a red disc under layer blur 226
+            orb.clear()
+                .circle(320 + dx + drift * 0.3, 170, 150 * breathe)
+                .fill({ color: 0xe5400f, blur: 90 })
+                .circle(320 + dx, 190, 110)
+                .fill({ color: 0xff5a14, alpha: 0.55, blur: 50 });
+            // shape 2: a yellow peanut under layer blur 140, and shape 3: the same with a
+            // progressive blur, 100 at the top to 0 at the bottom, so it sits on a crisp horizon
+            const peanut = (g: SilkGraphics) =>
+                g.ellipse(310 + dx + drift, 196, 92, 50).ellipse(330 + dx + drift * 0.6, 228, 112, 46);
+
+            core.clear();
+            peanut(core).fill({ color: 0xffb21f, alpha: 0.7, blur: 60, spread: 10 });
+            peanut(core).fill({ color: 0xffe14a, blur: { from: 48, to: 0.5, angle: Math.PI / 2 } });
+        });
+
+        return undefined;
+    },
+});
+```
+
+A red disc under a large blur, and a yellow shape whose blur fades out towards a crisp horizon.
+The fade is a progressive blur, covered in [shadows and effects](https://pixi-silk.schmooky.dev/docs/shadows-and-effects/).
+
+Live demo `glow-beams` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { along, linear, radial, SilkGraphics } from 'pixi-silk';
+import { bolt } from 'pixi-silk/glow';
+import { defineDemo, PAD } from './runtime';
+
+const W = 760;
+const mono = 'ui-monospace, SF Mono, Menlo, monospace';
+
+/** A beam pinched in the middle: full height `h` at both ends, `waist` at the centre. */
+function hourglass(g: SilkGraphics, cx: number, cy: number, w: number, h: number, waist: number): SilkGraphics {
+    const x0 = cx - w / 2;
+    const x1 = cx + w / 2;
+    const t = cy - h / 2;
+    const b = cy + h / 2;
+
+    return g
+        .beginPath()
+        .moveTo(x0, t)
+        .bezierCurveTo(x0 + w * 0.22, cy - h * 0.1, cx - w * 0.12, cy - waist / 2, cx, cy - waist / 2)
+        .bezierCurveTo(cx + w * 0.12, cy - waist / 2, x1 - w * 0.22, cy - h * 0.1, x1, t)
+        .lineTo(x1, b)
+        .bezierCurveTo(x1 - w * 0.22, cy + h * 0.1, cx + w * 0.12, cy + waist / 2, cx, cy + waist / 2)
+        .bezierCurveTo(cx - w * 0.12, cy + waist / 2, x0 + w * 0.22, cy + h * 0.1, x0, b)
+        .closePath();
+}
+
+function label(text: string, x: number, y: number, color: number, anchorX = 0): Text {
+    const t = new Text({ text, style: { fontFamily: mono, fontSize: 14, fill: color } });
+
+    t.anchor.set(anchorX, 0);
+    t.position.set(x, y);
+
+    return t;
+}
+
+export default defineDemo({
+    title: 'Beams and bolts',
+    size: [720, 520],
+    // phones: the three panels stack in one column
+    phone: { size: [360, 840] },
+    setup({ stage: frame, tick, width, height, phone }) {
+        // the panels are drawn at 760 wide (370 on phones) and inset by the shared padding
+        const stage = new Container();
+        const hw = phone ? 370 : W;
+        const drawn = phone ? 800 : 520;
+        const fit = (width - 2 * PAD) / hw;
+
+        stage.scale.set(fit);
+        stage.position.set(PAD, (height - drawn * fit) / 2);
+        frame.addChild(stage);
+
+        // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
+        const hero = new Container();
+        const heroBg = new SilkGraphics();
+        const beam = new SilkGraphics();
+        const heroClip = new SilkGraphics();
+
+        heroBg.roundRect(0, 0, hw, 240, 18, 0.6).fill(0x05031a);
+        heroClip.roundRect(0, 0, hw, 240, 18, 0.6).fill(0xffffff);
+        beam.mask = heroClip;
+        hero.addChild(heroBg, beam, heroClip);
+
+        // 2. chromatic wave
+        const wavePanel = new Container();
+        const waveBg = new SilkGraphics();
+        const wave = new SilkGraphics();
+        const waveClip = new SilkGraphics();
+
+        waveBg.roundRect(0, 0, 370, 260, 18, 0.6).fill(0x0b0b0c);
+        waveClip.roundRect(0, 0, 370, 260, 18, 0.6).fill(0xffffff);
+        wave.mask = waveClip;
+        wavePanel.addChild(waveBg, wave, waveClip);
+        wavePanel.position.set(0, 260);
+
+        // 3. the bolt cut into strips, each smeared sideways
+        const speed = new Container();
+        const card = new SilkGraphics();
+        const strips = 14;
+        const top = 58;
+        const bh = 154;
+        const paint = linear(
+            [
+                [0, 0xffc2a8, 1],
+                [0.4, 0xe05bd0, 1],
+                [1, 0x6a3df0, 1],
+            ],
+            { from: [1, 0], to: [0.15, 1] },
+        );
+        const arts: SilkGraphics[] = [];
+        // the white core is brightest in the middle and lets the colour fringes show at the ends
+        const core = along([
+            [0, 0xffffff, 0.35],
+            [0.5, 0xffffff, 1],
+            [1, 0xffffff, 0.35],
+        ]);
+
+        card.roundRect(0, 0, 370, 260, 18, 0.6)
+            .fill(0x0f0d0f)
+            .roundRect(10, 10, 350, 240, 12, 0.6)
+            .fill(
+                radial(
+                    [
+                        [0, 0x241821, 1],
+                        [1, 0x120f12, 1],
+                    ],
+                    { center: [0.55, 0.5], radius: 0.7 },
+                ),
+            )
+            .stroke({ width: 1, color: 0xffffff, alpha: 0.05, alignment: 'inside' });
+        speed.addChild(card);
+        for (let i = 0; i < strips; i++) {
+            const art = new SilkGraphics();
+            const clip = new SilkGraphics();
+            const y = top + (i * bh) / strips;
+
+            clip.rect(10, y, 350, bh / strips).fill(0xffffff);
+            art.mask = clip;
+            art.blendMode = 'add';
+            speed.addChild(art, clip);
+            arts.push(art);
+        }
+        speed.addChild(
+            label('Test sample #07', 26, 22, 0x8a7484),
+            label('Render complete', 344, 22, 0xd9a0b8, 1),
+            label('Speed: ON', 26, 220, 0x8a7484),
+            label('400 ms', 344, 220, 0x8a7484, 1),
+        );
+        if (phone) speed.position.set(0, 540);
+        else speed.position.set(390, 260);
+
+        stage.addChild(hero, wavePanel, speed);
+
+        tick((t) => {
+            const breathe = 1 + Math.sin(t * 0.9) * 0.06;
+
+            beam.clear();
+            hourglass(beam, hw / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
+            hourglass(beam, hw / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
+            hourglass(beam, hw / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
+
+            const pts = (dy: number) => {
+                const out: number[] = [];
+
+                for (let x = -20; x <= 390; x += 5) {
+                    out.push(x, 128 + dy - Math.sin(x / 75 + 1.2 + t * 0.8) * 46 + x * 0.04);
+                }
+
+                return out;
+            };
+            const smooth = { smooth: 'catmull' as const };
+
+            wave.clear()
+                .polyline(pts(0), smooth)
+                .stroke({ width: 90, color: 0xffffff, alpha: 0.12, blur: 36, blend: 'add' })
+                .polyline(pts(-19), smooth)
+                .stroke({ width: 9, color: 0xff2a14, alpha: 0.95, blur: 3.5, blend: 'add' })
+                .polyline(pts(-12), smooth)
+                .stroke({ width: 9, color: 0xff9a1a, alpha: 0.95, blur: 3, blend: 'add' })
+                .polyline(pts(13), smooth)
+                .stroke({ width: 9, color: 0x2a62ff, alpha: 1, blur: 3, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 20, gradient: core, blur: 2.5, blend: 'add' })
+                .polyline(pts(0), smooth)
+                .stroke({ width: 34, gradient: core, alpha: 0.45, blur: 9, blend: 'add' });
+
+            arts.forEach((art, i) => {
+                // longer smears in the middle of the bolt, a slow ripple through the strips
+                const f = i / (strips - 1);
+                const smear = 30 + 70 * Math.sin(Math.PI * f) * (0.75 + 0.25 * Math.sin(t * 2.4 + i * 0.7));
+
+                art.clear();
+                for (let k = 3; k >= 0; k--) {
+                    bolt(art, 150 - smear * (k / 3), top, 120, bh).fill({
+                        gradient: paint,
+                        alpha: k === 0 ? 0.9 : 0.22,
+                        blur: { from: 0.6 + k * 2, to: 10 + k * 6, angle: Math.PI },
+                    });
+                }
+            });
+        });
+
+        return undefined;
+    },
+});
+```
+
+The beam is a pinched path drawn three times with less blur each time. The wave is a white stroke
+with red, orange and blue copies a few pixels off. The bolt is one shape cut into strips, each
+moved sideways.
+
+Live demo `glow-aurora` (source):
+
+```ts
+import { Color, Container, Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Aurora, hexLabel } from 'pixi-silk/glow';
+import { defineDemo, PAD } from './runtime';
+
+/** The palette colour itself, lifted towards white when it is too dark to read on the chip. */
+const readable = (c: number) => {
+    const [r, g, b] = new Color(c).toArray();
+    const lift = Math.max(0, 0.45 - (0.2126 * r + 0.7152 * g + 0.0722 * b)) * 1.6;
+
+    return new Color([r + (1 - r) * lift, g + (1 - g) * lift, b + (1 - b) * lift]).toNumber();
+};
+
+const PALETTES: [number, number, number][] = [
+    [0x6f1bff, 0xee36ff, 0xffffff],
+    [0x1e06bb, 0x00c8ff, 0xffffff],
+    [0x0ecd00, 0xaeff00, 0xffffff],
+];
+
+export default defineDemo({
+    title: 'Aurora',
+    size: [720, 470],
+    // phones: one device at full size instead of three at half size
+    phone: { size: [360, 470] },
+    controls: {
+        rise: { type: 'range', label: 'rise', min: 0.3, max: 0.9, step: 0.01, value: 0.62 },
+        speed: { type: 'range', label: 'speed', min: 0, max: 3, step: 0.1, value: 1 },
+    },
+    setup({ silk, stage: frame, params, tick, phone: narrow }) {
+        // the phones span x 30 to 750 and y 20 to 434: fit that inside the shared padding
+        const stage = new Container();
+        const fit = (720 - 2 * PAD) / 720;
+
+        if (!narrow) {
+            stage.scale.set(fit);
+            stage.position.set(PAD - 30 * fit, (470 - 414 * fit) / 2 - 20 * fit);
+        }
+        frame.addChild(stage);
+        const auroras = PALETTES.slice(0, narrow ? 1 : 3).map((colors, i) => {
+            const x = narrow ? 80 : 40 + i * 240;
+            const phone = new Container();
+            const frame = new SilkGraphics();
+            const aurora = new Aurora({ width: 200, height: 330, radius: 30, colors, ticker: silk.app.ticker });
+
+            frame
+                .roundRect(-10, -10, 220, 350, 38, 0.6)
+                .fill({ color: 0x000000, alpha: 0.45, blur: 18 })
+                .roundRect(-10, -10, 220, 350, 38, 0.6)
+                .fill(0x2a2b31)
+                .stroke({ width: 1, color: 0xffffff, alpha: 0.08, alignment: 'inside' });
+            phone.position.set(x, 30);
+            phone.addChild(frame, aurora);
+            stage.addChild(phone);
+
+            colors.forEach((c, j) => {
+                const chip = new Container();
+                const bg = new SilkGraphics();
+                const label = new Text({
+                    text: hexLabel(c),
+                    style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: 13, fill: readable(c) },
+                });
+
+                label.anchor.set(0.5);
+                bg.roundRect(-35, -13, 70, 26, 7).fill({ color: c, alpha: 0.12 });
+                chip.addChild(bg, label);
+                chip.position.set(x + 26 + j * 74, 420);
+                stage.addChild(chip);
+            });
+
+            return aurora;
+        });
+
+        tick(() => {
+            for (const a of auroras) a.set({ rise: params.rise, speed: params.speed });
+        });
+
+        return undefined;
+    },
+});
+```
+
+---
+
+# Charts
+
+URL: https://pixi-silk.schmooky.dev/docs/charts/
+Area: Examples
+
+> Build area and line charts with monotone smoothing that never overshoots, fading gradient fills, dashed guides, bars and dots in SilkGraphics.
+
+pixi-silk has no chart component. It gives you the pieces a chart is drawn with: filled areas,
+smoothed series, dashed guides and bars. The experiments at the end of this page are complete chart
+widgets built from them.
+
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `area-chart` (source):
+
+```ts
+import { SilkGraphics, vertical } from 'pixi-silk';
+import { defineDemo } from './runtime';
+
+const FILL = vertical(
+    [
+        [0, 0x0a84ff, 0.55],
+        [1, 0x0a84ff, 0],
+    ],
+    { easing: 'smooth' },
+);
+
+export default defineDemo({
+    title: 'Area chart',
+    size: [480, 220],
+    controls: {
+        smooth: { type: 'toggle', label: 'monotone smoothing', value: true },
+        dots: { type: 'toggle', label: 'dots', value: true },
+    },
+    setup({ stage, params, tick }) {
+        const g = new SilkGraphics();
+        const data = Array.from({ length: 13 }, (_, i) => 90 + Math.sin(i * 0.9) * 40);
+
+        stage.addChild(g);
+        tick((t) => {
+            const pts = data.flatMap((v, i) => [30 + i * 35, v + Math.sin(t * 1.5 + i) * 12]);
+            const smooth = params.smooth ? ('monotone' as const) : undefined;
+
+            g.clear();
+            for (const y of [40, 90, 140]) g.line(20, y, 460, y).stroke({ width: 1, color: 0x3a3a3c, dash: [2, 4] });
+            g.line(20, 190, 460, 190).stroke({ width: 1, color: 0x636366 });
+            // area between the series and a baseline; stroke() right after draws its top line
+            g.area(pts, 190, { smooth }).fill(FILL).stroke({ width: 2.5, color: 0x0a84ff, cap: 'round' });
+            if (params.dots)
+                for (let i = 0; i < pts.length; i += 2)
+                    g.circle(pts[i], pts[i + 1], 3.5)
+                        .fill(0xffffff)
+                        .stroke({ width: 2, color: 0x0a84ff });
+        });
+    },
+});
+```
+
+### Fill the area under a series
+
+```ts
+const FILL = vertical(
+    [
+        [0, 0x0a84ff, 0.55],
+        [1, 0x0a84ff, 0],
+    ],
+    { easing: 'smooth' },
+);
+
+g.area(points, 190, { smooth: 'monotone' }).fill(FILL).stroke({ width: 2.5, color: 0x0a84ff, cap: 'round' });
+```
+
+`area(points, lower)` fills the region between a series and a y baseline. Pass a second series as
+`lower` to fill the band between two series. The `stroke()` right after it draws the series line on
+top, from the same smoothed points.
+
+The area is split into vertical columns that share their edges exactly. A translucent fill stays
+even, with no seams between columns.
+
+| Option | Default | What it does |
+|---|---|---|
+| `smooth` | `false` | `'monotone'` draws a smooth curve through the points |
+| `step` | `2` | Sample spacing of the smoothed curve, in local units |
+
+### Smoothing that keeps the data
+
+`smooth: 'monotone'` never overshoots. It uses Steffen's method, like d3's `curveMonotoneX`. Peaks
+stay on the data points and flat runs stay flat. `polyline()` also takes `smooth: 'catmull'`, which
+overshoots, so keep it for decorative curves. `monotoneX()` returns the resampled points if you need
+them for hit testing or labels.
+
+### Guides, bars and dots
+
+```ts
+for (const y of [40, 90, 140]) g.line(20, y, 460, y).stroke({ width: 1, color: 0x3a3a3c, dash: [2, 4] });
+for (const [i, v] of values.entries()) g.roundRect(20 + i * 12, 190 - v, 8, v, 3).fill(0xffd60a);
+for (const [x, y] of points) g.circle(x, y, 3.5).fill(0xffffff).stroke({ width: 2, color: 0x0a84ff });
+```
+
+Guides are dashed lines, bars are rounded rects and dots are circles with a stroke. All of them go
+into the same `SilkGraphics` as the series.
+
+### One gradient across many bars
+
+By default a gradient fits each shape's box. With `units: 'local'` it uses the coordinates of the
+graphics instead, so a row of bars samples one continuous ramp:
+
+```ts
+const HEAT = linear(
+    [
+        [0, 0x30d158],
+        [0.5, 0xffd60a],
+        [1, 0xff453a],
+    ],
+    { units: 'local', from: [0, 190], to: [0, 40] },
+);
+
+for (const [i, v] of values.entries()) g.roundRect(20 + i * 12, 190 - v, 8, v, 3).fill(HEAT);
+```
+
+A tall bar then reaches the red end and a short one stays green. [Gradients](https://pixi-silk.schmooky.dev/docs/gradients/)
+covers the other gradient kinds and options.
+
+### Where it stops
+
+There are no axes, scales, tick generation or tooltips. Map your data to pixels yourself, or with a
+scale library such as d3-scale, and draw labels with [text](https://pixi-silk.schmooky.dev/docs/text/).
+
+---
+
+# FAQ
+
+## How do I draw charts with PixiJS?
+
+Use `area(points, baseline, { smooth: 'monotone' })` for filled areas, `polyline` for lines and `roundRect` for bars. Monotone smoothing never overshoots the data.
+
+## Can I copy the showcase widgets into my app?
+
+Yes, they are MIT like the library. They are site code, not exports, so copy the lab file you need from the repository.

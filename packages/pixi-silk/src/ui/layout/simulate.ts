@@ -18,9 +18,9 @@ export interface SimulatedViewportOptions {
     area: ViewportRect;
     /** The window size to simulate: a size or a {@link DEVICES} name. Default `phone portrait`. */
     device?: readonly [number, number] | string;
-    /** Space kept around the device inside the area. Default 16. */
+    /** Space kept around the device inside the area, parent units. Default 16. */
     margin?: number;
-    /** Bezel colour. Default dark grey. */
+    /** Bezel colour, 0xRRGGBB. Default 0x2c2c2e. */
     bezel?: number;
 }
 
@@ -51,7 +51,7 @@ export class SimulatedViewport extends Container {
         this.setDevice(options.device ?? 'phone portrait');
     }
 
-    /** The simulated window, in device pixels. SmartContainers read it as a viewport source. */
+    /** The simulated window, in device pixels, at (0, 0). SmartContainers read it as a viewport source. The same object on every read. */
     get value(): Required<ViewportRect> {
         return this._value;
     }
@@ -63,12 +63,12 @@ export class SimulatedViewport extends Container {
         return () => this._listeners.delete(fn);
     }
 
-    /** The scale the device is shown at. */
+    /** The scale the device is shown at, at most 1. */
     get deviceScale(): number {
         return this.content.scale.x;
     }
 
-    /** Simulates another window size. */
+    /** Simulates another window size and notifies subscribers. Throws on an unknown device name. */
     setDevice(device: readonly [number, number] | string): this {
         const size = typeof device === 'string' ? DEVICES[device] : device;
 
@@ -81,7 +81,7 @@ export class SimulatedViewport extends Container {
         return this;
     }
 
-    /** Shows the device in another area. */
+    /** Shows the device in another area, in the parent's space. Subscribers are not notified: the window size is the same. */
     setArea(area: ViewportRect): this {
         this._area = { ...area };
         this._fit();
@@ -112,7 +112,7 @@ export class SimulatedViewport extends Container {
     }
 }
 
-/** Creates a {@link SimulatedViewport}. */
+/** Creates a {@link SimulatedViewport}. Same as `new SimulatedViewport(options)`. */
 export function simulateViewport(options: SimulatedViewportOptions): SimulatedViewport {
     return new SimulatedViewport(options);
 }

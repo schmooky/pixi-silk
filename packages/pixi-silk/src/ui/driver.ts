@@ -28,7 +28,7 @@ export class Driver {
         this._ticker?.add(this._onTick, this);
     }
 
-    /** Advances by `dt` seconds by hand. Returns true while there is still work. */
+    /** Advances by `dt` seconds by hand, clamped to 0..0.1. Returns true while there is still work, and leaves the ticker when done. */
     tick(dt: number): boolean {
         const busy = this._step(Math.min(Math.max(dt, 0), 0.1));
 
@@ -37,7 +37,7 @@ export class Driver {
         return busy;
     }
 
-    /** Leaves the ticker. */
+    /** Leaves the ticker. Safe to call twice, or after the ticker was destroyed. */
     sleep(): void {
         if (!this._on) return;
         this._on = false;

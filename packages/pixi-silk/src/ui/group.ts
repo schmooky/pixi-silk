@@ -4,22 +4,25 @@ import { boundsQuad, unionQuad } from './outline';
 
 /** The reactive state of a {@link SelectionGroup}. */
 export interface SelectionGroupState {
-    /** The objects the group moves. */
+    /** The objects the group moves. Set it through {@link SelectionGroup.set}, which also refits the box. */
     targets: Signal<readonly Container[]>;
 }
 
 /** The three callbacks a {@link TransformGizmo} takes, wired to a {@link SelectionGroup}. */
 export interface SelectionGroupHooks {
+    /** Calls {@link SelectionGroup.begin}. */
     onStart: () => void;
+    /** Calls {@link SelectionGroup.apply}. */
     onChange: () => void;
+    /** Calls {@link SelectionGroup.end}. */
     onEnd: () => void;
 }
 
 /** Options of {@link SelectionGroup}. */
 export interface SelectionGroupOptions {
-    /** Objects to start with. */
+    /** Objects to start with. The box fits them once the group has a parent and you call `refit()`. */
     targets?: readonly Container[];
-    /** Called after the group moved its objects, on every change of a drag. */
+    /** Called after {@link SelectionGroup.apply} wrote the new transforms, once per drag move. */
     onApply?: (targets: readonly Container[]) => void;
 }
 
@@ -53,9 +56,13 @@ function compose(m: Matrix, n: Matrix, out: Matrix = new Matrix()): Matrix {
  *
  * The group draws nothing and catches no pointer. Add it to the space the objects live in
  * (usually the camera's world). It works on plain arrays of containers, so any selection store
- * can drive it.
+ * can drive it. Scaling a rotated group unevenly gives its objects a skew.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class SelectionGroup extends Container {
+    /** The grouped objects, as a signal. */
     readonly state: SelectionGroupState = { targets: signal<readonly Container[]>([]) };
 
     private readonly _opts: SelectionGroupOptions;
@@ -70,7 +77,7 @@ export class SelectionGroup extends Container {
         if (options.targets) this.set(options.targets);
     }
 
-    /** The objects the group moves. */
+    /** The objects the group moves, the value of `state.targets`. */
     get targets(): readonly Container[] {
         return this.state.targets.value;
     }
@@ -85,14 +92,20 @@ export class SelectionGroup extends Container {
         return list.length === 0 ? null : list.length === 1 ? list[0] : this;
     }
 
-    /** Groups `targets` and fits the box around them, square to the space. */
+    /**
+     * Groups `targets` and fits the box around them, square to the space. The signal only changes
+     * when the set of objects changes, in any order.
+     */
     set(targets: readonly Container[]): this {
         if (!sameList(targets, this.targets)) this.state.targets.set([...targets]);
 
         return this.refit();
     }
 
-    /** Fits the box around the objects again, square to the space (after they moved on their own). */
+    /**
+     * Fits the box around the objects again, square to the space, after they moved on their own.
+     * Resets the group's rotation, skew, scale and pivot. Without a parent the box is empty.
+     */
     refit(): this {
         const space = this.parent;
         const list = this.targets.filter((t) => !t.destroyed && t.parent);
@@ -116,7 +129,7 @@ export class SelectionGroup extends Container {
         return this;
     }
 
-    /** Remembers where the box and every object are: the start of a drag. */
+    /** Remembers where the box and every object are: the start of a drag. Does nothing with fewer than two objects. */
     begin(): this {
         const space = this.parent;
 
@@ -139,7 +152,10 @@ export class SelectionGroup extends Container {
         return this;
     }
 
-    /** Applies how the box changed since {@link SelectionGroup.begin} to every object. */
+    /**
+     * Applies how the box changed since {@link SelectionGroup.begin} to every object, through
+     * `setFromMatrix`, then calls `onApply`. No-op before `begin()`.
+     */
     apply(): this {
         const start = this._start;
 
@@ -159,7 +175,7 @@ export class SelectionGroup extends Container {
         return this;
     }
 
-    /** Ends a drag. The box keeps its turn and size, the way design tools show a rotated group. */
+    /** Ends a drag. The box keeps its rotation and size until the next `set()` or `refit()`. */
     end(): this {
         this._start = null;
         this._snap = [];
@@ -167,7 +183,7 @@ export class SelectionGroup extends Container {
         return this;
     }
 
-    /** `onStart`, `onChange` and `onEnd` for a {@link TransformGizmo}'s options. */
+    /** `onStart`, `onChange` and `onEnd` for a {@link TransformGizmo}'s options. Allocates new closures each call. */
     hooks(): SelectionGroupHooks {
         return {
             onStart: () => {

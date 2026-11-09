@@ -42,6 +42,7 @@ const ICONS: [Draw, angle: number, reach: number][] = [
 ];
 
 export default defineDemo({
+    title: 'Glowing icons',
     size: [440, 440],
     background: 0x08080a,
     controls: {

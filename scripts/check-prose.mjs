@@ -22,6 +22,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const SCOPE = [
     'README.md',
     'CONTRIBUTING.md',
+    'AGENTS.md',
+    'packages/pixi-silk/skills',
     '.changeset',
     '.github',
     'scripts',
@@ -144,6 +146,13 @@ function walk(path) {
     return EXTENSIONS.has(extname(path)) ? [path] : [];
 }
 
+/** Line number of the frontmatter `description:` field, or 0. */
+function descriptionLine(text) {
+    const i = text.split('\n').findIndex((l) => l.startsWith('description:'));
+
+    return i + 1;
+}
+
 /** Markdown prose fragments (paragraphs, list items, table cells) with their line numbers; code removed. */
 function markdownProse(text) {
     const lines = text.split('\n');
@@ -260,7 +269,10 @@ for (const file of files) {
     });
 
     const fragments = isDoc
-        ? markdownProse(text).map((f) => ({ ...f, text: readable(f.text), prose: true }))
+        ? markdownProse(text)
+              // an agent skill's description is a trigger list for the agent, not prose: punctuation rules only
+              .filter((f) => !(file.endsWith('SKILL.md') && f.line === descriptionLine(text)))
+              .map((f) => ({ ...f, text: readable(f.text), prose: true }))
         : sourceText(text, ext === '.astro' || ext === '.tsx').flatMap((p) => {
               const line = lineAt(text, p.index);
 

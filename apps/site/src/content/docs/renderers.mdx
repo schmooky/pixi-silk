@@ -1,0 +1,87 @@
+---
+title: Renderers
+seoTitle: 'WebGL2 and WebGPU renderers in pixi-silk'
+description: 'pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. How to pick one, set up your own Pixi app and turn on batching.'
+keywords: ['PixiJS WebGPU', 'pixi.js webgpu renderer', 'WGSL shader PixiJS', 'PixiJS WebGL2', 'PixiJS batching']
+updated: 2026-11-08
+api: [createSilkApp, SilkAppOptions, enableWebGPU, enableSilkBatching]
+---
+
+pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. Both run the same
+shader, a GLSL program and its WGSL port, so a scene looks the same on either.
+
+<Demo name="webgpu" height={300} caption="Turn on rotate. The left half is WebGL2, the right half WebGPU where your browser has it." />
+
+## Pick a renderer
+
+`createSilkApp` creates a WebGL2 app. Pass `preference: 'webgpu'` to use WebGPU where the browser
+has it:
+
+```ts
+import { createSilkApp, SilkGraphics } from 'pixi-silk';
+
+const silk = await createSilkApp({ parent: document.body, preference: 'webgpu' });
+
+silk.app.renderer.name; // 'webgpu', or 'webgl' where the browser has no WebGPU
+silk.app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
+```
+
+Pixi tries WebGPU first and falls back to WebGL2. When it gets WebGPU, `createSilkApp` loads the
+WGSL shader before it resolves.
+
+WebGL2 stays the default because every current browser has it and it starts faster. Choose WebGPU
+when the rest of your app needs it.
+
+## Use WebGPU in your own Pixi app
+
+The WGSL shader lives in its own entry point, `pixi-silk/webgpu`, so WebGL2 apps never download
+it. If you create the application yourself, call `enableWebGPU()` once, before the first
+`SilkGraphics`:
+
+```ts
+import { Application } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { enableWebGPU } from 'pixi-silk/webgpu';
+
+const app = new Application();
+
+await app.init({ preference: 'webgpu' });
+enableWebGPU();
+app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
+```
+
+Objects created before the call have no WebGPU program. Pixi skips them and logs "Mesh shader has
+no gpuProgram". Calling `enableWebGPU()` in a WebGL2 app does nothing harmful.
+
+## Batch objects into one draw
+
+Batching is off by default. Call `enableSilkBatching()` before you create the objects:
+
+```ts
+import { enableSilkBatching, SilkGraphics } from 'pixi-silk';
+
+enableSilkBatching();
+const dot = new SilkGraphics().circle(0, 0, 4).fill(0x0a84ff);
+```
+
+It works on WebGL2 and on WebGPU. On WebGPU it also needs `enableWebGPU()`, which `createSilkApp`
+calls for you. [Performance](/docs/performance/#batch-many-objects) says what breaks a batch.
+
+## Glass on both renderers
+
+`Glass` from `pixi-silk/glass` reads the pixels behind it. On WebGL2 it reads the back buffer,
+which it turns on the first time it draws. On WebGPU it copies the render target, so it needs no
+back buffer.
+
+## What differs
+
+The two shaders are line-for-line ports. Three details differ because of the APIs:
+
+| Detail | WebGL2 | WebGPU |
+|---|---|---|
+| Dither grain | rows counted from the bottom | rows counted from the top, so the grain is mirrored. Its strength is the same |
+| Gradient ramp reads | the GPU's linear filter, which can round the blend weight to 8 bits | two exact texel loads, blended in the shader |
+| Derivatives | `dFdx`, precision up to the GPU | `dpdx`, precision up to the GPU |
+
+Edges can differ by a rounding step. Add `?renderer=webgpu` to a docs URL to run every demo on that
+page on WebGPU.

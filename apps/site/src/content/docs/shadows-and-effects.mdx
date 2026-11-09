@@ -1,0 +1,105 @@
+---
+title: Shadows & effects
+seoTitle: 'Glows, soft shadows and inner shadows in PixiJS'
+description: 'Blur a fill or stroke into glows and soft shadows, grow it with spread, add Figma-style inner shadows, progressive blur and plus-lighter blends, without filters.'
+keywords: ['PixiJS glow', 'PixiJS drop shadow', 'PixiJS inner shadow', 'progressive blur', 'blur without filter', 'plus lighter']
+updated: 2026-11-08
+api: [FillStyle, InnerShadow, ProgressiveBlur]
+---
+
+Every paint takes a `blur`. A blurred copy under a crisp shape is a glow or a soft shadow, drawn
+like any other shape, without a filter or a render texture.
+
+<Demo name="glow" height={240} caption="Drag the blur." />
+
+```ts
+g.circle(110, 110, 60).stroke({ width: 8, color: 0xff375f, blur: 12, alpha: 0.9 }); // glow
+g.circle(110, 110, 60).stroke({ width: 3, color: 0xffd1dc });                        // core
+```
+
+The first ring is blurred, the second is drawn sharp on top. `blur` is the standard deviation of a
+gaussian, in local units. Silk blurs the shape's distance to its edge, so a blurred shape costs
+what a sharp one does. Its quad grows by three times the blur.
+
+## Drop a soft shadow
+
+```ts
+g.roundRect(20, 20 + 18, 180, 100, 24, 0.6).fill({ color: 0x000000, alpha: 0.45, blur: 24 });
+g.roundRect(20, 20, 180, 100, 24, 0.6).fill(0x1c1c1e);
+```
+
+Offset, blur and fade a dark copy, then draw the shape. The Live Activity cards on the
+[Showcase](/docs/showcase/) use this pattern, measured from the reference: blur 30.5, 37.5 px
+down, 45% black.
+
+A CSS shadow's blur radius is twice the standard deviation. Halve a CSS blur to get `blur`.
+
+## Grow a glow with spread
+
+<Demo name="effects-spread" height={300} caption="Drag the glow slider." />
+
+```ts
+g.rect(0, 0, 80, 80).fill({ color: 0xffffff, blur: 16, spread: 8, blend: 'add' });
+g.rect(0, 0, 80, 80).fill(0xffffff);
+```
+
+`spread` grows the shape by that many local units before the blur, like a Figma shadow spread.
+The glow keeps a bright core instead of fading straight from the edge. Negative values shrink the
+shape. Stacking a tight glow and a wide one reads better than one large blur.
+
+`blend: 'add'` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom
+towards white. It stays in the same draw as the other shapes.
+
+## Add inner shadows
+
+<Demo name="effects-inner-shadow" height={360} caption="Toggle the four inner shadows one by one." />
+
+```ts
+g.roundRect(0, 0, 200, 200, 40).fill({
+    color: 0x0a0909,
+    innerShadow: [
+        { color: 0x144ccd, y: -40, blur: 30, spread: -15 },
+        { color: 0xffffff, alpha: 0.4, y: -10, blur: 10, spread: -3, blend: 'add' },
+    ],
+});
+```
+
+An inner shadow moves a copy of the shape, shrinks it by `spread` and blurs it. What the copy no
+longer covers is shaded. Shadows draw in order on top of the fill, gradients included, and a
+`stroke()` after the fill lands on top of them. Inner shadows work on closed shapes.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `color` | black | Shadow colour |
+| `alpha` | 1 | Opacity, 0 to 1 |
+| `x`, `y` | 0 | Offset in local units. Positive moves right and down. |
+| `blur` | 0 | Gaussian standard deviation, in local units |
+| `spread` | 0 | Grows the shadow inwards. Negative makes it thinner. |
+| `blend` | `'normal'` | `'add'` brightens what is underneath |
+
+The option names follow Figma's inner shadow, so a spec ports over option by option.
+
+## Blur progressively
+
+<Demo name="effects-progressive" height={380} caption="Drag the blur at the top and at the bottom." />
+
+```ts
+g.area(points, 350, { smooth: 'monotone' }).fill({
+    color: 0x5b2ee0,
+    blur: { from: 20, to: 1, angle: Math.PI / 2 },
+});
+```
+
+A `ProgressiveBlur` changes the blur across the shape. `from` is the blur at the start edge and
+`to` at the far edge, along `angle` in radians. The default angle, `Math.PI / 2`, runs from top to
+bottom.
+
+## Limits
+
+The blur is exact on straight edges and close on corners. Large blurs on complex paths, or on
+the results of [shape operations](/docs/shape-operations/), can round inner corners a little. For
+those, a Pixi `BlurFilter` over the object still works. With `createSilkApp`, filters render at
+the screen resolution.
+
+Blurred paints are dithered like gradients, so a large soft shadow does not band. See
+[Gradients](/docs/gradients/#banding).

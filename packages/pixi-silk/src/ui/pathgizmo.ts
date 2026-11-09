@@ -198,7 +198,7 @@ export class PenTool {
         return true;
     }
 
-    /** The release. */
+    /** The release. Ends a handle drag. The tool keeps drawing until {@link PenTool.finish} or a close. */
     up(): void {
         if (this._phase === 'dragging') this._phase = 'drawing';
         else if (this._phase === 'closing') this._phase = 'idle';
@@ -220,7 +220,10 @@ export class PenTool {
 /** The two modes of a {@link PathGizmo}. */
 export type PathTool = 'edit' | 'pen';
 
-/** A part of the path under the pointer. */
+/**
+ * A part of the path under the pointer. `index` is an anchor index. A segment hit has the curve
+ * parameter `t` (0 to 1) and the nearest point (`x`, `y`) in path coordinates.
+ */
 export type PathHit =
     | { kind: 'anchor'; index: number }
     | { kind: 'handle'; index: number; side: HandleSide }
@@ -228,9 +231,11 @@ export type PathHit =
 
 /** What is being snapped, as the `snap` option gets it. */
 export interface PathSnapInfo {
+    /** What moves: an anchor drag, a handle drag or a pen click or drag. */
     kind: 'anchor' | 'handle' | 'pen';
     /** Index of the anchor dragged, or of the handle's anchor. */
     index: number;
+    /** Which handle, for `kind: 'handle'`. */
     side?: HandleSide;
 }
 
@@ -244,7 +249,7 @@ export interface PathGizmoTheme {
     handle: number | string;
 }
 
-/** Default theme: a blue outline with white anchors, like Figma's vector editing. */
+/** Default theme: a blue outline with white anchors. Override single colours with the `theme` option. */
 export const PATH_GIZMO_THEME: Readonly<PathGizmoTheme> = {
     accent: 0x0a84ff,
     anchor: 0xffffff,
@@ -277,12 +282,18 @@ export interface PathGizmoOptions {
     history?: HistoryLike;
     /** Moves a dragged point, in path coordinates, such as onto a grid or a `SnapEngine` point. */
     snap?: (p: Vec, info: PathSnapInfo) => Vec;
-    /** Delete, Backspace, Escape, Enter and the arrow keys. Default true. */
+    /**
+     * Delete, Backspace, Escape, Enter and the arrow keys, read on `window` while the gizmo is on stage
+     * and visible. Keys aimed at a text field are left alone. Default true.
+     */
     keys?: boolean;
     /** Draw the path's outline. Default true. */
     outline?: boolean;
+    /** Colours that replace parts of {@link PATH_GIZMO_THEME}. */
     theme?: Partial<PathGizmoTheme>;
+    /** Per pointer kind overrides of hit sizes and the drag threshold. Touch gets larger targets. */
     profiles?: InputProfiles;
+    /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link PathGizmo.tick}. */
     ticker?: Ticker | null;
     /** Called on every change of the path, drags included. */
     onChange?: (path: BezierPath) => void;
@@ -320,7 +331,7 @@ const sameAffine = (p: Affine, q: Affine | null) =>
 const NUDGE_MS = 800;
 
 /**
- * Edits a bezier path the way design tools do.
+ * Edits a cubic bezier path: anchors, handles and segments, plus a pen tool that adds anchors.
  *
  * - Click an anchor to select it, Shift + click to add or remove it, drag to move the selection.
  * - Drag a handle to bend a curve. Alt + drag breaks the symmetry. Double-click an anchor to
@@ -332,9 +343,15 @@ const NUDGE_MS = 800;
  *
  * Put the gizmo in a screen-space overlay. With `space` set to a camera's world it follows pans and
  * zooms, and anchors and handles keep their size on screen. Every edit is one undoable step when
- * a `history` is given.
+ * a `history` is given. The gizmo edits one path at a time and does not draw its fill or stroke:
+ * draw the path yourself from `state.path`.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class PathGizmo extends Container {
+    /** Path, selection, hover, tool and drag flag. Set `path` or `tool` to change them. */
     readonly state: PathGizmoState;
     /** The pen's state machine. */
     readonly pen: PenTool;
@@ -412,7 +429,7 @@ export class PathGizmo extends Container {
         wake();
     }
 
-    /** The path being edited. */
+    /** The path being edited, the same object as `state.path.value`. Treat it as read only. */
     get path(): BezierPath {
         return this.state.path.value;
     }
@@ -422,7 +439,7 @@ export class PathGizmo extends Container {
         return this.state.selected.value;
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
@@ -459,7 +476,10 @@ export class PathGizmo extends Container {
         this.select(hits, mode);
     }
 
-    /** Applies an edit as one undoable step. `fn` gets the path and returns the new one. */
+    /**
+     * Applies an edit as one undoable step labelled `label`. `fn` gets the path and returns a new
+     * one, without mutating it. `selected` replaces the selection, if given.
+     */
     edit(label: string, fn: (path: BezierPath) => BezierPath, selected?: readonly number[]): void {
         const before = { path: this.path, selected: this.selected, label };
         const next = fn(this.path);
@@ -471,7 +491,7 @@ export class PathGizmo extends Container {
         this._commit(before);
     }
 
-    /** Removes the selected anchors. */
+    /** Removes the selected anchors as one undoable step. No-op when nothing is selected. */
     deleteSelected(): void {
         if (!this.selected.length) return;
         const drop = this.selected;
@@ -479,7 +499,7 @@ export class PathGizmo extends Container {
         this.edit(drop.length > 1 ? 'Delete points' : 'Delete point', (p) => removeAnchors(p, drop), []);
     }
 
-    /** Adds an anchor on segment `segment` at `t` without changing the shape, and selects it. */
+    /** Adds an anchor on segment `segment` at `t` (0 to 1) without changing the shape, selects it and returns its index. */
     insertAt(segment: number, t: number): number {
         const { path, index } = insertAnchor(this.path, segment, t);
 
@@ -493,7 +513,7 @@ export class PathGizmo extends Container {
         this.edit('Change point type', (p) => toggleAnchorType(p, index));
     }
 
-    /** Closes or opens the path. */
+    /** Closes or opens the path. Closing needs at least two anchors. */
     setClosed(closed: boolean): void {
         if (this.path.closed === closed || (closed && this.path.anchors.length < 2)) return;
         this.edit(closed ? 'Close path' : 'Open path', (p) => ({ ...clonePath(p), closed }));
@@ -505,7 +525,7 @@ export class PathGizmo extends Container {
         this._driver.wake();
     }
 
-    /** What is under a point of the gizmo's own space, or null. */
+    /** What is under a point of the gizmo's own space, or null. Handles win over anchors, anchors over segments. */
     pick(x: number, y: number): PathHit | null {
         const path = this.path;
         const m = this._affine();
@@ -545,6 +565,7 @@ export class PathGizmo extends Container {
         return best;
     }
 
+    /** Stops the animation and the key listener. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         this._offKeys();

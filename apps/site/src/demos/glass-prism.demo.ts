@@ -5,7 +5,7 @@ import { fan, ray, spectrum } from 'pixi-silk/glow';
 import { trackGesture } from 'pixi-silk/ui/gesture';
 import { defineDemo } from './runtime';
 
-const mono = (text: string, size = 10, alpha = 0.7) =>
+const mono = (text: string, size = 12, alpha = 0.75) =>
     new Text({
         text,
         style: { fontFamily: 'ui-monospace, SF Mono, Menlo, monospace', fontSize: size, fill: 0xffffff },
@@ -14,14 +14,17 @@ const mono = (text: string, size = 10, alpha = 0.7) =>
 const COLORS = spectrum(8);
 
 export default defineDemo({
+    title: 'Glass prism',
     size: [720, 440],
+    // phones: the prism in the middle of a narrow frame, the light from the lower left
+    phone: { size: [360, 440] },
     background: 0x000000,
     touchAction: 'none',
     controls: {
         spread: { type: 'range', label: 'spread', min: 0.2, max: 1.2, step: 0.01, value: 0.62 },
         frost: { type: 'range', label: 'frost', min: 0, max: 40, step: 1, value: 14 },
     },
-    setup({ stage, params, tick }) {
+    setup({ stage, params, tick, width, height }) {
         const beam = new SilkGraphics();
         const rainbow = new SilkGraphics();
         const glass = new Glass({
@@ -35,20 +38,24 @@ export default defineDemo({
             light: 1,
         });
         const hit = new SilkGraphics();
-        const centre = { x: 360, y: 220 };
-        let source = { x: 90, y: 420 };
+        const centre = { x: width / 2, y: height / 2 };
+        let source = { x: width / 8, y: height - 20 };
 
         beam.blendMode = 'add';
         rainbow.blendMode = 'add';
         glass.position.set(centre.x - 115, centre.y - 100);
-        glass.content.addChild(mono('2025 Edition'), Object.assign(mono('Reflect wealth'), { x: 140 }));
-        for (const t of glass.content.children) t.position.y = 16;
-        glass.content.children[0].x = 18;
+        const edition = mono('2025 Edition');
+        const motto = mono('Reflect wealth');
+
+        edition.position.set(18, 16);
+        motto.anchor.set(1, 0);
+        motto.position.set(212, 16);
+        glass.content.addChild(edition, motto);
         const brand = mono('F1', 54, 0.55);
 
         brand.position.set(150, 120);
         glass.content.addChild(brand);
-        hit.rect(0, 0, 720, 440).fill({ color: 0x000000, alpha: 0.001 });
+        hit.rect(0, 0, width, height).fill({ color: 0x000000, alpha: 0.001 });
         stage.addChild(hit, beam, rainbow, glass);
 
         trackGesture(hit, {

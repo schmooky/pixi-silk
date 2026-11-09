@@ -20,8 +20,11 @@ import { type PanelTheme, resolvePanelTheme } from './theme';
 
 /** How world units map onto the minimap: `map = world * scale + (x, y)`. */
 export interface MinimapTransform {
+    /** Minimap pixels per world unit. */
     scale: number;
+    /** Horizontal offset in minimap pixels. */
     x: number;
+    /** Vertical offset in minimap pixels. */
     y: number;
 }
 
@@ -72,16 +75,16 @@ export interface MinimapOptions {
     camera: Camera;
     /** What to show. Default `camera.content`. */
     content?: Container;
-    /** Default 200. */
+    /** Map width in local units. Default 200. */
     width?: number;
-    /** Default 130. */
+    /** Map height in local units. Default 130. */
     height?: number;
     /**
      * `bounds` (default) draws the outline of each top object, crisp and cheap. `texture` renders
      * the content into a small texture now and then, for a real thumbnail. It needs `renderer`.
      */
     mode?: 'bounds' | 'texture';
-    /** The renderer, for `texture`. */
+    /** The renderer, for `texture`. Without it `texture` mode draws nothing for the content. */
     renderer?: Renderer;
     /** Seconds between thumbnail and bounds updates. Default 0.5. */
     interval?: number;
@@ -93,6 +96,7 @@ export interface MinimapOptions {
     background?: boolean;
     /** Colours. Default the dark panel theme. */
     theme?: Partial<PanelTheme>;
+    /** Ticker driving updates and motion. Default `Ticker.shared`. `null` for manual {@link Minimap.tick}. */
     ticker?: Ticker | null;
 }
 
@@ -115,11 +119,15 @@ export interface MinimapState {
  *
  * app.stage.addChild(map);
  * ```
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class Minimap extends Container {
     /** The view frame and the drag, as signals. */
     readonly state: MinimapState;
-    /** Colours. */
+    /** Colours, resolved from the `theme` option. */
     readonly theme: PanelTheme;
     /** The camera it shows and moves. */
     readonly camera: Camera;
@@ -181,17 +189,17 @@ export class Minimap extends Container {
         this._driver.wake();
     }
 
-    /** The map transform drawn now. */
+    /** The map transform drawn now. It glides while the content or the view grows past the map. */
     get transform(): MinimapTransform {
         return { ...this._t };
     }
 
-    /** Width of the map. */
+    /** Width of the map in local units. */
     get mapWidth(): number {
         return this._w;
     }
 
-    /** Height of the map. */
+    /** Height of the map in local units. */
     get mapHeight(): number {
         return this._h;
     }
@@ -219,7 +227,7 @@ export class Minimap extends Container {
         return this;
     }
 
-    /** Centres the camera on the world point under a map point. */
+    /** Centres the camera on the world point under a map point (local units). `animate: false` jumps. */
     jumpTo(p: PointData, animate = true): this {
         const w = minimapToWorld(this._t, p);
 
@@ -233,6 +241,7 @@ export class Minimap extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops following the camera and frees the thumbnail texture. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         for (const stop of this._stops) stop();
         this._driver.sleep();

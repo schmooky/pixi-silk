@@ -1,13 +1,15 @@
 ---
 title: Migrating from Graphics
 seoTitle: 'Migrate from PixiJS Graphics to SilkGraphics'
-description: 'SilkGraphics mirrors the PixiJS v8 Graphics API: shapes on a path, fill and stroke, transforms. See what is the same, what differs and what is new.'
-keywords: ['PixiJS Graphics migration', 'Graphics vs SilkGraphics', 'PixiJS v8 Graphics API', 'drop-in Graphics replacement']
+description: 'SilkGraphics follows the PixiJS v8 Graphics API: shapes on a path, fill and stroke, transforms. See what carries over, what differs and what to add.'
+keywords: ['PixiJS Graphics migration', 'Graphics vs SilkGraphics', 'PixiJS v8 Graphics API', 'Graphics replacement']
 updated: 2026-11-08
 api: [SilkGraphics]
 ---
 
-Most `Graphics` code works after renaming the class:
+Most `Graphics` code runs after you rename the class.
+
+<Demo name="versus" height={260} caption="Drag the zoom slider. Graphics is on the left, SilkGraphics on the right." />
 
 ```diff
 - const g = new Graphics();
@@ -17,34 +19,52 @@ Most `Graphics` code works after renaming the class:
   g.moveTo(0, 100).lineTo(200, 120).stroke({ width: 1, color: 0xffffff });
 ```
 
-## Same
+The shapes go on the active path as before, and `fill()` and `stroke()` paint them. A
+`stroke()` right after a `fill()` strokes the same shapes.
 
-- **Active path.** `rect().circle().fill()` fills both shapes. Calling `stroke()` right after
-  `fill()` strokes the same shapes. Each shape stays one instance.
-- **Style objects**: `fill(color)`, `fill({ color, alpha })`, `stroke({ width, color, alpha, alignment, cap })`.
-  `alignment` accepts Pixi's numbers (1 inside, 0.5 centre, 0 outside) and the words
-  `'inside' | 'center' | 'outside'`.
-- **Path commands**: `moveTo`, `lineTo`, `quadraticCurveTo`, `bezierCurveTo`, `arc`, `closePath`,
-  `beginPath`.
-- **Transforms**: `save`, `restore`, `translateTransform`, `rotateTransform`, `scaleTransform`,
-  `setTransform`, `resetTransform`.
-- It is a regular display object. Position, mask and filter it, or put it in a render texture.
-  Give it `eventMode` and listen to pointer events. Hit tests use the real shape.
+## What carries over
 
-## Different
-
-| `Graphics` | `SilkGraphics` |
+| Graphics | SilkGraphics |
 |---|---|
-| `fill()` on any polygon or path | the same, even-odd, with blur, spread and inner shadows on any outline |
-| miter, bevel and round joins | the same, with `miterLimit`, on paths, polygons and sharp rects |
-| `texture` fills | not supported (use gradients) |
-| `svg()` | not supported |
-| batched with other graphics | one draw call per `SilkGraphics`, or one per run of them after `enableSilkBatching()` |
+| `rect`, `roundRect`, `circle`, `ellipse`, `poly`, `regularPoly` | the same calls |
+| `moveTo`, `lineTo`, `quadraticCurveTo`, `bezierCurveTo`, `arc`, `closePath`, `beginPath` | the same calls |
+| `fill(color)`, `fill({ color, alpha })` | the same, plus `gradient`, `blur` and `spread` |
+| `stroke({ width, color, alpha, alignment, cap, join, miterLimit })` | the same. `alignment` also takes `'inside'`, `'center'` and `'outside'` |
+| `save`, `restore`, `translateTransform`, `rotateTransform`, `scaleTransform`, `setTransform`, `resetTransform` | the same calls |
+| `clear()` | the same, and it keeps the GPU buffers for the next frame |
 
-## New things you can use
+It is a regular display object. Position it, mask it, filter it or render it into a texture. Set
+`eventMode` to get pointer events, and hit tests use the real shape, so a ring is hollow.
 
-- `roundRect(x, y, w, h, radius | [tl, tr, br, bl], smoothing)` for squircles.
-- `arcSweep`, `sector` (donuts, pies, rounded gauge segments), `pill`, `heart`, `star` and `triangle` with rounded corners.
-- `polyline(points, { smooth: 'monotone' | 'catmull' })` and tapered widths with `stroke({ width: [2, 12] })`.
-- `area(points, baseline | lowerPoints)` for charts and bands.
-- `dash` and `dashOffset` on any stroke, `blur` on any paint, and gradients in OKLab.
+## What differs
+
+| Graphics | SilkGraphics |
+|---|---|
+| holes with `cut()` | a free path fills even-odd, so an inner subpath is a hole. `cut()` does not exist |
+| `texture` fills | not supported. Use gradients, or a Sprite |
+| `svg(markup)` parses a whole SVG | `svgPath(d)` takes one path's `d` attribute |
+| batched with other Graphics | one draw call per object, or per run of objects after `enableSilkBatching()` |
+| `GraphicsContext` shared between objects | no shared context. Redraw each object, it is cheap |
+
+## What to add
+
+These have no `Graphics` equivalent.
+
+```ts
+g.roundRect(0, 0, 160, 96, [24, 24, 8, 8], 0.6).fill(0x2c2c2e); // per-corner radii, squircle smoothing
+g.arcSweep(200, 48, 36, -Math.PI / 2, Math.PI).stroke({ width: 10, cap: 'round', color: 0x30d158 });
+g.polyline([0, 140, 60, 120, 120, 150, 180, 110], { smooth: 'monotone' }).stroke({ width: [2, 8], color: 0x0a84ff });
+g.circle(260, 140, 20).fill({ color: 0xff9f0a, blur: 12 }); // a glow, no filter
+g.rect(300, 110, 60, 60).stroke({ width: 2, color: 0xffffff, dash: [6, 4] });
+```
+
+That is a squircle card with two rounded and two tighter corners, a gauge arc, a smoothed line
+that tapers from 2 to 8 px, a blurred dot and a dashed square. [Shapes](/docs/shapes/),
+[Lines & paths](/docs/lines-and-paths/) and [Strokes & dashes](/docs/strokes-and-dashes/) cover
+each call.
+
+## Migrate one screen at a time
+
+`Graphics` and `SilkGraphics` sit in the same scene. Swap the objects that show edges first:
+large curves, thin lines and anything under a zooming camera or a filter. Leave texture fills and
+SVG files on `Graphics`.

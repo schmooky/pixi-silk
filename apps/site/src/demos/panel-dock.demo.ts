@@ -2,18 +2,20 @@ import { Container } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { SilkText } from 'pixi-silk/text';
 import { PANEL_THEME, PANEL_THEME_LIGHT, Panel } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { BG, defineDemo } from './runtime';
 
 // Drag a panel by its title bar. Drop it near an edge or a corner to dock it there, drag it off to
 // float it again. Drag an edge to resize it, click the chevron to fold it, and scroll its list.
 export default defineDemo({
-    size: [760, 460],
-    background: 0x141416,
+    title: 'Docking panels',
+    size: [720, 460],
+    // phones: the notes dock to the bottom, under the floating list
+    phone: { size: [360, 540] },
     touchAction: 'none',
     controls: {
         theme: { type: 'select', label: 'theme', options: ['dark', 'light'], value: 'dark' },
     },
-    setup({ silk, stage, width, height, params, tick }) {
+    setup({ silk, stage, width, height, params, tick, phone }) {
         const viewport = { width, height };
         const canvas = silk.app.canvas;
         // the panels scroll with the wheel: keep the page still while the pointer is over the demo
@@ -31,9 +33,13 @@ export default defineDemo({
             backdrop
                 .clear()
                 .rect(0, 0, width, height)
-                .fill(light ? 0xe6e6eb : 0x141416);
-            const colours = new Panel({ title: 'Colours', x: 270, y: 70, width: 220, height: 300, viewport, theme });
-            const notes = new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
+                .fill(light ? 0xe6e6eb : BG);
+            const colours = phone
+                ? new Panel({ title: 'Colours', x: 16, y: 16, width: 240, height: 300, viewport, theme })
+                : new Panel({ title: 'Colours', x: 200, y: 60, width: 240, height: 320, viewport, theme });
+            const notes = phone
+                ? new Panel({ title: 'Notes', dock: 'bottom', height: 170, viewport, theme })
+                : new Panel({ title: 'Notes', dock: 'right', width: 220, viewport, theme });
 
             // forty swatch rows, laid out by the panel's flex column and clipped by its body
             for (let i = 0; i < 40; i++) {
@@ -56,7 +62,7 @@ export default defineDemo({
                 });
 
                 name.position.set(32, 4);
-                code.position.set(196, 5);
+                code.position.set(216, 5);
                 row.addChild(chip, name, code);
                 colours.content.add(row);
             }
@@ -67,7 +73,7 @@ export default defineDemo({
                 lineHeight: 18,
                 fill: theme.textDim,
                 wordWrap: true,
-                wordWrapWidth: 190,
+                wordWrapWidth: phone ? 320 : 190,
             });
 
             notes.content.add(text);

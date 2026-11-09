@@ -9,7 +9,7 @@ export function hueToAngle(h: number): number {
     return -Math.PI / 2 + (h * Math.PI) / 180;
 }
 
-/** Hue in degrees of a screen angle. */
+/** Hue in degrees, 0 to 360, of a screen angle in radians. The inverse of {@link hueToAngle}. */
 export function angleToHue(a: number): number {
     const h = ((a + Math.PI / 2) * 180) / Math.PI;
 
@@ -117,7 +117,7 @@ export function closestBarycentric(
     return [tca, 0, 1 - tca];
 }
 
-/** Foot of the perpendicular from P onto the line through A and B. */
+/** Foot of the perpendicular from P onto the infinite line through A and B. Returns A when A and B coincide. */
 export function foot(px: number, py: number, ax: number, ay: number, bx: number, by: number): [number, number] {
     const dx = bx - ax;
     const dy = by - ay;

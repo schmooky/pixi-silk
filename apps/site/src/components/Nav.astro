@@ -1,42 +1,39 @@
 ---
 import { Menu } from 'lucide-react';
 import Search from '@/components/Search.astro';
+import { docsSections } from '@/components/sections';
 import ThemeToggle from '@/components/ThemeToggle.astro';
-import { DOCS_AREAS, itemPage } from '@/content/nav.mjs';
 import { SITE } from '@/lib/site';
 import { SILK_VERSION } from '@/lib/version';
 
+const sections = await docsSections();
+const path = Astro.url.pathname;
+// a section lights up on its hub, its areas' hubs and their pages; Reference also on the API and changelog
+const owns = (s: (typeof sections)[number]) =>
+    path === s.href ||
+    s.areas.some((a) => path === a.href || a.pages.some((p) => path === p.href) || a.lab.some((l) => path === l.href)) ||
+    (s.id === 'reference' && (path.startsWith('/api/') || path.startsWith('/changelog/')));
+const current = sections.find(owns)?.href ?? (path.startsWith('/faq/') ? '/faq/' : path.startsWith('/studio/') ? '/studio/' : '');
 const links = [
-    { href: '/docs/', label: 'Docs' },
-    { href: '/docs/examples/', label: 'Examples' },
-    { href: '/docs/reference/', label: 'Reference' },
+    ...sections.map((s) => ({ href: s.href, label: s.title })),
     { href: '/faq/', label: 'FAQ' },
     { href: '/studio/', label: 'Studio' },
 ];
-const path = Astro.url.pathname;
-// Examples and Reference are docs areas with their own tab: their hub, pages and extras light it up
-const under = (id: string, extra: string[] = []) => {
-    const area = DOCS_AREAS.find((a) => a.id === id);
-    const prefixes = [`/docs/${id}/`, ...(area?.items ?? []).map((i) => `/docs/${itemPage(i)}/`), ...extra];
-
-    return prefixes.some((p) => path.startsWith(p));
-};
-const tab = under('reference', ['/api/', '/changelog/']) ? '/docs/reference/' : under('examples') ? '/docs/examples/' : path.startsWith('/faq/') ? '/faq/' : path.startsWith('/studio/') ? '/studio/' : path.startsWith('/docs/') ? '/docs/' : '';
-const active = (href: string) => href === tab;
 ---
 
 <header class="glass sticky top-0 z-40 border-b">
-    <div class="container-page flex h-14 items-center gap-4">
-        <div class="flex items-center gap-2">
-            <a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
-                <img src="/favicon.svg" alt="" width="24" height="24" class="rounded-md" />
-                <span>{SITE.name}</span>
-            </a>
-            <a href="/changelog/" class="rounded-full border px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground">v{SILK_VERSION}</a>
-        </div>
-        <nav aria-label="Main" class="ml-4 hidden items-center gap-1 md:flex">
+    <div class="container-page flex h-14 items-center gap-3">
+        <a href="/" class="flex shrink-0 items-center gap-2 text-[15px] font-bold tracking-tight">
+            <img src="/favicon.svg" alt="" width="22" height="22" class="rounded-md" />
+            <span>pixi-<span class="silk-text">silk</span></span>
+        </a>
+        <a href="/changelog/" class="hidden rounded-md border px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground hover:text-foreground sm:inline">v{SILK_VERSION}</a>
+        <nav aria-label="Main" class="ml-3 hidden h-full items-stretch gap-1 lg:flex">
             {links.map((l) => (
-                <a href={l.href} class:list={['rounded-md px-3 py-1.5 text-sm transition-colors', active(l.href) ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground']}>
+                <a href={l.href} aria-current={l.href === current ? 'page' : undefined} class:list={[
+                    'relative flex items-center px-2.5 text-sm transition-colors',
+                    l.href === current ? 'text-foreground after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-silk' : 'text-muted-foreground hover:text-foreground',
+                ]}>
                     {l.label}
                 </a>
             ))}
@@ -48,13 +45,15 @@ const active = (href: string) => href === tab;
                 <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
                 <span class="sr-only">GitHub repository</span>
             </a>
-            <button id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-mobile" class="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent md:hidden">
+            <button id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-mobile" class="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent lg:hidden">
                 <Menu className="h-4 w-4" />
             </button>
         </div>
     </div>
-    <nav id="nav-mobile" aria-label="Main" class="hidden border-t px-4 py-3 md:hidden">
-        {links.map((l) => <a href={l.href} class:list={['block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-foreground', active(l.href) ? 'text-foreground' : 'text-muted-foreground']}>{l.label}</a>)}
+    <nav id="nav-mobile" aria-label="Main" class="hidden border-t px-4 py-3 lg:hidden">
+        {links.map((l) => (
+            <a href={l.href} aria-current={l.href === current ? 'page' : undefined} class:list={['block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-foreground', l.href === current ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground']}>{l.label}</a>
+        ))}
     </nav>
 </header>
 <script is:inline>

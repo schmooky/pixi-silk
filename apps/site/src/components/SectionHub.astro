@@ -1,0 +1,35 @@
+---
+import { pageThumb, type Section } from '@/components/sections';
+import ThumbCard from '@/components/ThumbCard.astro';
+
+/** A section's overview at `/docs/<section>/`: its areas as groups of page cards. */
+interface Props {
+    section: Section;
+}
+const { section } = Astro.props;
+---
+
+{section.areas.length > 1 && (
+    <nav aria-label={`${section.title} groups`} class="not-prose flex flex-wrap gap-2" data-pagefind-ignore>
+        {section.areas.map((a) => (
+            <a href={`#${a.id}`} class="rounded-full border px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">{a.title}</a>
+        ))}
+    </nav>
+)}
+
+{section.areas.map((a) => (
+    <section id={a.id} class="not-prose mt-12 scroll-mt-20">
+        {a.aliases.map((id) => <span id={id} class="block scroll-mt-20" />)}
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 class="heading-4 flex items-center gap-2">
+                <a href={a.href} class="hover:text-silk-text">{a.title}</a>
+                {a.experimental && <span class="badge">Experimental</span>}
+            </h2>
+            <a href={a.href} class="text-sm text-muted-foreground hover:text-foreground">Overview</a>
+        </div>
+        <p class="mt-1.5 text-sm text-muted-foreground">{a.summary}</p>
+        <div class="mt-5 grid gap-4 sm:grid-cols-2">
+            {a.pages.map((p) => <ThumbCard href={p.href} title={p.title} description={p.description} thumb={pageThumb(p)} />)}
+        </div>
+    </section>
+))}

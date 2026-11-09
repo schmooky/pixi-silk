@@ -6,7 +6,7 @@ import { watch } from 'pixi-silk/signal';
 import { Inspector, type InspectorField } from 'pixi-silk/ui/inspector';
 import { SelectionOutline } from 'pixi-silk/ui/outline';
 import { Panel } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { defineDemo, PALETTE } from './runtime';
 
 /** A card with a fill and a corner radius, so the inspector has something of its own to edit. */
 class Card extends Container {
@@ -84,10 +84,12 @@ const schema: InspectorField[] = [
 // moves each from its own start. Drag a number sideways, or click it to type. Open the swatch for
 // the colour picker. Cmd or ctrl + Z undoes each drag as one step.
 export default defineDemo({
-    size: [760, 480],
-    background: 0x141416,
+    title: 'Inspector from a schema',
+    size: [720, 480],
+    // phones: the cards above the panel
+    phone: { size: [360, 730] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -96,12 +98,16 @@ export default defineDemo({
         const history = new History();
         const scene = new Container();
         const outline = new SelectionOutline({ ticker: silk.app.ticker });
-        const panel = new Panel({ title: 'Inspector', x: 452, y: 20, width: 288, height: 440 });
+        const panel = phone
+            ? new Panel({ title: 'Inspector', x: 16, y: 324, width: 328, height: 390 })
+            : new Panel({ title: 'Inspector', x: 412, y: 24, width: 284, height: 432 });
         const inspector = new Inspector({ schema, history, element: canvas, popoverLayer: stage });
-        const cards = [new Card('Blue', 0x0a84ff), new Card('Pink', 0xff375f), new Card('Mint', 0x30d158)];
+        const cards = [new Card('Blue', PALETTE.blue), new Card('Pink', PALETTE.pink), new Card('Mint', PALETTE.green)];
 
         cards.forEach((card, i) => {
-            card.position.set(40 + (i % 2) * 180, 50 + Math.floor(i / 2) * 200 + (i % 2) * 40);
+            // phones: two cards side by side and the third under them
+            if (phone) card.position.set(i === 2 ? 120 : 40 + i * 160, i === 2 ? 184 : 44);
+            else card.position.set(48 + (i % 2) * 180, 56 + Math.floor(i / 2) * 210 + (i % 2) * 40);
             card.eventMode = 'static';
             card.cursor = 'pointer';
             card.on('pointerdown', (e) => {

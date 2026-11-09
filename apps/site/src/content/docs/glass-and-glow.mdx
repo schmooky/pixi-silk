@@ -1,18 +1,16 @@
 ---
 title: Glass and glow
-seoTitle: 'Frosted glass and glowing light in PixiJS'
-description: 'Frosted glass that blurs and bends what is behind it, and light that adds up to white: auroras, neon, beams and a prism, with pixi-silk/glass and pixi-silk/glow.'
-keywords: ['PixiJS glass effect', 'frosted glass', 'glassmorphism', 'PixiJS glow', 'neon glow', 'plus lighter', 'aurora gradient']
-updated: 2026-11-07
+seoTitle: 'Frosted glass panes and neon glow in PixiJS'
+description: 'Frosted glass that blurs and bends what is behind it, and neon light that adds up to white, from the pixi-silk/glass and pixi-silk/glow entry points.'
+keywords: ['PixiJS glass effect', 'frosted glass', 'glassmorphism', 'PixiJS glow', 'neon glow', 'plus lighter']
+updated: 2026-11-08
+api: [Glass, Glow, Aurora]
 ---
 
+`pixi-silk/glass` draws panes of frosted glass over your scene. `pixi-silk/glow` stacks blurred
+passes of one shape into neon light. Both are separate entry points, not part of the root import.
+
 <Demo name="glass-playground" height={460} caption="Drag the pane. Every slider is a Glass option." />
-
-## Glass
-
-`Glass` is a pane that reads whatever is already drawn behind it. It blurs it, bends it along the
-curved rim, splits the colours where the rim is steepest, and catches light on the edge that faces
-the light. Labels and icons go in `glass.content`, on top of the glass and sharp.
 
 ```ts
 import { Text } from 'pixi.js';
@@ -25,52 +23,43 @@ card.set({ lightAngle: -Math.PI / 4, grain: 0.05 });
 app.stage.addChild(card); // after the scene it frosts
 ```
 
-The pane needs the canvas behind it, which WebGL keeps in a back buffer. `Glass` turns it on the
-first time it draws, so the first frame shows a plain pane. Pass `useBackBuffer: true` to
-`createSilkApp` to have glass from the first frame. WebGPU copies the backdrop without a back
-buffer, so there the glass shows from the first frame. The pane stays axis aligned: scale it
-freely, but do not rotate it.
+The pane reads whatever is drawn behind it, blurs it and bends it along the curved rim. Labels and
+icons go in `card.content`, which draws on top of the glass and stays sharp. `set()` changes
+options later.
+
+## Glass options
 
 | Option | Default | What it does |
 | --- | --- | --- |
+| `width`, `height` | 240, 160 | Pane size. The top-left corner is at (0, 0). |
+| `radius` | 28 | Corner radius |
+| `smoothing` | 0.6 | Squircle corners, 0 (circular) to 1 |
 | `blur` | 18 | Backdrop blur radius |
-| `refraction` | 14 | How far the rim bends the backdrop (negative bends inwards) |
+| `refraction` | 14 | How far the rim bends the backdrop. Negative bends inwards. |
 | `dispersion` | 0.35 | Colour split at the rim, 0 to 1 |
 | `bevel` | 22 | Width of the curved rim |
 | `frost` | 0.06 | Milky whitening, 0 to 1 |
 | `saturation` | 1.2 | Colour boost of what shows through |
 | `tint`, `tintAmount` | white, 0.04 | Coloured glass |
-| `lightAngle`, `light` | top left, 0.8 | Where the sheen and the lit rim come from, and how bright |
+| `opacity` | 1 | Overall opacity |
+| `lightAngle`, `light` | top left, 0.8 | Where the sheen comes from, in radians, and how bright it is |
 | `grain` | 0.035 | Film grain |
-| `shadow` | 0.3 | Soft shadow under the pane |
+| `shadow` | 0.3 | Soft shadow under the pane. 0 turns it off. |
 
-<Demo name="glass-prism" height={440} caption="Drag anywhere to move the light source." />
+## Where glass stops
 
-## Light that adds up
+The pane needs the canvas behind it. On WebGL, `Glass` turns on the renderer's back buffer the
+first time it draws, so the first frame shows a plain pane. Pass `useBackBuffer: true` to
+`createSilkApp` to have glass from the first frame. WebGPU reads the backdrop without a back
+buffer. On any other renderer the pane draws a plain frosted fill.
 
-Light does not cover what is under it, it adds to it. Set `blendMode = 'add'` on a graphics (Figma
-calls it Plus lighter) and overlapping glows burn towards white. Blur does the rest: every
-`SilkGraphics` fill takes a `blur`, so a soft glow is one ellipse.
+Add the pane after the scene it frosts, since it only sees what is already drawn. You can rotate
+and scale it. Under an uneven scale, the corners stay round with the radius of the smaller scale.
+The light stays fixed on screen. Skew is not supported, and the pane keeps its unskewed shape.
 
-`Aurora` rises light from the bottom of a box in three colours and drifts slowly.
+## Make neon with Glow
 
-```ts
-import { Aurora } from 'pixi-silk/glow';
-
-const sky = new Aurora({ width: 200, height: 330, radius: 30, colors: [0x6f1bff, 0xee36ff, 0xffffff] });
-```
-
-<Demo name="glow-aurora" height={470} caption="Three palettes. Change how high the light reaches and how fast it drifts." />
-
-<Demo name="glow-sunrise" height={440} caption="A red disc under blur 90, a yellow peanut with a blur that fades out towards a crisp horizon." />
-
-## Neon
-
-`Glow` draws one shape as a stack of passes. `neon()` is the five-layer Figma recipe for a shape
-about `size` wide. Two blooms go behind. The core has a gradient, coloured drop glows and a pale
-inner shadow. A 60% white copy added on top burns the middle out, and a blurred white outline
-finishes it.
-`bolt()` and `drop()` add ready outlines. Any path works, since fills treat it as one shape.
+<Demo name="glow-neon" height={440} caption="Drag the glow slider." />
 
 ```ts
 import { bolt, Glow, neon } from 'pixi-silk/glow';
@@ -81,24 +70,36 @@ const spark = new Glow({
 });
 ```
 
-<Demo name="glow-neon" height={440} caption="The neon recipe on a bolt, alone and on the Supercharged card." />
+`Glow` draws one shape several times, once per layer, each with its own fill, stroke, blend and
+offset. `neon()` returns the five-layer recipe for a shape about `size` wide. Two blooms go behind
+it. The core has a gradient, coloured drop glows and a pale inner shadow. A white copy added on top
+burns the middle out, and a blurred white outline finishes it.
 
-<Demo name="glow-button" height={360} caption="Hover and press. The border is an open path, so its head leaves a gap and a star of light." />
+| `neon()` option | Default | What it does |
+| --- | --- | --- |
+| `size` | 100 | Rough size of the shape. Every blur scales with it. |
+| `intensity` | 1 | Strength of the bloom, 0 to about 2 |
+| `core` | a radial gradient | Paint of the solid core |
+| `surface` | `'dark'` | On `'light'` surfaces the passes paint normally, since added light would vanish on white |
 
-## Beams, waves and slices
+`bolt()` and `drop()` add ready outlines. Any path works in `draw`, because a fill treats a path
+as one shape.
 
-`ray()` adds a tapered beam, `fan()` spreads several from one point and `spectrum()` colours
-them. Blurred and added, they make prisms, spotlights and hero lights. The hero below is three
-pinched paths with blur 50, 27 and 12. The wave is a white stroke with red, orange and blue copies
-a few pixels off. The bolt is one shape cut into strips, each smeared sideways.
+## Light that adds up
 
-<Demo name="glow-beams" height={520} caption="A pinched beam, a chromatic wave and a bolt sliced into strips." />
+Light does not cover what is under it, it adds to it. Set `blendMode = 'add'` on a graphics, or
+`blend: 'add'` on one fill, and overlapping glows burn towards white. Figma calls this Plus
+lighter. With a `blur` on the fill, a soft light is one ellipse.
 
-<Demo name="glow-icons" height={440} caption="Big shapes clipped by their tile. The blur grows from the lit edge to the far side, and an inner shadow pushed away from the light leaves the bright rim." />
+<Demo name="glow-button" height={360} caption="Hover and press the button." />
 
-## Stacked shadows
+The border of this button is an open path. Its head leaves a gap with a star of light in it.
 
-Several blurred copies behind a shape read better than one big blur: a tight one for the edge, a
-wide one for the light. Each is the shape grown by its spread and blurred by half its CSS blur.
+<Demo name="glow-icons" height={440} caption="Switch the palette." />
 
-<Demo name="glow-shadows" height={300} caption="Blur and spread of each stacked shadow, as in CSS." />
+Each icon is a large shape clipped by its tile. Its blur grows from the lit edge to the far side,
+and an inner shadow pushed away from the light leaves a bright rim.
+
+`Aurora` rises light in three colours from the bottom of a box and drifts slowly. `ray()`, `fan()`
+and `spectrum()` build beams and prisms. The [Showcase](/docs/showcase/) has the full scenes made
+with them.

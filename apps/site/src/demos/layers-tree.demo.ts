@@ -4,7 +4,7 @@ import { watch } from 'pixi-silk/signal';
 import { SilkText } from 'pixi-silk/text';
 import { type LayerIcon, LayerTree, type TreeAdapter } from 'pixi-silk/ui/layers';
 import { PANEL_THEME, Panel } from 'pixi-silk/ui/panel';
-import { defineDemo } from './runtime';
+import { defineDemo, INK } from './runtime';
 
 /** The app's own model: plain objects, no Pixi in them. */
 interface Item {
@@ -28,10 +28,12 @@ const item = (name: string, kind: Item['kind'], parent: Item | null): Item => {
 // click and cmd or ctrl + click select. Drag rows to reorder them, or drop them on a group to move
 // them inside. Double click a name to rename it. Arrow keys move the selection.
 export default defineDemo({
-    size: [640, 460],
-    background: 0x141416,
+    title: 'Layer tree',
+    size: [720, 460],
+    // phones: the readout goes under the panel
+    phone: { size: [360, 600] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const canvas = silk.app.canvas;
         const still = (e: WheelEvent) => e.preventDefault();
 
@@ -76,15 +78,17 @@ export default defineDemo({
         };
         const selection = new Selection<Item>();
         const history = new History();
-        const panel = new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
+        const panel = phone
+            ? new Panel({ title: 'Layers', x: 16, y: 16, width: 328, height: 420, scroll: false })
+            : new Panel({ title: 'Layers', x: 24, y: 24, width: 300, height: 412, scroll: false });
         const tree = new LayerTree({ adapter, root, selection, history, element: canvas });
         const info = new SilkText({
             fontFamily: PANEL_THEME.fontFamily,
             fontSize: 13,
             lineHeight: 20,
-            fill: 0x8e8e96,
+            fill: INK.muted,
             wordWrap: true,
-            wordWrapWidth: 260,
+            wordWrapWidth: phone ? 328 : 340,
         });
         const onKey = (e: KeyboardEvent) => {
             const mod = e.metaKey || e.ctrlKey;
@@ -98,7 +102,8 @@ export default defineDemo({
         addEventListener('keydown', onKey);
         tree.expand(root.children[0], true);
         panel.content.add(tree, { grow: 1, onSize: (w, h) => tree.resize(w, h) });
-        info.position.set(356, 40);
+        if (phone) info.position.set(16, 452);
+        else info.position.set(352, 40);
         stage.addChild(panel, info);
         const show = () => {
             const picked = selection.items.map((n) => n.name);

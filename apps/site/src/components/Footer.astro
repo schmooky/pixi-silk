@@ -1,32 +1,50 @@
 ---
-import { VISIBLE_AREAS } from '@/content/nav.mjs';
+import { docsSections } from '@/components/sections';
 import { SITE } from '@/lib/site';
 
-const columns = [
-    { title: 'Docs', links: [['All areas', '/docs/'], ...VISIBLE_AREAS.filter((a) => a.id !== 'reference' && a.id !== 'examples').map((a) => [a.title, `/docs/${a.id}/`])] },
-    { title: 'Examples', links: [['Examples area', '/docs/examples/'], ['Showcase', '/docs/showcase/'], ['Slot HUD', '/docs/slot-hud/'], ['Studio', '/studio/']] },
-    { title: 'Reference', links: [['API reference', '/api/'], ['Glossary', '/docs/glossary/'], ['FAQ', '/faq/'], ['Changelog', '/changelog/'], ['llms.txt', '/llms.txt'], ['llms-full.txt', '/llms-full.txt']] },
-    { title: 'Project', links: [['GitHub', SITE.githubRepo], ['npm', SITE.npm]] },
+const sections = await docsSections();
+// one column per section: its areas, or its pages when the section is a single area
+const columns = sections.map((s) => ({
+    title: s.title,
+    href: s.href,
+    links:
+        s.areas.length > 1
+            ? s.areas.map((a) => [a.title, a.href])
+            : s.areas.flatMap((a) => [...a.pages.map((p) => [p.title, p.href]), ...a.links.map((l) => [l.label, l.href])]).slice(0, 6),
+}));
+const project = [
+    ['Studio', '/studio/'],
+    ['FAQ', '/faq/'],
+    ['Changelog', '/changelog/'],
+    ['llms.txt', '/llms.txt'],
+    ['GitHub', SITE.githubRepo],
+    ['npm', SITE.npm],
 ];
 ---
 
-<footer class="mt-24 border-t">
-    <div class="container-page grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
+<footer class="mt-28 border-t">
+    <div class="container-page grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.3fr_repeat(5,1fr)]">
         <div>
-            <div class="font-semibold">{SITE.name}</div>
-            <p class="mt-2 max-w-xs text-sm text-muted-foreground">{SITE.tagline}. Exact anti-aliasing at any zoom, rotation and pixel ratio.</p>
+            <a href="/" class="text-[15px] font-bold tracking-tight">pixi-<span class="silk-text">silk</span></a>
+            <p class="mt-3 max-w-[16rem] text-sm leading-relaxed text-muted-foreground">{SITE.tagline}.</p>
         </div>
         {columns.map((col) => (
             <div>
-                <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{col.title}</div>
-                <ul class="mt-3 space-y-2 text-sm">
-                    {col.links.map(([label, href]) => <li><a href={href} class="text-foreground/80 hover:text-foreground">{label}</a></li>)}
+                <a href={col.href} class="block font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground">{col.title}</a>
+                <ul class="mt-4 space-y-2.5 text-sm">
+                    {col.links.map(([label, href]) => <li><a href={href} class="text-foreground/75 hover:text-foreground">{label}</a></li>)}
                 </ul>
             </div>
         ))}
+        <div>
+            <div class="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Project</div>
+            <ul class="mt-4 space-y-2.5 text-sm">
+                {project.map(([label, href]) => <li><a href={href} class="text-foreground/75 hover:text-foreground">{label}</a></li>)}
+            </ul>
+        </div>
     </div>
     <div class="container-page flex flex-wrap justify-between gap-2 border-t py-6 text-xs text-muted-foreground">
         <span>MIT licensed.</span>
-        <span>Built with Astro, React and PixiJS, rendered with pixi-silk.</span>
+        <span>Built with Astro, React and PixiJS, drawn with pixi-silk.</span>
     </div>
 </footer>

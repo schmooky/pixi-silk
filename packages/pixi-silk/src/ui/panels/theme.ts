@@ -48,7 +48,7 @@ export interface PanelTheme {
     fontSize: number;
 }
 
-/** The dark default theme, close to the dark UI of design tools. */
+/** The dark default theme of every panel. Override single tokens with a panel's `theme` option. */
 export const PANEL_THEME: Readonly<PanelTheme> = {
     background: 0x1f1f22,
     backgroundAlpha: 0.98,
@@ -106,20 +106,21 @@ export function resolvePanelTheme(input?: Partial<PanelTheme>): PanelTheme {
 
 /** What the panels need to make a label. */
 export interface PanelTextOptions {
+    /** The label text. Default empty. */
     text?: string;
     /** Default the theme's font size. */
     size?: number;
-    /** Default 500. */
+    /** Font weight. Default 500. */
     weight?: number | string;
     /** Default the theme's text colour. */
     color?: number;
-    /** 0 to 1 per axis. Default 0. */
+    /** Anchor, 0 to 1 per axis. One number sets both. Default 0. */
     anchor?: number | { x: number; y: number };
     /** Glyph atlas. Default the shared one. */
     atlas?: SdfAtlas;
 }
 
-/** A SilkText label in the panel style. It stays sharp at any zoom or scale. */
+/** A new SilkText label in the theme's font, size and text colour. */
 export function panelText(theme: PanelTheme, options: PanelTextOptions = {}): SilkText {
     return new SilkText({
         text: options.text ?? '',

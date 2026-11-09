@@ -9,11 +9,15 @@ import { defineDemo } from './runtime';
 // Click a text to edit it, drag to select, double click a word. Pinch or ctrl + scroll to zoom in
 // and keep typing: the caret, the selection and the glyphs stay sharp. Scroll pans.
 export default defineDemo({
+    title: 'Text editing on the canvas',
     size: [760, 440],
-    background: 0x151517,
+    // phones: a narrower frame, so the camera starts near 100%
+    phone: { size: [360, 460] },
     touchAction: 'none',
     ownsCamera: true,
-    setup({ silk }) {
+    setup({ silk, phone }) {
+        // the card size, narrower on phones
+        const [cw, ch] = phone ? [300, 330] : [420, 260];
         const app = silk.app;
         const world = new Container();
         const camera = new Camera({ world, element: app.canvas });
@@ -25,9 +29,9 @@ export default defineDemo({
         app.stage.addChild(world, zoom);
 
         const card = new SilkGraphics()
-            .roundRect(0, 0, 420, 260, 28, 0.6)
+            .roundRect(0, 0, cw, ch, 28, 0.6)
             .fill(linear([0x2c2c30, 0x1c1c1f], { from: [0, 0], to: [0, 1] }))
-            .roundRect(0.5, 0.5, 419, 259, 28, 0.6)
+            .roundRect(0.5, 0.5, cw - 1, ch - 1, 28, 0.6)
             .stroke({ color: 0xffffff, alpha: 0.08, width: 1 });
         const caption = new SilkText({ text: 'Frame 1', fontFamily: font, fontSize: 11, fill: 0x8e8e93 });
 
@@ -50,7 +54,7 @@ export default defineDemo({
             fontSize: 15,
             lineHeight: 22,
             fill: 0xc7c7cc,
-            width: 356,
+            width: cw - 64,
             placeholder: 'Write something',
             history,
             element: app.canvas,
@@ -63,7 +67,7 @@ export default defineDemo({
         // a tiny caption follows the title as you type
         const count = new SilkText({ fontFamily: font, fontSize: 11, fill: 0x636366, tabularNumbers: true });
 
-        count.position.set(32, 230);
+        count.position.set(32, ch - 30);
         world.addChild(count);
         const update = () => {
             const words = body.value.split(/\s+/).filter(Boolean).length;
@@ -78,7 +82,8 @@ export default defineDemo({
 
         app.renderer.on('resize', place);
         place();
-        camera.fit({ x: -20, y: -40, width: 460, height: 320 }, 24, false);
+        // phones keep room under the card for the zoom control
+        camera.fit({ x: -20, y: -40, width: cw + 40, height: ch + (phone ? 110 : 60) }, phone ? 8 : 24, false);
 
         return () => {
             for (const stop of stops) stop();

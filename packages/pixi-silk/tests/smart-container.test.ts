@@ -4,10 +4,10 @@ import { signal } from '../src/signal';
 import { type LayoutData, placeBox, SmartContainer, type ViewportRect } from '../src/ui/layout';
 
 /**
- * The placement of the SmartContainer the user's slot games ship, line for line: window size in,
+ * A reference placement, written out line for line: window size in,
  * position and scale out. Our container must give the same numbers for the same records.
  */
-function games(portraitData: LayoutData, landscapeData: LayoutData, window: Required<ViewportRect>) {
+function reference(portraitData: LayoutData, landscapeData: LayoutData, window: Required<ViewportRect>) {
     const base = {
         align: 'center',
         valign: 'center',
@@ -123,10 +123,10 @@ const place = (c: SmartContainer) => ({ x: c.x, y: c.y, scaleX: c.scale.x, scale
 
 describe('SmartContainer placement', () => {
     for (const [name, portraitData, landscapeData] of RECORDS) {
-        it(`matches the games' SmartContainer: ${name}`, () => {
+        it(`matches the reference placement: ${name}`, () => {
             for (const window of WINDOWS) {
                 const c = new SmartContainer({ ticker: null, portraitData, landscapeData, viewport: rect(window) });
-                const want = games(portraitData, landscapeData, window);
+                const want = reference(portraitData, landscapeData, window);
                 const got = place(c);
 
                 for (const k of ['x', 'y', 'scaleX', 'scaleY'] as const) expect(got[k]).toBeCloseTo(want[k], 9);

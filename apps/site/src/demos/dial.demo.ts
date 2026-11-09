@@ -2,12 +2,15 @@ import { JogDial, Scrubber } from 'pixi-silk/ui/dial';
 import { defineDemo } from './runtime';
 
 // Drag around a dial: the value keeps adding up over full turns, and further out turns slower.
-// Flick it to spin. The right dial clicks through steps and stretches past its limits.
+// Flick it and it keeps turning. The right dial clicks through steps and stretches past its limits.
 // Scrub the fields sideways. Shift is fine, Ctrl or Cmd snaps, a tap on either end steps.
 export default defineDemo({
+    title: 'Dials and number fields',
     size: [600, 300],
+    // phones: the fields go in a column under the dials
+    phone: { size: [360, 440] },
     touchAction: 'none',
-    setup({ silk, stage }) {
+    setup({ silk, stage, phone }) {
         const ticker = silk.app.ticker;
         const endless = new JogDial({ ticker, radius: 62, turn: 360, format: (v) => `${Math.round(v)}°` });
         const stepped = new JogDial({
@@ -40,11 +43,19 @@ export default defineDemo({
             format: (v) => `${v.toFixed(1)}°`,
         });
 
-        endless.position.set(110, 130);
-        stepped.position.set(290, 130);
-        size.position.set(420, 70);
-        opacity.position.set(420, 125);
-        angle.position.set(420, 180);
+        if (phone) {
+            endless.position.set(95, 124);
+            stepped.position.set(265, 124);
+            size.position.set(105, 254);
+            opacity.position.set(105, 309);
+            angle.position.set(105, 364);
+        } else {
+            endless.position.set(110, 130);
+            stepped.position.set(290, 130);
+            size.position.set(420, 70);
+            opacity.position.set(420, 125);
+            angle.position.set(420, 180);
+        }
         // the endless dial drives the angle field
         endless.state.value.subscribe((v) => angle.state.value.set(Math.round(v * 10) / 10));
         stage.addChild(endless, stepped, size, opacity, angle);

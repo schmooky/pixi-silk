@@ -6,6 +6,7 @@ import { defineDemo } from './runtime';
 
 // Click a shape to select it, then drag the handles. Hold Shift to snap.
 export default defineDemo({
+    title: 'Transform gizmo',
     size: [640, 420],
     touchAction: 'none',
     controls: {

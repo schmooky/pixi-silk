@@ -15,26 +15,27 @@ export type OutlineMode = 'hover' | 'selected';
 export interface OutlineState {
     /** Outlined objects. Several are framed by one box around all of them. */
     targets: Signal<readonly Container[]>;
+    /** Look of the frame. Writing it restyles the current frame. */
     mode: Signal<OutlineMode>;
 }
 
 /** Options of {@link SelectionOutline}. */
 export interface SelectionOutlineOptions {
-    /** Accent colour of the selected frame. Default blue. */
+    /** Accent colour of the selected frame. Default 0x0a84ff. */
     color?: number | string;
     /** Colour of the hover line. Default the accent. */
     hoverColor?: number | string;
     /** Gap between the object and the frame, in outline units. Default 4. */
     padding?: number;
-    /** Dash and gap of the selected frame. Default [5, 4]. */
+    /** Dash and gap lengths of the selected frame, in outline units. Default [5, 4]. */
     dash?: [number, number];
     /** Speed of the marching dashes, units per second. `0` keeps them still. Default 16. */
     march?: number;
     /** Draw corner brackets on the selected frame. Default true. */
     brackets?: boolean;
-    /** Length of the corner brackets. Default 10. */
+    /** Length of each corner bracket arm, in outline units. Default 10. */
     bracketSize?: number;
-    /** A faint tint inside the selected frame. Default 0.05. */
+    /** Alpha of the accent tint inside the selected frame, 0 to 1. Default 0.05. */
     fillAlpha?: number;
     /**
      * What happens when the selection changes. `pop` (default): the old frame shrinks and fades
@@ -44,10 +45,11 @@ export interface SelectionOutlineOptions {
     transition?: 'pop' | 'glide';
     /** How fast a `glide` reaches the new box, about 1 / seconds. Default 22. */
     stiffness?: number;
+    /** Ticker that runs the animation and follows the targets. Default `Ticker.shared`. With `null`, call {@link SelectionOutline.tick} yourself. */
     ticker?: Ticker | null;
 }
 
-/** Corners of `target`'s local bounds, mapped into `space`. Rotated objects give a rotated box. */
+/** Corners of `target`'s local bounds, mapped into `space`. Rotated objects give a rotated box. Measures the bounds on each call. */
 export function boundsQuad(target: Container, space: Container): Quad {
     const b = target.getLocalBounds();
     const map = (x: number, y: number): PointData => space.toLocal(target.toGlobal({ x, y }));
@@ -55,7 +57,7 @@ export function boundsQuad(target: Container, space: Container): Quad {
     return [map(b.minX, b.minY), map(b.maxX, b.minY), map(b.maxX, b.maxY), map(b.minX, b.maxY)];
 }
 
-/** Axis-aligned box around several quads. */
+/** Axis-aligned box around several quads. An empty list gives an infinite, inverted box. */
 export function unionQuad(quads: readonly Quad[]): Quad {
     let x0 = Infinity;
     let y0 = Infinity;
@@ -79,7 +81,7 @@ export function unionQuad(quads: readonly Quad[]): Quad {
     ];
 }
 
-/** Scales a quad about its centre. */
+/** Scales a quad about its centre by `k`. Returns the same quad when `k` is 1, a new one otherwise. */
 export function scaleQuad(q: Quad, k: number): Quad {
     if (k === 1) return q;
     const cx = (q[0].x + q[2].x) / 2;
@@ -88,7 +90,7 @@ export function scaleQuad(q: Quad, k: number): Quad {
     return q.map((p) => ({ x: cx + (p.x - cx) * k, y: cy + (p.y - cy) * k })) as Quad;
 }
 
-/** Pushes every side of a quad outwards by `pad`, along the quad's own axes. */
+/** Pushes every side of a quad outwards by `pad`, along the quad's own axes. A negative `pad` shrinks it. */
 export function padQuad(q: Quad, pad: number): Quad {
     if (pad === 0) return q;
     const ux = q[1].x - q[0].x;
@@ -124,14 +126,16 @@ const sameTargets = (a: readonly Container[], b: readonly Container[]): boolean 
  * Animated bounds around one or more objects, for hover and selection in editors.
  *
  * - Follows rotated and nested objects with an oriented box, exactly, every frame.
- * - Several targets get one box around all of them.
+ * - Several targets get one axis-aligned box around all of them.
  * - A new selection pops: the old frame shrinks away while the new one springs in.
  *   Set `transition: 'glide'` to slide one frame over instead.
  * - The selected frame has marching dashes and corner brackets. The hover line is quiet.
  *
  * Add it to an overlay above the scene. It reads the targets every frame while it shows them.
+ * It ignores pointer events.
  */
 export class SelectionOutline extends Container {
+    /** Signals to read and write. See {@link OutlineState}. */
     readonly state: OutlineState = {
         targets: signal<readonly Container[]>([]),
         mode: signal<OutlineMode>('selected'),
@@ -175,7 +179,7 @@ export class SelectionOutline extends Container {
         return this._leaving.length > 0 || Math.abs(this._pop.value - 1) > 0.003 || Math.abs(this._pop.velocity) > 0.05;
     }
 
-    /** Frames `targets` (one object, several, or none to fade out). */
+    /** Frames `targets` (one object, several, or none to fade out). Setting the same objects again only changes the mode. */
     set(targets: Container | readonly Container[] | null, mode: OutlineMode = this.state.mode.value): void {
         const list = targets === null ? [] : Array.isArray(targets) ? targets : [targets as Container];
 
@@ -188,16 +192,17 @@ export class SelectionOutline extends Container {
         this.set(target, 'hover');
     }
 
-    /** Selection frame around `targets`. */
+    /** Selection frame around `targets` (null hides it). */
     select(targets: Container | readonly Container[] | null): void {
         this.set(targets, 'selected');
     }
 
-    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances the animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children by default. The targets are left alone. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -302,7 +307,7 @@ export class SelectionOutline extends Container {
         const [dash, gap] = this._opts.dash ?? [5, 4];
 
         if (s > 0.01 && (this._opts.fillAlpha ?? 0.05) > 0) {
-            // free paths cannot be filled: draw the tint as a turned rectangle instead
+            // the tint is a rectangle turned to the box's first edge, which covers the oriented box
             const w = Math.hypot(q[1].x - q[0].x, q[1].y - q[0].y);
             const h = Math.hypot(q[3].x - q[0].x, q[3].y - q[0].y);
 

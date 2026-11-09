@@ -8,20 +8,34 @@ interface Props {
     caption?: string;
 }
 const { name, height = 280, caption } = Astro.props;
-const sources = import.meta.glob('../demos/*.demo.ts');
+const sources = import.meta.glob<string>('../demos/*.demo.ts', { query: '?raw', import: 'default' });
+const load = sources[`../demos/${name}.demo.ts`];
 
-if (!sources[`../demos/${name}.demo.ts`]) {
+if (!load) {
     const known = Object.keys(sources).map((k) => k.replace('../demos/', '').replace('.demo.ts', ''));
 
     throw new Error(`<Demo name="${name}"> not found. Known demos: ${known.join(', ')}`);
 }
+// the bar under the canvas exists only for demos with controls; knowing it now keeps the page from jumping
+const source = await load();
+const hasControls = /\bcontrols\s*:\s*\{\s*[\w'"]/.test(source);
+// a demo with a phone layout runs at phone.size in narrow frames: the frame takes that aspect ratio
+// from CSS before the module loads, so the page does not jump
+const phone = /\bphone\s*:\s*\{\s*size\s*:\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]/.exec(source);
+const phoneRatio = phone ? `${phone[1]} / ${phone[2]}` : undefined;
+const studio = `/studio/?demo=${name}`;
+const label = caption ?? `Live pixi-silk demo: ${name.replace(/-/g, ' ')}`;
 ---
 
-<figure class="demo not-prose my-7 overflow-hidden rounded-xl border bg-card" data-demo={name} id={`demo-${name}`}>
-    <DemoRunner client:visible={{ rootMargin: '300px' }} name={name} height={height} label={caption ?? `Live pixi-silk demo: ${name.replace(/-/g, ' ')}`} />
-    <figcaption class="flex items-center gap-4 border-t px-4 py-2.5 text-xs text-muted-foreground">
-        <span class="mr-auto">{caption}</span>
-        <a href={`/studio/?demo=${name}`} class="shrink-0 font-medium text-foreground no-underline hover:underline">Open in Studio</a>
-    </figcaption>
+<figure class="demo not-prose my-8" data-demo={name} id={`demo-${name}`}>
+    <div class="overflow-hidden rounded-xl border bg-card">
+        <DemoRunner client:visible={{ rootMargin: '300px' }} name={name} height={height} label={label} hasControls={hasControls} studio={hasControls ? studio : undefined} phoneRatio={phoneRatio} />
+    </div>
+    {(caption || !hasControls) && (
+        <figcaption class="mt-2.5 flex items-start gap-3 px-1 text-[13px] leading-relaxed text-muted-foreground">
+            <span class="min-w-0 flex-1">{caption}</span>
+            {/* without a control bar, the Studio link sits under the canvas instead of over it */}
+            {!hasControls && <a href={studio} class="demo-studio-link" title="Open this demo in Studio">Open in Studio</a>}
+        </figcaption>
+    )}
 </figure>
-

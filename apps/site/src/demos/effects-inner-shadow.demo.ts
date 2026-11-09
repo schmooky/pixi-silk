@@ -4,6 +4,7 @@ import { defineDemo } from './runtime';
 // The four inner shadows of a glowing app icon, straight from a Figma spec.
 // Each one is an extra instance of the same shape, so the icon stays one draw call.
 export default defineDemo({
+    title: 'Inner shadows',
     size: [560, 360],
     background: 0x1d1f22,
     controls: {

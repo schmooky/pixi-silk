@@ -12,7 +12,11 @@ import { SilkGraphics } from '../SilkGraphics';
  */
 export type IconSource = string | Texture | Container | ((g: SilkGraphics, size: number) => void);
 
-/** Builds a centred, tintable display object for an {@link IconSource}. */
+/**
+ * Builds a centred, tintable display object for an {@link IconSource}. Strings become a `Text` at
+ * 0.42 of `size` (merged with `textStyle`), textures a sprite fitted into `size`. A container is
+ * returned as it is, not copied.
+ */
 export function createIcon(source: IconSource, size: number, textStyle?: TextStyleOptions): Container {
     if (typeof source === 'function') {
         const g = new SilkGraphics();
@@ -51,7 +55,7 @@ export function createIcon(source: IconSource, size: number, textStyle?: TextSty
     return source;
 }
 
-/** Sets the tint of an icon built by {@link createIcon} (containers tint their children). */
+/** Sets the tint (0xRRGGBB) and alpha of an icon built by {@link createIcon}. Containers tint their children. */
 export function tintIcon(icon: Container, color: number, alpha = 1): void {
     icon.tint = color;
     icon.alpha = alpha;

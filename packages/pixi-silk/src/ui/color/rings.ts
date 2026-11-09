@@ -7,11 +7,11 @@ import { hsvToRgb } from './model';
 
 /** Options of the hue-ring pickers. */
 export interface HueRingOptions extends ColorPickerOptions {
-    /** Outer diameter. Default 220. */
+    /** Outer diameter, local units. Default 220. */
     size?: number;
-    /** Thickness of the hue ring. Default 18. */
+    /** Thickness of the hue ring, local units. Default 18. */
     ringWidth?: number;
-    /** Space between the ring and the inner area. Default 8. */
+    /** Space between the ring and the inner area, local units. Default 8. */
     gap?: number;
 }
 
@@ -38,7 +38,7 @@ abstract class HueRingPicker extends ColorPicker {
         this._v = this.model.v;
     }
 
-    /** Outer diameter. */
+    /** Outer diameter in local units. */
     get size(): number {
         return this._size;
     }
@@ -263,7 +263,10 @@ export class HueSquarePicker extends HueRingPicker {
     }
 }
 
-/** Exact HSV saturation / value square: hue, white fading to the right, black rising from the bottom. */
+/**
+ * Exact HSV saturation / value square: hue, white fading to the right, black rising from the bottom.
+ * Adds three filled rounded rectangles to `g`. `hue` is in degrees.
+ */
 export function drawSvSquare(
     g: import('../../SilkGraphics').SilkGraphics,
     x: number,

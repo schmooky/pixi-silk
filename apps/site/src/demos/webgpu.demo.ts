@@ -7,17 +7,18 @@ import { defineDemo } from './runtime';
 const CELL = 72;
 
 export default defineDemo({
-    size: [440, 300],
+    title: 'WebGL2 and WebGPU',
+    size: [460, 310],
     renderers: ['webgl', 'webgpu'],
     controls: {
-        spin: { type: 'toggle', label: 'rotate', value: false },
+        rotate: { type: 'toggle', label: 'rotate', value: false },
     },
     setup({ stage, params, tick }) {
         const g = new SilkGraphics();
 
         stage.addChild(g);
         tick((t) => {
-            const a = params.spin ? t * 0.5 : 0;
+            const a = params.rotate ? t * 0.5 : 0;
             const cells: ((g: SilkGraphics) => void)[] = [
                 (g) => g.roundRect(-28, -22, 56, 44, 14, 0.6).fill(linear([0x0a84ff, 0xbf5af2])),
                 (g) => g.circle(0, 0, 26).fill(radial([0xffffff, 0xff9f0a, [1, 0xff375f, 0]])),
@@ -85,7 +86,8 @@ export default defineDemo({
             g.clear();
             cells.forEach((draw, i) => {
                 g.save()
-                    .translateTransform(40 + (i % 6) * CELL, 50 + Math.floor(i / 6) * 100)
+                    // the top row leaves room for the renderer label
+                    .translateTransform(50 + (i % 6) * CELL, 76 + Math.floor(i / 6) * 90)
                     .rotateTransform(a);
                 draw(g);
                 g.restore();

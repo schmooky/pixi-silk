@@ -1,3 +1,7 @@
+/**
+ * pixi-silk/text: {@link SilkText}, text drawn from a shared signed distance field atlas, plus the
+ * layout and caret helpers it uses. Not part of the root `pixi-silk` import.
+ */
 export {
     type FontMetrics,
     type FontSpec,

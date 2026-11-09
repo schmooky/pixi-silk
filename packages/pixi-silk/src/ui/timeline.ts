@@ -13,10 +13,12 @@ import { clamp, rubberBand, snapTo } from './arc';
 import { Driver } from './driver';
 import { type InputProfiles, inputKind, inputProfile } from './input';
 import { shiftDown } from './keys';
+import type { LabelFactory, TextLabel } from './label';
 import { hex, mix } from './paint';
 
 /** One key on a {@link MiniTimeline}. */
 export interface TimelineKey {
+    /** Unique id. Selection and `onKeysChange` refer to keys by it. */
     id: string;
     /** Time in frames. */
     time: number;
@@ -26,17 +28,25 @@ export interface TimelineKey {
 
 /** Colours of a {@link MiniTimeline} (any Pixi colour). */
 export interface TimelineTheme {
+    /** Track background. */
     background: number | string;
+    /** Ruler strip along the top. */
     ruler: number | string;
+    /** Ruler ticks and the track's centre line. */
     tick: number | string;
+    /** Key dots without their own `color`. */
     key: number | string;
+    /** Selected keys and the selection box. */
     selected: number | string;
+    /** Playhead line and handle. */
     playhead: number | string;
+    /** Loop range bar and its handles. */
     loop: number | string;
+    /** Frame numbers on the ruler. */
     text: number | string;
 }
 
-/** Dark default theme. */
+/** Dark default theme of {@link MiniTimeline}. Override single colours with the `theme` option. */
 export const TIMELINE_THEME: Readonly<TimelineTheme> = {
     background: 0x1c1c1e,
     ruler: 0x2c2c2e,
@@ -50,7 +60,7 @@ export const TIMELINE_THEME: Readonly<TimelineTheme> = {
 
 /** The reactive state of a {@link MiniTimeline}. */
 export interface TimelineState {
-    /** Playhead time in frames. Writing it moves the playhead. */
+    /** Playhead time in frames, 0 to `duration`. Writing it moves the playhead. */
     time: Signal<number>;
     /** Writing it starts or stops playback. */
     playing: Signal<boolean>;
@@ -58,24 +68,25 @@ export interface TimelineState {
     selection: Signal<readonly string[]>;
     /** Loop range in frames, or null to play the whole track. */
     range: Signal<readonly [number, number] | null>;
-    /** Visible window in frames. */
+    /** Visible window `[start, end]` in frames. Zoom and pan write it. The drawn view glides after it. */
     view: Signal<readonly [number, number]>;
 }
 
 /** Options of {@link MiniTimeline}. */
 export interface MiniTimelineOptions {
-    /** Default 440. */
+    /** Width in local units. Default 440. */
     width?: number;
-    /** Default 64. */
+    /** Height in local units, ruler included. Default 64. */
     height?: number;
     /** Length in frames. Default 120. */
     duration?: number;
     /** Playback speed in frames per second. Default 30. */
     fps?: number;
+    /** Starting keys. They are copied. Default none. */
     keys?: TimelineKey[];
     /** Snap keys and the playhead to multiples of this many frames. 0 for none. Default 1. */
     snap?: number;
-    /** Loop range in frames. */
+    /** Loop range in frames. Default none: playback loops over the whole track. */
     loop?: [number, number];
     /** Start playing. Default false. */
     playing?: boolean;
@@ -85,13 +96,26 @@ export interface MiniTimelineOptions {
     minSpan?: number;
     /** Frame numbers on the ruler. Default true. */
     labels?: boolean;
+    /** Font size of the frame numbers in local units. Default 9. */
+    fontSize?: number;
+    /** Font family of the frame numbers. Default `system-ui, -apple-system, Segoe UI, Roboto, sans-serif`. */
+    fontFamily?: string;
+    /** Style of the frame numbers. Its fields win over `fontSize` and `fontFamily`. The colour is the theme's `text`. */
     textStyle?: TextStyleOptions;
+    /**
+     * Builds the frame number labels from their style. Default a PixiJS `BitmapText` tinted with
+     * the theme's `text`. Pass `silkLabel()` from `pixi-silk/text` to draw them as SDF text.
+     */
+    label?: LabelFactory;
+    /** Colours that replace parts of {@link TIMELINE_THEME}. */
     theme?: Partial<TimelineTheme>;
+    /** Per pointer kind overrides of `slop`, the movement a tap may have. */
     profiles?: InputProfiles;
+    /** Ticker driving playback and animation. Default `Ticker.shared`. `null` for manual {@link MiniTimeline.tick}. */
     ticker?: Ticker | null;
-    /** The playhead moved because of the user. */
+    /** The playhead moved because of the user. Writes to `state.time` and playback do not call it. */
     onScrub?: (time: number) => void;
-    /** Keys were moved. Receives a copy of every key. */
+    /** Keys were dragged. Called once on release with a copy of every key. {@link MiniTimeline.setKeys} does not call it. */
     onKeysChange?: (keys: TimelineKey[]) => void;
 }
 
@@ -104,8 +128,14 @@ const RULER = 18;
  * a playhead. Scrubbing past either end stretches like a rubber band. Keys snap to frames.
  * Shift adds to the selection, and a drag on empty track draws a selection box. The wheel zooms
  * around the pointer (sideways or with Shift it pans). A double tap on the ruler zooms in or back out.
+ * The top-left corner is at (0, 0). Keys are points in time: there are no curves or values.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class MiniTimeline extends Container {
+    /** Playhead, playback, selection, loop range and view. Write to them to drive the timeline. */
     readonly state: TimelineState;
 
     private readonly _opts: MiniTimelineOptions;
@@ -131,7 +161,7 @@ export class MiniTimeline extends Container {
     private _hoverKey: string | null = null;
     private _lastRulerTap = 0;
     private _dirty = true;
-    private _pool: BitmapText[] = [];
+    private _pool: TextLabel[] = [];
 
     constructor(options: MiniTimelineOptions = {}) {
         super({ label: 'MiniTimeline' });
@@ -173,12 +203,12 @@ export class MiniTimeline extends Container {
         this._driver.wake();
     }
 
-    /** Copy of the keys. */
+    /** A copy of the keys. Changing it does not change the timeline: use {@link MiniTimeline.setKeys}. */
     get keys(): TimelineKey[] {
         return this._keys.map((k) => ({ ...k }));
     }
 
-    /** Replaces the keys. */
+    /** Replaces the keys with copies. Selected ids that no longer exist leave the selection. */
     setKeys(keys: TimelineKey[]): void {
         this._keys = keys.map((k) => ({ ...k }));
         const ids = new Set(this._keys.map((k) => k.id));
@@ -193,7 +223,10 @@ export class MiniTimeline extends Container {
         this.state.playing.update((p) => !p);
     }
 
-    /** Zooms the view by `factor` (above 1 zooms in) around `aroundTime` (default the playhead). */
+    /**
+     * Zooms the view by `factor` (above 1 zooms in) around `aroundTime` (default the playhead).
+     * The span stays between `minSpan` and the whole track.
+     */
     zoomBy(factor: number, aroundTime: number = this.state.time.value): void {
         const [a, b] = this.state.view.value;
         const span = clamp((b - a) / factor, this._opts.minSpan ?? 8, this._duration);
@@ -204,7 +237,7 @@ export class MiniTimeline extends Container {
         this.state.view.set([start, start + span]);
     }
 
-    /** Shifts the view by `frames`. */
+    /** Shifts the view by `frames`, kept inside the track. */
     panBy(frames: number): void {
         const [a, b] = this.state.view.value;
         const span = b - a;
@@ -232,11 +265,12 @@ export class MiniTimeline extends Container {
         return ((time - a) / (b - a || 1)) * this._w;
     }
 
-    /** Advances playback and animation by `dt` seconds (only needed with `ticker: null`). */
+    /** Advances playback and animation by `dt` seconds (only needed with `ticker: null`). Returns true while moving. */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -595,18 +629,9 @@ export class MiniTimeline extends Container {
 
     private _drawLabels(labels: [number, number][]): void {
         while (this._pool.length < labels.length) {
-            const text = new BitmapText({
-                text: '0',
-                style: {
-                    fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-                    fontSize: 9,
-                    fill: 0xffffff,
-                    ...this._opts.textStyle,
-                },
-            });
+            const text = this._makeLabel();
 
             text.anchor.set(0, 0.5);
-            text.tint = this._theme.text;
             this._pool.push(text);
             this._labels.addChild(text);
         }
@@ -618,5 +643,22 @@ export class MiniTimeline extends Container {
             text.text = String(Math.round(item[0]));
             text.position.set(item[1] + 3, 6);
         });
+    }
+
+    private _makeLabel(): TextLabel {
+        const o = this._opts;
+        const style: TextStyleOptions = {
+            fontFamily: o.fontFamily ?? 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+            fontSize: o.fontSize ?? 9,
+            fill: o.label ? this._theme.text : 0xffffff,
+            ...o.textStyle,
+        };
+
+        if (o.label) return o.label(style);
+        const text = new BitmapText({ text: '0', style });
+
+        text.tint = this._theme.text;
+
+        return text;
     }
 }

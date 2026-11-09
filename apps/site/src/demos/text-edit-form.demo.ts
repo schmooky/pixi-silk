@@ -8,9 +8,11 @@ import { defineDemo } from './runtime';
 // Single-line fields drawn on the canvas. Tab moves to the next field, Enter in the last one sends
 // the form. Japanese or Chinese input, dead keys and the emoji picker type into them as usual.
 export default defineDemo({
+    title: 'Text form',
     size: [520, 330],
-    background: 0x0f0f11,
-    setup({ silk, stage }) {
+    // phones: the button and the result go under the fields
+    phone: { size: [360, 350] },
+    setup({ silk, stage, phone }) {
         const font = 'Inter, system-ui, sans-serif';
         const fields: TextEditor[] = [];
         const stops: (() => void)[] = [];
@@ -37,7 +39,7 @@ export default defineDemo({
                 editor.focus();
             });
             row.addChild(name, box, editor);
-            row.position.set(40, y);
+            row.position.set(phone ? 30 : 40, y);
             // the box lights up while its field has focus
             stops.push(
                 watch(editor.state.focused, (on) => {
@@ -70,10 +72,10 @@ export default defineDemo({
 
         label.position.set(70, 20);
         button.addChild(pill, label);
-        button.position.set(360, 228);
+        button.position.set(phone ? 30 : 360, phone ? 268 : 228);
         button.eventMode = 'static';
         button.cursor = 'pointer';
-        result.position.set(360, 52);
+        result.position.set(phone ? 190 : 360, phone ? 264 : 52);
         stage.addChild(button, result);
         const send = () => {
             const values = [name.value || 'no name', email.value || 'no email', code.value || 'no code'];

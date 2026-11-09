@@ -1,82 +1,67 @@
 ---
+import { docsSections, pageThumb } from '@/components/sections';
+import ThumbCard from '@/components/ThumbCard.astro';
 import Base from '@/layouts/Base.astro';
-import { docsAreas } from '@/lib/docs';
 import { breadcrumbLd } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 
-const areas = await docsAreas();
-const start = areas.find((a) => a.id === 'start');
-const description = `Guides for ${SITE.name}, grouped into areas: get started, draw smooth shapes, paint gradients and glows, build UI, and learn how analytic anti-aliasing works.`;
-const steps = [
-    {
-        n: '01',
-        title: 'Get started',
-        body: 'Install the package and draw a first scene. The introduction says when pixi-silk helps.',
-        href: start?.href ?? '/docs/introduction/',
-        cta: 'Start here',
-    },
-    {
-        n: '02',
-        title: 'Pick an area',
-        body: 'Each area is a tour: every feature explained and shown live, with its guide one click away.',
-        href: '#areas',
-        cta: 'See the areas',
-    },
-    {
-        n: '03',
-        title: 'Go deeper',
-        body: 'Studio opens every demo and experiment as code next to its canvas. Edit it and watch it run.',
-        href: '/studio/',
-        cta: 'Open Studio',
-    },
-];
+const sections = await docsSections();
+const description = `Guides for ${SITE.name}: learn the basics, then read one page per feature, from shapes and gradients to UI widgets and editor tools.`;
+const learn = sections.find((s) => s.id === 'learn');
+const first = learn?.areas[0]?.pages[0];
 ---
 
 <Base title={`Docs: smooth, anti-aliased graphics for PixiJS v8 | ${SITE.name}`} description={description} path="/docs/" jsonLd={[breadcrumbLd([{ name: SITE.name, url: '/' }, { name: 'Docs', url: '/docs/' }])]}>
-    <div class="container-page py-14" data-pagefind-body data-pagefind-filter="section:Docs">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-silk">Documentation</div>
-        <h1 class="mt-2 text-4xl font-semibold tracking-tight">How pixi-silk works, area by area</h1>
-        <p class="mt-3 max-w-2xl text-muted-foreground">{description} Every guide has live demos with their source.</p>
-
-        <ol class="mt-10 grid gap-3 md:grid-cols-3">
-            {steps.map((s) => (
-                <li>
-                    <a href={s.href} class="group flex h-full flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                        <span class="font-mono text-xs text-silk">{s.n}</span>
-                        <span class="mt-1.5 font-semibold">{s.title}</span>
-                        <span class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.body}</span>
-                        <span class="mt-auto pt-4 text-sm font-semibold">{s.cta}</span>
-                    </a>
-                </li>
-            ))}
-        </ol>
-
-        <nav id="areas" aria-label="Docs areas" class="mt-14 flex scroll-mt-20 flex-wrap gap-2 border-b pb-4">
-            {areas.map((a) => (
-                <a href={`#${a.id}`} class="rounded-full border px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">{a.title}</a>
-            ))}
-        </nav>
-
-        {areas.map((a) => (
-            <section class="mt-12 scroll-mt-20" id={a.id}>
-                {a.aliases.map((id) => <span id={id} class="block scroll-mt-20" />)}
-                <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                    <h2 class="text-2xl font-semibold tracking-tight"><a href={a.href} class="hover:underline">{a.title}</a></h2>
-                    <a href={a.href} class="text-sm text-muted-foreground hover:text-foreground">Area overview</a>
+    <div data-pagefind-body data-pagefind-filter="section:Docs">
+        <header class="border-b">
+            <div class="container-page py-16 sm:py-20">
+                <div class="eyebrow">Documentation</div>
+                <h1 class="display-2 mt-3 max-w-3xl">Everything pixi-silk draws, one page at a time.</h1>
+                <p class="lead mt-5 max-w-2xl">{description} Every page opens with live demos you can edit in Studio.</p>
+                <div class="mt-8 flex flex-wrap gap-3">
+                    {first && <a href={first.href} class="btn btn-primary">Start with {first.title.toLowerCase()}</a>}
+                    <a href="/studio/" class="btn btn-outline">Open Studio</a>
                 </div>
-                <p class="mt-1.5 max-w-2xl text-sm text-muted-foreground">{a.summary}</p>
-                <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {a.pages.map((d) => (
-                        <a href={d.href} class="flex flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-semibold">{d.title}</div>
-                            <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{d.description}</p>
-                        </a>
+                <nav aria-label="Sections" class="mt-10 flex flex-wrap gap-2" data-pagefind-ignore>
+                    {sections.map((s) => (
+                        <a href={`#${s.id}`} class="rounded-full border px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">{s.title}</a>
                     ))}
-                    {a.links.map((l) => (
-                        <a href={l.href} class="rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-foreground/30">
-                            <div class="font-semibold">{l.label}</div>
-                            <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                </nav>
+            </div>
+        </header>
+
+        {sections.map((s) => (
+            <section id={s.id} class="scroll-mt-14 border-b last:border-b-0">
+                <div class="container-page py-16">
+                    <div class="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+                        <div>
+                            <div class="eyebrow">{s.title}</div>
+                            <h2 class="display-3 mt-2"><a href={s.href} class="hover:text-silk-text">{s.summary}</a></h2>
+                        </div>
+                        <a href={s.href} class="link-arrow">
+                            {s.title} overview
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                         </a>
+                    </div>
+                    {s.areas.map((a) => (
+                        <div id={a.id !== s.id ? a.id : undefined} class="mt-10 scroll-mt-20">
+                            {a.aliases.map((id) => <span id={id} class="block scroll-mt-20" />)}
+                            {s.areas.length > 1 && (
+                                <div class="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                    <h3 class="heading-4 flex items-center gap-2"><a href={a.href} class="hover:text-silk-text">{a.title}</a>{a.experimental && <span class="badge">Experimental</span>}</h3>
+                                    <p class="text-sm text-muted-foreground">{a.summary}</p>
+                                </div>
+                            )}
+                            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {a.pages.map((p) => <ThumbCard href={p.href} title={p.title} description={p.description} thumb={pageThumb(p)} />)}
+                                {a.links.map((l) => (
+                                    <a href={l.href} class="card-link flex flex-col justify-end p-4">
+                                        <div class="font-semibold">{l.label}</div>
+                                        <p class="mt-1 text-sm leading-relaxed text-muted-foreground">{l.description}</p>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </div>
             </section>

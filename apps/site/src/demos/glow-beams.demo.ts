@@ -1,7 +1,7 @@
 import { Container, Text } from 'pixi.js';
 import { along, linear, radial, SilkGraphics } from 'pixi-silk';
 import { bolt } from 'pixi-silk/glow';
-import { defineDemo } from './runtime';
+import { defineDemo, PAD } from './runtime';
 
 const W = 760;
 const mono = 'ui-monospace, SF Mono, Menlo, monospace';
@@ -25,7 +25,7 @@ function hourglass(g: SilkGraphics, cx: number, cy: number, w: number, h: number
 }
 
 function label(text: string, x: number, y: number, color: number, anchorX = 0): Text {
-    const t = new Text({ text, style: { fontFamily: mono, fontSize: 10, fill: color } });
+    const t = new Text({ text, style: { fontFamily: mono, fontSize: 14, fill: color } });
 
     t.anchor.set(anchorX, 0);
     t.position.set(x, y);
@@ -34,17 +34,29 @@ function label(text: string, x: number, y: number, color: number, anchorX = 0): 
 }
 
 export default defineDemo({
-    size: [W, 520],
-    background: 0x050508,
-    setup({ stage, tick }) {
+    title: 'Beams and bolts',
+    size: [720, 520],
+    // phones: the three panels stack in one column
+    phone: { size: [360, 840] },
+    setup({ stage: frame, tick, width, height, phone }) {
+        // the panels are drawn at 760 wide (370 on phones) and inset by the shared padding
+        const stage = new Container();
+        const hw = phone ? 370 : W;
+        const drawn = phone ? 800 : 520;
+        const fit = (width - 2 * PAD) / hw;
+
+        stage.scale.set(fit);
+        stage.position.set(PAD, (height - drawn * fit) / 2);
+        frame.addChild(stage);
+
         // 1. hero light: three hourglass layers with layer blur 100, 55 and 24, as in the Figma file
         const hero = new Container();
         const heroBg = new SilkGraphics();
         const beam = new SilkGraphics();
         const heroClip = new SilkGraphics();
 
-        heroBg.roundRect(0, 0, W, 240, 18, 0.6).fill(0x05031a);
-        heroClip.roundRect(0, 0, W, 240, 18, 0.6).fill(0xffffff);
+        heroBg.roundRect(0, 0, hw, 240, 18, 0.6).fill(0x05031a);
+        heroClip.roundRect(0, 0, hw, 240, 18, 0.6).fill(0xffffff);
         beam.mask = heroClip;
         hero.addChild(heroBg, beam, heroClip);
 
@@ -108,12 +120,13 @@ export default defineDemo({
             arts.push(art);
         }
         speed.addChild(
-            label('Test sample #07', 26, 24, 0x6b5866),
-            label('Render complete', 344, 24, 0xd9a0b8, 1),
-            label('Speed mode: ON', 26, 226, 0x6b5866),
-            label('Render time: 400 ms', 344, 226, 0x6b5866, 1),
+            label('Test sample #07', 26, 22, 0x8a7484),
+            label('Render complete', 344, 22, 0xd9a0b8, 1),
+            label('Speed: ON', 26, 220, 0x8a7484),
+            label('400 ms', 344, 220, 0x8a7484, 1),
         );
-        speed.position.set(390, 260);
+        if (phone) speed.position.set(0, 540);
+        else speed.position.set(390, 260);
 
         stage.addChild(hero, wavePanel, speed);
 
@@ -121,9 +134,9 @@ export default defineDemo({
             const breathe = 1 + Math.sin(t * 0.9) * 0.06;
 
             beam.clear();
-            hourglass(beam, W / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
-            hourglass(beam, W / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
-            hourglass(beam, W / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
+            hourglass(beam, hw / 2, 150, 900, 300 * breathe, 30).fill({ color: 0x6a4cff, blur: 50 });
+            hourglass(beam, hw / 2, 150, 860, 220 * breathe, 14).fill({ color: 0xa48bff, blur: 27 });
+            hourglass(beam, hw / 2, 150, 820, 120 * breathe, 4).fill({ color: 0xece6ff, blur: 12 });
 
             const pts = (dy: number) => {
                 const out: number[] = [];

@@ -208,6 +208,11 @@ function unionDist(poly: Float32Array, start: number, n: number, x: number, y: n
     return st.length ? st[0] : Infinity;
 }
 
+/**
+ * Tests a local point against `count` instances of `f` (STRIDE floats each), topmost first.
+ * `poly` is the path texture data. Without it, every path and combined shape counts as a hit
+ * inside its bounds. Blur and spread are not taken into account.
+ */
 export function hitTest(f: Float32Array, count: number, x: number, y: number, poly?: Float32Array): boolean {
     for (let i = count - 1; i >= 0; i--) {
         const o = i * STRIDE;

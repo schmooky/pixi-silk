@@ -7,8 +7,8 @@ import { silkGpu } from './shader-slot';
  * shader evaluates the primitive's signed distance d (local units) and turns it into
  * coverage with a 1-device-pixel box filter:  coverage = clamp(0.5 - d / px, 0, 1),
  * where px = local units per device pixel from the screen-space derivatives of the
- * local position. That is exact analytic anti-aliasing at any zoom, rotation,
- * resolution or render target - no MSAA, no tessellation.
+ * local position. The same holds at any zoom, rotation, resolution or render target, with no
+ * MSAA and no tessellation. shader-wgsl.ts is the WebGPU twin of this program.
  */
 
 /** @internal Vertex stage of the uber program (GLSL ES 3.00). */
@@ -1034,6 +1034,7 @@ void main(void)
 
 let program: GlProgram | null = null;
 
+/** @internal Per-object settings the shader reads from `uSilk`, as in `SilkGraphicsOptions`. */
 export interface SilkShaderSettings {
     /** Dither amplitude in 8-bit steps (0 disables). Default 1. */
     dither: number;

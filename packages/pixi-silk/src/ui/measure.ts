@@ -5,15 +5,23 @@ import { Driver } from './driver';
 import type { LabelFactory, TextLabel } from './label';
 import { hex } from './paint';
 
-/** A box in the measured space, the way {@link Measure} reads it. */
+/** An axis-aligned box in the measured space ({@link MeasureOptions.space}). */
 export interface MeasureRect {
+    /** Left edge. */
     x: number;
+    /** Top edge. */
     y: number;
+    /** Width, 0 or more. */
     width: number;
+    /** Height, 0 or more. */
     height: number;
 }
 
-/** What {@link Measure} can measure: an object (its bounds) or a box in the measured space. */
+/**
+ * What {@link Measure} can measure: a box in the measured space, or a container. A container is
+ * read as the axis-aligned box around its transformed local bounds, every frame. A destroyed or
+ * detached container measures as nothing.
+ */
 export type MeasureTarget = Container | MeasureRect;
 
 /** Options of {@link Measure}. */
@@ -23,23 +31,27 @@ export interface MeasureOptions {
      * any zoom, while the lines keep their screen size. Default the measure's parent.
      */
     space?: Container;
-    /** Colour of the redlines and their labels. Default Figma's red. */
+    /** Colour of the redlines, the target outline and the distance labels. Default `0xf24822`. */
     color?: number | string;
-    /** Colour of the size badge. Default blue. */
+    /** Colour of the size badge. Default `0x0a84ff`. */
     sizeColor?: number | string;
     /** Label text colour. Default white. */
     textColor?: number | string;
-    /** Turns a distance into a label. Default up to one decimal, trailing zeros dropped. */
+    /** Turns a distance into a label. Default rounds to one decimal and drops a trailing `.0`. */
     format?: (value: number) => string;
-    /** Label font size. Default 11. */
+    /** Label font size in pixels. Default 11. */
     fontSize?: number;
     /**
-     * Builds the label text. Default PixiJS `Text`. Pass `silkLabel()` from `pixi-silk/text` for
-     * labels that stay sharp at any zoom and resolution.
+     * Builds the label text. Default a PixiJS `Text` at resolution 3. Pass `silkLabel()` from
+     * `pixi-silk/text` to draw labels as SDF text instead.
      */
     label?: LabelFactory;
-    /** Outline the hovered object in the redline colour. Default true. */
+    /** Outlines the second target of {@link Measure.between} in the redline colour. Default true. */
     outline?: boolean;
+    /**
+     * Ticker that runs the animations and follows moving targets. Default `Ticker.shared`. With
+     * `null`, call {@link Measure.tick} yourself.
+     */
     ticker?: Ticker | null;
 }
 
@@ -50,13 +62,19 @@ interface Box {
     y1: number;
 }
 
-/** One redline: from (x0, y0) to (x1, y1) in the measured space, its value, and dashed guides. */
+/** One redline, in the measured space. */
 export interface Redline {
+    /** Start x. */
     x0: number;
+    /** Start y. */
     y0: number;
+    /** End x. */
     x1: number;
+    /** End y. */
     y1: number;
+    /** Length of the line, the distance the label shows. 0 for boxes that touch. */
     value: number;
+    /** Dashed extension lines as `[x0, y0, x1, y1]`, for gaps that run past the other box's edge. Often empty. */
     guides: [number, number, number, number][];
 }
 
@@ -64,7 +82,12 @@ const defaultFormat = (v: number): string => String(Math.round(v * 10) / 10);
 
 const isContainer = (t: MeasureTarget): t is Container => 'children' in t;
 
-/** The redlines between two boxes, the way Figma shows them when you hold Alt. */
+/**
+ * The redlines between two boxes given as edges (`x0 < x1`, `y0 < y1`). Separate boxes get the
+ * horizontal and vertical gaps, with a dashed guide when they do not overlap on the other axis.
+ * Overlapping or nested boxes get the distances between matching edges, zero-length ones left out.
+ * Pure: it allocates a new array and draws nothing.
+ */
 export function redlines(a: Box, b: Box): Redline[] {
     const out: Redline[] = [];
     const contains = (o: Box, i: Box) => i.x0 >= o.x0 && i.x1 <= o.x1 && i.y0 >= o.y0 && i.y1 <= o.y1;
@@ -162,14 +185,16 @@ class Tag extends Container {
 /**
  * Distances and sizes for editors, drawn on an overlay.
  *
- * - {@link Measure.between} shows the redlines from one object to another, like holding Alt in
- *   Figma. Neighbours get the gap between them, with a dashed guide when they don't line up. An
- *   object inside another gets its margins.
- * - {@link Measure.size} puts a `W x H` badge under an object.
+ * {@link Measure.between} shows the redlines from one object to another (see {@link redlines}).
+ * {@link Measure.size} puts a `W x H` badge under an object.
  *
  * Values are in the measured space (the world under a camera), so zooming never changes them.
- * Lines and labels keep their size on screen. Both follow their objects every frame while shown,
- * and grow in when the pair changes.
+ * Put the overlay beside the world, not inside it, so lines and labels keep their size on screen.
+ * Both follow their objects every frame while shown, and grow in when the pair changes. Rotated
+ * objects are measured by their axis-aligned box. The overlay ignores pointer events.
+ *
+ * Experimental: the API may change in a minor release.
+ * @experimental
  */
 export class Measure extends Container {
     private readonly _opts: MeasureOptions;
@@ -198,12 +223,12 @@ export class Measure extends Container {
         this._driver = new Driver((dt) => this._step(dt), options.ticker);
     }
 
-    /** The redlines drawn now, in the measured space. */
+    /** The redlines of the last frame, in the measured space. Empty while nothing is measured. */
     get lines(): readonly { x0: number; y0: number; x1: number; y1: number; value: number }[] {
         return this._lastLines;
     }
 
-    /** Shows the distances from `a` to `b`. `null` for either hides them. */
+    /** Shows the distances from `a` to `b`, animated. `null` for either fades them out. The same pair again is a no-op. */
     between(a: MeasureTarget | null, b: MeasureTarget | null): this {
         if (a === this._a && b === this._b) return this;
         const was = this._a !== null && this._b !== null;
@@ -221,7 +246,7 @@ export class Measure extends Container {
         return this;
     }
 
-    /** Shows a `W x H` badge under `target` (`null` hides it). */
+    /** Shows a `W x H` badge under `target`, in the measured space. `null` fades it out. */
     size(target: MeasureTarget | null): this {
         if (target === this._sized) return this;
         if (target && !this._sized) this._badge.value = 0;
@@ -236,12 +261,15 @@ export class Measure extends Container {
 
     private _fadingSize = false;
 
-    /** Hides everything. */
+    /** Fades out the redlines and the size badge. */
     clear(): this {
         return this.between(null, null).size(null);
     }
 
-    /** Advances by `dt` seconds (only needed with `ticker: null`). */
+    /**
+     * Advances by `dt` seconds, clamped to 0..0.1. Only needed with `ticker: null`. Returns true
+     * while something animates or shows.
+     */
     tick(dt: number): boolean {
         return this._driver.tick(dt);
     }

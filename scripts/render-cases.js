@@ -3,6 +3,7 @@
  * headless Chrome against the built library, on the renderer named by `?renderer=`.
  */
 
+import { Glass } from '/packages/pixi-silk/dist/glass.js';
 import { enableSilkBatching, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
 import { enableWebGPU } from '/packages/pixi-silk/dist/webgpu.js';
@@ -19,21 +20,18 @@ enableSilkBatching();
 /** Draw calls of the last render, counted on the GL context or the WebGPU render pass encoder. */
 const draws = { count: 0 };
 
-if (preference === 'webgpu') {
-    for (const name of ['draw', 'drawIndexed']) {
-        const fn = GPURenderPassEncoder.prototype[name];
+// both, since a browser without WebGPU falls back to WebGL2
+const counted = [
+    [globalThis.GPURenderPassEncoder, ['draw', 'drawIndexed']],
+    [globalThis.WebGL2RenderingContext, ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']],
+];
 
-        GPURenderPassEncoder.prototype[name] = function (...a) {
-            draws.count++;
+for (const [type, names] of counted) {
+    if (!type) continue;
+    for (const name of names) {
+        const fn = type.prototype[name];
 
-            return fn.apply(this, a);
-        };
-    }
-} else {
-    for (const name of ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']) {
-        const fn = WebGL2RenderingContext.prototype[name];
-
-        WebGL2RenderingContext.prototype[name] = function (...a) {
+        type.prototype[name] = function (...a) {
             draws.count++;
 
             return fn.apply(this, a);
@@ -445,6 +443,57 @@ const cases = {
             },
         ]),
     ),
+    // glass panes under rotation and uneven scale: over an empty backdrop the pane's alpha is its
+    // coverage. It must match the transformed outline, with round corners at the smaller scale.
+    ...Object.fromEntries(
+        [
+            ['glass-upright', 0, 1, 1],
+            ['glass-rotated', 0.5, 1, 1],
+            ['glass-rotated-steep', 2.2, 1, 1],
+            ['glass-scaled', 0, 1.6, 0.7],
+            ['glass-rotated-scaled', -0.6, 0.8, 1.5],
+        ].map(([name, rotation, sx, sy]) => [
+            name,
+            () => {
+                const pane = new Glass({
+                    width: 140,
+                    height: 80,
+                    radius: 18,
+                    smoothing: 0,
+                    shadow: 0,
+                    blur: 0,
+                    grain: 0,
+                });
+                const ref = new SilkGraphics().roundRect(0, 0, 140 * sx, 80 * sy, 18 * Math.min(sx, sy)).fill(0xffffff);
+
+                pane.pivot.set(70, 40);
+                pane.scale.set(sx, sy);
+                ref.pivot.set(70 * sx, 40 * sy);
+                for (const o of [pane, ref]) {
+                    o.position.set(128, 128);
+                    o.rotation = rotation;
+                }
+
+                // Glass reads its world transform while it renders, so the first frame sizes it
+                return { scene: pane, kind: 'coverage', ref, warm: true };
+            },
+        ]),
+    ),
+    // a rotated pane over stripes: the rim bends the backdrop along the rotated outline
+    'glass-rotated-backdrop': () => {
+        const root = new Container();
+        const stripes = new SilkGraphics().rect(0, 0, W, H).fill(0x101418);
+
+        for (let x = 0; x < W; x += 16) stripes.rect(x, 0, 8, H).fill(x % 32 ? 0x0a84ff : 0xffd60a);
+        const pane = new Glass({ width: 150, height: 90, radius: 24, shadow: 0, grain: 0, refraction: 18 });
+
+        pane.pivot.set(75, 45);
+        pane.position.set(128, 128);
+        pane.rotation = 0.6;
+        root.addChild(stripes, pane);
+
+        return { scene: root, kind: 'none', warm: true };
+    },
 };
 
 export const extraCases = cases;
@@ -468,6 +517,12 @@ async function drawScreen(scene) {
     root.addChild(scene);
     r.background.alpha = 0;
     r.render({ container: root, clear: true, clearColor: [0, 0, 0, 0] });
+    // WebKit copies a WebGPU canvas as it was last presented, not the frame drawn in this task.
+    // Let this frame be presented, then draw it again, so both readings give the same picture.
+    if (r.name === 'webgpu') {
+        await new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+        r.render({ container: root, clear: true, clearColor: [0, 0, 0, 0] });
+    }
     const c = document.createElement('canvas');
 
     c.width = W;
@@ -504,7 +559,7 @@ async function draw(scene, screen = false) {
     const px = new Uint8ClampedArray(pixels);
 
     // WebGPU reads back through a 2D canvas, which un-premultiplies: premultiply again
-    if (preference === 'webgpu') {
+    if (r.name === 'webgpu') {
         for (let i = 0; i < px.length; i += 4) {
             const a = px[i + 3] / 255;
 
@@ -717,6 +772,26 @@ function checkExact(px, g, scale) {
     };
 }
 
+/** Compares where two scenes are more than half covered, by alpha. A few edge pixels may differ. */
+function checkCoverage(a, b) {
+    let differ = 0;
+    let inside = 0;
+    let at = '';
+
+    for (let i = 3; i < a.length; i += 4) {
+        if (b[i] > 127) inside++;
+        if (a[i] > 127 === b[i] > 127) continue;
+        differ++;
+        at ||= `${(i >> 2) % W},${Math.floor((i >> 2) / W)}`;
+    }
+
+    return {
+        note: `${differ} of ${inside} covered pixels differ`,
+        at,
+        failures: differ > 40 ? [`${differ} pixels differ in coverage (first at ${at})`] : [],
+    };
+}
+
 function checkSame(a, b, tolerance) {
     let max = 0;
     let over = 0;
@@ -747,6 +822,7 @@ window.renderCases = async ({ only, png }) => {
     for (const [name, make] of Object.entries(cases)) {
         if (only && !name.includes(only)) continue;
         const c = make();
+        if (c.warm) await draw(c.scene, c.screen);
         draws.count = 0;
         const px = await draw(c.scene, c.screen);
         const calls = draws.count;
@@ -756,7 +832,10 @@ window.renderCases = async ({ only, png }) => {
         else if (c.kind === 'interior') res = checkInterior(px, c.hit, c.scale);
         else if (c.kind === 'exact') res = checkExact(px, c.hit, c.scale);
         else if (c.kind === 'none') res = { note: 'compared between renderers', failures: [] };
-        else {
+        else if (c.kind === 'coverage') {
+            res = checkCoverage(px, await draw(c.ref));
+            if (png && res.at) out.push({ name: `${name}-ref`, failures: [], raw: '', png: toPng(await draw(c.ref)) });
+        } else {
             draws.count = 0;
             const ref = await draw(c.ref);
 

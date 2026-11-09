@@ -15,14 +15,19 @@ import { ValuePill } from './ValuePill';
 
 /** Colours of the dials (any Pixi colour). */
 export interface DialTheme {
+    /** Ring or field background. */
     track: number | string;
+    /** Progress arc, filled part of a bounded scrubber, flashes and the drag pill. */
     fill: number | string;
+    /** The knob and the major detent tick. */
     knob: number | string;
+    /** Minor detent ticks and the scrubber label. */
     tick: number | string;
+    /** Value readout and the scrubber's step arrows. */
     text: number | string;
 }
 
-/** Dark default theme with a blue fill. */
+/** Dark default theme with a blue fill. Override single colours with the `theme` option. */
 export const DIAL_THEME: Readonly<DialTheme> = {
     track: 0x2c2c2e,
     fill: 0x0a84ff,
@@ -51,9 +56,11 @@ export interface JogDialOptions {
     radius?: number;
     /** Thickness of the ring. Default 14. */
     thickness?: number;
-    /** Start value. Default 0. */
+    /** Start value, clamped and snapped. Default 0. */
     value?: number;
+    /** Lower limit. Default `-Infinity` (no limit). */
     min?: number;
+    /** Upper limit. Default `Infinity` (no limit). */
     max?: number;
     /** Snap step. 0 turns snapping off. Default 0. */
     step?: number;
@@ -68,17 +75,21 @@ export interface JogDialOptions {
     rubber?: number;
     /** Keep spinning after a flick. Default true. */
     inertia?: boolean;
-    /** How quickly a flick slows down, about 1/seconds. Default 3.5. */
+    /** How quickly a flick slows down, about 1 / seconds. Default 3.5. */
     friction?: number;
     /** Shows the value in the middle. Default true. */
     readout?: boolean;
     /** Formats the readout. Default: the value with the step's decimals. */
     format?: (value: number) => string;
+    /** Style of the readout text. */
     textStyle?: TextStyleOptions;
+    /** Colours that replace parts of {@link DIAL_THEME}. */
     theme?: Partial<DialTheme>;
+    /** Per pointer kind overrides of `slop`, the movement a tap may have. */
     profiles?: InputProfiles;
+    /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link JogDial.tick}. */
     ticker?: Ticker | null;
-    /** Every change of the snapped value. */
+    /** Called on every change of the snapped value, also while dragging. */
     onChange?: (value: number) => void;
     /** The value once the dial comes to rest after a drag or a flick. */
     onCommit?: (value: number) => void;
@@ -95,9 +106,14 @@ const decimalsOf = (step: number): number => {
  * keeps adding up over full turns. Drag further out for finer control. A flick keeps it spinning
  * and it slows down by itself. Past `min` or `max` it stretches like a rubber band and springs back.
  * With a `step`, the value clicks through detents and each one pulses on the ring.
- * A tap on the right half steps up, on the left half steps down.
+ * A tap on the right half steps up, on the left half steps down. The dial is centred on its position.
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class JogDial extends Container {
+    /** Value and drag flag. Writing `value` glides the dial there without calling `onChange`. */
     readonly state: DialState;
 
     private readonly _o: Required<
@@ -186,6 +202,7 @@ export class JogDial extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -446,13 +463,15 @@ export class JogDial extends Container {
 
 /** Options of {@link Scrubber}. */
 export interface ScrubberOptions {
-    /** Default 150. */
+    /** Field width. Default 150. */
     width?: number;
-    /** Default 30. */
+    /** Field height. Default 30. */
     height?: number;
-    /** Start value. Default 0. */
+    /** Start value, clamped to the limits. Default 0. */
     value?: number;
+    /** Lower limit. Default `-Infinity`. With both limits finite, the field fills like a slider. */
     min?: number;
+    /** Upper limit. Default `Infinity`. */
     max?: number;
     /** Tap step, and the snap step with Ctrl / Cmd. Default 1. */
     step?: number;
@@ -466,20 +485,31 @@ export interface ScrubberOptions {
     format?: (value: number) => string;
     /** Shows text (label, value, pill). Default true. */
     readout?: boolean;
+    /** Style of the label and value text. */
     textStyle?: TextStyleOptions;
+    /** Colours that replace parts of {@link DIAL_THEME}. */
     theme?: Partial<DialTheme>;
+    /** Per pointer kind overrides of `slop`, the movement a tap may have. */
     profiles?: InputProfiles;
+    /** Ticker driving the animation. Default `Ticker.shared`. `null` for manual {@link Scrubber.tick}. */
     ticker?: Ticker | null;
+    /** Called on every value change, also while dragging. */
     onChange?: (value: number) => void;
+    /** Called with the value when a drag ends or a tap steps it. */
     onCommit?: (value: number) => void;
 }
 
 /**
  * A number field you drag, like the ones in 3D and compositing tools. Drag sideways to scrub the
  * value. Shift scrubs finely, Ctrl or Cmd snaps to the step. A tap on the left or right end steps
- * down or up. With `min` and `max` the field fills like a slider.
+ * down or up. With `min` and `max` the field fills like a slider. The top-left corner is at (0, 0).
+ *
+ * Experimental: the API may change in a minor release.
+ *
+ * @experimental
  */
 export class Scrubber extends Container {
+    /** Value and drag flag. Writing `value` redraws the field without calling `onChange`. */
     readonly state: DialState;
 
     private readonly _opts: ScrubberOptions;
@@ -548,6 +578,7 @@ export class Scrubber extends Container {
         return this._driver.tick(dt);
     }
 
+    /** Stops the animation. Destroys children unless `options` says otherwise. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._driver.sleep();
         super.destroy(options ?? { children: true });
@@ -570,7 +601,7 @@ export class Scrubber extends Container {
         this._set(clamp(v, this._min, this._max));
     }
 
-    /** Steps by `count` steps and commits. */
+    /** Steps by `count` steps (negative steps down), clamps, flashes the field and calls `onCommit`. */
     nudge(count: number): void {
         const v = clamp(snapTo(this.state.value.value + count * this._step, this._step), this._min, this._max);
 
