@@ -3413,7 +3413,9 @@ silk.app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
 ```
 
 Pixi tries WebGPU first and falls back to WebGL2. When it gets WebGPU, `createSilkApp` loads the
-WGSL shader before it resolves.
+WGSL shader before it resolves. A browser can offer a WebGPU adapter and still fail to start the
+canvas context, for example after a GPU process reset. `createSilkApp` then logs a warning and
+starts on WebGL2 instead.
 
 WebGL2 stays the default because every current browser has it and it starts faster. Choose WebGPU
 when the rest of your app needs it.
@@ -6231,10 +6233,10 @@ What [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSilkApp/
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `app` | `public` | `Application` | The Pixi application. | [app.ts:36](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L36) |
-|  `height` | `readonly` | `number` | Current height in CSS pixels. | [app.ts:40](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L40) |
-|  `resolution` | `readonly` | `number` | Current renderer resolution, in device pixels per CSS pixel. | [app.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L42) |
-|  `width` | `readonly` | `number` | Current width in CSS pixels. | [app.ts:38](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L38) |
+|  `app` | `public` | `Application` | The Pixi application. | [app.ts:37](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L37) |
+|  `height` | `readonly` | `number` | Current height in CSS pixels. | [app.ts:41](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L41) |
+|  `resolution` | `readonly` | `number` | Current renderer resolution, in device pixels per CSS pixel. | [app.ts:43](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L43) |
+|  `width` | `readonly` | `number` | Current width in CSS pixels. | [app.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L39) |
 
 ### Methods
 
@@ -6293,7 +6295,7 @@ Options of [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSi
 |  `maxResolution?` | `number` | Upper bound for the resolution when it follows devicePixelRatio. Default 3. | - | [app.ts:8](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L8) |
 |  `onResize?` | (`width`: `number`, `height`: `number`, `resolution`: `number`) => `void` | Called after every size or resolution change, with the size in CSS pixels and the resolution. | - | [app.ts:12](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L12) |
 |  `parent` | `HTMLElement` | Element the canvas is appended to and fills. Give it a size in CSS, or the canvas is 1x1. | - | [app.ts:6](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L6) |
-|  `preference?` | `RendererPreference` \| `RendererPreference`[] | Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU where the browser has it. Pixi falls back to WebGL2 when it does not. On WebGPU the app loads the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either. | `Partial.preference` | [app.ts:30](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L30) |
+|  `preference?` | `RendererPreference` \| `RendererPreference`[] | Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU where the browser has it. Pixi falls back to WebGL2 when it does not, and the app retries on WebGL2 when WebGPU is offered but fails to start (it logs a warning). On WebGPU the app loads the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either. | `Partial.preference` | [app.ts:31](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L31) |
 |  `touchAction?` | `string` | CSS touch-action for the canvas. Pixi sets `none`, which blocks page scrolling on touch screens. The default `pan-y pinch-zoom` lets pages scroll while taps and hovers still reach Pixi. Use `none` for canvases that handle drags themselves. | - | [app.ts:24](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/app.ts#L24) |
 
 ## SilkGraphicsOptions (Interface, `pixi-silk`)

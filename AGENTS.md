@@ -141,6 +141,7 @@ You cannot see a canvas from a terminal. Use these instead.
 - `pnpm site:dev`, then open a docs page. Add `?renderer=webgpu` to the URL to run every demo on WebGPU. Each canvas has `data-renderer` with the renderer Pixi picked.
 - `node scripts/check-pages.mjs http://127.0.0.1:5178 1280 800` loads every page and reports WebGL and console errors. Add `--webkit` for Safari.
 - `pnpm check:render` writes pixel reports for the hard cases (self-crossing paths, fold-backs, dash caps, shape operations, batching) on both renderers.
+- Chrome on Windows runs WebGL2 on Direct3D 11, where FXC compiles the shader and can fail where every other backend works (the context is then lost). The Windows WebGL workflow runs the render cases there. `scripts/dump-hlsl.mjs` writes the HLSL ANGLE produced, and the workflow compiles it with FXC to print the error line.
 - `g.primitiveCount` tells how many instances a SilkGraphics holds. A number that grows every frame means a missing `clear()`.
 - A WebGPU object that draws nothing was created before `enableWebGPU()`. Pixi logs a warning for it.
 - A SmartContainer stuck at (0, 0) has no `viewport`.

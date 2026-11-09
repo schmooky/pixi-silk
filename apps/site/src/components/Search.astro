@@ -1,5 +1,6 @@
 ---
 import { Search as SearchIcon } from 'lucide-react';
+import { BUILD_ID } from '@/lib/build-id.mjs';
 
 const sections = [['', 'All'], ['Docs', 'Docs'], ['API reference', 'API'], ['FAQ', 'FAQ'], ['Lab', 'Lab']];
 ---
@@ -22,7 +23,7 @@ const sections = [['', 'All'], ['Docs', 'Docs'], ['API reference', 'API'], ['FAQ
         <ul id="search-results" class="max-h-[55vh] overflow-y-auto p-2 text-sm"></ul>
     </div>
 </div>
-<script is:inline src="/search.js"></script>
+<script is:inline src={`/search.js?v=${BUILD_ID}`}></script>
 <script is:inline>
     (() => {
         const modal = document.getElementById('search-modal');

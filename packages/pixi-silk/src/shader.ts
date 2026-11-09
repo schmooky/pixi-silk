@@ -185,12 +185,13 @@ const float TAU = 6.28318530717959;
 float gPx;
 float gSigma;
 int gBase; // first path texel of this object in uPolys (non-zero in batched draws)
+// Width of uPolys, read once in main rather than for every texel the path loops fetch.
+int gPolysW;
 
 vec4 polyTexel(int i)
 {
-    int w = textureSize(uPolys, 0).x;
-    i += gBase;
-    return texelFetch(uPolys, ivec2(i % w, i / w), 0);
+    int t = i + gBase;
+    return texelFetch(uPolys, ivec2(t % gPolysW, t / gPolysW), 0);
 }
 
 float erfApprox(float x)
@@ -513,6 +514,7 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
     float own = 1e20;
     // distances closer than this count as a tie, which the key settles the same way everywhere
     float tol = 1e-3 * px;
+    bool taken = false;
     gU = 0.0;
     gL = 1.0;
     for (int w = 0; w < nAll; w++)
@@ -587,9 +589,15 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
             hp = true;
             ec = en;
         }
-        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
-        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) discard;
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel.
+        // The discard waits until after the loop: FXC (Direct3D 11) fails on a discard in this loop.
+        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key)))
+        {
+            taken = true;
+            break;
+        }
     }
+    if (taken) discard;
     return own;
 }
 
@@ -815,6 +823,7 @@ void main(void)
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
     gBase = int(vBase + 0.5);
+    gPolysW = textureSize(uPolys, 0).x;
 
     int type = int(vMeta.x + 0.5);
     if (type == 10)

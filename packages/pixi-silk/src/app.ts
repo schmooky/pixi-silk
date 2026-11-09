@@ -24,7 +24,8 @@ export interface SilkAppOptions extends Partial<ApplicationOptions> {
     touchAction?: string;
     /**
      * Which renderer Pixi tries first. Default `'webgl'` (WebGL2). Pass `'webgpu'` to use WebGPU
-     * where the browser has it. Pixi falls back to WebGL2 when it does not. On WebGPU the app loads
+     * where the browser has it. Pixi falls back to WebGL2 when it does not, and the app retries on
+     * WebGL2 when WebGPU is offered but fails to start (it logs a warning). On WebGPU the app loads
      * the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either.
      */
     preference?: ApplicationOptions['preference'];
@@ -76,11 +77,9 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
     } = options;
 
     if (inheritFilterResolution) Filter.defaultOptions.resolution = 'inherit';
-    const app = new Application();
     let forced: number | null = fixedResolution ?? null;
     const dpr = () => Math.min(forced ?? window.devicePixelRatio ?? 1, forced ? 16 : maxResolution);
-
-    await app.init({
+    const init: Partial<ApplicationOptions> = {
         preference: 'webgl',
         antialias: false,
         autoDensity: false,
@@ -90,7 +89,26 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
         height: Math.max(1, parent.clientHeight),
         powerPreference: 'high-performance',
         ...rest,
-    });
+    };
+    let app = new Application();
+
+    try {
+        await app.init(init);
+    } catch (error) {
+        // Pixi picks WebGPU when the browser offers an adapter, but the canvas context can still
+        // fail to start (a GPU process reset, a driver problem). Try WebGL2 once before giving up.
+        if (init.preference === 'webgl' || (Array.isArray(init.preference) && init.preference[0] === 'webgl')) {
+            throw error;
+        }
+        console.warn('pixi-silk: WebGPU failed to start, falling back to WebGL2.', error);
+        try {
+            app.destroy({ removeView: true });
+        } catch {
+            // the half-built app may have nothing to destroy
+        }
+        app = new Application();
+        await app.init({ ...init, preference: 'webgl' });
+    }
 
     // the WGSL program is a separate chunk: WebGL2 apps never download it
     if (app.renderer.name === 'webgpu') (await import('./webgpu')).enableWebGPU();

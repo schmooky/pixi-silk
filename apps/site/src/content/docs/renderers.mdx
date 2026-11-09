@@ -27,7 +27,9 @@ silk.app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
 ```
 
 Pixi tries WebGPU first and falls back to WebGL2. When it gets WebGPU, `createSilkApp` loads the
-WGSL shader before it resolves.
+WGSL shader before it resolves. A browser can offer a WebGPU adapter and still fail to start the
+canvas context, for example after a GPU process reset. `createSilkApp` then logs a warning and
+starts on WebGL2 instead.
 
 WebGL2 stays the default because every current browser has it and it starts faster. Choose WebGPU
 when the rest of your app needs it.

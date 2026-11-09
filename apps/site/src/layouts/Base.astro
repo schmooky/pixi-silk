@@ -2,6 +2,7 @@
 import Footer from '@/components/Footer.astro';
 import Nav from '@/components/Nav.astro';
 import SEO from '@/components/SEO.astro';
+import { BUILD_ID } from '@/lib/build-id.mjs';
 import { ogUrlForPath, type PageSeo } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 import '@/styles/global.css';
@@ -24,6 +25,7 @@ const {
 <!doctype html>
 <html lang="en" class="dark">
     <head>
+        <meta name="silk-build" content={BUILD_ID} />
         <script is:inline>
             // dark unless the visitor chose light: set before first paint so nothing flashes
             document.documentElement.classList.toggle('dark', localStorage.getItem('theme') !== 'light');
@@ -34,15 +36,29 @@ const {
             window.silkRecover = (error) => {
                 const stale = /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module|Unable to preload CSS/i;
                 if (!stale.test(String(error?.message ?? error))) return false;
+                return window.silkRefresh();
+            };
+            // Fetch the page again past the HTTP cache, then reload, so the reload gets the new HTML
+            // and not the cached copy that points at deleted scripts. Once per page and build.
+            window.silkRefresh = (build) => {
+                const key = `${location.pathname}@${build ?? ''}`;
                 try {
-                    if (sessionStorage.getItem('silk-reloaded') === location.pathname) return false;
-                    sessionStorage.setItem('silk-reloaded', location.pathname);
+                    if (sessionStorage.getItem('silk-reloaded') === key) return false;
+                    sessionStorage.setItem('silk-reloaded', key);
                 } catch {
                     return false;
                 }
-                location.reload();
+                fetch(location.href, { cache: 'reload', credentials: 'same-origin' }).finally(() => location.reload());
                 return true;
             };
+            // A page from an older deploy, served from a cache: ask which build is live and refresh.
+            addEventListener('load', () => {
+                const mine = document.querySelector('meta[name="silk-build"]')?.content;
+                fetch('/version.json', { cache: 'no-store' })
+                    .then((r) => (r.ok ? r.json() : null))
+                    .then((v) => { if (mine && v?.build && v.build !== mine) window.silkRefresh(v.build); })
+                    .catch(() => {});
+            });
             addEventListener('unhandledrejection', (e) => { if (window.silkRecover(e.reason)) e.preventDefault(); });
             addEventListener('vite:preloadError', (e) => { if (window.silkRecover(e.payload)) e.preventDefault(); });
         </script>

@@ -63,7 +63,7 @@ scripts. The [FAQ](https://pixi-silk.schmooky.dev/faq/) lists the other limits.
 
 ## For AI agents
 
-- [AGENTS.md](AGENTS.md) explains how to work in this repository.
+- [AGENTS.md](https://github.com/schmooky/pixi-silk/blob/main/AGENTS.md) explains how to work in this repository.
 - [llms.txt](https://pixi-silk.schmooky.dev/llms.txt) indexes the docs in plain text.
 
 ## Repository
@@ -77,7 +77,7 @@ pnpm --filter pixi-silk test    # unit tests
 pnpm build                      # library build
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers checks, changesets and releases.
+[CONTRIBUTING.md](https://github.com/schmooky/pixi-silk/blob/main/CONTRIBUTING.md) covers checks, changesets and releases.
 
 ## License
 

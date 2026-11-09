@@ -209,11 +209,12 @@ var<private> gL: f32;
 var<private> gHwEff: f32;
 var<private> gAlign: f32;
 var<private> gBase: i32; // first path texel of this object in uPolys (non-zero in batched draws)
+// width of uPolys, read once in fs_main rather than for every texel, as in the GLSL twin
+var<private> gPolysW: i32;
 
 fn polyTexel(i0: i32) -> vec4<f32> {
-    let w = i32(textureDimensions(uPolys, 0).x);
     let i = i0 + gBase;
-    return textureLoad(uPolys, vec2<i32>(i % w, i / w), 0);
+    return textureLoad(uPolys, vec2<i32>(i % gPolysW, i / gPolysW), 0);
 }
 
 // GLSL mod: x - y * floor(x / y)
@@ -551,6 +552,7 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
     var own = 1e20;
     // distances closer than this count as a tie, which the key settles the same way everywhere
     let tol = 1e-3 * px;
+    var taken = false;
     gU = 0.0;
     gL = 1.0;
     for (var w = 0; w < nAll; w++) {
@@ -630,10 +632,15 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
             hp = true;
             ec = en;
         }
-        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel.
+        // The discard waits until after the loop, as in the GLSL twin (FXC fails on it inside the loop).
         if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) {
-            discard;
+            taken = true;
+            break;
         }
+    }
+    if (taken) {
+        discard;
     }
     return own;
 }
@@ -876,6 +883,7 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
     gBase = i32(input.vBase + 0.5);
+    gPolysW = i32(textureDimensions(uPolys, 0).x);
 
     let prim = i32(vMeta.x + 0.5);
     if (prim == 10) {

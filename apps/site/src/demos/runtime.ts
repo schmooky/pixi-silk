@@ -129,9 +129,46 @@ function urlRenderer(): RendererPreference | null {
 }
 
 const RENDERER_LABEL: Record<string, string> = { webgl: 'WebGL2', webgpu: 'WebGPU' };
+const FALLBACK_KEY = 'silk-renderer';
+
+/** The renderer this tab switched to after WebGL2 lost its context, if it did. */
+function sessionRenderer(): RendererPreference | null {
+    try {
+        return sessionStorage.getItem(FALLBACK_KEY) === 'webgpu' ? 'webgpu' : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Some drivers lose the WebGL2 context while they compile the shader (ANGLE on Direct3D 11 has
+ * done this). When a demo loses it within a few seconds of starting and the browser has WebGPU,
+ * the rest of the tab runs on WebGPU and `onLost` remounts the demo. Returns the unsubscribe.
+ */
+export function watchContextLoss(mounted: MountedDemo, onLost: () => void): () => void {
+    const canvas = mounted.silk.app.canvas;
+
+    if (mounted.silk.app.renderer.name !== 'webgl' || !('gpu' in navigator) || sessionRenderer()) return () => {};
+    const started = performance.now();
+    const lost = (e: Event) => {
+        if (performance.now() - started > 5000) return;
+        e.preventDefault();
+        try {
+            sessionStorage.setItem(FALLBACK_KEY, 'webgpu');
+        } catch {
+            return;
+        }
+        console.warn('pixi-silk docs: WebGL2 lost its context while starting, switching this tab to WebGPU.');
+        onLost();
+    };
+
+    canvas.addEventListener('webglcontextlost', lost);
+
+    return () => canvas.removeEventListener('webglcontextlost', lost);
+}
 
 export async function mountDemo(demo: Demo, host: HTMLElement, values: Record<string, unknown>): Promise<MountedDemo> {
-    const renderers = demo.renderers ?? [urlRenderer() ?? 'webgl'];
+    const renderers = demo.renderers ?? [urlRenderer() ?? sessionRenderer() ?? 'webgl'];
 
     if (renderers.length < 2) return mountOne(demo, host, values, renderers[0] ?? 'webgl');
 

@@ -13,7 +13,8 @@
  *  - `same`: two scenes that draw the same geometry in different ways must match.
  * With both renderers, every case is also compared between WebGL2 and WebGPU.
  *
- * Runs the installed Google Chrome (CHROME_PATH overrides) with WebGPU on.
+ * Runs the installed Google Chrome (CHROME_PATH overrides) with WebGPU on. CHROME_ARGS replaces
+ * the launch flags, which the Windows workflow uses to run WebGL2 on ANGLE's Direct3D 11 backend.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -71,7 +72,10 @@ const { port } = server.address();
 const browser = await chromium.launch({
     executablePath: process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true,
-    args: ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal'],
+    // CHROME_ARGS replaces the flags, for example `--use-angle=d3d11-warp` on Windows CI
+    args: process.env.CHROME_ARGS
+        ? process.env.CHROME_ARGS.split(/\s+/).filter(Boolean)
+        : ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal'],
 });
 const results = {};
 let failed = 0;
@@ -82,7 +86,9 @@ for (const renderer of renderers) {
 
     tab.on('pageerror', (e) => errors.push(e.message));
     tab.on('console', (m) => {
-        if (m.type() === 'error' && !/favicon|404/.test(m.text())) errors.push(m.text());
+        // a lost context logs as a warning, and the GL errors before it carry the compiler's reason
+        if (/CONTEXT_LOST|GL_INVALID|not present in the shader/.test(m.text())) errors.push(m.text());
+        else if (m.type() === 'error' && !/favicon|404/.test(m.text())) errors.push(m.text());
     });
     await tab.goto(`http://127.0.0.1:${port}/?renderer=${renderer}`);
     await tab.waitForFunction(() => window.renderCases, null, { timeout: 20000 });
