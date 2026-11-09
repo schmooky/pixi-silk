@@ -104,8 +104,33 @@ await tab.goto(`http://127.0.0.1:${server.address().port}/`);
 await tab.waitForFunction(() => window.report, null, { timeout: 180000 });
 const report = await tab.evaluate(() => window.report);
 
+/**
+ * ANGLE leaves @@ placeholders that it fills when it builds the pixel executable at draw time. Fill
+ * them with an entry point that reads every varying from an input, so FXC sees the same dynamic
+ * values (zero-filled statics would let it fold the shader away) and reports lines of this file.
+ */
+function standalone(hlsl) {
+    const varyings = [...hlsl.matchAll(/^static (nointerpolation )?\s*(float\d?) (_v\w+) = /gm)];
+    const params = ['float4 fc : SV_Position'];
+    const prologue = ['gl_FragCoord = fc;'];
+
+    varyings.forEach(([, flat, type, name], i) => {
+        params.push(`${flat ?? ''}${type} in${name} : TEXCOORD${i}`);
+        prologue.push(`${name} = in${name};`);
+    });
+
+    return hlsl
+        .replace(
+            '@@ PIXEL OUTPUT @@',
+            'struct PS_OUTPUT { float4 gl_Color0 : SV_TARGET0; };\nPS_OUTPUT generateOutput() { PS_OUTPUT o; o.gl_Color0 = out_finalColor; return o; }',
+        )
+        .replace('@@ PIXEL MAIN PARAMETERS @@', params.join(', '))
+        .replace('@@ MAIN PROLOGUE @@', prologue.join('\n'));
+}
+
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'fragment.hlsl'), report.fragmentHlsl ?? '');
+if (report.fragmentHlsl) writeFileSync(join(out, 'fragment-fxc.hlsl'), standalone(report.fragmentHlsl));
 writeFileSync(join(out, 'vertex.hlsl'), report.vertexHlsl ?? '');
 const { fragmentHlsl, vertexHlsl, ...summary } = report;
 

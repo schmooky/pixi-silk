@@ -60,9 +60,11 @@ jobs:
           node scripts/dump-hlsl.mjs --out=hlsl
           $fxc = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter fxc.exe | Where-Object FullName -like '*x64*' | Select-Object -First 1
           Write-Output "fxc: $($fxc.FullName)"
-          Select-String -Path hlsl/fragment.hlsl -Pattern '@@|main\(|gl_main|PS_OUTPUT' | Select-Object -First 20
-          $t = Measure-Command { & $fxc.FullName /nologo /T ps_5_0 /E main /O1 /Fo hlsl/fragment.cso hlsl/fragment.hlsl 2>&1 | Tee-Object -FilePath hlsl/fxc.log | Select-Object -First 60 | Out-Host }
-          Write-Output "fxc took $([math]::Round($t.TotalSeconds, 1)) s"
+          foreach ($flags in @(@(), @('/D', 'ANGLE_ENABLE_LOOP_FLATTEN'))) {
+            Write-Output "== fxc $flags"
+            $t = Measure-Command { & $fxc.FullName /nologo /T ps_5_0 /E main /O1 @flags /Fo hlsl/fragment.cso hlsl/fragment-fxc.hlsl 2>&1 | Select-Object -First 40 | Out-Host }
+            Write-Output "fxc took $([math]::Round($t.TotalSeconds, 1)) s"
+          }
           exit 0
 
       - uses: actions/upload-artifact@v5
