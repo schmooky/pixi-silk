@@ -1,0 +1,50 @@
+name: Windows WebGL
+
+# Chrome on Windows runs WebGL2 on ANGLE's Direct3D 11 backend, which compiles the GLSL to HLSL with
+# the FXC compiler. That compiler has rejected shaders that every other backend accepts, and then the
+# context is lost. This job runs the render cases there, on WARP (Microsoft's software Direct3D 11,
+# same compiler). Chrome's own log, printed on failure, has the compiler error.
+
+on:
+  pull_request:
+    paths:
+      - 'packages/pixi-silk/src/**'
+      - 'scripts/check-render.mjs'
+      - 'scripts/render-cases.js'
+      - '.github/workflows/windows-webgl.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-webgl-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter pixi-silk build
+
+      - name: Render cases on Direct3D 11 (WARP)
+        shell: pwsh
+        env:
+          CHROME_PATH: C:\Program Files\Google\Chrome\Application\chrome.exe
+          CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu --enable-logging=stderr --v=0
+          DEBUG: pw:browser
+        run: node scripts/check-render.mjs --renderer=webgl 2>&1 | Tee-Object -FilePath render.log; exit $LASTEXITCODE
+
+      - name: Compiler errors from Chrome's log
+        if: failure()
+        shell: pwsh
+        run: Select-String -Path render.log -Pattern 'error X|HLSL|D3DCompile|Failed to compile|ANGLE' | Select-Object -First 80
