@@ -1,5 +1,13 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
-import { type Control, type Demo, initialValues, type MountedDemo, mountDemo, runsPhone } from '@/demos/runtime';
+import {
+    type Control,
+    type Demo,
+    initialValues,
+    type MountedDemo,
+    mountDemo,
+    runsPhone,
+    watchContextLoss,
+} from '@/demos/runtime';
 
 /** Import failures after a deploy: the page asks for script files that no longer exist. */
 const STALE =
@@ -134,6 +142,7 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
         if (!demo || !visible || !el) return;
         let cancelled = false;
         let instance: MountedDemo | null = null;
+        let unwatch = () => {};
 
         mountDemo(demo, el, values.current).then(
             (m) => {
@@ -144,6 +153,7 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
                     return;
                 }
                 mounted.current = instance = m;
+                unwatch = watchContextLoss(m, () => setGeneration((g) => g + 1));
                 // the live canvas is up: drop the still of the previous run
                 still.current?.remove();
                 still.current = null;
@@ -154,6 +164,8 @@ export default function DemoRunner({ name, height = 280, label, hasControls = fa
 
         return () => {
             cancelled = true;
+            // Pixi loses the context on purpose when it destroys the renderer
+            unwatch();
             if (instance) {
                 // keep a still of the last frame, stop the clock, then tear down
                 const picture = freeze(el, instance);
