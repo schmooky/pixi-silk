@@ -552,6 +552,7 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
     var own = 1e20;
     // distances closer than this count as a tie, which the key settles the same way everywhere
     let tol = 1e-3 * px;
+    var taken = false;
     gU = 0.0;
     gL = 1.0;
     for (var w = 0; w < nAll; w++) {
@@ -631,10 +632,15 @@ fn pathSD(p: vec2<f32>, hw: f32, cap0: i32, cap1: i32, dashed: bool, px: f32) ->
             hp = true;
             ec = en;
         }
-        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel.
+        // The discard waits until after the loop, as in the GLSL twin (FXC fails on it inside the loop).
         if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) {
-            discard;
+            taken = true;
+            break;
         }
+    }
+    if (taken) {
+        discard;
     }
     return own;
 }

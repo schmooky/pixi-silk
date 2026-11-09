@@ -515,6 +515,7 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
     float own = 1e20;
     // distances closer than this count as a tie, which the key settles the same way everywhere
     float tol = 1e-3 * px;
+    bool taken = false;
     gU = 0.0;
     gL = 1.0;
     for (int w = 0; w < nAll; w++)
@@ -589,9 +590,15 @@ float pathSD(vec2 p, float hw, int cap0, int cap1, bool dashed, float px)
             hp = true;
             ec = en;
         }
-        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel
-        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key))) discard;
+        // own windows come first, so own is final here: a nearer segment of another instance takes the pixel.
+        // The discard waits until after the loop: FXC (Direct3D 11) fails on a discard in this loop.
+        if (w >= nOwn && (wmin < own - tol || (wmin <= own + tol && wt.w < key)))
+        {
+            taken = true;
+            break;
+        }
     }
+    if (taken) discard;
     return own;
 }
 
