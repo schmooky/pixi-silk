@@ -1,5 +1,13 @@
 # pixi-silk
 
+## 1.0.1
+
+### Patch Changes
+
+- [#12](https://github.com/schmooky/pixi-silk/pull/12) [`4ef6597`](https://github.com/schmooky/pixi-silk/commit/4ef65970955dc8e8f4ad92892d12a65fa5120968) Thanks [@igaming-bulochka](https://github.com/igaming-bulochka)! - SilkGraphics render on Chrome and Edge for Windows again. ANGLE's Direct3D 11 backend could not compile the WebGL2 program and lost the context: FXC failed on the discard inside the path stroke loop. The shader now discards after the loop.
+
+- [#12](https://github.com/schmooky/pixi-silk/pull/12) [`4ef6597`](https://github.com/schmooky/pixi-silk/commit/4ef65970955dc8e8f4ad92892d12a65fa5120968) Thanks [@igaming-bulochka](https://github.com/igaming-bulochka)! - `createSilkApp({ preference: 'webgpu' })` retries on WebGL2 when WebGPU is offered but fails to start, and logs a warning, instead of rejecting.
+
 ## 1.0.0
 
 ### Major Changes

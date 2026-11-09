@@ -2,7 +2,7 @@
 
 > Smooth vector graphics for PixiJS v8. Every shape is an exact signed distance field, anti-aliased per pixel in the shader, so edges stay smooth at any zoom, rotation and device pixel ratio without MSAA.
 
-pixi-silk 1.0.0 is an MIT-licensed TypeScript library. It needs pixi.js ^8.6 as a peer dependency, and a browser with WebGL2 or WebGPU.
+pixi-silk 1.0.1 is an MIT-licensed TypeScript library. It needs pixi.js ^8.6 as a peer dependency, and a browser with WebGL2 or WebGPU.
 
 Site: https://pixi-silk.schmooky.dev
 Repository: https://github.com/schmooky/pixi-silk
