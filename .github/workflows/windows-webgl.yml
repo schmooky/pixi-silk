@@ -65,12 +65,6 @@ jobs:
             $t = Measure-Command { & $fxc.FullName /nologo /T ps_5_0 /E main /O1 @flags /Fo hlsl/fragment.cso hlsl/fragment-fxc.hlsl 2>&1 | Select-Object -First 40 | Out-Host }
             Write-Output "fxc took $([math]::Round($t.TotalSeconds, 1)) s"
           }
-          node scripts/fxc-variants.mjs
-          foreach ($v in Get-ChildItem hlsl/variants/*.hlsl) {
-            $o = & $fxc.FullName /nologo /T ps_5_0 /E main /O1 /Fo hlsl/v.cso $v.FullName 2>&1 | Out-String
-            $state = if ($LASTEXITCODE -eq 0) { 'compiles' } else { ($o -split "`n" | Select-String 'error' | Select-Object -First 1) }
-            Write-Output "variant $($v.Name): $state"
-          }
           exit 0
 
       - uses: actions/upload-artifact@v5

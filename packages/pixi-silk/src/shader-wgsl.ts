@@ -209,7 +209,7 @@ var<private> gL: f32;
 var<private> gHwEff: f32;
 var<private> gAlign: f32;
 var<private> gBase: i32; // first path texel of this object in uPolys (non-zero in batched draws)
-// width of uPolys, read once in fs_main, as in the GLSL twin (FXC fails on it inside the path loops)
+// width of uPolys, read once in fs_main rather than for every texel, as in the GLSL twin
 var<private> gPolysW: i32;
 
 fn polyTexel(i0: i32) -> vec4<f32> {

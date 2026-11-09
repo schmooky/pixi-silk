@@ -185,8 +185,7 @@ const float TAU = 6.28318530717959;
 float gPx;
 float gSigma;
 int gBase; // first path texel of this object in uPolys (non-zero in batched draws)
-// Width of uPolys, read once in main. ANGLE's Direct3D 11 backend turns textureSize into
-// GetDimensions, and FXC fails on it inside the path loops ("invalid access of unbound variable").
+// Width of uPolys, read once in main rather than for every texel the path loops fetch.
 int gPolysW;
 
 vec4 polyTexel(int i)
