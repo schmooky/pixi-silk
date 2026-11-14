@@ -152,6 +152,8 @@ interface Drag {
     /** Angle in gizmo space where a rotation started, for the sweep. */
     a0: number;
     rect0?: SnapRect;
+    /** Removes the release listeners a drag started by `grab()` put on the pressed object and the window. */
+    unlisten?: () => void;
 }
 
 const BOX_HANDLES: GizmoHandle[] = ['box-nw', 'box-n', 'box-ne', 'box-e', 'box-se', 'box-s', 'box-sw', 'box-w'];
@@ -268,6 +270,7 @@ export class TransformGizmo extends Container {
         this.on('globalpointermove', this._onMove, this);
         this.on('pointerup', this._onUp, this);
         this.on('pointerupoutside', this._onUp, this);
+        this.on('pointercancel', this._onUp, this);
         this.on('pointerout', () => {
             if (!this._drag) this.state.hover.set(null);
         });
@@ -510,10 +513,34 @@ export class TransformGizmo extends Container {
 
     /**
      * Starts dragging from a pointer press that landed elsewhere, such as on the object itself:
-     * press an object and move it in one go. Defaults to a free move.
+     * press an object and move it in one go. Defaults to a free move. The drag ends on the next
+     * release, cancel or loss of window focus, wherever the pointer is then.
      */
     grab(e: FederatedPointerEvent, handle?: GizmoHandle): void {
+        // Pixi sends the release to the pressed object (`pointerupoutside`) or to what is under the
+        // pointer (`pointerup`), not to the gizmo, so listen on the pressed object for this drag
+        const pressed = e.currentTarget ?? e.target;
+
         this._begin(e, handle ?? (this.state.mode.value === 'box' ? 'box-move' : 'move-free'));
+        const drag = this._drag;
+
+        if (!drag || drag.unlisten) return;
+        const up = (ev: FederatedPointerEvent) => this._onUp(ev);
+        const blur = () => this._end();
+        // Pixi does not forward the browser's pointercancel to objects, so hear it on the window too
+        const cancel = (ev: Event) => {
+            if ((ev as PointerEvent).pointerId === drag.id) this._end();
+        };
+        const types = ['pointerup', 'pointerupoutside', 'pointercancel'] as const;
+
+        if (pressed && pressed !== this) for (const type of types) pressed.on(type, up);
+        globalThis.addEventListener?.('blur', blur);
+        globalThis.addEventListener?.('pointercancel', cancel);
+        drag.unlisten = () => {
+            if (pressed && pressed !== this) for (const type of types) pressed.off(type, up);
+            globalThis.removeEventListener?.('blur', blur);
+            globalThis.removeEventListener?.('pointercancel', cancel);
+        };
     }
 
     private _onDown(e: FederatedPointerEvent): void {
@@ -603,6 +630,7 @@ export class TransformGizmo extends Container {
 
         if (!drag) return;
         this._drag = null;
+        drag.unlisten?.();
         this.state.active.set(null);
         this.state.dragging.set(false);
         this.state.snapping.set(false);
