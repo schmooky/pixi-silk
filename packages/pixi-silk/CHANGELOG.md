@@ -1,5 +1,11 @@
 # pixi-silk
 
+## 1.0.2
+
+### Patch Changes
+
+- [#14](https://github.com/schmooky/pixi-silk/pull/14) [`2bc3024`](https://github.com/schmooky/pixi-silk/commit/2bc30243a749b18c02baeb07bc1c9a9c6120c878) Thanks [@igaming-bulochka](https://github.com/igaming-bulochka)! - `TransformGizmo.grab()` now ends its drag on the next release wherever it happens. Before, a drag started from a press on another object only ended when the release reached the gizmo itself, so the target kept following the pointer after the button was let go. The gizmo now listens for `pointerup`, `pointerupoutside` and `pointercancel` on the pressed object for the length of the drag, and also ends it when the window loses focus or cancels the pointer.
+
 ## 1.0.1
 
 ### Patch Changes
