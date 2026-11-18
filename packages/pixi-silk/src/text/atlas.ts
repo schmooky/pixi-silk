@@ -48,6 +48,11 @@ export interface GlyphContext {
     textBaseline: string;
     /** Horizontal anchor of `fillText`. The atlas sets `left`. */
     textAlign: string;
+    /**
+     * Base direction of `fillText` and `measureText`. The atlas sets `ltr` where the context has it,
+     * so a run of Arabic letters starts at the pen like any other glyph.
+     */
+    direction?: string;
     /** The canvas behind the context. The atlas grows it when a glyph does not fit. */
     readonly canvas: {
         /** Width in pixels. */
@@ -216,7 +221,7 @@ export class SdfAtlas {
         return this._font(font).metrics;
     }
 
-    /** Advance width of one character at {@link SdfAtlas.size}, from `measureText`. */
+    /** Advance width of one character, or of a run of joined letters, at {@link SdfAtlas.size}, from `measureText`. */
     advance(font: FontSpec, char: string): number {
         const entry = this._font(font);
         let w = entry.advances.get(char);
@@ -250,7 +255,10 @@ export class SdfAtlas {
         return k;
     }
 
-    /** The baked glyph of a character, baking it now if needed. Call {@link SdfAtlas.flush} to upload. */
+    /**
+     * The baked glyph of a character, or of a cluster (a base with its marks, a run of joined Arabic
+     * letters), baking it now if needed. Call {@link SdfAtlas.flush} to upload.
+     */
     glyph(font: FontSpec, char: string): Glyph {
         const entry = this._font(font);
         let g = entry.glyphs.get(char);
@@ -331,6 +339,7 @@ export class SdfAtlas {
         const ctx = this._ctx;
 
         if (ctx.font !== css) ctx.font = css;
+        if (ctx.direction !== undefined && ctx.direction !== 'ltr') ctx.direction = 'ltr';
 
         return ctx;
     }
@@ -379,6 +388,7 @@ export class SdfAtlas {
             canvas.height = Math.max(canvas.height, h);
             // resizing a canvas resets its state
             ctx.font = entry.css;
+            if (ctx.direction !== undefined) ctx.direction = 'ltr';
         }
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';

@@ -11,6 +11,19 @@ export {
     SdfAtlas,
     type SdfAtlasOptions,
 } from './text/atlas';
+export {
+    type BidiClass,
+    bidiClass,
+    type Cluster,
+    clusters,
+    hasRtl,
+    mirror,
+    paragraphLevel,
+    resetWhitespace,
+    resolveLevels,
+    type TextDirection,
+    visualOrder,
+} from './text/bidi';
 export { sdfFromAlpha } from './text/edt';
 export { silkLabel } from './text/label';
 export {
@@ -21,6 +34,7 @@ export {
     caretX,
     type LayoutLine,
     type LayoutOptions,
+    type LineRun,
     layoutText,
     lineOfIndex,
     type PlacedGlyph,

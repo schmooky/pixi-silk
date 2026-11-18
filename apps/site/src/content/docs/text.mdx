@@ -101,6 +101,32 @@ pill.show('42 px');
 
 To let people click and type into a text, wrap it in a `TextEditor`. See [Editing text](/docs/editing-text/).
 
+## Right-to-left text
+
+<Demo name="text-rtl" height={360} caption="Numbers, percentages and Latin words keep their order inside the Arabic and Hebrew lines. Right: the same glyphs at 4x." />
+
+Arabic and Hebrew work without options. A paragraph whose first letter is right to left reads right
+to left, and `align: 'start'` (the default) puts it on the right. Numbers, prices and Latin words
+inside it keep reading left to right, the way an HTML element with `dir="auto"` shows them.
+Brackets are mirrored. PixiJS `Text` draws with the canvas direction, left to right by default, so
+it can order a right-to-left line that holds Latin words differently.
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const price = new SilkText({ text: 'السعر 1,234.56 دولار', fontSize: 18 });
+const forced = new SilkText({ text: 'v2.1', direction: 'rtl' }); // 'ltr', 'rtl' or 'auto' (default)
+```
+
+Joined Arabic letters are measured and baked as one glyph per run, so Canvas shapes them with the
+font: initial, medial and final forms, and ligatures such as lam alef. Harakat ride on their letter.
+Each new word costs one atlas entry, so long Arabic texts fill the atlas faster than Latin ones.
+
+The line order follows the Unicode bidi algorithm. After Arabic letters, digits count as Arabic
+numbers, so a sign before them shows on their right: `-5` reads `5-`, as in the browser. Put a
+left-to-right mark (`\u200E`) before the sign to keep it on the left. Embedding and isolate controls
+(U+202A to U+202E, U+2066 to U+2069) are ignored.
+
 ## Fonts and the atlas
 
 Each glyph is drawn with Canvas2D at 48 px the first time it appears, then turned into a distance
@@ -124,8 +150,8 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
 Corners round off slightly at extreme zoom, because a single-channel distance field cannot hold a
 sharp corner. At the default 48 px bake the rounding is about a fiftieth of the font size.
 
-Emoji and colour fonts come out as one-colour silhouettes. There is no shaping: no ligatures, no
-right-to-left text and no combining marks, and each code point is one glyph. Latin, Greek and
-Cyrillic UI text works. Use PixiJS `Text` for emoji, Arabic and Indic scripts.
+Emoji and colour fonts come out as one-colour silhouettes. Outside right-to-left text there is no
+shaping: no ligatures and no combining marks, and each code point is one glyph. Latin, Greek,
+Cyrillic, Arabic and Hebrew text works. Use PixiJS `Text` for emoji and Indic scripts.
 
 SilkText runs on WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.

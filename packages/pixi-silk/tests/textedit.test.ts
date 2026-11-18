@@ -296,6 +296,18 @@ describe('TextEditor', () => {
         expect(ed.selectionEnd).toBe(0);
     });
 
+    it('moves forward with the left arrow in right-to-left text', () => {
+        const ed = make({ text: 'مرحبا 123' });
+
+        ed.select(0);
+        ed.handleKey(key('ArrowLeft'));
+        expect(ed.selectionStart).toBe(1);
+        ed.handleKey(key('ArrowRight'));
+        expect(ed.selectionStart).toBe(0);
+        // the caret starts on the right of a right-to-left line
+        expect(ed.textObject.caretRect(0).x).toBeGreaterThan(ed.textObject.caretRect(5).x);
+    });
+
     it('keeps the preferred x when moving up and down', () => {
         // 10 wide characters on three lines: "abcdef", "ab", "abcdef"
         const ed = make({ text: 'abcdef\nab\nabcdef' });

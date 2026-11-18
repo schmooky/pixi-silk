@@ -638,6 +638,89 @@ pill.show('42 px');
 
 To let people click and type into a text, wrap it in a `TextEditor`. See [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/).
 
+### Right-to-left text
+
+Live demo `text-rtl` (source):
+
+```ts
+import { Graphics } from 'pixi.js';
+import { SilkText } from 'pixi-silk/text';
+import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
+
+// Arabic and Hebrew in SilkText. Numbers, prices, percentages and Latin words inside the
+// right-to-left lines keep reading left to right. The right column zooms the first line in.
+const LINES = [
+    'مرحبا بالعالم',
+    'السعر 1,234.56 دولار',
+    'خصم 50% حتى ٢٠٢٦/١٢/٣١',
+    'أنا أحب JavaScript كثيرا',
+    'רשימת קניות (3 פריטים)',
+];
+
+export default defineDemo({
+    title: 'Right-to-left text',
+    size: [720, 360],
+    phone: { size: [360, 520] },
+    setup({ stage, width, phone }) {
+        const col = phone ? width : 420;
+        const top = 48;
+        const step = phone ? 46 : 58;
+        const size = phone ? 18 : 22;
+
+        stage.addChild(label('SilkText, align start', 24, 16, { fontSize: 13 }));
+        LINES.forEach((line, i) => {
+            const t = new SilkText({
+                text: line,
+                fontFamily: FONT,
+                fontSize: size,
+                fill: i ? INK.text : PALETTE.blue,
+                anchor: { x: 1, y: 0 },
+            });
+
+            t.position.set(col - 24, top + i * step);
+            stage.addChild(t);
+        });
+        // the same glyphs at 4x: joined letters stay smooth, the dots stay round
+        const x0 = phone ? 0 : col;
+        const y0 = phone ? 330 : 0;
+        const zoom = new SilkText({
+            text: 'بالعالم',
+            fontFamily: FONT,
+            fontSize: size,
+            fill: PALETTE.blue,
+            anchor: 0.5,
+        });
+
+        zoom.scale.set(phone ? 3 : 4);
+        zoom.position.set(x0 + (width - x0) / 2, y0 + (phone ? 110 : 190));
+        stage.addChild(zoom, label('4x', x0 + 24, y0 + 16, { fontSize: 13 }));
+        if (phone) stage.addChild(new Graphics().rect(0, y0 - 0.5, width, 1).fill(INK.line));
+        else stage.addChild(new Graphics().rect(col - 0.5, 0, 1, 360).fill(INK.line));
+    },
+});
+```
+
+Arabic and Hebrew work without options. A paragraph whose first letter is right to left reads right
+to left, and `align: 'start'` (the default) puts it on the right. Numbers, prices and Latin words
+inside it keep reading left to right, the way an HTML element with `dir="auto"` shows them.
+Brackets are mirrored. PixiJS `Text` draws with the canvas direction, left to right by default, so
+it can order a right-to-left line that holds Latin words differently.
+
+```ts
+
+const price = new SilkText({ text: 'السعر 1,234.56 دولار', fontSize: 18 });
+const forced = new SilkText({ text: 'v2.1', direction: 'rtl' }); // 'ltr', 'rtl' or 'auto' (default)
+```
+
+Joined Arabic letters are measured and baked as one glyph per run, so Canvas shapes them with the
+font: initial, medial and final forms, and ligatures such as lam alef. Harakat ride on their letter.
+Each new word costs one atlas entry, so long Arabic texts fill the atlas faster than Latin ones.
+
+The line order follows the Unicode bidi algorithm. After Arabic letters, digits count as Arabic
+numbers, so a sign before them shows on their right: `-5` reads `5-`, as in the browser. Put a
+left-to-right mark (`\u200E`) before the sign to keep it on the left. Embedding and isolate controls
+(U+202A to U+202E, U+2066 to U+2069) are ignored.
+
 ### Fonts and the atlas
 
 Each glyph is drawn with Canvas2D at 48 px the first time it appears, then turned into a distance
@@ -660,9 +743,9 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
 Corners round off slightly at extreme zoom, because a single-channel distance field cannot hold a
 sharp corner. At the default 48 px bake the rounding is about a fiftieth of the font size.
 
-Emoji and colour fonts come out as one-colour silhouettes. There is no shaping: no ligatures, no
-right-to-left text and no combining marks, and each code point is one glyph. Latin, Greek and
-Cyrillic UI text works. Use PixiJS `Text` for emoji, Arabic and Indic scripts.
+Emoji and colour fonts come out as one-colour silhouettes. Outside right-to-left text there is no
+shaping: no ligatures and no combining marks, and each code point is one glyph. Latin, Greek,
+Cyrillic, Arabic and Hebrew text works. Use PixiJS `Text` for emoji and Indic scripts.
 
 SilkText runs on WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.
 
@@ -1049,8 +1132,9 @@ console.log(hit.index, caret.x, label.rangeRects(0, 5));
 
 ### Where it stops
 
-Right-to-left and mixed-direction text is not supported. Arabic and Hebrew lay out left to right,
-and the caret moves in source order. Emoji count as one caret step but draw as one-colour
+Arabic and Hebrew lay out right to left, and in a right-to-left paragraph the left arrow moves
+forward through the text. The caret moves in source order, so at a change of direction it can jump
+across the line. A selection that crosses one shows as several boxes. Emoji count as one caret step but draw as one-colour
 silhouettes, and there are no ligatures, as in [SilkText](https://pixi-silk.schmooky.dev/docs/text/#where-it-stops).
 
 Spell check underlines do not show, because the hidden field is invisible.
@@ -5470,7 +5554,7 @@ URL: https://pixi-silk.schmooky.dev/api/text/
 SilkText: distance-field text with outline, shadow and gradient fill. SdfAtlas, layoutText, caret helpers.
 
 ```ts
-import { SdfAtlas, SilkText, SilkTextGeometry, caretAtPoint } from 'pixi-silk/text';
+import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text';
 ```
 
 #### Classes
@@ -5487,12 +5571,14 @@ import { SdfAtlas, SilkText, SilkTextGeometry, caretAtPoint } from 'pixi-silk/te
 | ------ | ------ |
 | [CaretHit](https://pixi-silk.schmooky.dev/api/text/interfaces/CaretHit.md) | Where a point lands in a [TextLayout](https://pixi-silk.schmooky.dev/api/text/interfaces/TextLayout.md): the nearest caret position. |
 | [CaretRect](https://pixi-silk.schmooky.dev/api/text/interfaces/CaretRect.md) | A caret position in layout units: a vertical segment from `top` to `bottom` at `x`. |
+| [Cluster](https://pixi-silk.schmooky.dev/api/text/interfaces/Cluster.md) | A run of text drawn as one glyph: a character with its marks, or joined letters of a cursive script. |
 | [FontMetrics](https://pixi-silk.schmooky.dev/api/text/interfaces/FontMetrics.md) | Vertical metrics of a font at the atlas size, measured the way PixiJS `Text` measures them. |
 | [FontSpec](https://pixi-silk.schmooky.dev/api/text/interfaces/FontSpec.md) | The font of a glyph: CSS family list, weight and style. Size does not matter, glyphs are baked at one size. |
 | [Glyph](https://pixi-silk.schmooky.dev/api/text/interfaces/Glyph.md) | A glyph baked into the atlas. Distances are in raster pixels, at [SdfAtlas.size](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md). |
 | [GlyphContext](https://pixi-silk.schmooky.dev/api/text/interfaces/GlyphContext.md) | The slice of a 2D canvas context the atlas needs. Pass your own to [SdfAtlasOptions.context](https://pixi-silk.schmooky.dev/api/text/interfaces/SdfAtlasOptions.md) to bake glyphs somewhere else (a worker canvas, or a fake one in tests). |
 | [LayoutLine](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutLine.md) | One line of a laid-out text. |
 | [LayoutOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutOptions.md) | What [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) needs besides the text. Sizes are in local units. |
+| [LineRun](https://pixi-silk.schmooky.dev/api/text/interfaces/LineRun.md) | A run of a line that goes one way, as [LayoutLine.runs](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutLine.md) lists them. |
 | [PlacedGlyph](https://pixi-silk.schmooky.dev/api/text/interfaces/PlacedGlyph.md) | A character placed by [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md). |
 | [SdfAtlasOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/SdfAtlasOptions.md) | Options of an [SdfAtlas](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md). |
 | [SilkTextOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextOptions.md) | Options of a [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md): the style plus the text, anchor and atlas. |
@@ -5508,27 +5594,37 @@ import { SdfAtlas, SilkText, SilkTextGeometry, caretAtPoint } from 'pixi-silk/te
 
 | Type Alias | Description |
 | ------ | ------ |
+| [BidiClass](https://pixi-silk.schmooky.dev/api/text/types/BidiClass.md) | Bidi character types used here (UAX #9 table 4, minus the explicit formatting types). |
 | [ResolvedTextStyle](https://pixi-silk.schmooky.dev/api/text/types/ResolvedTextStyle.md) | A [SilkTextStyle](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextStyle.md) with every field set, as [SilkText.defaults](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) holds it. |
-| [TextAlign](https://pixi-silk.schmooky.dev/api/text/types/TextAlign.md) | Horizontal alignment of the lines of a text block. |
+| [TextAlign](https://pixi-silk.schmooky.dev/api/text/types/TextAlign.md) | Horizontal alignment of the lines of a text block. `start` and `end` follow the direction of each line's paragraph: `start` is left for left-to-right text and right for right-to-left text. |
+| [TextDirection](https://pixi-silk.schmooky.dev/api/text/types/TextDirection.md) | Base direction of a paragraph. `auto` takes it from the first strong character, left to right when there is none. |
 
 #### Functions
 
 | Function | Description |
 | ------ | ------ |
+| [bidiClass](https://pixi-silk.schmooky.dev/api/text/functions/bidiClass.md) | The bidi type of one code point. Covers the common scripts. Anything unlisted is `L`, or `ON` for punctuation and symbols. |
 | [caretAtPoint](https://pixi-silk.schmooky.dev/api/text/functions/caretAtPoint.md) | The caret position nearest to a point, in the layout's own units (the top left of the text box is 0, 0). Points above the first line or below the last snap to them. `isStop` filters the offsets a caret may take, for example grapheme cluster boundaries. |
 | [caretRect](https://pixi-silk.schmooky.dev/api/text/functions/caretRect.md) | Where to draw a caret at `index`, in the layout's units. |
 | [caretX](https://pixi-silk.schmooky.dev/api/text/functions/caretX.md) | The x of a caret at `index` on line `li`: the nearest caret stop at or before it. |
+| [clusters](https://pixi-silk.schmooky.dev/api/text/functions/clusters.md) | Splits a paragraph into clusters for the bidi pass. Marks stay with their base. Letters of a cursive script stay together while they join, so Canvas shapes the whole run (initial, medial and final forms, ligatures such as lam alef). A run breaks after a letter that does not join forward. |
 | [fontString](https://pixi-silk.schmooky.dev/api/text/functions/fontString.md) | pixi-silk/text: [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md), text drawn from a shared signed distance field atlas, plus the layout and caret helpers it uses. Not part of the root `pixi-silk` import. |
 | [graphemeStops](https://pixi-silk.schmooky.dev/api/text/functions/graphemeStops.md) | Offsets where a caret can sit: 0, every grapheme cluster boundary, and the text's length. |
+| [hasRtl](https://pixi-silk.schmooky.dev/api/text/functions/hasRtl.md) | True when the text holds a right-to-left character, so it needs the bidi pass. |
 | [isMac](https://pixi-silk.schmooky.dev/api/text/functions/isMac.md) | True on macOS, iOS and iPadOS, where Option moves by word and Command by line. |
 | [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) | Lays out a block of text. Lines break at `\n` and, with `wordWrap`, at spaces. Each character gets its advance, kerning and letter spacing, then the lines are aligned. Widths come from `measure`, so the same layout works for any renderer. |
 | [lineOfIndex](https://pixi-silk.schmooky.dev/api/text/functions/lineOfIndex.md) | The line a caret at `index` is on. At a wrap, `upstream` picks the end of the first line over the start of the next. |
+| [mirror](https://pixi-silk.schmooky.dev/api/text/functions/mirror.md) | L4: the mirrored form of a character drawn right to left, such as `)` for `(`, or the character itself. |
 | [nextWordStop](https://pixi-silk.schmooky.dev/api/text/functions/nextWordStop.md) | Where a word jump to the right lands. `mac` (the default on Apple platforms) stops at the end of the next word, like Option + Right. Otherwise it stops at the start of the word after, like Ctrl + Right. |
 | [paragraphAt](https://pixi-silk.schmooky.dev/api/text/functions/paragraphAt.md) | The paragraph around `index`: from the newline before it to the newline after, newlines left out. |
+| [paragraphLevel](https://pixi-silk.schmooky.dev/api/text/functions/paragraphLevel.md) | Paragraph level from the first strong type (P2, P3): 1 for `R` or `AL`, 0 for `L` or none. |
 | [previousWordStop](https://pixi-silk.schmooky.dev/api/text/functions/previousWordStop.md) | Where a word jump to the left lands: the start of the word before `index`. |
 | [rangeRects](https://pixi-silk.schmooky.dev/api/text/functions/rangeRects.md) | Highlight boxes of the range `from` to `to`, one per line, the full height of each line box. A range that runs on past a newline gets a sliver of `newline` width at that line's end, so selected empty lines still show. Default newline width a quarter of the font height. |
+| [resetWhitespace](https://pixi-silk.schmooky.dev/api/text/functions/resetWhitespace.md) | L1 for one line: whitespace at the end of the line, and before tabs, falls back to the paragraph level. `types` are the original types of the line's units. Changes `levels` in place. |
+| [resolveLevels](https://pixi-silk.schmooky.dev/api/text/functions/resolveLevels.md) | Embedding levels of one paragraph (W1 to W7, N1, N2, I1, I2). `types` are the original types, one per unit, in logical order. Even levels run left to right, odd ones right to left. |
 | [sdfFromAlpha](https://pixi-silk.schmooky.dev/api/text/functions/sdfFromAlpha.md) | Turns an anti-aliased coverage bitmap into an 8-bit signed distance field. |
 | [silkLabel](https://pixi-silk.schmooky.dev/api/text/functions/silkLabel.md) | A label factory that makes [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) labels, for widgets such as `ValuePill`. The widget's style comes first, then `overrides` (any SilkText option but the text). From the Pixi style it keeps the font, letter spacing, line height, left, center or right alignment, and a plain colour fill. Gradients, strokes and drop shadows of the Pixi style are dropped. |
+| [visualOrder](https://pixi-silk.schmooky.dev/api/text/functions/visualOrder.md) | L2: the visual order of a line as indices into `levels`, left to right. |
 | [wordAt](https://pixi-silk.schmooky.dev/api/text/functions/wordAt.md) | The segment (word, run of spaces or punctuation) that holds the character at `index`. |
 | [wordSegments](https://pixi-silk.schmooky.dev/api/text/functions/wordSegments.md) | Splits text into words and the runs between them. |
 

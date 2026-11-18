@@ -15,6 +15,7 @@ import { GradientAtlas } from '../atlas';
 import { parseColor } from '../color';
 import { Gradient } from '../gradient';
 import { type FontSpec, SdfAtlas } from './atlas';
+import type { TextDirection } from './bidi';
 import {
     type CaretHit,
     type CaretRect,
@@ -72,8 +73,14 @@ export interface SilkTextStyle {
     letterSpacing?: number;
     /** Distance between baselines. 0 uses the font's ascent plus descent, like PixiJS `Text`. Default 0. */
     lineHeight?: number;
-    /** Alignment of the lines. Default `left`. */
+    /** Alignment of the lines. `start` is left for left-to-right paragraphs and right for right-to-left ones. Default `start`. */
     align?: TextAlign;
+    /**
+     * Base direction of each paragraph: `ltr`, `rtl`, or `auto` to take it from the first strong
+     * character. Arabic and Hebrew read right to left either way. Numbers and Latin words inside them
+     * keep their order. Default `auto`.
+     */
+    direction?: TextDirection;
     /** Breaks lines at spaces to fit `wordWrapWidth`. Default false. */
     wordWrap?: boolean;
     /** Width that `wordWrap` breaks lines at, in local units. Default 100. */
@@ -182,9 +189,11 @@ const premultiply = (out: Float32Array, color: ColorSource, alpha: number): void
  * `measureText`, so line breaks and widths match PixiJS `Text`. Style changes relayout once, on the
  * next render or the next read of {@link SilkText.layout}.
  *
- * It has no rich text, per-character styles or right-to-left shaping. Glyphs combine code points
- * one by one, so complex scripts and emoji sequences do not shape. Works with Pixi's WebGL2 and
- * WebGPU renderers.
+ * Right-to-left text works. Arabic and Hebrew paragraphs are reordered with the Unicode bidi
+ * algorithm, and numbers and Latin words inside them keep reading left to right. Joined Arabic
+ * letters are baked as one glyph per run, so Canvas shapes them. It has no rich text or
+ * per-character styles. Outside right-to-left text, glyphs combine code points one by one, so Indic
+ * scripts and emoji sequences do not shape. Works with Pixi's WebGL2 and WebGPU renderers.
  *
  * @example
  * ```ts
@@ -203,7 +212,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         fill: 0xffffff,
         letterSpacing: 0,
         lineHeight: 0,
-        align: 'left',
+        align: 'start',
+        direction: 'auto',
         wordWrap: false,
         wordWrapWidth: 100,
         breakWords: false,
@@ -371,6 +381,16 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     /** Sets {@link SilkText.align}. */
     set align(v: TextAlign) {
         this._set('align', v);
+    }
+
+    /** Base direction of each paragraph: `ltr`, `rtl` or `auto` (from the first strong character). */
+    get direction(): TextDirection {
+        return this._style.direction;
+    }
+
+    /** Sets {@link SilkText.direction}. */
+    set direction(v: TextDirection) {
+        this._set('direction', v);
     }
 
     /** Breaks lines at spaces to fit {@link SilkText.wordWrapWidth}. */
@@ -603,6 +623,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
                 letterSpacing: s.letterSpacing,
                 lineHeight: s.lineHeight > 0 ? s.lineHeight : undefined,
                 align: s.align,
+                direction: s.direction,
                 wordWrap: s.wordWrap,
                 wordWrapWidth: s.wordWrapWidth,
                 breakWords: s.breakWords,

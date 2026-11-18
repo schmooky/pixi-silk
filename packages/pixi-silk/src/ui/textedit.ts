@@ -621,7 +621,10 @@ export class TextEditor extends Container {
         switch (key) {
             case 'ArrowLeft':
             case 'ArrowRight': {
-                const dir = key === 'ArrowLeft' ? -1 : 1;
+                // in a right-to-left paragraph the left arrow moves forward through the text
+                const rtl =
+                    this.textObject.layout.lines[lineOfIndex(this.textObject.layout, this._focus, this._upstream)]?.rtl;
+                const dir = (key === 'ArrowLeft' ? -1 : 1) * (rtl ? -1 : 1);
 
                 if (mac && e.metaKey) this._lineMove(dir, extend);
                 else if (byWord) {
@@ -722,8 +725,10 @@ export class TextEditor extends Container {
         this.placeholderObject.visible = empty;
         // with a fixed width, alignment is inside the box
         if (this._width !== undefined && this._multiline) {
-            const shift =
-                t.align === 'center' ? (box - layout.width) / 2 : t.align === 'right' ? box - layout.width : 0;
+            const rtl = layout.lines[0]?.rtl ?? false;
+            const align =
+                t.align === 'start' ? (rtl ? 'right' : 'left') : t.align === 'end' ? (rtl ? 'left' : 'right') : t.align;
+            const shift = align === 'center' ? (box - layout.width) / 2 : align === 'right' ? box - layout.width : 0;
 
             t.x = shift;
             this.placeholderObject.x = shift;
