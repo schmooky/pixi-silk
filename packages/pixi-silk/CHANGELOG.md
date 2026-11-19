@@ -1,5 +1,17 @@
 # pixi-silk
 
+## 1.1.0
+
+### Minor Changes
+
+- SilkText: text that fits its box, full bidi, colour emoji. `maxLines`, `maxWidth` and `maxHeight` cut what does not fit and end it in `ellipsis`, and `shrinkToFit` shrinks the font first, down to `minFontSize` (`renderedFontSize` and `truncated` report it). `align: 'justify'` stretches wrapped lines, with kashida in Arabic. Tabs line up on `tabSize` stops. Letter spacing is not applied inside Arabic words or words of shaped scripts. The bidi pass now handles isolates, embeddings and overrides, and pairs brackets. A caret can stand at both places an offset has where the direction changes, and word jumps follow the screen. Emoji keep their colours, from a second texture. Thai and Lao are baked a cluster at a time, and `atlas.usage` reports how full the atlas is. Icons centre on the letters in text without capitals.
+
+- Inline objects and editing polish. `silkRichLabel()` gives widgets labels that hold icons. `SilkRichText` has an `anchor`, and its objects follow the anchor and the text object's position and scale. `TextEditor` takes `inlines`: typed `{name}` tokens show their object, the caret steps over a token and one Backspace deletes it. The arrow keys move by what is on screen in lines that mix directions (`caretVisual`). Lines break beside inline boxes next to Chinese, Japanese or Korean text, and a box stays with the letters and digits next to it. `tabularNumbers` covers every decimal digit set, and digits of Burmese, Thai and the Indic scripts are clusters of their own.
+
+- SilkText lays out right-to-left text. Arabic and Hebrew paragraphs are reordered with the Unicode bidi algorithm, so numbers, prices, percentages and Latin words inside them keep reading left to right, and brackets are mirrored. Joined Arabic letters are baked as one glyph per run, so they shape with the font. New `direction` style (`ltr`, `rtl`, `auto`), and `align` takes `start` and `end` (the default is now `start`, which is `left` for left-to-right text). Carets, hit testing and selection boxes follow the visual order, and the left arrow in `TextEditor` moves forward in a right-to-left paragraph.
+
+- SilkText handles every script without clipping. Glyphs are baked from the ink found in the pixels, not the `measureText` box, so stacked Burmese, Thai and Vietnamese marks are never cut. Lines grow to fit the tallest ink and the outline. Burmese, Thai, Khmer, Lao, the Indic scripts, emoji sequences and combining accents are baked a word or a cluster at a time so Canvas shapes them. Lines wrap between Chinese and Japanese characters (with kinsoku), Korean syllables (or only at spaces with the new `wordBreak: 'keep-all'`) and Thai or Burmese words. Outlines are drawn for every glyph before any fill, so they never cover a neighbouring letter. New inline objects: `{name}` tokens with `inlines` reserve aligned boxes (`inlineRects()`), and the new `SilkRichText` places sprites, SilkGraphics or any container in them.
+
 ## 1.0.2
 
 ### Patch Changes
