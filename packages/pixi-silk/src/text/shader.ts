@@ -4,7 +4,8 @@ import { GradientAtlas } from '../atlas';
 /*
  * One instanced quad per glyph and pass. Passes: the shadow, then with an outline every outline and
  * then every fill, so an outline never covers its neighbour's fill. aMeta.x is 1 for the shadow,
- * aMeta.y is 0 (fill over outline), 1 (outline only) or 2 (fill only). The fragment
+ * aMeta.y is 0 (fill over outline), 1 (outline only) or 2 (fill only). aMeta.zw is the cell of a
+ * colour glyph in uColorAtlas, or -1 for one-colour glyphs. The fragment
  * stage reads the glyph's distance field, converts it to device pixels with the screen-space scale
  * of the quad, and turns it into coverage with a box filter one device pixel wide. When a texel is
  * smaller than a pixel (small text), it averages four taps across the pixel instead of one.
@@ -69,6 +70,7 @@ flat in float vPx;
 
 uniform highp sampler2D uAtlas;
 uniform highp sampler2D uGradients;
+uniform highp sampler2D uColorAtlas;
 uniform vec4 uFill;
 uniform vec4 uOutline;
 uniform vec4 uShadow;
@@ -175,6 +177,14 @@ void main(void)
         }
         if (uFx.y <= 0.0) oc = 0.0;
         vec4 fill = uPaint.x > 0.5 ? uFill * gradientColor(vPos) : uFill;
+        // colour glyphs (emoji) keep their own colours; vMeta.zw is their cell in uColorAtlas
+        if (vMeta.z >= 0.0)
+        {
+            vec2 cuv = (vTex - vCell.xy + vMeta.zw) / vec2(textureSize(uColorAtlas, 0));
+
+            fill = textureLod(uColorAtlas, cuv, 0.0) * uFill.a;
+            fc = 1.0;
+        }
         // vMeta.y: 0 fill over outline, 1 outline only, 2 fill only (outlines go in a pass of their own)
         if (vMeta.y > 1.5) col = fill * fc;
         else if (vMeta.y > 0.5) col = uOutline * oc;
@@ -219,6 +229,8 @@ struct TextUniforms {
 @group(2) @binding(2) var uAtlasSampler: sampler;
 @group(2) @binding(3) var uGradients: texture_2d<f32>;
 @group(2) @binding(4) var uGradientsSampler: sampler;
+@group(2) @binding(5) var uColorAtlas: texture_2d<f32>;
+@group(2) @binding(6) var uColorSampler: sampler;
 
 struct VSOutput {
     @builtin(position) position: vec4<f32>,
@@ -364,6 +376,14 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
         if (u.uPaint.x > 0.5) {
             fill = fill * gradientColor(input.vPos);
         }
+        // colour glyphs (emoji) keep their own colours; vMeta.zw is their cell in uColorAtlas
+        let cuv = (input.vTex - input.vCell.xy + input.vMeta.zw) / vec2<f32>(textureDimensions(uColorAtlas));
+        let colour = textureSampleLevel(uColorAtlas, uColorSampler, cuv, 0.0);
+
+        if (input.vMeta.z >= 0.0) {
+            fill = colour * u.uFill.a;
+            fc = 1.0;
+        }
         if (input.vMeta.y > 1.5) {
             col = fill * fc;
         } else if (input.vMeta.y > 0.5) {
@@ -385,7 +405,7 @@ let glProgram: GlProgram | null = null;
 let gpuProgram: GpuProgram | null = null;
 
 /** @internal Builds the shader of one SilkText: shared programs, its own uniforms. */
-export function createTextShader(atlas: TextureSource): Shader {
+export function createTextShader(atlas: TextureSource, colors: TextureSource = atlas): Shader {
     glProgram ??= GlProgram.from({
         vertex: textVertex,
         fragment: textFragment,
@@ -418,6 +438,8 @@ export function createTextShader(atlas: TextureSource): Shader {
             uAtlasSampler: atlas.style,
             uGradients: gradients,
             uGradientsSampler: gradients.style,
+            uColorAtlas: colors,
+            uColorSampler: colors.style,
         },
     });
 }

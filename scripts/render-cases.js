@@ -499,7 +499,7 @@ const cases = {
     // every fill, and stacked marks stay inside their glyph quads (compared between renderers)
     'text-outline-scripts': () => {
         const root = new Container();
-        const lines = ['AVAWA Tiles', 'Thắng lớn', 'နောက်ဆုံး', 'สวัสดี', 'مرحبا 1,250'];
+        const lines = ['AVAWA Type', 'Cài đặt', 'မင်္ဂလာပါ', 'สวัสดี', 'مرحبا 1,250'];
 
         lines.forEach((text, i) => {
             const t = new SilkText({
@@ -514,6 +514,28 @@ const cases = {
             t.position.set(8, 6 + i * 48);
             root.addChild(t);
         });
+
+        return { scene: root, kind: 'none' };
+    },
+    // colour emoji from the colour texture, a justified Arabic paragraph with kashida, and a line
+    // cut with an ellipsis (compared between renderers)
+    'text-color-justify': () => {
+        const root = new Container();
+        const emoji = new SilkText({ text: 'OK \u{1f600}\u{1f44d}\u{1f3fd}', fontSize: 28, fill: 0xffffff });
+        const justified = new SilkText({
+            text: '\u0645\u0631\u062d\u0628\u0627 \u0628\u0643\u0645 \u0641\u064a \u0627\u0644\u0645\u0643\u062a\u0628\u0629 \u0627\u0644\u0639\u0627\u0645\u0629',
+            fontSize: 20,
+            fill: 0xffffff,
+            wordWrap: true,
+            wordWrapWidth: 200,
+            align: 'justify',
+        });
+        const cut = new SilkText({ text: 'A line far too long to fit', fontSize: 18, fill: 0xffffff, maxWidth: 150 });
+
+        emoji.position.set(8, 8);
+        justified.position.set(8, 60);
+        cut.position.set(8, 200);
+        root.addChild(emoji, justified, cut);
 
         return { scene: root, kind: 'none' };
     },

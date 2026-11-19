@@ -79,7 +79,7 @@ export const FAQ = [
     {
         area: 'typography',
         q: 'Which scripts does SilkText support?',
-        a: 'Latin, Greek and Cyrillic UI text. There is no shaping, so right-to-left text, ligatures and combining marks do not work, and emoji come out as one-colour silhouettes. Use PixiJS `Text` for those.',
+        a: 'All the common ones: Latin, Cyrillic, Greek, Vietnamese, Arabic and Hebrew (right to left, with numbers kept in order), Burmese, Thai, Khmer, Lao, the Indic scripts, Chinese, Japanese and Korean. Words that need shaping are baked whole, stacked marks are never cut, and lines wrap where each script allows. Emoji keep their colours, from a second texture that softens under deep zoom.',
     },
     {
         area: 'typography',

@@ -8,13 +8,15 @@ import {
     type TextDirection,
     visualOrder,
 } from './bidi';
-import { clusters, type WordBreak } from './cluster';
+import { clusters, isWide, noLineEnd, noLineStart, type WordBreak } from './cluster';
 
 /**
  * Horizontal alignment of the lines of a text block. `start` and `end` follow the direction of each
  * line's paragraph: `start` is left for left-to-right text and right for right-to-left text.
+ * `justify` stretches every wrapped line to the full width and aligns the last line of each
+ * paragraph to its start.
  */
-export type TextAlign = 'left' | 'center' | 'right' | 'start' | 'end';
+export type TextAlign = 'left' | 'center' | 'right' | 'start' | 'end' | 'justify';
 
 /** Widths of characters at the size being laid out, in local units. */
 export interface TextMeasurer {
@@ -60,13 +62,33 @@ export interface LayoutOptions {
      * so Arabic or Hebrew text runs right to left and Latin text left to right. Default `auto`.
      */
     direction?: TextDirection;
+    /**
+     * Most lines to show. Text past the last one is dropped and the last line ends in `ellipsis`.
+     * 0 for no limit. Default 0.
+     */
+    maxLines?: number;
+    /**
+     * Widest a line may be when `wordWrap` is off. A longer line is cut and ends in `ellipsis`. With
+     * `wordWrap` on, lines that cannot break narrower than `wordWrapWidth` are cut the same way when
+     * `maxWidth` or `maxLines` is set. Default no limit.
+     */
+    maxWidth?: number;
+    /** What a cut line ends with. `null` cuts without a mark. Default `\u2026` (an ellipsis). */
+    ellipsis?: string | null;
+    /** Tab stops every this many space widths, from the start of the line. Default 8. */
+    tabSize?: number;
+    /** Lets `justify` stretch Arabic words with kashida (tatweel) before it widens spaces. Default true. */
+    kashida?: boolean;
     /** Breaks lines longer than `wordWrapWidth` at spaces. Default false. */
     wordWrap?: boolean;
     /** Line width that `wordWrap` breaks at. Default 100. */
     wordWrapWidth?: number;
     /** Breaks words that do not fit on a line of their own. Default false. */
     breakWords?: boolean;
-    /** Gives the digits 0 to 9 one width, so numbers do not jitter as they change. Default false. */
+    /**
+     * Gives the digits one width, so numbers do not jitter as they change. Each digit set gets its
+     * own width: ASCII, Arabic-Indic, Persian, Devanagari, Thai, Burmese and the others. Default false.
+     */
     tabularNumbers?: boolean;
     /** Applies the font's kerning. Default true. */
     kerning?: boolean;
@@ -150,17 +172,27 @@ export interface LayoutLine {
     carets: number[];
     /** True when the line's paragraph runs right to left. */
     rtl: boolean;
+    /** True when the line was cut to fit `maxWidth` or `maxLines` and ends in the ellipsis. */
+    truncated: boolean;
     /**
      * The line's one-way runs in visual order, left to right. Set on lines that went through the bidi
      * pass (they hold right-to-left text), absent on plain left-to-right lines.
      */
     runs?: LineRun[];
+    /**
+     * Where a caret at each of `offsets` sits when it goes with the character after it, on lines with
+     * `runs`. Where the direction changes one offset has two places on screen: `carets` holds the one
+     * after the character before, `leads` the one before the character after.
+     */
+    leads?: number[];
 }
 
 /** Result of {@link layoutText}. */
 export interface TextLayout {
     /** Every character with a position, spaces included. */
     glyphs: PlacedGlyph[];
+    /** True when text was cut to fit `maxWidth` or `maxLines`. */
+    truncated: boolean;
     /** The lines, top to bottom. Empty text has one empty line. */
     lines: LayoutLine[];
     /** Width of the widest line. */
@@ -177,11 +209,46 @@ export interface TextLayout {
 
 const NBSP = String.fromCharCode(160);
 const isSpace = (c: string): boolean => c === ' ' || c === '\t' || c === NBSP;
-const isDigit = (c: string): boolean => c >= '0' && c <= '9' && c.length === 1;
-const DIGITS = '0123456789';
+/** First code point of each run of ten decimal digits: ASCII, Arabic-Indic, Persian, Indic, Thai, Lao, Tibetan, Myanmar, Khmer, Mongolian, full width. */
+const ZEROS = [
+    0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66, 0xde6, 0xe50, 0xed0,
+    0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0xff10,
+];
+/** The zero of the digit set a character belongs to, or -1 when it is not a digit. */
+const digitZero = (c: string): number => {
+    const cp = c.codePointAt(0) as number;
+
+    if (c.length !== 1) return -1;
+    for (const z of ZEROS) if (cp >= z && cp < z + 10) return z;
+
+    return -1;
+};
+const isDigit = (c: string): boolean => digitZero(c) >= 0;
 const ZWJ = '\u200d';
 const OBJECT = '\ufffc';
 const TOKEN = /\{([\w-]+)\}/g;
+
+/** An inline object token in a text, as {@link inlineTokens} finds them. */
+export interface InlineToken {
+    /** Offset of the opening brace. */
+    start: number;
+    /** Offset after the closing brace. */
+    end: number;
+    /** The name between the braces. */
+    name: string;
+}
+
+/** The `{name}` tokens of a text whose names `known` accepts, in order. Other braces stay text. */
+export function inlineTokens(text: string, known: (name: string) => boolean): InlineToken[] {
+    const out: InlineToken[] = [];
+
+    for (const m of text.matchAll(TOKEN)) {
+        if (!known(m[1])) continue;
+        out.push({ start: m.index as number, end: (m.index as number) + m[0].length, name: m[1] });
+    }
+
+    return out;
+}
 
 /** A unit of layout: a cluster drawn as one glyph, or an inline object. */
 interface Unit {
@@ -208,12 +275,27 @@ interface Row {
     to: number;
     next: number;
     last: boolean;
+    /** The line was cut to fit and ends in the ellipsis. */
+    cut?: boolean;
 }
 
 /** A row's units in visual order, with the levels after L1. */
 interface Visual {
     order: number[];
     lv: (u: number) => number;
+}
+
+/** Cursive scripts and scripts baked a word at a time: no letter spacing between their pieces. */
+const SHAPED =
+    /^\u200d?[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Myanmar}\p{Script=Khmer}\p{Script=Tibetan}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}]/u;
+const TATWEEL = '\u0640';
+const LAM = 0x644;
+const ALEFS = new Set([0x622, 0x623, 0x625, 0x627]);
+
+/** How a justified line grows: words with kashida drawn in, and extra space after some units. */
+interface Justified {
+    draw: Map<number, string>;
+    add: Map<number, number>;
 }
 
 /**
@@ -235,19 +317,46 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
     const useKerning = options.kerning ?? true;
     const direction = options.direction ?? 'auto';
     const inlines = options.inlines ?? {};
-    const tab = options.tabularNumbers ? Math.max(...Array.from(DIGITS, (d) => measure.advance(d))) : 0;
+    // with tabular numbers each digit set gets the width of its widest digit
+    const tabs = new Map<number, number>();
+    const tabFor = (c: string): number => {
+        const z = options.tabularNumbers ? digitZero(c) : -1;
+
+        if (z < 0) return 0;
+        let w = tabs.get(z);
+
+        if (w === undefined) {
+            w = 0;
+            for (let d = 0; d < 10; d++) w = Math.max(w, measure.advance(String.fromCharCode(z + d)));
+            tabs.set(z, w);
+        }
+
+        return w;
+    };
+    const tab = options.tabularNumbers ? 1 : 0;
     const advance = (c: string): number =>
-        c[0] === OBJECT ? (inlines[c.slice(1)]?.width ?? 0) : tab && isDigit(c) ? tab : measure.advance(c);
+        c[0] === OBJECT ? (inlines[c.slice(1)]?.width ?? 0) : tabFor(c) || measure.advance(c);
     const kern = (a: string, b: string): number =>
         useKerning && a[0] !== OBJECT && b[0] !== OBJECT && !(tab && (isDigit(a) || isDigit(b)))
             ? measure.kerning(a, b)
             : 0;
+    // no letter spacing inside cursive or shaped words: Arabic letters keep joining, and a word baked
+    // whole cannot take spacing inside it, so it takes none at its edges either
+    const between = (a: string, b: string): number => (spacing && SHAPED.test(a) && SHAPED.test(b) ? 0 : spacing);
+    // tab stops every tabSize spaces from the start of the line
+    const tabW = (options.tabSize ?? 8) * measure.advance(' ');
+    const step = (c: string, pos: number): number => {
+        if (c !== '\t' || tabW <= 0) return advance(c);
+        const r = pos % tabW;
+
+        return r > tabW - 1e-6 || r < 1e-6 ? tabW : tabW - r;
+    };
     const width = (chars: readonly string[], from = 0, to = chars.length): number => {
         let w = 0;
 
         for (let i = from; i < to; i++) {
-            if (i > from) w += kern(chars[i - 1], chars[i]) + spacing;
-            w += advance(chars[i]);
+            if (i > from) w += kern(chars[i - 1], chars[i]) + between(chars[i - 1], chars[i]);
+            w += step(chars[i], w);
         }
 
         return w;
@@ -272,30 +381,43 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         let t = p;
 
         // {name} tokens of listed inline objects become one box each
-        for (const m of para.matchAll(TOKEN)) {
-            if (!Object.hasOwn(inlines, m[1])) continue;
-            const at = p + (m.index as number);
-
-            addText(t, at);
-            t = at + m[0].length;
+        for (const tok of inlineTokens(para, (n) => Object.hasOwn(inlines, n))) {
+            addText(t, p + tok.start);
+            t = p + tok.end;
             units.push({
-                draw: OBJECT + m[1],
-                start: at,
+                draw: OBJECT + tok.name,
+                start: p + tok.start,
                 end: t,
                 inner: [],
                 type: 'ON',
                 breakBefore: false,
-                inline: m[1],
+                inline: tok.name,
             });
         }
         addText(t, stop);
+        // an inline box sticks to the letters and digits beside it, like part of a word, but a line
+        // may break between two boxes, or between a box and Chinese, Japanese or Korean text
+        if (options.wordBreak !== 'keep-all') {
+            for (let i = 1; i < units.length; i++) {
+                const a = units[i - 1];
+                const b = units[i];
+
+                if (!a.inline && !b.inline) continue;
+                const left = a.inline ? null : (Array.from(a.draw).pop() ?? '');
+                const right = b.inline ? null : String.fromCodePoint(b.draw.codePointAt(0) as number);
+
+                if (left === null && right === null) b.breakBefore = true;
+                else if (left !== null) b.breakBefore = isWide(left) && !noLineEnd(left);
+                else if (right !== null) b.breakBefore = isWide(right) && !noLineStart(right);
+            }
+        }
         const chars = units.map((u) => u.draw);
         const offs = units.map((u) => u.start);
 
         offs.push(stop);
         const types = units.map((u) => u.type);
         const level = bidi ? paragraphLevel(types, direction) : 0;
-        const levels = bidi ? resolveLevels(types, level) : null;
+        const levels = bidi ? resolveLevels(types, level, chars) : null;
         const ranges: [number, number][] = [];
 
         if (options.wordWrap) {
@@ -326,6 +448,119 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         p = q + 1;
     }
 
+    /** Spreads `extra` over a line: kashida in Arabic words first, then spaces, then between characters. */
+    const justify = (row: Row, extra: number): Justified | null => {
+        if (extra <= 1e-6 || row.to - row.from < 2) return null;
+        const out: Justified = { draw: new Map(), add: new Map() };
+        const tw = options.kashida === false ? 0 : measure.advance(TATWEEL);
+        // join points inside Arabic words, but never inside lam alef, which is one ligature
+        const points: [number, number][] = [];
+
+        for (let u = row.from; u < row.to; u++) {
+            const unit = row.units[u];
+
+            if (unit.type !== 'AL' || unit.inline) continue;
+            for (const o of unit.inner) {
+                const prev = text.codePointAt(o - 1) as number;
+
+                if (!(prev === LAM && ALEFS.has(text.codePointAt(o) as number))) points.push([u, o]);
+            }
+        }
+        if (tw > 0 && points.length) {
+            // at most two tatweels at each point, spread evenly
+            const n = Math.min(Math.floor(extra / tw), points.length * 2);
+            const count = new Map<number, number[]>();
+
+            for (let i = 0; i < n; i++) {
+                // spread over the whole line, not bunched at its start
+                const j = i < points.length ? Math.floor(((i + 0.5) * points.length) / Math.min(n, points.length)) : i;
+                const [u, o] = points[j % points.length];
+                const list = count.get(u) ?? [];
+
+                list.push(o);
+                count.set(u, list);
+            }
+            for (const [u, cuts] of count) {
+                const unit = row.units[u];
+                const lead = unit.draw.startsWith(ZWJ) ? 1 : 0;
+                let d = unit.draw;
+
+                // insert from the end, so earlier positions stay put
+                for (const o of [...cuts].sort((a, b) => b - a)) {
+                    const at = o - unit.start + lead;
+
+                    d = d.slice(0, at) + TATWEEL + d.slice(at);
+                }
+                extra -= measure.advance(d) - measure.advance(unit.draw);
+                out.draw.set(u, d);
+            }
+        }
+        if (extra > 1e-6) {
+            const spaces: number[] = [];
+
+            for (let u = row.from; u < row.to; u++) if (isSpace(row.chars[u])) spaces.push(u);
+            const at = spaces.length ? spaces : Array.from({ length: row.to - row.from - 1 }, (_, i) => row.from + i);
+
+            for (const u of at) out.add.set(u, extra / at.length);
+        }
+
+        return out;
+    };
+
+    // ---- overflow: a line past maxLines, or wider than its limit, is cut and ends in the ellipsis
+    const maxLines = Math.max(0, Math.floor(options.maxLines ?? 0));
+    const limit = options.wordWrap ? max : (options.maxWidth ?? Number.POSITIVE_INFINITY);
+    const ellipsis = options.ellipsis === undefined ? '\u2026' : (options.ellipsis ?? '');
+    const cutWide = options.maxWidth !== undefined || maxLines > 0;
+    let truncated = false;
+    const cut = (row: Row, force: boolean): Row => {
+        const ellW = ellipsis ? advance(ellipsis) : 0;
+        const fits = (k: number): boolean =>
+            (k > row.from ? width(row.chars, row.from, k) + (ellipsis ? spacing : 0) : 0) + ellW <= limit + 1e-6;
+        let k = row.to;
+
+        if (!force && width(row.chars, row.from, k) <= limit + 1e-6) return row;
+        while (k > row.from && !fits(k)) k--;
+        // no space before the ellipsis
+        while (k > row.from && isSpace(row.chars[k - 1])) k--;
+        const units = row.units.slice(0, k);
+        const at = row.offs[k];
+
+        if (ellipsis) units.push({ draw: ellipsis, start: at, end: at, inner: [], type: 'ON', breakBefore: false });
+        const chars = units.map((u) => u.draw);
+        const offs = units.map((u) => u.start);
+
+        offs.push(at);
+        truncated = true;
+
+        return {
+            chars,
+            offs,
+            units,
+            levels: row.levels
+                ? resolveLevels(
+                      units.map((u) => u.type),
+                      row.level,
+                      chars,
+                  )
+                : null,
+            level: row.level,
+            from: row.from,
+            to: units.length,
+            next: units.length,
+            last: true,
+            cut: true,
+        };
+    };
+
+    if (maxLines > 0 && rows.length > maxLines) {
+        rows.length = maxLines;
+        rows[maxLines - 1] = cut(rows[maxLines - 1], true);
+    }
+    if (cutWide && Number.isFinite(limit)) {
+        for (let i = 0; i < rows.length; i++) if (!rows[i].cut) rows[i] = cut(rows[i], false);
+    }
+
     // ---- bidi helpers: visual order of a row and the gaps between visual neighbours
     const visual = (row: Row): Visual => {
         const { from, to } = row;
@@ -349,7 +584,7 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
             else if (odd && a === b + 1) k = kern(row.chars[b], row.chars[a]);
         }
 
-        return k + spacing;
+        return k + between(row.chars[a], row.chars[b]);
     };
     const visuals = rows.map((r) => (r.levels ? visual(r) : null));
     const widths = rows.map((r, i) => {
@@ -360,10 +595,21 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
 
         v.order.forEach((u, k) => {
             if (k > 0) w += gap(r, v, v.order[k - 1], u);
-            w += advance(r.chars[u]);
+            w += step(r.chars[u], w);
         });
 
         return w;
+    });
+    // justify: wrapped lines grow to the full width, with kashida in Arabic, then at spaces, then
+    // between characters of text without spaces
+    const align = options.align ?? 'start';
+    const target = options.wordWrap ? max : Math.max(0, ...widths);
+    const adjust = rows.map((r, i) =>
+        align === 'justify' && !r.last && !r.cut ? justify(r, target - widths[i]) : null,
+    );
+
+    adjust.forEach((a, i) => {
+        if (a) widths[i] = target;
     });
 
     // glyphs that reach past the font's ascent or descent grow every line box
@@ -390,9 +636,20 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
     const lineHeight = options.lineHeight ?? fontHeight;
     const shift = Math.max(0, (lineHeight - fontHeight) / 2);
     const blockWidth = Math.max(0, ...widths);
-    const align = options.align ?? 'start';
     const glyphs: PlacedGlyph[] = [];
     const out: LayoutLine[] = [];
+    /**
+     * Where a caret inside a cluster sits, from its start: the middle of the shaped prefix and the
+     * whole less the shaped rest. A word that reorders its vowels (Burmese, Indic) shapes its pieces
+     * a little differently, and the average lands closer. Never moves back past `done`.
+     */
+    const innerX = (u: Unit, o: number, full: number, done: number): number => {
+        const join = u.type === 'AL' ? ZWJ : '';
+        const head = measure.advance(text.slice(u.start, o) + join);
+        const tail = measure.advance(join + text.slice(o, u.end));
+
+        return Math.min(full, Math.max(done, (head + full - tail) / 2));
+    };
     const placed = (u: Unit, char: string, x: number, y: number, line: number): PlacedGlyph =>
         u.inline
             ? { char: OBJECT, x, y, line, index: u.start, inline: u.inline }
@@ -403,12 +660,25 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         const rtl = row.level === 1;
         const y = li * lineHeight + ascent + shift;
         const lw = widths[li];
-        const side = align === 'start' ? (rtl ? 'right' : 'left') : align === 'end' ? (rtl ? 'left' : 'right') : align;
+        const adj = adjust[li];
+        const drawOf = (u: number): string => adj?.draw.get(u) ?? chars[u];
+        const extra = (u: number): number => adj?.add.get(u) ?? 0;
+        const side =
+            align === 'start' || align === 'justify'
+                ? rtl
+                    ? 'right'
+                    : 'left'
+                : align === 'end'
+                  ? rtl
+                      ? 'left'
+                      : 'right'
+                  : align;
         const x0 = side === 'center' ? (blockWidth - lw) / 2 : side === 'right' ? blockWidth - lw : 0;
         const offsets: number[] = [offs[from]];
         const carets: number[] = [x0];
         const v = visuals[li];
         let runs: LineRun[] | undefined;
+        let leads: number[] | undefined;
 
         if (!v) {
             let x = x0;
@@ -417,7 +687,7 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
                 const c = chars[i];
 
                 if (i > from) {
-                    const g = kern(chars[i - 1], c) + spacing;
+                    const g = kern(chars[i - 1], c) + between(chars[i - 1], c);
 
                     // the caret sits in the middle of the gap between two characters
                     offsets.push(offs[i]);
@@ -425,16 +695,23 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
                     x += g;
                 }
                 // tabular digits sit centred in their widened box
-                const centre = tab && isDigit(c) ? (tab - measure.advance(c)) / 2 : 0;
+                const centre = tab && isDigit(c) ? (tabFor(c) - measure.advance(c)) / 2 : 0;
 
                 const unit = row.units[i];
+                const d = drawOf(i);
+                const w = step(d, x - x0);
+                // kashida stretched the word: inner carets stretch with it
+                const stretch = d === c ? 1 : w / advance(c);
 
-                glyphs.push(placed(unit, c, x + centre, y, li));
+                glyphs.push(placed(unit, d, x + centre, y, li));
+                let done = 0;
+
                 for (const o of unit.inner) {
+                    done = innerX(unit, o, advance(c), done);
                     offsets.push(o);
-                    carets.push(x + Math.min(advance(c), measure.advance(text.slice(unit.start, o))));
+                    carets.push(x + done * stretch);
                 }
-                x += advance(c);
+                x += w + extra(i);
             }
             if (to > from) {
                 offsets.push(offs[to]);
@@ -457,13 +734,15 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
 
                 if (k > 0) x += gap(row, v, prev, u);
                 const c = chars[u];
+                const d = drawOf(u);
                 const odd = (v.lv(u) & 1) === 1;
-                const centre = tab && isDigit(c) ? (tab - measure.advance(c)) / 2 : 0;
+                const centre = tab && isDigit(c) ? (tabFor(c) - measure.advance(c)) / 2 : 0;
 
-                glyphs.push(placed(row.units[u], odd ? mirror(c) : c, x + centre, y, li));
+                glyphs.push(placed(row.units[u], odd ? mirror(d) : d, x + centre, y, li));
                 left[u] = x;
-                x += advance(c);
+                x += step(d, x - x0);
                 right[u] = x;
+                x += extra(u);
                 // one-way runs: neighbours of one direction that follow each other in reading order
                 const run = runs?.[runs.length - 1];
                 const unit = row.units[u];
@@ -480,28 +759,34 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
 
             offsets.length = 0;
             carets.length = 0;
+            leads = [];
             if (to === from) {
                 offsets.push(offs[from]);
                 carets.push(rtl ? x0 + lw : x0);
+                leads.push(carets[0]);
             }
             for (let u = from; u < to; u++) {
                 // a caret sits after the character before it, in that character's direction
                 offsets.push(offs[u]);
                 carets.push(u === from ? lead(u) : trail(u - 1));
+                leads.push(lead(u));
                 const unit = row.units[u];
                 const full = right[u] - left[u];
                 let done = 0;
 
+                const stretch = full / (advance(chars[u]) || full || 1);
+
                 for (const o of unit.inner) {
-                    // inside a joined run: the width of the shaped prefix, still joined at its end
-                    done = Math.min(full, Math.max(done, measure.advance(text.slice(unit.start, o) + ZWJ)));
+                    done = innerX(unit, o, advance(chars[u]), done);
                     offsets.push(o);
-                    carets.push(odd(u) ? right[u] - done : left[u] + done);
+                    carets.push(odd(u) ? right[u] - done * stretch : left[u] + done * stretch);
+                    leads.push(carets[carets.length - 1]);
                 }
             }
             if (to > from) {
                 offsets.push(offs[to]);
                 carets.push(trail(to - 1));
+                leads.push(carets[carets.length - 1]);
             }
             // spaces a wrap removed hang past the end of the line, on the paragraph's side
             let hx = rtl ? x0 : x0 + lw;
@@ -510,10 +795,11 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
                 hx += rtl ? -(advance(chars[i]) + spacing) : advance(chars[i]) + spacing;
                 offsets.push(offs[i + 1]);
                 carets.push(hx);
+                leads.push(hx);
             }
         }
         out.push({
-            text: text.slice(offs[from], offs[to]),
+            text: text.slice(offs[from], offs[to]) + (row.cut && ellipsis ? ellipsis : ''),
             width: lw,
             y,
             x: x0,
@@ -522,15 +808,17 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
             start: offs[from],
             end: offs[row.next],
             wrapped: !row.last,
+            truncated: !!row.cut,
             offsets,
             carets,
             rtl,
-            ...(runs ? { runs } : {}),
+            ...(runs ? { runs, leads } : {}),
         });
     });
 
     return {
         glyphs,
+        truncated,
         lines: out,
         width: blockWidth,
         height: rows.length ? Math.max(lineHeight, fontHeight) + (rows.length - 1) * lineHeight : 0,
@@ -640,6 +928,8 @@ export interface CaretHit {
      * right of it in right-to-left text.
      */
     before: boolean;
+    /** True when the caret goes with the character after `index` (see {@link LayoutLine.leads}). */
+    leading: boolean;
 }
 
 /** A caret position in layout units: a vertical segment from `top` to `bottom` at `x`. */
@@ -675,6 +965,7 @@ export function caretAtPoint(layout: TextLayout, x: number, y: number, isStop?: 
     const line = lines[li];
     let best = 0;
     let dist = Infinity;
+    let leading = false;
 
     for (let i = 0; i < line.offsets.length; i++) {
         if (isStop && i > 0 && i < line.offsets.length - 1 && !isStop(line.offsets[i])) continue;
@@ -683,18 +974,28 @@ export function caretAtPoint(layout: TextLayout, x: number, y: number, isStop?: 
         if (d < dist) {
             dist = d;
             best = i;
+            leading = false;
+        }
+        // where the direction changes, the same offset also sits before the next character
+        const l = line.leads?.[i];
+
+        if (l !== undefined && Math.abs(l - x) < dist - 1e-6) {
+            dist = Math.abs(l - x);
+            best = i;
+            leading = true;
         }
     }
     const last = best === line.offsets.length - 1;
     // in a right-to-left run the character under a point right of the caret is the one before it
     const run = line.runs?.find((r) => x >= r.left && x < r.right);
-    const cx = line.carets[best];
+    const cx = leading ? (line.leads as number[])[best] : line.carets[best];
 
     return {
         index: line.offsets[best],
         line: li,
         upstream: last && line.wrapped && line.offsets.length > 1,
         before: (run?.rtl ?? line.rtl) ? x > cx : x < cx,
+        leading,
     };
 }
 
@@ -714,10 +1015,14 @@ export function lineOfIndex(layout: TextLayout, index: number, upstream = false)
     return lines.length - 1;
 }
 
-/** The x of a caret at `index` on line `li`: the nearest caret stop at or before it. */
-export function caretX(layout: TextLayout, li: number, index: number): number {
+/**
+ * The x of a caret at `index` on line `li`: the nearest caret stop at or before it. `leading` puts
+ * it before the character after it where the direction changes (see {@link LayoutLine.leads}).
+ */
+export function caretX(layout: TextLayout, li: number, index: number, leading = false): number {
     const line = layout.lines[li];
-    const { offsets, carets } = line;
+    const offsets = line.offsets;
+    const carets = leading && line.leads ? line.leads : line.carets;
 
     if (index <= offsets[0]) return carets[0];
     for (let i = offsets.length - 1; i >= 0; i--) if (offsets[i] <= index) return carets[i];
@@ -725,12 +1030,76 @@ export function caretX(layout: TextLayout, li: number, index: number): number {
     return carets[0];
 }
 
-/** Where to draw a caret at `index`, in the layout's units. */
-export function caretRect(layout: TextLayout, index: number, upstream = false): CaretRect {
+/** A caret stop: a source offset and the side it goes with, as {@link caretVisual} returns it. */
+export interface CaretStop {
+    /** Source offset. */
+    index: number;
+    /** True when the caret goes with the character after `index` (see {@link LayoutLine.leads}). */
+    leading: boolean;
+}
+
+/**
+ * The caret stop one step left (`dir` -1) or right (1) on screen from `index`, on the same line.
+ * In a line that mixes directions this follows what the eye sees, not the order of the text. The
+ * arrow keys then move the way they point, and a caret can reach both places an offset has where
+ * the direction changes. Returns null on a line that runs left to right only, or at the line's edge:
+ * step through the text instead there. `isStop` filters the stops, for example to grapheme or word
+ * boundaries.
+ */
+export function caretVisual(
+    layout: TextLayout,
+    index: number,
+    dir: number,
+    upstream = false,
+    isStop?: (index: number) => boolean,
+    leading = false,
+): CaretStop | null {
     const li = lineOfIndex(layout, index, upstream);
     const line = layout.lines[li];
 
-    return { x: caretX(layout, li, index), top: line.y - layout.ascent, bottom: line.y + layout.descent, line: li };
+    if (!line.runs) return null;
+    const x = caretX(layout, li, index, leading);
+    let best: CaretStop | null = null;
+    let bestD = Infinity;
+    const consider = (o: number, cx: number, lead: boolean): void => {
+        if (isStop && !isStop(o)) return;
+        const d = (cx - x) * Math.sign(dir);
+
+        // the nearest place on that side; places that share an x go in reading order
+        if (d <= 1e-6) return;
+        if (
+            d < bestD - 1e-6 ||
+            (Math.abs(d - bestD) <= 1e-6 && best && Math.abs(o - index) < Math.abs(best.index - index))
+        ) {
+            best = { index: o, leading: lead };
+            bestD = d;
+        }
+    };
+
+    line.offsets.forEach((o, i) => {
+        consider(o, line.carets[i], false);
+        const l = line.leads?.[i];
+
+        if (l !== undefined && Math.abs(l - line.carets[i]) > 1e-6) consider(o, l, true);
+    });
+
+    return best;
+}
+
+/**
+ * Where to draw a caret at `index`, in the layout's units. `leading` puts it before the character
+ * after it where the direction changes.
+ */
+export function caretRect(layout: TextLayout, index: number, upstream = false, leading = false): CaretRect {
+    const li = lineOfIndex(layout, index, upstream);
+    const line = layout.lines[li];
+
+    return {
+        x: caretX(layout, li, index, leading),
+        top: line.y - layout.ascent,
+        bottom: line.y + layout.descent,
+        line: li,
+    };
 }
 
 /**

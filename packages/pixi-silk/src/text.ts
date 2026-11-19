@@ -24,14 +24,18 @@ export {
 } from './text/bidi';
 export { type Cluster, clusters, type WordBreak } from './text/cluster';
 export { sdfFromAlpha } from './text/edt';
-export { silkLabel } from './text/label';
+export { silkLabel, silkRichLabel } from './text/label';
 export {
     type CaretHit,
     type CaretRect,
+    type CaretStop,
     caretAtPoint,
     caretRect,
+    caretVisual,
     caretX,
     type InlineMetrics,
+    type InlineToken,
+    inlineTokens,
     type LayoutLine,
     type LayoutOptions,
     type LineRun,

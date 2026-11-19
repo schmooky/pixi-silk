@@ -25,6 +25,11 @@ export interface Glyph {
     left: number;
     /** Top edge of the cell relative to the baseline (negative is above it). */
     top: number;
+    /**
+     * Where a colour glyph (an emoji) keeps its colours: the top left of a cell of the same size in
+     * {@link SdfAtlas.colorSource}. Absent for one-colour glyphs.
+     */
+    color?: { x: number; y: number };
 }
 
 /** Vertical metrics of a font at the atlas size, measured the way PixiJS `Text` measures them. */
@@ -124,6 +129,24 @@ interface Shelf {
 /** Pixi's metrics string: ascent and descent of these cover accents and descenders. */
 const METRICS = '|ÉqÅM';
 const NO_INK: Omit<Glyph, 'left' | 'top'> = { x: 0, y: 0, w: 0, h: 0 };
+/** Width of the colour texture in texels. */
+const COLOR_WIDTH = 512;
+/** Starting height of the colour texture. */
+const COLOR_START = 16;
+
+/** True when some inked pixel of the box is not black: the glyph comes from a colour font. */
+function hasColor(pixels: ArrayLike<number>, w: number, x0: number, y0: number, x1: number, y1: number): boolean {
+    for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+            const i = (y * w + x) * 4;
+
+            if (pixels[i + 3] > 32 && pixels[i] + pixels[i + 1] + pixels[i + 2] > 48) return true;
+        }
+    }
+
+    return false;
+}
+
 /** Object replacement character: stands for inline objects, never baked. */
 const OBJECT = '\ufffc';
 
@@ -192,6 +215,12 @@ export class SdfAtlas {
 
     private _data: Uint8Array;
     private _source: BufferImageSource;
+    private _cData: Uint8Array;
+    private _cSource: BufferImageSource;
+    private _cHeight = COLOR_START;
+    private _cShelves: Shelf[] = [];
+    private _cNextY = 0;
+    private _cDirty = false;
     private readonly _shaders = new Set<Shader>();
     private _height: number;
     private readonly _width: number;
@@ -214,6 +243,21 @@ export class SdfAtlas {
         this._data = new Uint8Array(this._width * this._height);
         this._ctx = options.context ?? null;
         this._source = this._createSource();
+        this._cData = new Uint8Array(COLOR_WIDTH * this._cHeight * 4);
+        this._cSource = this._createColorSource();
+    }
+
+    /**
+     * The RGBA texture with the colours of colour glyphs (emoji), premultiplied. It starts small and
+     * grows like {@link SdfAtlas.source}. Read it again after {@link SdfAtlas.flush}.
+     */
+    get colorSource(): BufferImageSource {
+        return this._cSource;
+    }
+
+    /** How full the atlas is, 0 to 1: the share of its largest texture that holds glyphs. Near 1 it will start over soon. */
+    get usage(): number {
+        return Math.min(1, this._nextY / this._maxHeight);
     }
 
     /**
@@ -232,6 +276,8 @@ export class SdfAtlas {
         this._shaders.add(shader);
         shader.resources.uAtlas = this._source;
         shader.resources.uAtlasSampler = this._source.style;
+        shader.resources.uColorAtlas = this._cSource;
+        shader.resources.uColorSampler = this._cSource.style;
     }
 
     /** @internal Stops updating a shader passed to {@link SdfAtlas.track}. */
@@ -300,6 +346,17 @@ export class SdfAtlas {
     }
 
     /**
+     * The box `measureText` reports for a string at {@link SdfAtlas.size}: its ink above and below
+     * the baseline, and its advance. Nothing is baked. Stacked marks may reach past it, see
+     * {@link SdfAtlas.ink} for the exact ink of one glyph.
+     */
+    measure(font: FontSpec, text: string): { ascent: number; descent: number; width: number } {
+        const m = this._context(this._font(font).css).measureText(text);
+
+        return { ascent: m.actualBoundingBoxAscent, descent: m.actualBoundingBoxDescent, width: m.width };
+    }
+
+    /**
      * Where a glyph's ink reaches, from its baked pixels, at {@link SdfAtlas.size}: up from the
      * baseline (`ascent`) and down from it (`descent`). Zero for glyphs with no ink. Bakes the glyph.
      */
@@ -313,6 +370,19 @@ export class SdfAtlas {
 
     /** Uploads the texture if glyphs were baked since the last call. */
     flush(): void {
+        if (this._cDirty) {
+            this._cDirty = false;
+            if (this._cSource.resource !== this._cData) {
+                const old = this._cSource;
+
+                this._cSource = this._createColorSource();
+                for (const shader of this._shaders) {
+                    shader.resources.uColorAtlas = this._cSource;
+                    shader.resources.uColorSampler = this._cSource.style;
+                }
+                setTimeout(() => old.destroy(), 0);
+            } else this._cSource.update();
+        }
         if (!this._dirty) return;
         this._dirty = false;
         if (this._source.resource !== this._data) {
@@ -339,7 +409,11 @@ export class SdfAtlas {
         this._shelves = [];
         this._nextY = 0;
         this._data.fill(0);
+        this._cShelves = [];
+        this._cNextY = 0;
+        this._cData.fill(0);
         this._dirty = true;
+        this._cDirty = true;
         this.version++;
     }
 
@@ -348,6 +422,7 @@ export class SdfAtlas {
         this._fonts.clear();
         this._shaders.clear();
         this._source.destroy();
+        this._cSource.destroy();
         if (SdfAtlas._shared === this) SdfAtlas._shared = null;
     }
 
@@ -366,6 +441,50 @@ export class SdfAtlas {
             autoGenerateMipmaps: false,
             label: 'silk-text-atlas',
         });
+    }
+
+    private _createColorSource(): BufferImageSource {
+        return new BufferImageSource({
+            resource: this._cData,
+            width: COLOR_WIDTH,
+            height: this._cHeight,
+            format: 'rgba8unorm',
+            alphaMode: 'premultiplied-alpha',
+            scaleMode: 'linear',
+            addressMode: 'clamp-to-edge',
+            autoGenerateMipmaps: false,
+            label: 'silk-text-colors',
+        });
+    }
+
+    /** Shelf packing in the colour texture, which grows to {@link SdfAtlas} `maxHeight` like the other. */
+    private _placeColor(w: number, h: number): { x: number; y: number } | null {
+        if (w > COLOR_WIDTH) return null;
+        for (const shelf of this._cShelves) {
+            if (h <= shelf.h && h >= shelf.h * 0.7 && shelf.x + w <= COLOR_WIDTH) {
+                const x = shelf.x;
+
+                shelf.x += w + 1;
+
+                return { x, y: shelf.y };
+            }
+        }
+        while (this._cNextY + h > this._cHeight) {
+            if (this._cHeight >= this._maxHeight) return null;
+            const height = Math.min(this._maxHeight, this._cHeight * 2);
+            const data = new Uint8Array(COLOR_WIDTH * height * 4);
+
+            data.set(this._cData);
+            this._cData = data;
+            this._cHeight = height;
+            this._cDirty = true;
+        }
+        const shelf = { y: this._cNextY, h, x: w + 1 };
+
+        this._cShelves.push(shelf);
+        this._cNextY += h + 1;
+
+        return { x: 0, y: shelf.y };
     }
 
     private _context(css: string): GlyphContext {
@@ -480,8 +599,33 @@ export class SdfAtlas {
 
         for (let row = 0; row < h; row++) data.set(field.subarray(row * w, row * w + w), (at.y + row) * W + at.x);
         this._dirty = true;
+        const glyph: Glyph = { x: at.x, y: at.y, w, h, left: x0 - pad - penX, top: y0 - pad - baseY };
 
-        return { x: at.x, y: at.y, w, h, left: x0 - pad - penX, top: y0 - pad - baseY };
+        // drawn in black: pixels with colour mean a colour font (emoji). Keep its colours too.
+        if (hasColor(pixels, rw, x0, y0, x1, y1)) {
+            const c = this._placeColor(w, h);
+
+            if (c) {
+                const cd = this._cData;
+
+                for (let row = y0; row < y1; row++) {
+                    for (let col = x0; col < x1; col++) {
+                        const src = (row * rw + col) * 4;
+                        const dst = ((c.y + row - y0 + pad) * COLOR_WIDTH + c.x + col - x0 + pad) * 4;
+                        const a = pixels[src + 3];
+
+                        cd[dst] = (pixels[src] * a) / 255;
+                        cd[dst + 1] = (pixels[src + 1] * a) / 255;
+                        cd[dst + 2] = (pixels[src + 2] * a) / 255;
+                        cd[dst + 3] = a;
+                    }
+                }
+                this._cDirty = true;
+                glyph.color = c;
+            }
+        }
+
+        return glyph;
     }
 
     /** Shelf packing: rows of similar height, left to right. Grows the texture, or null when it cannot. */

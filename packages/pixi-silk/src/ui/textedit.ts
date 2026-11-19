@@ -13,9 +13,18 @@ import { type Command, History, type HistoryLike } from '../history';
 import { damp, Spring } from '../motion';
 import { SilkGraphics } from '../SilkGraphics';
 import { type ReadSignal, type Signal, signal } from '../signal';
-import { type CaretHit, caretAtPoint, lineOfIndex } from '../text/layout';
+import { type CaretHit, caretAtPoint, caretVisual, inlineTokens, lineOfIndex } from '../text/layout';
+import { InlinePlacer, type RichInline } from '../text/rich';
 import { SilkText, type SilkTextOptions } from '../text/SilkText';
-import { graphemeStops, isMac, nextWordStop, paragraphAt, previousWordStop, wordAt } from '../text/segment';
+import {
+    graphemeStops,
+    isMac,
+    nextWordStop,
+    paragraphAt,
+    previousWordStop,
+    wordAt,
+    wordSegments,
+} from '../text/segment';
 import { Driver } from './driver';
 
 /** A selection: where it started (`anchor`) and where the caret is (`focus`). Equal for a plain caret. */
@@ -50,7 +59,7 @@ export const TEXT_EDITOR_THEME: Readonly<TextEditorTheme> = {
 };
 
 /** Options of a {@link TextEditor}: the text style plus how it edits. */
-export interface TextEditorOptions extends Omit<SilkTextOptions, 'wordWrap' | 'wordWrapWidth' | 'label'> {
+export interface TextEditorOptions extends Omit<SilkTextOptions, 'wordWrap' | 'wordWrapWidth' | 'label' | 'inlines'> {
     /** Starting text. Default empty. */
     text?: string;
     /** Several lines (a text area) or one (an input). Default true. */
@@ -102,6 +111,11 @@ export interface TextEditorOptions extends Omit<SilkTextOptions, 'wordWrap' | 'w
     caretWidth?: number;
     /** Ticker driving the caret blink. Default `Ticker.shared`. `null` for manual {@link TextEditor.tick}. */
     ticker?: Ticker | null;
+    /**
+     * Objects shown where `{name}` appears in the text, as in {@link SilkRichText}. Typing a token
+     * turns it into its object, the caret steps over it whole and one Backspace deletes it. Default none.
+     */
+    inlines?: Record<string, RichInline>;
 }
 
 /** The reactive state of a {@link TextEditor}. */
@@ -188,7 +202,9 @@ const scratch = new Matrix();
  * Events: `focus`, `blur`, `input` (every edit), `change` (on commit, when the text changed), `submit`
  * (Enter in a single-line editor) and `tab`. The same values are on {@link TextEditor.state}.
  *
- * Rich text (mixed styles in one editor) and right-to-left text are not supported.
+ * Right-to-left and mixed-direction text edits in place: the arrow keys move the way they point on
+ * screen, and a selection across a change of direction shows as several boxes. `{name}` tokens show
+ * inline objects (see `inlines`). Mixed styles in one editor are not supported.
  *
  * Experimental: the API may change in a minor release.
  *
@@ -266,6 +282,8 @@ export class TextEditor extends Container {
     private _anchor = 0;
     private _focus = 0;
     private _upstream = false;
+    /** The caret goes with the character after it, where one offset has two places on screen. */
+    private _lead = false;
     private _prefX: number | null = null;
     private _stops: number[] = [0];
     private _stopSet = new Set<number>([0]);
@@ -305,6 +323,7 @@ export class TextEditor extends Container {
     private _keepFocus = false;
     private _focusedAt = -Infinity;
     private readonly _mac = isMac();
+    private readonly _placer: InlinePlacer;
 
     constructor(options: TextEditorOptions = {}) {
         super({ label: 'TextEditor' });
@@ -325,6 +344,7 @@ export class TextEditor extends Container {
             theme,
             caretWidth = 1.5,
             ticker,
+            inlines = {},
             ...style
         } = options;
 
@@ -347,6 +367,7 @@ export class TextEditor extends Container {
         this.textObject = new SilkText({ ...style, text: this._text, wordWrap: wrap, wordWrapWidth: width ?? 100 });
         this.placeholderObject = new SilkText({ ...style, text: placeholder, wordWrap: wrap, wordWrapWidth: width });
         this.placeholderObject.alpha = this.theme.placeholderAlpha;
+        this._placer = new InlinePlacer(this.textObject, inlines);
         this.textObject.eventMode = 'none';
         this.placeholderObject.eventMode = 'none';
         this._knobs.eventMode = 'none';
@@ -402,6 +423,18 @@ export class TextEditor extends Container {
     /** Sets {@link TextEditor.value}. */
     set value(v: string) {
         this._sig.text.value = this._clean(String(v));
+    }
+
+    /** Objects shown where `{name}` appears in the text. Set a new object to change them. */
+    get inlines(): Record<string, RichInline> {
+        return this._placer.defs;
+    }
+
+    /** Sets {@link TextEditor.inlines}. */
+    set inlines(v: Record<string, RichInline>) {
+        this._placer.defs = v;
+        this._stopsFor();
+        this.redraw();
     }
 
     /** True while the editor has keyboard focus. */
@@ -622,19 +655,48 @@ export class TextEditor extends Container {
             case 'ArrowLeft':
             case 'ArrowRight': {
                 // in a right-to-left paragraph the left arrow moves forward through the text
-                const rtl =
-                    this.textObject.layout.lines[lineOfIndex(this.textObject.layout, this._focus, this._upstream)]?.rtl;
-                const dir = (key === 'ArrowLeft' ? -1 : 1) * (rtl ? -1 : 1);
+                const layout = this.textObject.layout;
+                const rtl = layout.lines[lineOfIndex(layout, this._focus, this._upstream)]?.rtl;
+                const screen = key === 'ArrowLeft' ? -1 : 1;
+                const dir = screen * (rtl ? -1 : 1);
 
                 if (mac && e.metaKey) this._lineMove(dir, extend);
                 else if (byWord) {
-                    this._moveTo(
-                        dir < 0 ? previousWordStop(text, this._focus) : nextWordStop(text, this._focus, mac),
-                        extend,
-                    );
+                    // in a line that mixes directions, jump to the next word edge on screen
+                    const li = lineOfIndex(layout, this._focus, this._upstream);
+                    const edges = new Set(wordSegments(text).flatMap((w) => (w.word ? [w.start, w.end] : [])));
+                    const seen = layout.lines[li].runs
+                        ? caretVisual(layout, this._focus, screen, this._upstream, (i) => edges.has(i), this._lead)
+                        : null;
+
+                    if (seen) this._moveTo(seen.index, extend, false, false, seen.leading);
+                    else {
+                        this._moveTo(
+                            dir < 0 ? previousWordStop(text, this._focus) : nextWordStop(text, this._focus, mac),
+                            extend,
+                        );
+                    }
                 } else if (!extend && this._anchor !== this._focus) {
                     this._moveTo(dir < 0 ? this.selectionStart : this.selectionEnd, false);
-                } else this._moveTo(this._step1(this._focus, dir), extend);
+                } else {
+                    // in a line that mixes directions, follow the screen; at its edge, the text
+                    const li = lineOfIndex(layout, this._focus, this._upstream);
+                    const seen = layout.lines[li].runs
+                        ? caretVisual(
+                              layout,
+                              this._focus,
+                              screen,
+                              this._upstream,
+                              (i) => this._stopSet.has(i),
+                              this._lead,
+                          )
+                        : null;
+                    const next = this._step1(this._focus, dir);
+
+                    // at the edge of a mixed line, go on to the next line, never back along this one
+                    if (seen !== null) this._moveTo(seen.index, extend, false, false, seen.leading);
+                    else if (!layout.lines[li].runs || lineOfIndex(layout, next) !== li) this._moveTo(next, extend);
+                }
 
                 return true;
             }
@@ -727,12 +789,21 @@ export class TextEditor extends Container {
         if (this._width !== undefined && this._multiline) {
             const rtl = layout.lines[0]?.rtl ?? false;
             const align =
-                t.align === 'start' ? (rtl ? 'right' : 'left') : t.align === 'end' ? (rtl ? 'left' : 'right') : t.align;
+                t.align === 'start' || t.align === 'justify'
+                    ? rtl
+                        ? 'right'
+                        : 'left'
+                    : t.align === 'end'
+                      ? rtl
+                          ? 'left'
+                          : 'right'
+                      : t.align;
             const shift = align === 'center' ? (box - layout.width) / 2 : align === 'right' ? box - layout.width : 0;
 
             t.x = shift;
             this.placeholderObject.x = shift;
         }
+        this._placer.sync();
         const k = this._screenScale();
         const off = t.layoutOffset;
         const w = Math.max(box, layout.width, empty ? this.placeholderObject.layout.width : 0, t.fontSize * 0.5);
@@ -761,6 +832,7 @@ export class TextEditor extends Container {
         this._off.length = 0;
         this._field?.remove();
         this._field = null;
+        this._placer.destroy();
         super.destroy(options);
     }
 
@@ -778,7 +850,10 @@ export class TextEditor extends Container {
     }
 
     private _stopsFor(): void {
-        this._stops = graphemeStops(this._text);
+        // an inline object token is one step: no stops inside its braces
+        const tokens = inlineTokens(this._text, (n) => Object.hasOwn(this._placer.defs, n));
+
+        this._stops = graphemeStops(this._text).filter((o) => !tokens.some((t) => o > t.start && o < t.end));
         this._stopSet = new Set(this._stops);
     }
 
@@ -852,10 +927,11 @@ export class TextEditor extends Container {
         return true;
     }
 
-    private _setSelection(anchor: number, focus: number, upstream = false, keepX = false): void {
+    private _setSelection(anchor: number, focus: number, upstream = false, keepX = false, lead = false): void {
         this._anchor = anchor;
         this._focus = focus;
         this._upstream = upstream;
+        this._lead = lead;
         if (!keepX) this._prefX = null;
         this._idle = 0;
         this._sig.selection.value = { anchor, focus };
@@ -864,11 +940,11 @@ export class TextEditor extends Container {
         this._driver.wake();
     }
 
-    private _moveTo(i: number, extend: boolean, upstream = false, keepX = false): void {
+    private _moveTo(i: number, extend: boolean, upstream = false, keepX = false, lead = false): void {
         const f = this._snap(i);
 
         this._session++;
-        this._setSelection(extend ? this._anchor : f, f, upstream, keepX);
+        this._setSelection(extend ? this._anchor : f, f, upstream, keepX, lead);
     }
 
     private _lineMove(dir: number, extend: boolean): void {
@@ -883,7 +959,7 @@ export class TextEditor extends Container {
     private _vertical(dir: number, extend: boolean): void {
         const t = this.textObject;
         const layout = t.layout;
-        const r = t.caretRect(this._focus, this._upstream);
+        const r = t.caretRect(this._focus, this._upstream, this._lead);
         const x = this._prefX ?? r.x;
         const li = r.line + dir;
 
@@ -1143,7 +1219,7 @@ export class TextEditor extends Container {
         const el = this._element;
 
         if (!f || !el?.getBoundingClientRect) return;
-        const r = this.textObject.caretRect(this._focus, this._upstream);
+        const r = this.textObject.caretRect(this._focus, this._upstream, this._lead);
         const top = this.textObject.toGlobal({ x: r.x, y: r.top });
         const bottom = this.textObject.toGlobal({ x: r.x, y: r.bottom });
         const box = el.getBoundingClientRect();
@@ -1280,13 +1356,13 @@ export class TextEditor extends Container {
             p.origin = range;
         }
         this._session++;
-        if (unit === 'char') this._setSelection(extend ? this._anchor : i, i, hit.upstream);
+        if (unit === 'char') this._setSelection(extend ? this._anchor : i, i, hit.upstream, false, hit.leading);
         else this._setSelection(this._snap(range.start), this._snap(range.end));
     }
 
     private _extend(hit: CaretHit, unit: 'char' | 'word' | 'paragraph', origin: { start: number; end: number }): void {
         if (unit === 'char') {
-            this._setSelection(this._anchor, hit.index, hit.upstream);
+            this._setSelection(this._anchor, hit.index, hit.upstream, false, hit.leading);
 
             return;
         }
@@ -1400,7 +1476,7 @@ export class TextEditor extends Container {
         const t = this.textObject;
         const g = this._caret;
         const show = this.focused && !this._readOnly && this._anchor === this._focus;
-        const r = t.caretRect(this._focus, this._upstream);
+        const r = t.caretRect(this._focus, this._upstream, this._lead);
 
         if (moved) {
             this._caretX.target = r.x;

@@ -39,20 +39,26 @@ describe('clusters', () => {
         expect(parts.length).toBeLessThanOrEqual(2);
         // no cluster starts with a sign that belongs to the consonant before it
         expect(parts.every((c) => !/^\p{M}/u.test(c.draw))).toBe(true);
-        // "the last one": a prefix vowel (U+1031) that Canvas draws before its consonant
-        const last = 'နောက\u103aဆ\u102f\u1036း';
+        // "thanks": a prefix vowel (U+1031) that Canvas draws before its consonant stays with it
+        const thanks = '\u1000\u103b\u1031\u1038\u1007\u1030\u1038';
+        const tp = clusters(thanks);
 
-        expect(draws(last).join('')).toBe(last);
-        expect(draws(last).length).toBeLessThan(3);
+        expect(tp.map((c) => c.draw).join('')).toBe(thanks);
+        expect(tp.every((c) => !c.draw.startsWith('\u1031'))).toBe(true);
     });
 
-    it('splits Thai into words and lets lines break between them', () => {
+    it('bakes Thai a cluster at a time and lets lines break between its words', () => {
         const text = 'สว\u0e31สด\u0e35คร\u0e31บ';
         const parts = clusters(text);
 
         expect(parts.length).toBeGreaterThan(1);
         expect(parts.map((c) => c.draw).join('')).toBe(text);
-        expect(parts.slice(1).every((c) => c.breakBefore)).toBe(true);
+        // Thai is baked a grapheme at a time, and lines break only between its words
+        const starts = parts.filter((c) => c.breakBefore).map((c) => c.start);
+
+        expect(starts.length).toBeGreaterThan(0);
+        expect(starts.length).toBeLessThan(parts.length - 1);
+        expect(parts.every((c) => !/^\p{M}/u.test(c.draw))).toBe(true);
     });
 
     it('keeps Indic conjuncts in one glyph', () => {
@@ -138,7 +144,7 @@ describe('layoutText across scripts', () => {
 
     it('makes room for inline objects', () => {
         const inlines = { coin: { width: 12, ascent: 9, descent: 3 } };
-        const l = layoutText('Win {coin} 5', { ...metrics, inlines }, mono);
+        const l = layoutText('Pay {coin} 5', { ...metrics, inlines }, mono);
         const coin = l.glyphs.find((g) => g.inline === 'coin');
 
         expect(coin).toMatchObject({ char: '￼', x: 40, index: 4 });
@@ -307,5 +313,393 @@ describe('inline objects', () => {
         expect(coin.destroyed).toBe(false);
         expect(gems[0].destroyed).toBe(true);
         atlas.destroy();
+    });
+});
+
+// ------------------------------------------------------------------------------- anchors, labels
+
+describe('SilkRichText anchors', () => {
+    const shape = (w: number, h: number) => () => {
+        const c = new Container();
+
+        c.boundsArea = { x: 0, y: 0, width: w, height: h } as never;
+
+        return c;
+    };
+    const make = (text: string, extra = {}) =>
+        new SilkRichText({
+            text,
+            fontFamily: 'Test',
+            fontSize: 20,
+            atlas: new SdfAtlas({ context: paintContext() }),
+            inlines: { icon: { object: shape(10, 10), height: 10 } },
+            ...extra,
+        });
+    /** Where the first inline object is, against its box. */
+    const placed = (r: SilkRichText) => {
+        const rect = r.textObject.inlineRects()[0];
+        const obj = r.children.find((c) => c !== r.textObject) as Container;
+
+        return { rect, x: obj.position.x, y: obj.position.y };
+    };
+
+    it('moves the objects with the anchor', () => {
+        const r = make('ab {icon} cd');
+        const at0 = placed(r);
+        const w = r.textObject.layout.width;
+        const h = r.textObject.layout.height;
+
+        r.anchor.set(0.5);
+        r.sync();
+        const mid = placed(r);
+
+        expect(mid.x).toBeCloseTo(at0.x - w / 2);
+        expect(mid.y).toBeCloseTo(at0.y - h / 2);
+        r.anchor.set(1, 1);
+        r.sync();
+        const end = placed(r);
+
+        expect(end.x).toBeCloseTo(at0.x - w);
+        expect(end.y).toBeCloseTo(at0.y - h);
+        // the object always fills its box
+        for (const p of [at0, mid, end]) {
+            expect(p.x).toBeCloseTo(p.rect.x);
+            expect(p.y).toBeCloseTo(p.rect.y);
+        }
+        r.destroy();
+    });
+
+    it('keeps objects in their boxes with an anchor, wrapping and right-to-left text', () => {
+        const r = make('مرحبا {icon} بالعالم {icon}', {
+            anchor: 0.5,
+            wordWrap: true,
+            wordWrapWidth: 70,
+        });
+        const rects = r.textObject.inlineRects();
+        const objs = r.children.filter((c) => c !== r.textObject);
+
+        expect(rects).toHaveLength(2);
+        expect(new Set(rects.map((x) => x.line)).size).toBe(2);
+        rects.forEach((rect, i) => {
+            expect(objs[i].position.x).toBeCloseTo(rect.x);
+            expect(objs[i].position.y).toBeCloseTo(rect.y);
+        });
+        // the box lies inside the text's anchored bounds
+        const b = r.textObject.bounds;
+
+        for (const rect of rects) {
+            expect(rect.x).toBeGreaterThanOrEqual(b.minX - 1e-6);
+            expect(rect.x + rect.width).toBeLessThanOrEqual(b.maxX + 1e-6);
+        }
+        r.destroy();
+    });
+
+    it('follows a scaled and moved text object', () => {
+        const r = make('{icon}');
+
+        r.textObject.position.set(5, 7);
+        r.textObject.scale.set(2);
+        r.sync();
+        const obj = r.children.find((c) => c !== r.textObject) as Container;
+        const rect = r.textObject.inlineRects()[0];
+
+        expect(obj.scale.x).toBeCloseTo(2);
+        expect(obj.position.x).toBeCloseTo(5 + rect.x * 2);
+        expect(obj.position.y).toBeCloseTo(7 + rect.y * 2);
+        r.destroy();
+    });
+});
+
+describe('silkRichLabel', () => {
+    it('gives widgets labels with icons that size the widget', async () => {
+        const { silkRichLabel } = await import('../src/text/label');
+        const { ValuePill } = await import('../src/ui/ValuePill');
+        const icon = () => {
+            const c = new Container();
+
+            c.boundsArea = { x: 0, y: 0, width: 30, height: 30 } as never;
+
+            return c;
+        };
+        const atlas = new SdfAtlas({ context: paintContext() });
+        const label = () => silkRichLabel({ up: { object: icon, height: 30 } }, { atlas });
+        const plain = new ValuePill({ label: label() });
+        const withIcon = new ValuePill({ label: label() });
+
+        plain.show('12%');
+        withIcon.show('{up} 12%');
+        const rich = withIcon.children.find((c) => c instanceof SilkRichText) as SilkRichText;
+
+        expect(rich).toBeInstanceOf(SilkRichText);
+        expect(rich.textObject.inlineRects()).toHaveLength(1);
+        // the label is anchored at its centre by the pill, and the icon makes it wider
+        expect(rich.anchor.x).toBe(0.5);
+        expect(withIcon.width).toBeGreaterThan(plain.width + 25);
+    });
+});
+
+// ----------------------------------------------------------------------------- rough edges
+
+describe('digits, breaks and arrows', () => {
+    it('gives every digit set its own tabular width', () => {
+        const wide: TextMeasurer = {
+            advance: (s) => (s === '١' ? 4 : s === '٨' ? 14 : s === '1' ? 5 : 10),
+            kerning: () => 0,
+        };
+        const tab = { ...metrics, tabularNumbers: true };
+
+        // Arabic-Indic one is narrow, eight wide: both take the widest
+        expect(layoutText('١١', tab, wide).width).toBe(28);
+        expect(layoutText('٨٨', tab, wide).width).toBe(28);
+        expect(layoutText('11', tab, wide).width).toBe(20);
+        // Burmese and Thai digits are clusters of their own
+        expect(draws('၁၂၃')).toHaveLength(3);
+        expect(draws('๑๒')).toHaveLength(2);
+    });
+
+    it('breaks beside inline boxes next to wide text, keeps them with letters and digits', () => {
+        const inlines = { i: { width: 10, ascent: 8, descent: 0 } };
+        const at = (text: string, w: number) =>
+            layoutText(text, { ...metrics, inlines, wordWrap: true, wordWrapWidth: w }, mono).lines.map((l) => l.text);
+
+        expect(at('日本{i}語', 25)).toEqual(['日本', '{i}語']);
+        expect(at('{i}{i}{i}', 25)).toEqual(['{i}{i}', '{i}']);
+        // a box glued to a number stays with it
+        expect(at('ab {i}100', 45)).toEqual(['ab', '{i}100']);
+        expect(at('日本{i}語', 25).length).toBe(2);
+        expect(
+            layoutText(
+                '日本{i}語',
+                { ...metrics, inlines, wordWrap: true, wordWrapWidth: 25, wordBreak: 'keep-all' },
+                mono,
+            ).lines,
+        ).toHaveLength(1);
+    });
+
+    it('steps carets by what is on screen in mixed lines', async () => {
+        const { caretVisual, caretRect } = await import('../src/text/layout');
+        // "abc " then an Arabic word: in a left-to-right line the Arabic sits on the right, reversed
+        const text = 'abc مرح';
+        const l = layoutText(text, metrics, mono);
+        const xs = (i: number) => caretRect(l, i).x;
+        let i = 0;
+        let lead = false;
+        const seen = [xs(0)];
+
+        for (let k = 0; k < 10; k++) {
+            const n = caretVisual(l, i, 1, false, undefined, lead);
+
+            if (n === null) break;
+            i = n.index;
+            lead = n.leading;
+            seen.push(caretRect(l, i, false, lead).x);
+        }
+        // moving right never goes left on screen and walks through the reversed Arabic run,
+        // though in text order it runs the other way
+        for (let k = 1; k < seen.length; k++) expect(seen[k]).toBeGreaterThan(seen[k - 1]);
+        // both places of the offset where the direction changes are reachable: the caret gets to
+        // the right edge of the line
+        expect(Math.max(...seen)).toBeCloseTo(l.width);
+        // a plain left-to-right line leaves it to the text order
+        expect(caretVisual(layoutText('abc', metrics, mono), 1, 1)).toBeNull();
+    });
+});
+
+// ------------------------------------------------------------------------------------- overflow
+
+describe('overflow', () => {
+    it('cuts lines past maxLines and ends the last one in an ellipsis', () => {
+        const l = layoutText(
+            'one two three four five',
+            { ...metrics, wordWrap: true, wordWrapWidth: 75, maxLines: 2 },
+            mono,
+        );
+
+        expect(l.truncated).toBe(true);
+        expect(l.lines).toHaveLength(2);
+        expect(l.lines[1].truncated).toBe(true);
+        expect(l.glyphs[l.glyphs.length - 1].char).toBe('\u2026');
+        expect(l.lines[1].width).toBeLessThanOrEqual(75);
+    });
+
+    it('cuts a line wider than maxWidth, with or without a mark', () => {
+        const l = layoutText('abcdefghij', { ...metrics, maxWidth: 55 }, mono);
+
+        expect(l.lines[0].text).toBe('abcd\u2026');
+        expect(l.width).toBe(50);
+        expect(layoutText('abcdefghij', { ...metrics, maxWidth: 55, ellipsis: null }, mono).lines[0].text).toBe(
+            'abcde',
+        );
+        // nothing to cut: unchanged
+        expect(layoutText('abc', { ...metrics, maxWidth: 55 }, mono).truncated).toBe(false);
+    });
+
+    it('puts the ellipsis at the end of right-to-left text, on the left', () => {
+        const l = layoutText('אבגדהוז', { ...metrics, maxWidth: 45 }, mono);
+        const sorted = [...l.glyphs].sort((a, b) => a.x - b.x);
+
+        expect(sorted[0].char).toBe('\u2026');
+        expect(sorted[sorted.length - 1].index).toBe(0);
+    });
+
+    it('SilkText shrinks to fit, then cuts what still does not fit', () => {
+        const atlas = new SdfAtlas({ context: paintContext() });
+        // every character is half an em wide: 10 characters at 20 px are 100 wide
+        const t = new SilkText({
+            text: 'abcdefghij',
+            fontFamily: 'Test',
+            fontSize: 20,
+            atlas,
+            maxWidth: 70,
+            shrinkToFit: true,
+        });
+
+        expect(t.renderedFontSize).toBeLessThan(20);
+        expect(t.renderedFontSize).toBeGreaterThan(13);
+        expect(t.layout.width).toBeLessThanOrEqual(70);
+        expect(t.truncated).toBe(false);
+        // the floor is reached: cut
+        t.minFontSize = 18;
+        expect(t.renderedFontSize).toBe(18);
+        expect(t.truncated).toBe(true);
+        expect(t.layout.width).toBeLessThanOrEqual(70);
+        // maxHeight limits the lines
+        const p = new SilkText({
+            text: 'aa bb cc dd ee ff',
+            fontFamily: 'Test',
+            fontSize: 20,
+            atlas,
+            wordWrap: true,
+            wordWrapWidth: 30,
+            maxHeight: 45,
+        });
+
+        expect(p.layout.height).toBeLessThanOrEqual(45);
+        expect(p.truncated).toBe(true);
+        t.destroy();
+        p.destroy();
+        atlas.destroy();
+    });
+});
+
+// ----------------------------------------------------------------------- tabs, justify, spacing
+
+describe('tabs, justify and spacing', () => {
+    it('lines tabs up on stops', () => {
+        const l = layoutText('a\tb\nabc\tb', { ...metrics, tabSize: 4 }, mono);
+        const bs = l.glyphs.filter((g) => g.index === 2 || g.index === 8).map((g) => g.x);
+
+        // both b sit on the first stop, 4 spaces from the line start
+        expect(bs).toEqual([40, 40]);
+        expect(layoutText('abcd\tb', { ...metrics, tabSize: 4 }, mono).glyphs[5].x).toBe(80);
+    });
+
+    it('justifies wrapped lines at spaces and leaves the last line', () => {
+        const l = layoutText('aa b cc dd', { ...metrics, wordWrap: true, wordWrapWidth: 65, align: 'justify' }, mono);
+
+        expect(l.lines.map((x) => x.text)).toEqual(['aa b', 'cc dd']);
+        expect(l.lines[0].width).toBe(65);
+        expect(l.glyphs.find((g) => g.char === 'b')?.x).toBe(55);
+        // the last line keeps its width, at the start
+        expect(l.lines[1].width).toBe(50);
+        expect(l.lines[1].x).toBe(0);
+    });
+
+    it('justifies text without spaces between its characters', () => {
+        const l = layoutText('一二三四五', { ...metrics, wordWrap: true, wordWrapWidth: 35, align: 'justify' }, mono);
+
+        expect(l.lines[0].width).toBe(35);
+        expect(l.glyphs.filter((g) => g.line === 0).map((g) => g.x)).toEqual([0, 12.5, 25]);
+    });
+
+    it('stretches Arabic words with kashida before widening spaces', () => {
+        const words = 'ببب ببب ببب';
+        const opts = { ...metrics, wordWrap: true, wordWrapWidth: 95, align: 'justify' as const };
+        const l = layoutText(words, opts, mono);
+        const tatweels = l.glyphs.reduce((n, g) => n + (g.char.match(/ـ/g)?.length ?? 0), 0);
+
+        expect(l.lines[0].width).toBe(95);
+        expect(tatweels).toBe(2);
+        // without kashida only the space grows
+        const plain = layoutText(words, { ...opts, kashida: false }, mono);
+
+        expect(plain.glyphs.some((g) => g.char.includes('ـ'))).toBe(false);
+        expect(plain.lines[0].width).toBe(95);
+        // lam alef stays one ligature
+        const la = layoutText('لالا لالا لا', opts, mono);
+
+        expect(la.glyphs.some((g) => g.char.includes('لـا'))).toBe(false);
+    });
+
+    it('spaces letters, but not inside cursive or shaped words', () => {
+        const latin = layoutText('ab', { ...metrics, letterSpacing: 4 }, mono);
+        // two Arabic runs that meet: "مر" does not join forward, so they are two clusters
+        const arabic = layoutText('مرحب', { ...metrics, letterSpacing: 4 }, mono);
+
+        expect(latin.width).toBe(24);
+        expect(arabic.width).toBe(40);
+    });
+});
+
+// ------------------------------------------------------------------- icons, colour, affinity
+
+describe('icons, colour glyphs and caret sides', () => {
+    it('centres icons on the letters in text without capitals or digits', () => {
+        const atlas = new SdfAtlas({ context: paintContext() });
+        const box = { width: 10, height: 10 };
+        const caps = new SilkText({ text: 'A {i}', fontFamily: 'Test', fontSize: 20, atlas, inlines: { i: box } });
+        const plain = new SilkText({ text: '一 {i}', fontFamily: 'Test', fontSize: 20, atlas, inlines: { i: box } });
+        const mid = (t: SilkText) => {
+            const r = t.inlineRects()[0];
+
+            return t.layout.lines[0].y - (r.y + r.height / 2);
+        };
+
+        // the fake font's ink is 0.7 em up and 0.2 em down: letters centre 0.25 em up, capitals 0.35 em
+        expect(mid(caps)).toBeCloseTo(7, 0);
+        expect(mid(plain)).toBeCloseTo(5, 0);
+        atlas.destroy();
+    });
+
+    it('keeps the colours of colour glyphs in a second texture', () => {
+        const atlas = new SdfAtlas({ context: paintContext(undefined, (s) => s === 'E') });
+        const font = { family: 'Test' };
+        const e = atlas.glyph(font, 'E');
+        const a = atlas.glyph(font, 'a');
+
+        expect(a.color).toBeUndefined();
+        expect(e.color).toBeDefined();
+        atlas.flush();
+        const data = atlas.colorSource.resource as Uint8Array;
+        const [w] = [atlas.colorSource.width];
+        const cx = (e.color as { x: number }).x + e.w / 2;
+        const cy = (e.color as { y: number }).y + e.h / 2;
+        const i = (Math.floor(cy) * w + Math.floor(cx)) * 4;
+
+        // premultiplied red at the middle of the cell
+        expect([data[i], data[i + 1], data[i + 2], data[i + 3]]).toEqual([255, 0, 0, 255]);
+        const t = new SilkText({ text: 'aE', fontFamily: 'Test', atlas });
+
+        t.updateText();
+        const f = t.geometry.instanceBuffer.data as Float32Array;
+
+        expect([f[10], f[11]]).toEqual([-1, -1]);
+        expect(f[12 + 10]).toBe(e.color?.x);
+        expect(atlas.usage).toBeGreaterThan(0);
+        t.destroy();
+        atlas.destroy();
+    });
+
+    it('gives the offset where the direction changes both of its places', async () => {
+        const { caretAtPoint, caretRect } = await import('../src/text/layout');
+        // "ab " then Hebrew: offset 3 is after the space (x 30) and before the Hebrew word (its right edge)
+        const l = layoutText('ab אבג', metrics, mono);
+
+        expect(caretRect(l, 3).x).toBe(30);
+        expect(caretRect(l, 3, false, true).x).toBe(60);
+        const hit = caretAtPoint(l, 59, 5);
+
+        expect(hit).toMatchObject({ index: 3, leading: true });
+        expect(caretAtPoint(l, 31, 5)).toMatchObject({ index: 3, leading: false });
     });
 });

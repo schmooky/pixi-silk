@@ -99,6 +99,21 @@ const pill = new ValuePill({ label: silkLabel({ tabularNumbers: true }) });
 pill.show('42 px');
 ```
 
+For a label that holds icons, `silkRichLabel()` makes a `SilkRichText` instead. Name the objects
+once, then write their tokens in any text the widget shows. The icon counts in the label's width,
+so the pill grows to fit it.
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { silkRichLabel } from 'pixi-silk/text';
+import { ValuePill } from 'pixi-silk/ui/pill';
+
+const up = () => new SilkGraphics().poly([0, 8, 5, 0, 10, 8]).fill(0x30d158);
+const trend = new ValuePill({ label: silkRichLabel({ up: { object: up, height: 'cap' } }) });
+
+trend.show('{up} 12%');
+```
+
 To let people click and type into a text, wrap it in a `TextEditor`. See [Editing text](/docs/editing-text/).
 
 ## Right-to-left text
@@ -124,8 +139,19 @@ Each new word costs one atlas entry, so long Arabic texts fill the atlas faster 
 
 The line order follows the Unicode bidi algorithm. After Arabic letters, digits count as Arabic
 numbers, so a sign before them shows on their right: `-5` reads `5-`, as in the browser. Put a
-left-to-right mark (`\u200E`) before the sign to keep it on the left. Embedding and isolate controls
-(U+202A to U+202E, U+2066 to U+2069) are ignored.
+left-to-right mark (`\u200E`) before the sign to keep it on the left.
+
+When you put a value of unknown direction into a sentence, such as a name or a file name, wrap it
+in U+2068 and U+2069 (first strong isolate). It then takes its own direction and leaves the
+punctuation around it alone. The embedding and override controls (U+202A to U+202E) work too, and
+paired brackets take the direction of what they enclose.
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const name = 'Dana';
+const line = new SilkText({ text: `\u0645\u0631\u062d\u0628\u0627 \u2068${name}!\u2069` });
+```
 
 ## Every script, and objects inside the text
 
@@ -150,19 +176,19 @@ spaces with `wordBreak: 'keep-all'`. Thai, Burmese, Khmer and Lao break between 
 Outlines are drawn for every glyph before any fill, so a thick outline never covers the letter
 next to it, even with tight letter spacing.
 
-To put an icon, a coin or any sprite in a line, write `{name}` in the text and use `SilkRichText`:
+To put an icon or any sprite in a line, write `{name}` in the text and use `SilkRichText`:
 
 ```ts
 import { Sprite, Texture } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { SilkRichText } from 'pixi-silk/text';
 
-const win = new SilkRichText({
-    text: 'You won {coin} 250.00 {star}',
+const status = new SilkRichText({
+    text: 'Synced {dot} 2 min ago, rated {star} 4.8',
     fontSize: 24,
     inlines: {
         // scaled to the height of capitals and digits, centred on them
-        coin: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
+        dot: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
         // a function makes one object per {star} in the text
         star: { object: () => new SilkGraphics().star(0, 0, 5, 10, 4).fill(0xffd60a), height: 'em', align: 'center' },
     },
@@ -174,7 +200,45 @@ taller than the text grows its line. `align` places it. `middle` (the default) c
 capital letters and digits, and `center` on the line box. `baseline` stands it on the baseline, and
 `top` and `bottom` align it with the font's ascent and descent. `offsetY` nudges it. Sizes are local
 units or `em`, `cap` and `line`. Plain `SilkText` takes the same boxes as
-`inlines: { coin: { width, height } }` and returns where they landed from `inlineRects()`.
+`inlines: { icon: { width, height } }` and returns where they landed from `inlineRects()`.
+
+`anchor` on a `SilkRichText` is the anchor of its text, and the objects move with it. They also
+follow the text object's own position and scale, wrapping and right-to-left order. A box sticks to
+the letters and digits next to it, so `{icon}100` never splits across lines. Lines break between
+two boxes and between a box and Chinese, Japanese or Korean text, and at spaces as usual.
+
+`tabularNumbers` works for every digit set: ASCII, Arabic-Indic, Persian, Devanagari, Thai, Burmese
+and the others each get the width of their widest digit.
+
+## Long text in a small box
+
+<Demo name="text-fit" height={420} caption="Drag the width. Left: cut after two lines. Middle: the font shrinks to fit, then cuts. Right: justified, with kashida in the Arabic paragraph." />
+
+Translations run longer than the text a layout was drawn for. Three options keep text in its box:
+
+- `maxLines` drops the lines after it, and the last line ends in `ellipsis` (default U+2026, the ellipsis
+  character, or `null` for none).
+- `maxWidth` cuts a line that does not wrap when it gets wider. `maxHeight` limits how many lines
+  fit by height.
+- `shrinkToFit` first makes the font smaller, down to `minFontSize` (half the size by default),
+  until the text fits. What still does not fit is cut. `renderedFontSize` says the size it used,
+  and `truncated` whether anything was cut.
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const title = new SilkText({ text: 'Settings', fontSize: 24, maxWidth: 160, shrinkToFit: true, minFontSize: 14 });
+const note = new SilkText({ text: 'A long description', wordWrap: true, wordWrapWidth: 200, maxLines: 2 });
+```
+
+`align: 'justify'` stretches every wrapped line to the full width and keeps the last line of each
+paragraph at its start. Arabic lines stretch their words with kashida (tatweel) before the spaces
+grow, and never inside lam alef. `kashida: false` turns that off. Lines with no spaces, such as
+Chinese and Japanese, spread the room between characters.
+
+Tabs line up on stops every `tabSize` spaces (8 by default) from the start of the line.
+`letterSpacing` is not applied inside Arabic words, which would break their joins, nor inside words
+of Burmese, Khmer and the Indic scripts, which are baked whole.
 
 ## Fonts and the atlas
 
@@ -199,7 +263,13 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
 Corners round off slightly at extreme zoom, because a single-channel distance field cannot hold a
 sharp corner. At the default 48 px bake the rounding is about a fiftieth of the font size.
 
-Emoji and colour fonts come out as one-colour silhouettes. Use PixiJS `Text` or a sprite for
-colour emoji. Latin text gets no font ligatures, because its letters are baked one by one.
+Emoji keep their colours. They come from a second, colour texture, so deep zoom softens them like
+any bitmap, while their outline and shadow stay sharp. Latin text gets no font ligatures, because
+its letters are baked one by one.
+
+Long texts in Burmese, Khmer or the Indic scripts bake a glyph per word, so they fill the atlas
+faster than Latin text. `atlas.usage` says how full it is, from 0 to 1. When it is full, it starts
+over with the glyphs in use. For apps with a lot of such text, give their texts an atlas of their
+own.
 
 SilkText runs on WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.

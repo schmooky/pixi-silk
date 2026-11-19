@@ -101,6 +101,47 @@ describe('bidi algorithm', () => {
         expect(visualOrder(resolveLevels(hebrew, 1))).toEqual([8, 7, 2, 3, 4, 5, 6, 1, 0]);
     });
 
+    it('resolves isolates, embeddings and overrides (X1 to X10)', () => {
+        // an RTL isolate inside LTR text: only its content rises
+        expect(resolveLevels(['L', 'RLI', 'L', 'PDI', 'L'], 0)).toEqual([0, 0, 2, 0, 0]);
+        // a left-to-right embedding inside RTL text; the controls take the level before them
+        expect(resolveLevels(['R', 'LRE', 'R', 'PDF', 'R'], 1)).toEqual([1, 1, 3, 3, 1]);
+        // an override turns letters right to left
+        expect(resolveLevels(['L', 'RLO', 'L', 'L', 'PDF', 'L'], 0)).toEqual([0, 0, 1, 1, 1, 0]);
+        // FSI takes its direction from its own content
+        expect(resolveLevels(['L', 'WS', 'FSI', 'R', 'WS', 'R', 'PDI', 'ON'], 0)).toEqual([0, 0, 0, 1, 1, 1, 0, 0]);
+        expect(resolveLevels(['R', 'WS', 'FSI', 'L', 'PDI'], 1)).toEqual([1, 1, 1, 2, 1]);
+        // the paragraph direction skips text inside isolates
+        expect(paragraphLevel(['RLI', 'R', 'PDI', 'L'])).toBe(0);
+        expect(paragraphLevel(['LRI', 'L', 'PDI', 'R'])).toBe(1);
+    });
+
+    it('pairs brackets with what they enclose (N0)', () => {
+        // in RTL text, "a(b)": the closing bracket stays with the Latin run instead of going right to left
+        const types = ['L', 'ON', 'L', 'ON'] as const;
+
+        expect(resolveLevels([...types], 1, ['a', '(', 'b', ')'])).toEqual([2, 2, 2, 2]);
+        expect(resolveLevels([...types], 1)).toEqual([2, 2, 2, 1]);
+        // brackets that do not pair are left to N1
+        expect(resolveLevels(['L', 'ON', 'L', 'ON'], 1, ['a', '(', 'b', ']'])).toEqual([2, 2, 2, 1]);
+    });
+
+    it('keeps punctuation inside an isolated name', () => {
+        const text = '\u0645\u0631\u062d\u0628\u0627 \u2068John!\u2069';
+        const l = layoutText(text, metrics, mono);
+        const x = (i: number) => l.glyphs.find((g) => g.index === i)?.x ?? Number.NaN;
+        const bang = text.indexOf('!');
+
+        // the name reads left to right with its "!" after it, and sits left of the Arabic word
+        expect(x(bang)).toBeGreaterThan(x(bang - 1));
+        expect(x(bang)).toBeLessThan(x(0));
+        // without the isolate the "!" joins the right-to-left text and moves before the name
+        const bare = layoutText('\u0645\u0631\u062d\u0628\u0627 John!', metrics, mono);
+        const bx = (i: number) => bare.glyphs.find((g) => g.index === i)?.x ?? Number.NaN;
+
+        expect(bx(10)).toBeLessThan(bx(6));
+    });
+
     it('mirrors brackets', () => {
         expect(mirror('(')).toBe(')');
         expect(mirror('\u00bb')).toBe('\u00ab');

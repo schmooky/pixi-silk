@@ -65,6 +65,11 @@ const COMPLEX_ANY =
     /[\p{Script=Myanmar}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Tibetan}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}\p{Script=Javanese}\p{Script=Balinese}\p{Script=Tai_Tham}]/u;
 /** Scripts with no spaces between words: lines may break between Thai, Lao, Khmer and Burmese words. */
 const NO_SPACES = new Set(['Myanmar', 'Thai', 'Lao', 'Khmer', 'Tibetan']);
+/**
+ * Scripts whose grapheme clusters shape on their own: no vowel moves across a cluster. They are baked
+ * a cluster at a time, which reuses atlas cells, and only their line breaks use whole words.
+ */
+const BY_GRAPHEME = new Set(['Thai', 'Lao']);
 /** Text that needs more than one code point per glyph: marks, joiners, emoji sequences, cursive scripts. */
 const NEEDS_CLUSTERS =
     /\u200d|\u200c|[\ufe00-\ufe0f]|[\u{1f3fb}-\u{1f3ff}]|[\p{M}\u{1f1e6}-\u{1f1ff}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\p{Script=Hebrew}]/u;
@@ -72,6 +77,7 @@ const CJK =
     /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Bopomofo}\u3000-\u303f\u30fc\uff00-\uffef]$/u;
 const HANGUL = /^\p{Script=Hangul}$/u;
 const EMOJI = /^\p{Extended_Pictographic}$/u;
+const DIGIT = /^\p{Nd}$/u;
 // characters a line must not start with, and ones it must not end with (Japanese kinsoku, Latin punctuation)
 const NO_START = new Set(
     Array.from(
@@ -115,6 +121,21 @@ const lastBase = (s: string): string => {
 
     return chars[0] ?? '';
 };
+
+/** True for ideographs, kana, Korean syllables and emoji: characters a line may break beside. */
+export function isWide(ch: string): boolean {
+    return CJK.test(ch) || HANGUL.test(ch) || EMOJI.test(ch);
+}
+
+/** True for characters a line must not start with: closing punctuation, small kana, `.` `,` `!` and the like. */
+export function noLineStart(ch: string): boolean {
+    return NO_START.has(ch);
+}
+
+/** True for characters a line must not end with: opening brackets and currency signs. */
+export function noLineEnd(ch: string): boolean {
+    return NO_END.has(ch);
+}
 
 /** Grapheme clusters of a text as [start, end) offsets. Uses `Intl.Segmenter` where the platform has it. */
 function graphemes(text: string): [number, number][] {
@@ -192,7 +213,8 @@ export function clusters(text: string, wordBreak: WordBreak = 'normal'): Cluster
             const base = first(g);
             const cp = base.codePointAt(0) as number;
             const joins = JOINING.test(base) && LETTER.test(base);
-            const script = joins ? null : complexScript(base);
+            // digits stay clusters of their own, for tabular numbers and number order in bidi text
+            const script = joins || DIGIT.test(base) ? null : complexScript(base);
 
             if (cur && kind === 'join' && open && joins && count < MAX_JOINED) {
                 cur.draw += g;
@@ -205,7 +227,14 @@ export function clusters(text: string, wordBreak: WordBreak = 'normal'): Cluster
                 cur = { draw: ZWJ + g, start: a, end: b, inner: [], type: bidiClass(cp), breakBefore: false };
                 out.push(cur);
                 count = 1;
-            } else if (cur && script && kind === script && !words?.has(a) && count < MAX_WORD) {
+            } else if (
+                cur &&
+                script &&
+                kind === script &&
+                !BY_GRAPHEME.has(script) &&
+                !words?.has(a) &&
+                count < MAX_WORD
+            ) {
                 cur.draw += g;
                 cur.inner.push(a);
                 cur.end = b;
@@ -234,11 +263,8 @@ export function clusters(text: string, wordBreak: WordBreak = 'normal'): Cluster
             continue;
         }
         if (c.breakBefore || wordBreak === 'keep-all') continue;
-        const wideA = CJK.test(a) || EMOJI.test(a) || HANGUL.test(a);
-        const wideB = CJK.test(b) || EMOJI.test(b) || HANGUL.test(b);
-
         // between two ideographs, kana, emoji or Korean syllables
-        if (wideA && wideB) c.breakBefore = true;
+        if (isWide(a) && isWide(b)) c.breakBefore = true;
     }
 
     return out;

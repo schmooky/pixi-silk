@@ -7,22 +7,22 @@ import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
 // Stacked marks (Burmese, Thai, Vietnamese) grow the line instead of being cut, and outlines sit
 // under every letter. Tick "boxes" to see each text's line boxes.
 const SAMPLES: [string, string][] = [
-    ['en', 'Big win 1,250.00'],
-    ['vi', 'Thắng lớn! Phần thưởng'],
-    ['ru', 'Крупный выигрыш'],
-    ['el', 'Μεγάλη νίκη'],
-    ['ka', 'დიდი მოგება'],
-    ['hi', 'बड़ी जीत! बोनस राउंड'],
-    ['bn', 'বড় জয়! বোনাস'],
-    ['ta', 'பெரிய வெற்றி'],
-    ['th', 'ชนะรางวัลใหญ่ โบนัส'],
-    ['my', 'နောက်ဆုံး အနိုင်ရငွေ'],
-    ['km', 'ឈ្នះធំ ប្រាក់រង្វាន់'],
-    ['ja', '大当たり！ボーナス'],
-    ['zh', '恭喜中奖！免费旋转'],
-    ['ko', '대박 당첨! 보너스'],
-    ['ar', 'فوز كبير 1,250.00'],
-    ['he', 'זכייה גדולה 1,250.00'],
+    ['en', 'Order total 1,250.00'],
+    ['vi', 'Cài đặt đã được lưu'],
+    ['ru', 'Настройки сохранены'],
+    ['el', 'Καλημέρα κόσμε'],
+    ['ka', 'გამარჯობა სამყაროვ'],
+    ['hi', 'नमस्ते दुनिया'],
+    ['bn', 'স্বাগতম বন্ধু'],
+    ['ta', 'வணக்கம் உலகம்'],
+    ['th', 'สวัสดีชาวโลก'],
+    ['my', 'မင်္ဂလာပါ ကမ္ဘာ'],
+    ['km', 'សួស្តីពិភពលោក'],
+    ['ja', 'こんにちは、世界'],
+    ['zh', '你好，世界'],
+    ['ko', '안녕하세요, 세계'],
+    ['ar', 'المجموع 1,250.00'],
+    ['he', 'סך הכול 1,250.00'],
 ];
 
 export default defineDemo({
@@ -55,10 +55,10 @@ export default defineDemo({
         // paragraphs with no spaces to break at: they wrap between characters or words
         const paraW = phone ? width - 64 : col - 64;
         const paragraphs = [
-            '本日のボーナスは、スピン終了まで有効です。「スーパースピン」で賞金が二倍になります。',
-            'ဆုကြေးငွေသည် ဘောနပ်စ်အကျိုးခံစားခွင့်ကာလ ပြီးဆုံးသည်အထိ အကျုံးဝင်ပါသည်။',
-            'โบนัสนี้ใช้ได้จนกว่าการหมุนฟรีจะสิ้นสุดลงและรางวัลจะเพิ่มเป็นสองเท่า',
-            '보너스는 무료 스핀이 끝날 때까지 유효하며 상금이 두 배가 됩니다.',
+            '今日は晴れです。「明日」も晴れる予報なので、公園まで散歩に出かけましょう。',
+            'ကျေးဇူးပြု၍ သင့်အကောင့်ဆက်တင်များကို စစ်ဆေးပြီးမှ သိမ်းဆည်းပါ။',
+            'กรุณาตรวจสอบการตั้งค่าบัญชีของคุณก่อนบันทึกการเปลี่ยนแปลง',
+            '변경 사항은 저장 버튼을 누른 뒤에 적용됩니다.',
         ];
         const paraY = y;
 
@@ -79,37 +79,44 @@ export default defineDemo({
             texts.push(t);
         });
         y = phone ? paraY + 4 * 130 : paraY + 2 * 120;
-        // inline icons: a SilkGraphics coin on the cap height, a star on the line box
-        const coin = () =>
-            new SilkGraphics().circle(0, 0, 10).fill(0xffc53d).circle(0, 0, 6.5).stroke({ width: 2, color: 0xb7791f });
+        // inline icons: a SilkGraphics status dot on the cap height, a star on the line box
+        const dot = () =>
+            new SilkGraphics()
+                .circle(0, 0, 10)
+                .fill(PALETTE.green)
+                .circle(0, 0, 5)
+                .fill({ color: 0xffffff, alpha: 0.85 });
         const star = () => new SilkGraphics().star(0, 0, 5, 10, 4.5, 0, 1).fill(PALETTE.blue);
         const rich = [
             new SilkRichText({
-                text: 'Win {coin} 1,250.00 {star} x3',
+                text: 'Online {dot} 1,250 {star} 4.8',
                 fontFamily: FONT,
                 fontSize: size + 3,
                 fill: INK.text,
                 inlines: {
-                    coin: { object: coin, height: 'cap', margin: 3 },
+                    dot: { object: dot, height: 'cap', margin: 3 },
                     star: { object: star, height: 'em', align: 'center', margin: 2 },
                 },
             }),
             new SilkRichText({
-                text: 'ربحت {coin} 1,250.00 {star}',
+                text: 'التقييم {star} 4.8 {dot}',
                 fontFamily: FONT,
                 fontSize: size + 3,
                 fill: INK.text,
                 inlines: {
-                    coin: { object: coin, height: 'cap', margin: 3 },
+                    dot: { object: dot, height: 'cap', margin: 3 },
                     star: { object: star, height: 'em', align: 'center', margin: 2 },
                 },
             }),
             new SilkRichText({
-                text: 'နောက်ဆုံး {coin} 0.00',
+                text: '評価 {star} 4.8、{dot} 1,250',
                 fontFamily: FONT,
                 fontSize: size + 3,
                 fill: INK.text,
-                inlines: { coin: { object: coin, height: 'cap', margin: 3 } },
+                inlines: {
+                    dot: { object: dot, height: 'cap', margin: 3 },
+                    star: { object: star, height: 'em', align: 'center', margin: 2 },
+                },
             }),
         ];
 

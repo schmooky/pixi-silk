@@ -107,11 +107,31 @@ export interface SilkTextStyle {
      */
     wordBreak?: WordBreak;
     /**
-     * Room for inline objects, by name. `{coin}` in the text, with `coin` listed here, becomes a box
+     * Room for inline objects, by name. `{icon}` in the text, with `icon` listed here, becomes a box
      * that flows with the text. Read the boxes back with {@link SilkText.inlineRects}, or use
      * {@link SilkRichText} to place sprites and graphics in them. Default none.
      */
     inlines?: Record<string, TextInline>;
+    /** Most lines to show. Past it the text is cut and the last line ends in `ellipsis`. 0 for no limit. Default 0. */
+    maxLines?: number;
+    /**
+     * Widest the text may be, in local units, when `wordWrap` is off. A longer line is cut and ends
+     * in `ellipsis`, or with `shrinkToFit` the font shrinks first. 0 for no limit. Default 0.
+     */
+    maxWidth?: number;
+    /** Tallest the text box may be, in local units. Lines past it are cut, or the font shrinks first. 0 for no limit. Default 0. */
+    maxHeight?: number;
+    /** What a cut line ends with. `null` cuts without a mark. Default an ellipsis, U+2026. */
+    ellipsis?: string | null;
+    /**
+     * Shrinks the font, down to `minFontSize`, until the text fits `maxWidth`, `maxHeight` and
+     * `maxLines`. What still does not fit is cut. Wrapping moves with the size. Default false.
+     */
+    shrinkToFit?: boolean;
+    /** Smallest size `shrinkToFit` goes down to, in local units. 0 for half the font size. Default 0. */
+    minFontSize?: number;
+    /** Tab stops every this many space widths, measured from the start of the line. Default 8. */
+    tabSize?: number;
 }
 
 /** How an inline box sits on the line. */
@@ -125,7 +145,8 @@ export interface TextInline {
     height: number;
     /**
      * Vertical placement. `middle` centres the box on the middle of capital letters and digits, the
-     * place for icons and coins next to numbers. `center` centres it on the line box. `baseline` puts
+     * place for icons next to numbers. In text with neither, such as Arabic, Chinese or lower case,
+     * it centres on the middle of the letters. `center` centres it on the line box. `baseline` puts
      * its bottom on the baseline, `top` and `bottom` align it with the font's ascent and descent.
      * Default `middle`.
      */
@@ -242,11 +263,12 @@ const premultiply = (out: Float32Array, color: ColorSource, alpha: number): void
  * `measureText`, so line breaks and widths match PixiJS `Text`. Style changes relayout once, on the
  * next render or the next read of {@link SilkText.layout}.
  *
- * Right-to-left text works. Arabic and Hebrew paragraphs are reordered with the Unicode bidi
- * algorithm, and numbers and Latin words inside them keep reading left to right. Joined Arabic
- * letters are baked as one glyph per run, so Canvas shapes them. It has no rich text or
- * per-character styles. Outside right-to-left text, glyphs combine code points one by one, so Indic
- * scripts and emoji sequences do not shape. Works with Pixi's WebGL2 and WebGPU renderers.
+ * Any common script works. Arabic and Hebrew paragraphs are reordered with the Unicode bidi
+ * algorithm, and numbers and Latin words inside them keep reading left to right. Words of scripts
+ * that need shaping (Arabic, Burmese, Thai, the Indic scripts) are baked whole, so Canvas shapes
+ * them, and lines grow to fit stacked marks. `{name}` tokens make room for inline objects, see
+ * {@link SilkRichText}. Emoji keep their colours. It has no per-character styles. Works with Pixi's
+ * WebGL2 and WebGPU renderers.
  *
  * @example
  * ```ts
@@ -278,6 +300,13 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         aaWidth: 1,
         wordBreak: 'normal',
         inlines: {},
+        maxLines: 0,
+        maxWidth: 0,
+        maxHeight: 0,
+        ellipsis: '\u2026',
+        shrinkToFit: false,
+        minFontSize: 0,
+        tabSize: 8,
     };
 
     /** Point of the text box placed at the position: (0, 0) top left, (0.5, 0.5) centre, (1, 1) bottom right. Changing it relayouts. */
@@ -293,6 +322,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     private _f: Float32Array;
     private _count = 0;
     private _passes = 1;
+    private _size = 0;
     private _inlineBoxes: Record<string, { width: number; height: number; margin: number; top: number }> = {};
     private readonly _uniforms: UniformGroup;
     private _gradKey: string | null = null;
@@ -304,7 +334,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         const opts = typeof options === 'string' ? { text: options } : options;
         const atlas = opts.atlas ?? SdfAtlas.shared;
         const geometry = new SilkTextGeometry();
-        const shader = createTextShader(atlas.source);
+        const shader = createTextShader(atlas.source, atlas.colorSource);
 
         super({ geometry, shader, label: opts.label ?? 'SilkText' });
         this.atlas = atlas;
@@ -567,9 +597,12 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         return caretAtPoint(layout, point.x - this._ox, point.y - this._oy, isStop);
     }
 
-    /** Where a caret at `index` sits, in local units. `upstream` picks the end of a wrapped line. */
-    caretRect(index: number, upstream = false): CaretRect {
-        const r = caretRect(this.layout, index, upstream);
+    /**
+     * Where a caret at `index` sits, in local units. `upstream` picks the end of a wrapped line,
+     * `leading` the place before the next character where the direction changes.
+     */
+    caretRect(index: number, upstream = false, leading = false): CaretRect {
+        const r = caretRect(this.layout, index, upstream, leading);
 
         return { x: r.x + this._ox, top: r.top + this._oy, bottom: r.bottom + this._oy, line: r.line };
     }
@@ -634,6 +667,88 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     /** Sets {@link SilkText.inlines}. */
     set inlines(v: Record<string, TextInline>) {
         this._set('inlines', v);
+    }
+
+    /** Most lines to show, 0 for no limit. See {@link SilkTextStyle.maxLines}. */
+    get maxLines(): number {
+        return this._style.maxLines;
+    }
+
+    /** Sets {@link SilkText.maxLines}. */
+    set maxLines(v: number) {
+        this._set('maxLines', v);
+    }
+
+    /** Widest the text may be when it does not wrap, 0 for no limit. See {@link SilkTextStyle.maxWidth}. */
+    get maxWidth(): number {
+        return this._style.maxWidth;
+    }
+
+    /** Sets {@link SilkText.maxWidth}. */
+    set maxWidth(v: number) {
+        this._set('maxWidth', v);
+    }
+
+    /** Tallest the text box may be, 0 for no limit. See {@link SilkTextStyle.maxHeight}. */
+    get maxHeight(): number {
+        return this._style.maxHeight;
+    }
+
+    /** Sets {@link SilkText.maxHeight}. */
+    set maxHeight(v: number) {
+        this._set('maxHeight', v);
+    }
+
+    /** What a cut line ends with, or `null` for no mark. */
+    get ellipsis(): string | null {
+        return this._style.ellipsis;
+    }
+
+    /** Sets {@link SilkText.ellipsis}. */
+    set ellipsis(v: string | null) {
+        this._set('ellipsis', v);
+    }
+
+    /** Shrinks the font to fit `maxWidth`, `maxHeight` and `maxLines`. See {@link SilkTextStyle.shrinkToFit}. */
+    get shrinkToFit(): boolean {
+        return this._style.shrinkToFit;
+    }
+
+    /** Sets {@link SilkText.shrinkToFit}. */
+    set shrinkToFit(v: boolean) {
+        this._set('shrinkToFit', v);
+    }
+
+    /** Smallest size `shrinkToFit` goes to, 0 for half the font size. */
+    get minFontSize(): number {
+        return this._style.minFontSize;
+    }
+
+    /** Sets {@link SilkText.minFontSize}. */
+    set minFontSize(v: number) {
+        this._set('minFontSize', v);
+    }
+
+    /** Tab stops every this many space widths. */
+    get tabSize(): number {
+        return this._style.tabSize;
+    }
+
+    /** Sets {@link SilkText.tabSize}. */
+    set tabSize(v: number) {
+        this._set('tabSize', v);
+    }
+
+    /** The font size the text is drawn at: `fontSize`, or smaller when `shrinkToFit` had to shrink it. */
+    get renderedFontSize(): number {
+        this.updateText();
+
+        return this._size;
+    }
+
+    /** True when the text did not fit its limits and was cut. */
+    get truncated(): boolean {
+        return this.layout.truncated;
     }
 
     /** Where lines may break without spaces: `normal` or `keep-all`. */
@@ -707,7 +822,16 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
 
         this._inlineBoxes = {};
         if (!names.length) return out;
-        const cap = this.atlas.ink(font, 'H').ascent * k || ascent * 0.7;
+        // the middle of capitals and digits, or of the letters themselves in text that has neither
+        // (Arabic, Chinese, lower case): an icon then centres on what is written next to it
+        const plain = this._text.replace(/\{[\w-]+\}/g, '').replace(/\s+/g, '');
+        let middle = (this.atlas.ink(font, 'H').ascent * k || ascent * 0.7) / 2;
+
+        if (plain && !/[\p{Lu}\p{Nd}]/u.test(plain)) {
+            const m = this.atlas.measure(font, plain);
+
+            if (m.ascent + m.descent > 0) middle = ((m.ascent - m.descent) / 2) * k;
+        }
 
         for (const name of names) {
             const d = this._style.inlines[name];
@@ -730,7 +854,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
                     top = h - descent;
                     break;
                 default:
-                    top = cap / 2 + h / 2;
+                    top = middle + h / 2;
             }
             top -= d.offsetY ?? 0;
             this._inlineBoxes[name] = { width: Math.max(0, d.width), height: h, margin, top };
@@ -756,38 +880,83 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         const s = this._style;
         const atlas = this.atlas;
         const font: FontSpec = { family: s.fontFamily, weight: s.fontWeight, style: s.fontStyle };
-        const k = s.fontSize / atlas.size;
         const fm = atlas.metrics(font);
         const reach =
             Math.max(0, s.dilate) + (s.outline && (s.outline.alpha ?? 1) > 0 ? Math.max(0, s.outline.width) : 0);
-        const layout = layoutText(
-            this._text,
-            {
-                ascent: fm.ascent * k,
-                descent: fm.descent * k,
-                letterSpacing: s.letterSpacing,
-                lineHeight: s.lineHeight > 0 ? s.lineHeight : undefined,
-                align: s.align,
-                direction: s.direction,
-                wordWrap: s.wordWrap,
-                wordWrapWidth: s.wordWrapWidth,
-                breakWords: s.breakWords,
-                tabularNumbers: s.tabularNumbers,
-                kerning: s.kerning,
-                wordBreak: s.wordBreak,
-                inlines: this._resolveInlines(font, k, fm.ascent * k, fm.descent * k),
-            },
-            {
-                advance: (c) => atlas.advance(font, c) * k,
-                kerning: (a, b) => atlas.kerning(font, a, b) * k,
-                // lines fit the ink plus the outline, so stacked marks of two lines never touch
-                ink: (c) => {
-                    const i = atlas.ink(font, c);
+        const lay = (size: number, maxLines: number, cut: boolean): TextLayout => {
+            const k = size / atlas.size;
+            const f = size / s.fontSize;
 
-                    return { ascent: i.ascent * k + reach, descent: i.descent * k + reach };
+            return layoutText(
+                this._text,
+                {
+                    ascent: fm.ascent * k,
+                    descent: fm.descent * k,
+                    letterSpacing: s.letterSpacing * f,
+                    lineHeight: s.lineHeight > 0 ? s.lineHeight * f : undefined,
+                    align: s.align,
+                    direction: s.direction,
+                    wordWrap: s.wordWrap,
+                    wordWrapWidth: s.wordWrapWidth,
+                    breakWords: s.breakWords,
+                    tabularNumbers: s.tabularNumbers,
+                    kerning: s.kerning,
+                    wordBreak: s.wordBreak,
+                    tabSize: s.tabSize,
+                    inlines: this._resolveInlines(font, k, fm.ascent * k, fm.descent * k),
+                    maxLines: cut ? maxLines : 0,
+                    maxWidth: cut && s.maxWidth > 0 ? s.maxWidth : undefined,
+                    ellipsis: s.ellipsis,
                 },
-            },
-        );
+                {
+                    advance: (c) => atlas.advance(font, c) * k,
+                    kerning: (a, b) => atlas.kerning(font, a, b) * k,
+                    // lines fit the ink plus the outline, so stacked marks of two lines never touch
+                    ink: (c) => {
+                        const i = atlas.ink(font, c);
+
+                        return { ascent: i.ascent * k + reach, descent: i.descent * k + reach };
+                    },
+                },
+            );
+        };
+        const fits = (l: TextLayout): boolean =>
+            (s.maxWidth <= 0 || s.wordWrap || l.width <= s.maxWidth + 1e-6) &&
+            (s.maxHeight <= 0 || l.height <= s.maxHeight + 1e-6) &&
+            (s.maxLines <= 0 || l.lines.length <= s.maxLines);
+        let size = s.fontSize;
+        let layout = lay(size, 0, false);
+
+        // shrink: the largest size between minFontSize and fontSize that fits, found by bisection
+        if (s.shrinkToFit && !fits(layout)) {
+            let lo = Math.min(s.fontSize, s.minFontSize > 0 ? s.minFontSize : s.fontSize / 2);
+            let hi = s.fontSize;
+
+            if (fits(lay(lo, 0, false))) {
+                for (let i = 0; i < 8 && hi - lo > 0.05; i++) {
+                    const mid = (lo + hi) / 2;
+
+                    if (fits(lay(mid, 0, false))) lo = mid;
+                    else hi = mid;
+                }
+            }
+            size = lo;
+            layout = lay(size, 0, false);
+        }
+        // what still does not fit is cut, and its last line ends in the ellipsis
+        if (!fits(layout)) {
+            let lines = s.maxLines > 0 ? s.maxLines : Number.POSITIVE_INFINITY;
+
+            if (s.maxHeight > 0 && layout.height > s.maxHeight) {
+                const font = layout.ascent + layout.descent;
+
+                lines = Math.min(lines, Math.max(1, Math.floor((s.maxHeight - font) / layout.lineHeight + 1e-6) + 1));
+            }
+            layout = lay(size, Number.isFinite(lines) ? lines : 0, true);
+        }
+        const k = size / atlas.size;
+
+        this._size = size;
         const ox = -this.anchor.x * layout.width;
         const oy = -this.anchor.y * layout.height;
         const shadow = s.shadow && (s.shadow.alpha ?? 1) > 0 ? s.shadow : null;
@@ -845,8 +1014,9 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
                 f[o + 7] = g.y + g.h;
                 f[o + 8] = layer;
                 f[o + 9] = mode;
-                f[o + 10] = 0;
-                f[o + 11] = 0;
+                // colour glyphs (emoji) read their colours from the atlas's colour texture
+                f[o + 10] = g.color ? g.color.x : -1;
+                f[o + 11] = g.color ? g.color.y : -1;
                 n++;
             }
         }
@@ -895,7 +1065,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
 
         premultiply(u.uOutline, outline?.color ?? 0x000000, outline ? (outline.alpha ?? 1) : 0);
         premultiply(u.uShadow, shadow?.color ?? 0x000000, shadow ? (shadow.alpha ?? 1) : 0);
-        u.uParams.set([atlas.radius, atlas.cutoff, k, s.fontSize]);
+        u.uParams.set([atlas.radius, atlas.cutoff, k, this._size]);
         u.uFx.set([s.dilate, outline ? Math.max(0, outline.width) : 0, shadow ? (shadow.blur ?? 4) : 0, s.aaWidth]);
         this._uniforms.update();
     }

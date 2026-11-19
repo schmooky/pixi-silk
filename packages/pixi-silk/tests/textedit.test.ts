@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { History } from '../src/history';
 import { type GlyphContext, SdfAtlas } from '../src/text/atlas';
 import { caretAtPoint, caretRect, layoutText, rangeRects, type TextMeasurer } from '../src/text/layout';
+import { SilkText } from '../src/text/SilkText';
 import { graphemeStops, nextWordStop, paragraphAt, previousWordStop, wordAt } from '../src/text/segment';
 import { TextEditor, type TextEditorOptions } from '../src/ui/textedit';
 
@@ -309,6 +310,52 @@ describe('TextEditor', () => {
         expect(ed.textObject.caretRect(0).x).toBeGreaterThan(ed.textObject.caretRect(5).x);
     });
 
+    it('moves by what is on screen in a line that mixes directions', () => {
+        // a left-to-right line ending in a Hebrew word: right arrow walks into it from the left
+        const ed = make({ text: 'ab \u05d0\u05d1\u05d2' });
+        const x = (i: number) => ed.textObject.caretRect(i).x;
+
+        ed.select(3);
+        let last = x(3);
+
+        const caretX = () =>
+            ed.textObject.caretRect(ed.selectionStart, false, (ed as unknown as { _lead: boolean })._lead).x;
+
+        for (let k = 0; k < 3; k++) {
+            ed.handleKey(key('ArrowRight'));
+            expect(caretX()).toBeGreaterThan(last);
+            last = caretX();
+        }
+        // it reaches the right edge of the line, then stays rather than jumping back in text order
+        expect(last).toBeCloseTo(ed.textObject.layout.width);
+        ed.handleKey(key('ArrowRight'));
+        expect(caretX()).toBeCloseTo(last);
+        ed.handleKey(key('ArrowLeft'));
+        expect(caretX()).toBeLessThan(last);
+    });
+
+    it('shows inline objects, steps over their tokens and deletes them whole', () => {
+        const icon = () => Object.assign(new Container(), { boundsArea: { x: 0, y: 0, width: 10, height: 10 } });
+        const ed = make({ text: 'a{dot}b', inlines: { dot: { object: icon, height: 10 } } });
+        const objects = () =>
+            ed.content.children.filter(
+                (c) => c.visible && !(c instanceof SilkText) && c.children.length === 0 && c.boundsArea,
+            );
+
+        expect(objects()).toHaveLength(1);
+        ed.select(1);
+        ed.handleKey(key('ArrowRight'));
+        expect(ed.selectionStart).toBe(6);
+        ed.handleKey(key('Backspace'));
+        expect(ed.value).toBe('ab');
+        expect(objects()).toHaveLength(0);
+        // typing a token turns it into its object
+        ed.insert('{dot}');
+        expect(ed.value).toBe('a{dot}b');
+        expect(objects()).toHaveLength(1);
+        ed.destroy();
+    });
+
     it('keeps the preferred x when moving up and down', () => {
         // 10 wide characters on three lines: "abcdef", "ab", "abcdef"
         const ed = make({ text: 'abcdef\nab\nabcdef' });
@@ -542,6 +589,55 @@ describe('TextEditor text field', () => {
         expect(ed.state.composing.value).toBe(false);
         ed.undo();
         expect(ed.value).toBe('ab');
+    });
+
+    it('composes Burmese a syllable at a time, with the vowel sign written before its consonant', () => {
+        const ed = make({ text: '' });
+
+        ed.focus();
+        const f = dom.fields[0];
+        const steps = ['\u1000', '\u1000\u1031', '\u1000\u1031\u102c', '\u1000\u1031\u102c\u1004\u103a\u1038'];
+
+        f.dispatchEvent(event('compositionstart'));
+        for (const text of steps) {
+            f.selectionStart = 0;
+            typeInto(f, text, 'insertCompositionText');
+            expect(ed.value).toBe(text);
+            expect(ed.composition).toEqual({ start: 0, end: text.length });
+            // the composed syllable draws as one shaped glyph, and the caret has a place after it
+            expect(ed.textObject.layout.glyphs.filter((g) => g.char.trim()).length).toBeGreaterThan(0);
+            expect(Number.isFinite(ed.textObject.caretRect(text.length).x)).toBe(true);
+        }
+        f.dispatchEvent(event('compositionend'));
+        expect(ed.value).toBe(steps[3]);
+        // the vowel sign drawn before its consonant is never split from it: the first step goes past both
+        ed.select(steps[3].length);
+        ed.handleKey(key('Home'));
+        ed.handleKey(key('ArrowRight'));
+        expect(ed.selectionStart).toBe(2);
+        ed.undo();
+        expect(ed.value).toBe('');
+    });
+
+    it('types Thai tone marks onto their consonant', () => {
+        const ed = make({ text: '' });
+
+        ed.focus();
+        const f = dom.fields[0];
+
+        typeInto(f, '\u0e01');
+        typeInto(f, '\u0e48');
+        typeInto(f, '\u0e32');
+        expect(ed.value).toBe('\u0e01\u0e48\u0e32');
+        // consonant and tone mark are one step, the vowel another
+        ed.handleKey(key('ArrowLeft'));
+        expect(ed.selectionStart).toBe(2);
+        ed.handleKey(key('ArrowLeft'));
+        expect(ed.selectionStart).toBe(0);
+        // Backspace removes the vowel, then the consonant with its mark
+        ed.select(3);
+        ed.handleKey(key('Backspace'));
+        expect(ed.value).toBe('\u0e01\u0e48');
     });
 
     it('pastes and cuts through the clipboard events', () => {

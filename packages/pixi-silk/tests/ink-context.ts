@@ -16,7 +16,10 @@ export interface InkBox {
  * otherwise. `measureText` reports the default box even when `ink` differs, like Canvas does for
  * stacked marks, so tests can check that the atlas finds the ink in the pixels.
  */
-export function paintContext(ink?: (s: string) => InkBox | null): GlyphContext & { drawn: string[] } {
+export function paintContext(
+    ink?: (s: string) => InkBox | null,
+    color?: (s: string) => boolean,
+): GlyphContext & { drawn: string[] } {
     let size = 48;
     let font = '';
     const canvas = { width: 64, height: 64 };
@@ -58,10 +61,13 @@ export function paintContext(ink?: (s: string) => InkBox | null): GlyphContext &
             ctx.drawn.push(s);
             if (s.trim() === '') return;
             const b = box(s);
+            // a colour font paints its own colours, whatever the fill
+            const red = color?.(s) ? 255 : 0;
 
             for (let py = Math.round(y - b.ascent * size); py < Math.round(y + b.descent * size); py++) {
                 for (let px = Math.round(x - b.left * size); px < Math.round(x + b.right * size); px++) {
                     if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
+                    pixels[(py * canvas.width + px) * 4] = red;
                     pixels[(py * canvas.width + px) * 4 + 3] = 255;
                 }
             }

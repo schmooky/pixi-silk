@@ -1,5 +1,6 @@
 import type { TextStyleOptions } from 'pixi.js';
 import type { LabelFactory } from '../ui/label';
+import { type RichInline, SilkRichText, type SilkRichTextOptions } from './rich';
 import { SilkText, type SilkTextOptions, type SilkTextStyle } from './SilkText';
 
 /** The parts of a PixiJS text style that a SilkText understands. */
@@ -35,4 +36,29 @@ function fromPixiStyle(style: TextStyleOptions): SilkTextStyle {
  */
 export function silkLabel(overrides: Omit<SilkTextOptions, 'text'> = {}): LabelFactory {
     return (style) => new SilkText({ ...fromPixiStyle(style), ...overrides });
+}
+
+/**
+ * A label factory like {@link silkLabel} that makes {@link SilkRichText} labels, so a widget's
+ * text can hold icons: `pill.show('{up} 12%')`. `inlines` lists the objects by name. Pass functions
+ * that build them when a label may show one more than once, or when the widget makes several
+ * labels.
+ *
+ * @example
+ * ```ts
+ * import { SilkGraphics } from 'pixi-silk';
+ * import { silkRichLabel } from 'pixi-silk/text';
+ * import { ValuePill } from 'pixi-silk/ui/pill';
+ *
+ * const up = () => new SilkGraphics().poly([0, 8, 5, 0, 10, 8]).fill(0x30d158);
+ * const pill = new ValuePill({ label: silkRichLabel({ up: { object: up, height: 'cap' } }) });
+ *
+ * pill.show('{up} 12%');
+ * ```
+ */
+export function silkRichLabel(
+    inlines: Record<string, RichInline>,
+    overrides: Omit<SilkRichTextOptions, 'text' | 'inlines'> = {},
+): LabelFactory {
+    return (style) => new SilkRichText({ ...fromPixiStyle(style), ...overrides, inlines });
 }

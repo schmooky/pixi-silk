@@ -138,11 +138,28 @@ console.log(hit.index, caret.x, label.rangeRects(0, 5));
 `pixi-silk/text` also exports these as functions on a `TextLayout`, with `graphemeStops`,
 `wordAt` and the word jumps.
 
+## Icons in editable text
+
+`inlines` takes the same objects as `SilkRichText`. A `{name}` token in the value shows its object,
+whether it was there from the start, pasted or typed. The caret steps over a token in one move,
+and one Backspace deletes it whole. The value keeps the token text, so saving and loading need
+nothing extra.
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { TextEditor } from 'pixi-silk/ui/textedit';
+
+const dot = () => new SilkGraphics().circle(0, 0, 6).fill(0x30d158);
+const note = new TextEditor({ text: 'Status {dot} online', fontSize: 16, inlines: { dot: { object: dot, height: 'cap' } } });
+```
+
 ## Where it stops
 
-Arabic and Hebrew lay out right to left, and in a right-to-left paragraph the left arrow moves
-forward through the text. The caret moves in source order, so at a change of direction it can jump
-across the line. A selection that crosses one shows as several boxes. Emoji count as one caret step but draw as one-colour
-silhouettes, as in [SilkText](/docs/text/#where-it-stops).
+Arabic and Hebrew lay out right to left. The arrow keys and word jumps move the way they point on
+screen, also in a line that mixes directions, and at the line's edge they go on to the next line.
+Where the direction changes, one offset has two places on screen, and the caret can stand at
+either: the one it reached, or the one that was clicked. Home and End go to where the line starts
+and ends in reading order. A selection that crosses a change of direction shows as several boxes.
+Emoji count as one caret step.
 
 Spell check underlines do not show, because the hidden field is invisible.

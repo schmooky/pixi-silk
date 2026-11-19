@@ -14,6 +14,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 import { glassWgsl } from '../packages/pixi-silk/dist/glass/glass-wgsl.js';
 import { createSilkGpuProgram } from '../packages/pixi-silk/dist/shader-wgsl.js';
+import { textWgsl } from '../packages/pixi-silk/dist/text/shader.js';
 // the library's own pixi.js (the workspace root has none)
 import { GpuProgram } from '../packages/pixi-silk/node_modules/pixi.js/lib/index.mjs';
 
@@ -32,6 +33,12 @@ const glass = GpuProgram.from({
     name: 'silk-glass',
     vertex: { source: glassWgsl, entryPoint: 'mainVertex' },
     fragment: { source: glassWgsl, entryPoint: 'mainFragment' },
+});
+// SilkText: a corner quad per vertex, rect, uv and meta per glyph instance
+const text = GpuProgram.from({
+    name: 'silk-text',
+    vertex: { source: textWgsl, entryPoint: 'mainVertex' },
+    fragment: { source: textWgsl, entryPoint: 'mainFragment' },
 });
 const programs = [
     // corner quad per vertex, everything else per instance (one interleaved buffer)
@@ -64,6 +71,22 @@ const programs = [
             attributes: [{ shaderLocation: a.location, offset: 0, format: a.format }],
         })),
     ),
+    describe('silk-text', text, (attrs) => [
+        {
+            arrayStride: 8,
+            stepMode: 'vertex',
+            attributes: [{ shaderLocation: attrs.aCorner.location, offset: 0, format: attrs.aCorner.format }],
+        },
+        {
+            arrayStride: 48,
+            stepMode: 'instance',
+            attributes: ['aRect', 'aUv', 'aMeta'].map((n, i) => ({
+                shaderLocation: attrs[n].location,
+                offset: i * 16,
+                format: attrs[n].format,
+            })),
+        },
+    ]),
 ];
 
 // a canary the device must reject (an f32 where a vec2 belongs): proves errors are not swallowed

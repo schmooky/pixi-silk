@@ -1,6 +1,6 @@
 ---
 name: pixi-silk-text
-description: "Use this skill when drawing text with pixi-silk in PixiJS v8: SilkText from pixi-silk/text. Covers SilkText options and setters (fontFamily, fontSize, fontWeight, fill colour or gradient, letterSpacing, lineHeight, align, wordWrap, tabularNumbers, kerning, outline, shadow, dilate, aaWidth, anchor, direction, wordBreak, inlines), set(), right-to-left and complex scripts (Arabic, Hebrew, Burmese, Thai, Indic, Chinese, Japanese, Korean), SilkRichText for sprites and icons inside text, the shared SdfAtlas and custom atlases (size, radius), silkLabel for widgets, caretAt, caretRect, rangeRects, layoutText. Triggers on: SilkText, sharp text, SDF text, distance field text, text blurry when zoomed, text outline, text glow, tabular numbers, Arabic text, RTL, Burmese clipped, icon in text, coin in text, SdfAtlas, silkLabel, pixi-silk/text."
+description: "Use this skill when drawing text with pixi-silk in PixiJS v8: SilkText from pixi-silk/text. Covers SilkText options and setters (fontFamily, fontSize, fontWeight, fill colour or gradient, letterSpacing, lineHeight, align, wordWrap, tabularNumbers, kerning, outline, shadow, dilate, aaWidth, anchor, direction, wordBreak, inlines, maxLines, maxWidth, maxHeight, ellipsis, shrinkToFit, tabSize), set(), right-to-left and complex scripts (Arabic, Hebrew, Burmese, Thai, Indic, Chinese, Japanese, Korean), SilkRichText for sprites and icons inside text, the shared SdfAtlas and custom atlases (size, radius), silkLabel and silkRichLabel for widgets, caretAt, caretRect, rangeRects, layoutText. Triggers on: SilkText, sharp text, text overflow, ellipsis, shrink to fit, justify, SDF text, distance field text, text blurry when zoomed, text outline, text glow, tabular numbers, Arabic text, RTL, clipped marks, icon in text, sprite in text, SdfAtlas, silkLabel, pixi-silk/text."
 license: MIT
 ---
 
@@ -61,27 +61,27 @@ console.log(hit.index, caret.x, note.rangeRects(0, 5)); // selection boxes for c
 
 For an editable field, use `TextEditor` from `pixi-silk/ui/textedit` (see the pixi-silk-editor skill).
 
-### Icons, coins and sprites inside text
+### Icons and sprites inside text
 
 ```ts
 import { Sprite, Texture } from 'pixi.js';
 import { SilkGraphics } from 'pixi-silk';
 import { SilkRichText } from 'pixi-silk/text';
 
-const win = new SilkRichText({
-    text: 'You won {coin} 250.00 {star}',
+const status = new SilkRichText({
+    text: 'Synced {dot} 2 min ago, rated {star} 4.8',
     fontSize: 24,
     inlines: {
-        coin: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
+        dot: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
         star: { object: () => new SilkGraphics().star(0, 0, 5, 10, 4).fill(0xffd60a), height: 'em', align: 'center' },
     },
 });
 
-app.stage.addChild(win);
-win.textObject.wordWrap = true; // style the text through textObject
+app.stage.addChild(status);
+status.textObject.wordWrap = true; // style the text through textObject
 ```
 
-`{name}` takes a box that flows, wraps and follows right-to-left order like a character. `align` is `middle` (centred on capital letters and digits, the default), `center`, `baseline`, `top` or `bottom`. Pass a function to show an object more than once. Plain `SilkText` takes the same boxes as `inlines: { coin: { width, height } }` and reports them through `inlineRects()`.
+`{name}` takes a box that flows, wraps and follows right-to-left order like a character. `align` is `middle` (centred on capital letters and digits, the default), `center`, `baseline`, `top` or `bottom`. Pass a function to show an object more than once. `anchor` moves the objects with the text. A box sticks to the letters and digits next to it. `TextEditor` takes the same `inlines`: typed tokens become objects, and one Backspace deletes a token. Plain `SilkText` takes the same boxes as `inlines: { icon: { width, height } }` and reports them through `inlineRects()`.
 
 ### Any script
 
@@ -89,11 +89,23 @@ win.textObject.wordWrap = true; // style the text through textObject
 import { SilkText } from 'pixi-silk/text';
 
 const ar = new SilkText({ text: 'السعر 1,234.56', fontSize: 20 }); // right to left, number stays in order
-const my = new SilkText({ text: 'နောက်ဆုံး အနိုင်ရငွေ', fontSize: 20, wordWrap: true, wordWrapWidth: 200 });
-const ko = new SilkText({ text: '보너스는 무료 스핀이 끝날 때까지', wordBreak: 'keep-all', wordWrap: true, wordWrapWidth: 160 });
+const my = new SilkText({ text: 'မင်္ဂလာပါ ကမ္ဘာ', fontSize: 20, wordWrap: true, wordWrapWidth: 200 });
+const ko = new SilkText({ text: '변경 사항은 저장 버튼을 누른 뒤에 적용됩니다', wordBreak: 'keep-all', wordWrap: true, wordWrapWidth: 160 });
 ```
 
-Arabic, Hebrew, Burmese, Thai, Khmer, the Indic scripts and emoji sequences shape: their words are baked whole. Lines grow to fit stacked marks, so nothing is cut or overlaps the next line. Chinese and Japanese wrap between characters, Thai and Burmese between words.
+Arabic, Hebrew, Burmese, Thai, Khmer, the Indic scripts and emoji sequences shape, and emoji keep their colours. Wrap inserted values of unknown direction in U+2068 and U+2069. Lines grow to fit stacked marks, so nothing is cut or overlaps the next line. Chinese and Japanese wrap between characters, Thai and Burmese between words.
+
+### Text that has to fit a box
+
+```ts
+import { SilkText } from 'pixi-silk/text';
+
+const title = new SilkText({ text: 'Settings', fontSize: 24, maxWidth: 160, shrinkToFit: true, minFontSize: 14 });
+const note = new SilkText({ text: 'A long description', wordWrap: true, wordWrapWidth: 200, maxLines: 2 });
+const body = new SilkText({ text: 'Paragraph', wordWrap: true, wordWrapWidth: 300, align: 'justify' });
+```
+
+`maxLines`, `maxWidth` and `maxHeight` cut what does not fit and end it in `ellipsis` (`null` for no mark). `shrinkToFit` shrinks the font first, down to `minFontSize`. `renderedFontSize` and `truncated` report what happened. `justify` uses kashida in Arabic (`kashida: false` to turn it off). `tabSize` sets tab stops.
 
 ### Sharp labels in widgets
 
@@ -106,7 +118,7 @@ const pill = new ValuePill({ label: silkLabel({ tabularNumbers: true }) });
 pill.show('42 px');
 ```
 
-Widgets draw their labels with Pixi `Text` by default. `silkLabel()` swaps in SilkText, which stays sharp under a zooming camera.
+Widgets draw their labels with Pixi `Text` by default. `silkLabel()` swaps in SilkText, which stays sharp under a zooming camera. `silkRichLabel({ up: { object, height: 'cap' } })` makes labels that can show `{up}` icons, and the widget sizes itself to them.
 
 ### A bigger atlas for large glows
 
