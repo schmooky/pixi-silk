@@ -120,31 +120,31 @@
     "gzip": 28822
   },
   "text": {
-    "gzip": 15423
+    "gzip": 18781
   },
   "text (SilkText)": {
-    "gzip": 14522
+    "gzip": 17024
   },
   "text (layoutText, sdfFromAlpha)": {
-    "gzip": 4720
+    "gzip": 6294
   },
   "ui/textedit (TextEditor)": {
-    "gzip": 46719
+    "gzip": 49129
   },
   "ui/pill (ValuePill)": {
     "gzip": 27036
   },
   "ui/panel (Panel)": {
-    "gzip": 49474
+    "gzip": 51968
   },
   "ui/layers (LayerTree)": {
-    "gzip": 61278
+    "gzip": 63733
   },
   "ui/layers (tree math)": {
     "gzip": 890
   },
   "ui/inspector (Inspector)": {
-    "gzip": 62033
+    "gzip": 64510
   },
   "ui/minimap (Minimap)": {
     "gzip": 29330
@@ -162,6 +162,6 @@
     "gzip": 10080
   },
   "ui (everything)": {
-    "gzip": 135377
+    "gzip": 137865
   }
 }

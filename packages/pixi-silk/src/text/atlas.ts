@@ -124,6 +124,34 @@ interface Shelf {
 /** Pixi's metrics string: ascent and descent of these cover accents and descenders. */
 const METRICS = '|ÉqÅM';
 const NO_INK: Omit<Glyph, 'left' | 'top'> = { x: 0, y: 0, w: 0, h: 0 };
+/** Object replacement character: stands for inline objects, never baked. */
+const OBJECT = '\ufffc';
+
+/** The rows and columns that hold ink in RGBA pixels, as a half-open box, or null when there is none. */
+function inkBox(
+    pixels: ArrayLike<number>,
+    w: number,
+    h: number,
+): { x0: number; y0: number; x1: number; y1: number } | null {
+    let x0 = w;
+    let y0 = h;
+    let x1 = 0;
+    let y1 = 0;
+
+    for (let y = 0; y < h; y++) {
+        const row = y * w * 4;
+
+        for (let x = 0; x < w; x++) {
+            if (pixels[row + x * 4 + 3] === 0) continue;
+            if (x < x0) x0 = x;
+            if (x >= x1) x1 = x + 1;
+            if (y < y0) y0 = y;
+            y1 = y + 1;
+        }
+    }
+
+    return x1 > x0 && y1 > y0 ? { x0, y0, x1, y1 } : null;
+}
 
 /** CSS `font` shorthand for a spec at a size. */
 export function fontString(font: FontSpec, size: number): string {
@@ -271,6 +299,18 @@ export class SdfAtlas {
         return g;
     }
 
+    /**
+     * Where a glyph's ink reaches, from its baked pixels, at {@link SdfAtlas.size}: up from the
+     * baseline (`ascent`) and down from it (`descent`). Zero for glyphs with no ink. Bakes the glyph.
+     */
+    ink(font: FontSpec, char: string): { ascent: number; descent: number } {
+        const g = this.glyph(font, char);
+
+        if (g.w === 0) return { ascent: 0, descent: 0 };
+
+        return { ascent: -(g.top + this.pad), descent: g.top + g.h - this.pad };
+    }
+
     /** Uploads the texture if glyphs were baked since the last call. */
     flush(): void {
         if (!this._dirty) return;
@@ -368,35 +408,62 @@ export class SdfAtlas {
     }
 
     private _bake(entry: FontEntry, char: string): Glyph {
+        if (char.trim() === '' || char === OBJECT) return { ...NO_INK, left: 0, top: 0 };
         const ctx = this._context(entry.css);
         const m = ctx.measureText(char);
-        const left = Math.ceil(m.actualBoundingBoxLeft);
-        const right = Math.ceil(m.actualBoundingBoxRight);
-        const ascent = Math.ceil(m.actualBoundingBoxAscent);
-        const descent = Math.ceil(m.actualBoundingBoxDescent);
         const pad = this.pad;
-        const inkW = left + right;
-        const inkH = ascent + descent;
+        // Canvas bounding boxes are not reliable for stacked marks (Burmese, Thai, Indic) and
+        // emoji: draw with room to spare and find the ink in the pixels instead.
+        let slack = Math.ceil(this.size * 0.5);
+        let found: { x0: number; y0: number; x1: number; y1: number; pixels: ArrayLike<number>; rw: number } | null =
+            null;
+        let penX = 0;
+        let baseY = 0;
 
-        if (inkW <= 0 || inkH <= 0 || char.trim() === '') return { ...NO_INK, left: 0, top: 0 };
-        const w = inkW + 2 * pad;
-        const h = inkH + 2 * pad;
-        const canvas = ctx.canvas;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const left = Math.max(0, Math.ceil(m.actualBoundingBoxLeft));
+            const right = Math.max(Math.ceil(m.actualBoundingBoxRight), Math.ceil(m.width));
+            const ascent = Math.max(0, Math.ceil(m.actualBoundingBoxAscent));
+            const descent = Math.max(0, Math.ceil(m.actualBoundingBoxDescent));
+            const rw = left + right + 2 * slack;
+            const rh = ascent + descent + 2 * slack;
+            const canvas = ctx.canvas;
 
-        if (canvas.width < w || canvas.height < h) {
-            canvas.width = Math.max(canvas.width, w);
-            canvas.height = Math.max(canvas.height, h);
-            // resizing a canvas resets its state
-            ctx.font = entry.css;
-            if (ctx.direction !== undefined) ctx.direction = 'ltr';
+            if (canvas.width < rw || canvas.height < rh) {
+                canvas.width = Math.max(canvas.width, rw);
+                canvas.height = Math.max(canvas.height, rh);
+                // resizing a canvas resets its state
+                ctx.font = entry.css;
+                if (ctx.direction !== undefined) ctx.direction = 'ltr';
+            }
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#000';
+            ctx.clearRect(0, 0, rw, rh);
+            penX = slack + left;
+            baseY = slack + ascent;
+            ctx.fillText(char, penX, baseY);
+            const pixels = ctx.getImageData(0, 0, rw, rh).data;
+            const ink = inkBox(pixels, rw, rh);
+
+            if (!ink) return { ...NO_INK, left: 0, top: 0 };
+            found = { ...ink, pixels, rw };
+            // ink that reaches the edge of the raster may go on past it: draw again with more room
+            if (ink.x0 > 0 && ink.y0 > 0 && ink.x1 < rw && ink.y1 < rh) break;
+            slack *= 2;
         }
-        ctx.textBaseline = 'alphabetic';
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#000';
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillText(char, pad + left, pad + ascent);
-        const pixels = ctx.getImageData(0, 0, w, h).data;
-        const field = sdfFromAlpha(pixels, w, h, this.radius, this.cutoff, 4);
+        if (!found) return { ...NO_INK, left: 0, top: 0 };
+        const { x0, y0, x1, y1, pixels, rw } = found;
+        const w = x1 - x0 + 2 * pad;
+        const h = y1 - y0 + 2 * pad;
+        // the ink, padded, as coverage for the distance transform
+        const cell = new Uint8Array(w * h);
+
+        for (let row = y0; row < y1; row++) {
+            for (let col = x0; col < x1; col++)
+                cell[(row - y0 + pad) * w + col - x0 + pad] = pixels[(row * rw + col) * 4 + 3];
+        }
+        const field = sdfFromAlpha(cell, w, h, this.radius, this.cutoff, 1);
         let at = this._place(w, h);
 
         if (!at) {
@@ -414,7 +481,7 @@ export class SdfAtlas {
         for (let row = 0; row < h; row++) data.set(field.subarray(row * w, row * w + w), (at.y + row) * W + at.x);
         this._dirty = true;
 
-        return { x: at.x, y: at.y, w, h, left: -(left + pad), top: -(ascent + pad) };
+        return { x: at.x, y: at.y, w, h, left: x0 - pad - penX, top: y0 - pad - baseY };
     }
 
     /** Shelf packing: rows of similar height, left to right. Grows the texture, or null when it cannot. */

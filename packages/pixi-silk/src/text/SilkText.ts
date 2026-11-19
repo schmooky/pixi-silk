@@ -16,11 +16,13 @@ import { parseColor } from '../color';
 import { Gradient } from '../gradient';
 import { type FontSpec, SdfAtlas } from './atlas';
 import type { TextDirection } from './bidi';
+import type { WordBreak } from './cluster';
 import {
     type CaretHit,
     type CaretRect,
     caretAtPoint,
     caretRect,
+    type InlineMetrics,
     type LayoutLine,
     layoutText,
     rangeRects,
@@ -99,6 +101,57 @@ export interface SilkTextStyle {
     dilate?: number;
     /** Width of the anti-aliasing ramp in device pixels. Larger is softer. Default 1. */
     aaWidth?: number;
+    /**
+     * Where lines may break without spaces. `normal` breaks between Chinese, Japanese and Korean
+     * characters, `keep-all` keeps them together up to the next space. Default `normal`.
+     */
+    wordBreak?: WordBreak;
+    /**
+     * Room for inline objects, by name. `{coin}` in the text, with `coin` listed here, becomes a box
+     * that flows with the text. Read the boxes back with {@link SilkText.inlineRects}, or use
+     * {@link SilkRichText} to place sprites and graphics in them. Default none.
+     */
+    inlines?: Record<string, TextInline>;
+}
+
+/** How an inline box sits on the line. */
+export type InlineAlign = 'baseline' | 'middle' | 'center' | 'top' | 'bottom';
+
+/** A box for an inline object, as {@link SilkTextStyle.inlines} lists them. Sizes are in local units. */
+export interface TextInline {
+    /** Width of the object. */
+    width: number;
+    /** Height of the object. */
+    height: number;
+    /**
+     * Vertical placement. `middle` centres the box on the middle of capital letters and digits, the
+     * place for icons and coins next to numbers. `center` centres it on the line box. `baseline` puts
+     * its bottom on the baseline, `top` and `bottom` align it with the font's ascent and descent.
+     * Default `middle`.
+     */
+    align?: InlineAlign;
+    /** Moves the box down (positive) or up after alignment. Default 0. */
+    offsetY?: number;
+    /** Space left and right of the box. Default 0. */
+    margin?: number;
+}
+
+/** Where an inline object goes, as {@link SilkText.inlineRects} returns them, in local units. */
+export interface InlineRect {
+    /** Name of the inline, as written between braces. */
+    name: string;
+    /** Left edge of the object, margin excluded. */
+    x: number;
+    /** Top edge of the object. */
+    y: number;
+    /** Width of the object. */
+    width: number;
+    /** Height of the object. */
+    height: number;
+    /** Line it sits on. */
+    line: number;
+    /** Offset of its `{name}` token in the text. */
+    index: number;
 }
 
 /** Options of a {@link SilkText}: the style plus the text, anchor and atlas. */
@@ -223,6 +276,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         shadow: null,
         dilate: 0,
         aaWidth: 1,
+        wordBreak: 'normal',
+        inlines: {},
     };
 
     /** Point of the text box placed at the position: (0, 0) top left, (0.5, 0.5) centre, (1, 1) bottom right. Changing it relayouts. */
@@ -237,6 +292,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     private _version = -1;
     private _f: Float32Array;
     private _count = 0;
+    private _passes = 1;
+    private _inlineBoxes: Record<string, { width: number; height: number; margin: number; top: number }> = {};
     private readonly _uniforms: UniformGroup;
     private _gradKey: string | null = null;
     private readonly _scratch = new Float32Array(4);
@@ -540,7 +597,53 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
     get glyphCount(): number {
         this.updateText();
 
-        return this._style.shadow ? this._count / 2 : this._count;
+        return this._count / this._passes;
+    }
+
+    /**
+     * Where the inline objects of the text go, one rectangle per `{name}` token, in local units.
+     * Bidi and wrapping move them with the text. See {@link SilkTextStyle.inlines}.
+     */
+    inlineRects(): InlineRect[] {
+        const layout = this.layout;
+        const out: InlineRect[] = [];
+
+        for (const g of layout.glyphs) {
+            const box = g.inline ? this._inlineBoxes[g.inline] : undefined;
+
+            if (!g.inline || !box) continue;
+            out.push({
+                name: g.inline,
+                x: this._ox + g.x + box.margin,
+                y: this._oy + g.y - box.top,
+                width: box.width,
+                height: box.height,
+                line: g.line,
+                index: g.index,
+            });
+        }
+
+        return out;
+    }
+
+    /** Room for inline objects, by name. Set a new object to change it, mutating this one does nothing. */
+    get inlines(): Record<string, TextInline> {
+        return this._style.inlines;
+    }
+
+    /** Sets {@link SilkText.inlines}. */
+    set inlines(v: Record<string, TextInline>) {
+        this._set('inlines', v);
+    }
+
+    /** Where lines may break without spaces: `normal` or `keep-all`. */
+    get wordBreak(): WordBreak {
+        return this._style.wordBreak;
+    }
+
+    /** Sets {@link SilkText.wordBreak}. */
+    set wordBreak(v: WordBreak) {
+        this._set('wordBreak', v);
     }
 
     override get bounds(): Bounds {
@@ -597,6 +700,46 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
 
     // ------------------------------------------------------------------------------ internals
 
+    /** The inline boxes in layout terms: advance with margins, and the height above and below the baseline. */
+    private _resolveInlines(font: FontSpec, k: number, ascent: number, descent: number): Record<string, InlineMetrics> {
+        const out: Record<string, InlineMetrics> = {};
+        const names = Object.keys(this._style.inlines);
+
+        this._inlineBoxes = {};
+        if (!names.length) return out;
+        const cap = this.atlas.ink(font, 'H').ascent * k || ascent * 0.7;
+
+        for (const name of names) {
+            const d = this._style.inlines[name];
+            const h = Math.max(0, d.height);
+            const margin = d.margin ?? 0;
+            // top of the box, measured up from the baseline
+            let top: number;
+
+            switch (d.align ?? 'middle') {
+                case 'baseline':
+                    top = h;
+                    break;
+                case 'center':
+                    top = (ascent - descent) / 2 + h / 2;
+                    break;
+                case 'top':
+                    top = ascent;
+                    break;
+                case 'bottom':
+                    top = h - descent;
+                    break;
+                default:
+                    top = cap / 2 + h / 2;
+            }
+            top -= d.offsetY ?? 0;
+            this._inlineBoxes[name] = { width: Math.max(0, d.width), height: h, margin, top };
+            out[name] = { width: Math.max(0, d.width) + 2 * margin, ascent: top, descent: h - top };
+        }
+
+        return out;
+    }
+
     private _set<K extends keyof ResolvedTextStyle>(key: K, value: ResolvedTextStyle[K]): void {
         if (this._style[key] === value) return;
         this._style[key] = value;
@@ -615,6 +758,8 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         const font: FontSpec = { family: s.fontFamily, weight: s.fontWeight, style: s.fontStyle };
         const k = s.fontSize / atlas.size;
         const fm = atlas.metrics(font);
+        const reach =
+            Math.max(0, s.dilate) + (s.outline && (s.outline.alpha ?? 1) > 0 ? Math.max(0, s.outline.width) : 0);
         const layout = layoutText(
             this._text,
             {
@@ -629,36 +774,66 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
                 breakWords: s.breakWords,
                 tabularNumbers: s.tabularNumbers,
                 kerning: s.kerning,
+                wordBreak: s.wordBreak,
+                inlines: this._resolveInlines(font, k, fm.ascent * k, fm.descent * k),
             },
             {
                 advance: (c) => atlas.advance(font, c) * k,
                 kerning: (a, b) => atlas.kerning(font, a, b) * k,
+                // lines fit the ink plus the outline, so stacked marks of two lines never touch
+                ink: (c) => {
+                    const i = atlas.ink(font, c);
+
+                    return { ascent: i.ascent * k + reach, descent: i.descent * k + reach };
+                },
             },
         );
         const ox = -this.anchor.x * layout.width;
         const oy = -this.anchor.y * layout.height;
         const shadow = s.shadow && (s.shadow.alpha ?? 1) > 0 ? s.shadow : null;
+        const outline = s.outline && s.outline.width > 0 && (s.outline.alpha ?? 1) > 0 ? s.outline : null;
         const glyphs = layout.glyphs;
-        const layers = shadow ? 2 : 1;
+        // shadow under everything, then every outline, then every fill: an outline never covers the
+        // letter before it where glyphs touch
+        const passes: [layer: number, mode: number][] = [];
 
+        if (shadow) passes.push([1, 0]);
+        if (outline) passes.push([0, 1], [0, 2]);
+        else passes.push([0, 0]);
         this._layout = layout;
         this._ox = ox;
         this._oy = oy;
-        this._ensure(glyphs.length * layers);
+        this._passes = passes.length;
+        this._ensure(glyphs.length * passes.length);
         const f = this._f;
+        const bounds = this.geometry.localBounds;
+        const pad = atlas.pad * k;
         let n = 0;
 
-        for (let layer = layers - 1; layer >= 0; layer--) {
+        bounds.clear();
+        bounds.addFrame(ox, oy, ox + layout.width, oy + layout.height);
+        for (const [layer, mode] of passes) {
             const dx = layer ? (shadow?.offsetX ?? 0) : 0;
             const dy = layer ? (shadow?.offsetY ?? 0) : 0;
+            // how far past the ink this pass paints
+            const reach = Math.max(0, s.dilate) + (outline ? outline.width : 0) + (layer ? (shadow?.blur ?? 4) : 0);
 
             for (const pg of glyphs) {
+                if (pg.inline) continue;
                 const g = atlas.glyph(font, pg.char);
 
                 if (g.w === 0) continue;
                 const o = n * STRIDE;
                 const x0 = ox + pg.x + g.left * k + dx;
                 const y0 = oy + pg.y + g.top * k + dy;
+
+                // the ink, not the padded cell, so a stacked mark or an overhang never gets culled or clipped
+                bounds.addFrame(
+                    x0 + pad - reach,
+                    y0 + pad - reach,
+                    x0 + g.w * k - pad + reach,
+                    y0 + g.h * k - pad + reach,
+                );
 
                 f[o] = x0;
                 f[o + 1] = y0;
@@ -669,7 +844,7 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
                 f[o + 6] = g.x + g.w;
                 f[o + 7] = g.y + g.h;
                 f[o + 8] = layer;
-                f[o + 9] = 0;
+                f[o + 9] = mode;
                 f[o + 10] = 0;
                 f[o + 11] = 0;
                 n++;
@@ -678,8 +853,6 @@ export class SilkText extends Mesh<SilkTextGeometry, Shader> {
         this._count = n;
         const geometry = this.geometry;
 
-        geometry.localBounds.clear();
-        geometry.localBounds.addFrame(ox, oy, ox + layout.width, oy + layout.height);
         geometry.instanceCount = n;
         geometry.instanceBuffer.update(Math.max(n, 1) * STRIDE * 4);
         this._paint(s, k, ox, oy, layout);

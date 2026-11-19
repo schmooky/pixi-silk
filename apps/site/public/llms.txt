@@ -47,7 +47,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/glass`](https://pixi-silk.schmooky.dev/api/glass.md) | Paint | Glass: a frosted pane that blurs and bends what is behind it. |
 | [`pixi-silk/glow`](https://pixi-silk.schmooky.dev/api/glow.md) | Paint | Glow, Aurora and light helpers (neon, halo, rays, spectrum). |
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
-| [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill. SdfAtlas, layoutText, caret helpers. |
+| [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
 | [`pixi-silk/signal`](https://pixi-silk.schmooky.dev/api/signal.md) | UI widgets | signal, computed, watch, batch: the small reactive store every widget state uses. |

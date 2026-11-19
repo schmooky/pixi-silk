@@ -1,6 +1,5 @@
 import {
     type BidiClass,
-    clusters,
     hasRtl,
     mirror,
     paragraphLevel,
@@ -9,6 +8,7 @@ import {
     type TextDirection,
     visualOrder,
 } from './bidi';
+import { clusters, type WordBreak } from './cluster';
 
 /**
  * Horizontal alignment of the lines of a text block. `start` and `end` follow the direction of each
@@ -25,6 +25,22 @@ export interface TextMeasurer {
     advance(char: string): number;
     /** Extra space between two characters (negative pulls them together). */
     kerning(a: string, b: string): number;
+    /**
+     * How far a character's ink reaches above and below the baseline. Optional. With it, lines grow
+     * to fit glyphs that reach past the font's ascent or descent (stacked Burmese, Thai or Vietnamese
+     * marks), so nothing overlaps the next line.
+     */
+    ink?(char: string): { ascent: number; descent: number };
+}
+
+/** The box an inline object takes in a line, as {@link LayoutOptions.inlines} lists them. */
+export interface InlineMetrics {
+    /** Advance width, margins included. */
+    width: number;
+    /** Height above the baseline. */
+    ascent: number;
+    /** Depth below the baseline. Negative when the box sits above the baseline. */
+    descent: number;
 }
 
 /** What {@link layoutText} needs besides the text. Sizes are in local units. */
@@ -54,6 +70,22 @@ export interface LayoutOptions {
     tabularNumbers?: boolean;
     /** Applies the font's kerning. Default true. */
     kerning?: boolean;
+    /**
+     * Where lines may break without spaces: `normal` breaks between Chinese, Japanese and Korean
+     * characters, `keep-all` only at spaces. Thai, Burmese, Khmer and Lao break between words either
+     * way. Default `normal`.
+     */
+    wordBreak?: WordBreak;
+    /**
+     * Grows the line box when a glyph's ink reaches past the font's ascent or descent, so tall
+     * stacks of marks are not cut or overlapped. Needs {@link TextMeasurer.ink}. Default true.
+     */
+    fitInk?: boolean;
+    /**
+     * Boxes for inline objects. `{name}` in the text, with a name listed here, becomes one box that
+     * flows with the text like a character. Unlisted names stay text.
+     */
+    inlines?: Record<string, InlineMetrics>;
 }
 
 /** A character placed by {@link layoutText}. */
@@ -71,6 +103,8 @@ export interface PlacedGlyph {
     line: number;
     /** Offset of the character in the source text, in UTF-16 code units. */
     index: number;
+    /** Name of the inline object this box stands for, when it is one. `char` is then U+FFFC. */
+    inline?: string;
 }
 
 /** A run of a line that goes one way, as {@link LayoutLine.runs} lists them. */
@@ -145,16 +179,21 @@ const NBSP = String.fromCharCode(160);
 const isSpace = (c: string): boolean => c === ' ' || c === '\t' || c === NBSP;
 const isDigit = (c: string): boolean => c >= '0' && c <= '9' && c.length === 1;
 const DIGITS = '0123456789';
-const ZWJ = '‍';
+const ZWJ = '\u200d';
+const OBJECT = '\ufffc';
+const TOKEN = /\{([\w-]+)\}/g;
 
-/** A unit of layout: one code point, or a cluster drawn as one glyph in text that needs the bidi pass. */
+/** A unit of layout: a cluster drawn as one glyph, or an inline object. */
 interface Unit {
+    /** What to draw. Inline objects are U+FFFC followed by their name. */
     draw: string;
     start: number;
     end: number;
-    /** Caret offsets inside the unit (letters of a joined run after the first). */
+    /** Caret offsets inside the unit (grapheme boundaries after the first). */
     inner: number[];
     type: BidiClass;
+    breakBefore: boolean;
+    inline?: string;
 }
 
 /** One line before alignment: its paragraph's units, the drawn range and where the next line starts. */
@@ -185,16 +224,24 @@ interface Visual {
  * Paragraphs that hold right-to-left characters go through the bidi pass, and so does every
  * paragraph when `direction` is `rtl`. Words wrap in reading order, then each line is reordered for
  * display. Arabic and Hebrew read right to left, and numbers and Latin words inside them keep
- * reading left to right. Joined letters of cursive scripts are measured and drawn as one run so they shape.
+ * reading left to right.
+ *
+ * Text is measured and drawn in clusters (see {@link clusters}). Marks stay with their letter.
+ * Joined Arabic runs and words of Burmese, Thai and the Indic scripts are one glyph each, so Canvas
+ * shapes them. `{name}` tokens listed in `inlines` become boxes for inline objects.
  */
 export function layoutText(text: string, options: LayoutOptions, measure: TextMeasurer): TextLayout {
     const spacing = options.letterSpacing ?? 0;
     const useKerning = options.kerning ?? true;
     const direction = options.direction ?? 'auto';
+    const inlines = options.inlines ?? {};
     const tab = options.tabularNumbers ? Math.max(...Array.from(DIGITS, (d) => measure.advance(d))) : 0;
-    const advance = (c: string): number => (tab && isDigit(c) ? tab : measure.advance(c));
+    const advance = (c: string): number =>
+        c[0] === OBJECT ? (inlines[c.slice(1)]?.width ?? 0) : tab && isDigit(c) ? tab : measure.advance(c);
     const kern = (a: string, b: string): number =>
-        useKerning && !(tab && (isDigit(a) || isDigit(b))) ? measure.kerning(a, b) : 0;
+        useKerning && a[0] !== OBJECT && b[0] !== OBJECT && !(tab && (isDigit(a) || isDigit(b)))
+            ? measure.kerning(a, b)
+            : 0;
     const width = (chars: readonly string[], from = 0, to = chars.length): number => {
         let w = 0;
 
@@ -217,19 +264,31 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         const para = text.slice(p, stop);
         const bidi = direction === 'rtl' || hasRtl(para);
         const units: Unit[] = [];
-
-        if (bidi) {
-            for (const c of clusters(para)) {
-                units.push({ ...c, start: c.start + p, end: c.end + p, inner: c.inner.map((o) => o + p) });
+        const addText = (from: number, to: number): void => {
+            for (const c of clusters(text.slice(from, to), options.wordBreak)) {
+                units.push({ ...c, start: c.start + from, end: c.end + from, inner: c.inner.map((o) => o + from) });
             }
-        } else {
-            for (let i = p; i < stop; ) {
-                const c = String.fromCodePoint(text.codePointAt(i) as number);
+        };
+        let t = p;
 
-                units.push({ draw: c, start: i, end: i + c.length, inner: [], type: 'L' });
-                i += c.length;
-            }
+        // {name} tokens of listed inline objects become one box each
+        for (const m of para.matchAll(TOKEN)) {
+            if (!Object.hasOwn(inlines, m[1])) continue;
+            const at = p + (m.index as number);
+
+            addText(t, at);
+            t = at + m[0].length;
+            units.push({
+                draw: OBJECT + m[1],
+                start: at,
+                end: t,
+                inner: [],
+                type: 'ON',
+                breakBefore: false,
+                inline: m[1],
+            });
         }
+        addText(t, stop);
         const chars = units.map((u) => u.draw);
         const offs = units.map((u) => u.start);
 
@@ -239,8 +298,16 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         const levels = bidi ? resolveLevels(types, level) : null;
         const ranges: [number, number][] = [];
 
-        if (options.wordWrap) wrap(chars, max, options.breakWords ?? false, (a, b) => width(chars, a, b), ranges);
-        else ranges.push([0, chars.length]);
+        if (options.wordWrap) {
+            wrap(
+                chars,
+                max,
+                options.breakWords ?? false,
+                (a, b) => width(chars, a, b),
+                (i) => units[i].breakBefore,
+                ranges,
+            );
+        } else ranges.push([0, chars.length]);
         ranges.forEach(([from, to], k) => {
             const last = k === ranges.length - 1;
 
@@ -299,8 +366,26 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
         return w;
     });
 
-    const ascent = options.ascent;
-    const descent = options.descent;
+    // glyphs that reach past the font's ascent or descent grow every line box
+    let ascent = options.ascent;
+    let descent = options.descent;
+
+    if (options.fitInk !== false) {
+        const seen = new Set<Unit[]>();
+
+        for (const row of rows) {
+            if (seen.has(row.units)) continue;
+            seen.add(row.units);
+            for (const u of row.units) {
+                const box = u.inline ? inlines[u.inline] : null;
+                const ink = box ?? (measure.ink && !isSpace(u.draw) ? measure.ink(u.draw) : null);
+
+                if (!ink) continue;
+                ascent = Math.max(ascent, ink.ascent);
+                descent = Math.max(descent, ink.descent);
+            }
+        }
+    }
     const fontHeight = ascent + descent;
     const lineHeight = options.lineHeight ?? fontHeight;
     const shift = Math.max(0, (lineHeight - fontHeight) / 2);
@@ -308,6 +393,10 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
     const align = options.align ?? 'start';
     const glyphs: PlacedGlyph[] = [];
     const out: LayoutLine[] = [];
+    const placed = (u: Unit, char: string, x: number, y: number, line: number): PlacedGlyph =>
+        u.inline
+            ? { char: OBJECT, x, y, line, index: u.start, inline: u.inline }
+            : { char, x, y, line, index: u.start };
 
     rows.forEach((row, li) => {
         const { chars, offs, from, to } = row;
@@ -338,7 +427,13 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
                 // tabular digits sit centred in their widened box
                 const centre = tab && isDigit(c) ? (tab - measure.advance(c)) / 2 : 0;
 
-                glyphs.push({ char: c, x: x + centre, y, line: li, index: offs[i] });
+                const unit = row.units[i];
+
+                glyphs.push(placed(unit, c, x + centre, y, li));
+                for (const o of unit.inner) {
+                    offsets.push(o);
+                    carets.push(x + Math.min(advance(c), measure.advance(text.slice(unit.start, o))));
+                }
                 x += advance(c);
             }
             if (to > from) {
@@ -365,7 +460,7 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
                 const odd = (v.lv(u) & 1) === 1;
                 const centre = tab && isDigit(c) ? (tab - measure.advance(c)) / 2 : 0;
 
-                glyphs.push({ char: odd ? mirror(c) : c, x: x + centre, y, line: li, index: offs[u] });
+                glyphs.push(placed(row.units[u], odd ? mirror(c) : c, x + centre, y, li));
                 left[u] = x;
                 x += advance(c);
                 right[u] = x;
@@ -445,21 +540,27 @@ export function layoutText(text: string, options: LayoutOptions, measure: TextMe
     };
 }
 
-/** Greedy word wrap of one paragraph into `[from, to)` ranges of its characters. Spaces at a break are dropped. */
+/**
+ * Greedy word wrap of one paragraph into `[from, to)` ranges of its characters. Spaces at a break
+ * are dropped. Lines also break where `breakBefore` allows it.
+ */
 function wrap(
     chars: string[],
     max: number,
     breakWords: boolean,
     width: (from: number, to: number) => number,
+    breakBefore: (i: number) => boolean,
     out: [number, number][],
 ): void {
-    // runs of spaces and runs of everything else, as [from, to)
+    // runs of spaces and runs of everything else, as [from, to). Words also end where a line may
+    // break without a space: between ideographs, between Thai or Burmese words.
     const tokens: [number, number][] = [];
 
     for (let i = 0; i < chars.length; i++) {
         const last = tokens[tokens.length - 1];
+        const space = isSpace(chars[i]);
 
-        if (last && isSpace(chars[last[0]]) === isSpace(chars[i])) last[1] = i + 1;
+        if (last && isSpace(chars[last[0]]) === space && (space || !breakBefore(i))) last[1] = i + 1;
         else tokens.push([i, i + 1]);
     }
     // the open line is [s, e); a line only ever grows at its end

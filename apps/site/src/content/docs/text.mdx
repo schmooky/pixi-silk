@@ -127,6 +127,55 @@ numbers, so a sign before them shows on their right: `-5` reads `5-`, as in the 
 left-to-right mark (`\u200E`) before the sign to keep it on the left. Embedding and isolate controls
 (U+202A to U+202E, U+2066 to U+2069) are ignored.
 
+## Every script, and objects inside the text
+
+<Demo name="text-scripts" height={660} caption="One line per script, then paragraphs with no spaces to break at, then text with SilkGraphics icons inside it. Tick boxes to see the line boxes." />
+
+Text in any script draws without options. Scripts that need shaping are baked a word or a run at a
+time, so Canvas shapes them with the font. That covers Burmese, Thai, Khmer, Lao, the Indic
+scripts, Arabic, emoji sequences and letters with combining accents. Latin, Cyrillic, Greek, Chinese, Japanese and
+Korean are baked one character at a time.
+
+Nothing is cut. Each glyph is drawn with room to spare, and the atlas keeps the ink it finds in
+the pixels, not the box `measureText` reports, which is too small for stacked marks. With
+`lineHeight` at 0, lines grow to fit the tallest ink and the outline, so Burmese or Vietnamese
+stacks never touch the next line. A fixed `lineHeight` is kept as given. Bounds cover the ink, so
+filters and culling do not clip it either.
+
+Lines wrap without spaces where the script allows it. Chinese and Japanese break between characters
+but never before closing punctuation or small kana. Korean breaks between syllables, or only at
+spaces with `wordBreak: 'keep-all'`. Thai, Burmese, Khmer and Lao break between words, found with
+`Intl.Segmenter`.
+
+Outlines are drawn for every glyph before any fill, so a thick outline never covers the letter
+next to it, even with tight letter spacing.
+
+To put an icon, a coin or any sprite in a line, write `{name}` in the text and use `SilkRichText`:
+
+```ts
+import { Sprite, Texture } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkRichText } from 'pixi-silk/text';
+
+const win = new SilkRichText({
+    text: 'You won {coin} 250.00 {star}',
+    fontSize: 24,
+    inlines: {
+        // scaled to the height of capitals and digits, centred on them
+        coin: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
+        // a function makes one object per {star} in the text
+        star: { object: () => new SilkGraphics().star(0, 0, 5, 10, 4).fill(0xffd60a), height: 'em', align: 'center' },
+    },
+});
+```
+
+Each token takes a box that wraps, aligns and follows right-to-left order like a character. A box
+taller than the text grows its line. `align` places it. `middle` (the default) centres it on
+capital letters and digits, and `center` on the line box. `baseline` stands it on the baseline, and
+`top` and `bottom` align it with the font's ascent and descent. `offsetY` nudges it. Sizes are local
+units or `em`, `cap` and `line`. Plain `SilkText` takes the same boxes as
+`inlines: { coin: { width, height } }` and returns where they landed from `inlineRects()`.
+
 ## Fonts and the atlas
 
 Each glyph is drawn with Canvas2D at 48 px the first time it appears, then turned into a distance
@@ -150,8 +199,7 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
 Corners round off slightly at extreme zoom, because a single-channel distance field cannot hold a
 sharp corner. At the default 48 px bake the rounding is about a fiftieth of the font size.
 
-Emoji and colour fonts come out as one-colour silhouettes. Outside right-to-left text there is no
-shaping: no ligatures and no combining marks, and each code point is one glyph. Latin, Greek,
-Cyrillic, Arabic and Hebrew text works. Use PixiJS `Text` for emoji and Indic scripts.
+Emoji and colour fonts come out as one-colour silhouettes. Use PixiJS `Text` or a sprite for
+colour emoji. Latin text gets no font ligatures, because its letters are baked one by one.
 
 SilkText runs on WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.

@@ -58,8 +58,8 @@ may change in a minor release.
   `createSilkApp`, or call `enableWebGPU()` from `pixi-silk/webgpu` before the first
   `SilkGraphics` in your own Pixi app
 
-It does not do texture fills or SVG documents, and `SilkText` does not shape Indic scripts or
-colour emoji. The [FAQ](https://pixi-silk.schmooky.dev/faq/) lists the other limits.
+It does not do texture fills or SVG documents, and `SilkText` draws colour emoji as one-colour
+silhouettes. The [FAQ](https://pixi-silk.schmooky.dev/faq/) lists the other limits.
 
 ## For AI agents
 

@@ -6,6 +6,7 @@
 import { Glass } from '/packages/pixi-silk/dist/glass.js';
 import { enableSilkBatching, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
+import { SilkText } from '/packages/pixi-silk/dist/text.js';
 import { enableWebGPU } from '/packages/pixi-silk/dist/webgpu.js';
 import { Application, Container, RenderTexture } from '/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs';
 
@@ -493,6 +494,28 @@ const cases = {
         root.addChild(stripes, pane);
 
         return { scene: root, kind: 'none', warm: true };
+    },
+    // outlined text in several scripts, tight enough that outlines meet: every outline goes under
+    // every fill, and stacked marks stay inside their glyph quads (compared between renderers)
+    'text-outline-scripts': () => {
+        const root = new Container();
+        const lines = ['AVAWA Tiles', 'Thắng lớn', 'နောက်ဆုံး', 'สวัสดี', 'مرحبا 1,250'];
+
+        lines.forEach((text, i) => {
+            const t = new SilkText({
+                text,
+                fontSize: 26,
+                fontWeight: 800,
+                letterSpacing: -1,
+                fill: 0xffffff,
+                outline: { width: 3, color: 0x0b2a6b },
+            });
+
+            t.position.set(8, 6 + i * 48);
+            root.addChild(t);
+        });
+
+        return { scene: root, kind: 'none' };
     },
 };
 

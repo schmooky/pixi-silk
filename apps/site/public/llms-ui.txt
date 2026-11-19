@@ -36,7 +36,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/glass`](https://pixi-silk.schmooky.dev/api/glass.md) | Paint | Glass: a frosted pane that blurs and bends what is behind it. |
 | [`pixi-silk/glow`](https://pixi-silk.schmooky.dev/api/glow.md) | Paint | Glow, Aurora and light helpers (neon, halo, rays, spectrum). |
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
-| [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill. SdfAtlas, layoutText, caret helpers. |
+| [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
 | [`pixi-silk/signal`](https://pixi-silk.schmooky.dev/api/signal.md) | UI widgets | signal, computed, watch, batch: the small reactive store every widget state uses. |
@@ -721,6 +721,208 @@ numbers, so a sign before them shows on their right: `-5` reads `5-`, as in the 
 left-to-right mark (`\u200E`) before the sign to keep it on the left. Embedding and isolate controls
 (U+202A to U+202E, U+2066 to U+2069) are ignored.
 
+### Every script, and objects inside the text
+
+Live demo `text-scripts` (source):
+
+```ts
+import { Graphics } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { SilkRichText, SilkText } from 'pixi-silk/text';
+import { defineDemo, FONT, INK, label, PALETTE } from './runtime';
+
+// One line per script, then wrapped paragraphs without spaces and a line with inline icons.
+// Stacked marks (Burmese, Thai, Vietnamese) grow the line instead of being cut, and outlines sit
+// under every letter. Tick "boxes" to see each text's line boxes.
+const SAMPLES: [string, string][] = [
+    ['en', 'Big win 1,250.00'],
+    ['vi', 'Thắng lớn! Phần thưởng'],
+    ['ru', 'Крупный выигрыш'],
+    ['el', 'Μεγάλη νίκη'],
+    ['ka', 'დიდი მოგება'],
+    ['hi', 'बड़ी जीत! बोनस राउंड'],
+    ['bn', 'বড় জয়! বোনাস'],
+    ['ta', 'பெரிய வெற்றி'],
+    ['th', 'ชนะรางวัลใหญ่ โบนัส'],
+    ['my', 'နောက်ဆုံး အနိုင်ရငွေ'],
+    ['km', 'ឈ្នះធំ ប្រាក់រង្វាន់'],
+    ['ja', '大当たり！ボーナス'],
+    ['zh', '恭喜中奖！免费旋转'],
+    ['ko', '대박 당첨! 보너스'],
+    ['ar', 'فوز كبير 1,250.00'],
+    ['he', 'זכייה גדולה 1,250.00'],
+];
+
+export default defineDemo({
+    title: 'Scripts, wrapping and inline icons',
+    size: [720, 660],
+    phone: { size: [360, 1180] },
+    controls: {
+        outline: { type: 'toggle', label: 'outline', value: true },
+        boxes: { type: 'toggle', label: 'boxes', value: false },
+    },
+    setup({ stage, params, tick, width, phone }) {
+        const size = phone ? 17 : 19;
+        const texts: SilkText[] = [];
+        const boxes = new Graphics();
+        const col = phone ? width : width / 2;
+        let y = 16;
+
+        SAMPLES.forEach(([lang, text], i) => {
+            const x = phone ? 0 : (i % 2) * col;
+
+            if (!phone && i % 2 === 0 && i > 0) y += 34;
+            if (phone && i > 0) y += 34;
+            stage.addChild(label(lang, x + 16, y + 6, { fontSize: 11 }));
+            const t = new SilkText({ text, fontFamily: FONT, fontSize: size, fill: INK.text });
+
+            t.position.set(x + 48, y);
+            texts.push(t);
+        });
+        y += 54;
+        // paragraphs with no spaces to break at: they wrap between characters or words
+        const paraW = phone ? width - 64 : col - 64;
+        const paragraphs = [
+            '本日のボーナスは、スピン終了まで有効です。「スーパースピン」で賞金が二倍になります。',
+            'ဆုကြေးငွေသည် ဘောနပ်စ်အကျိုးခံစားခွင့်ကာလ ပြီးဆုံးသည်အထိ အကျုံးဝင်ပါသည်။',
+            'โบนัสนี้ใช้ได้จนกว่าการหมุนฟรีจะสิ้นสุดลงและรางวัลจะเพิ่มเป็นสองเท่า',
+            '보너스는 무료 스핀이 끝날 때까지 유효하며 상금이 두 배가 됩니다.',
+        ];
+        const paraY = y;
+
+        paragraphs.forEach((text, i) => {
+            const x = phone ? 0 : (i % 2) * col;
+            const top = phone ? paraY + i * 130 : paraY + Math.floor(i / 2) * 120;
+            const t = new SilkText({
+                text,
+                fontFamily: FONT,
+                fontSize: size - 3,
+                fill: INK.muted,
+                wordWrap: true,
+                wordWrapWidth: paraW,
+                wordBreak: i === 3 ? 'keep-all' : 'normal',
+            });
+
+            t.position.set(x + 48, top);
+            texts.push(t);
+        });
+        y = phone ? paraY + 4 * 130 : paraY + 2 * 120;
+        // inline icons: a SilkGraphics coin on the cap height, a star on the line box
+        const coin = () =>
+            new SilkGraphics().circle(0, 0, 10).fill(0xffc53d).circle(0, 0, 6.5).stroke({ width: 2, color: 0xb7791f });
+        const star = () => new SilkGraphics().star(0, 0, 5, 10, 4.5, 0, 1).fill(PALETTE.blue);
+        const rich = [
+            new SilkRichText({
+                text: 'Win {coin} 1,250.00 {star} x3',
+                fontFamily: FONT,
+                fontSize: size + 3,
+                fill: INK.text,
+                inlines: {
+                    coin: { object: coin, height: 'cap', margin: 3 },
+                    star: { object: star, height: 'em', align: 'center', margin: 2 },
+                },
+            }),
+            new SilkRichText({
+                text: 'ربحت {coin} 1,250.00 {star}',
+                fontFamily: FONT,
+                fontSize: size + 3,
+                fill: INK.text,
+                inlines: {
+                    coin: { object: coin, height: 'cap', margin: 3 },
+                    star: { object: star, height: 'em', align: 'center', margin: 2 },
+                },
+            }),
+            new SilkRichText({
+                text: 'နောက်ဆုံး {coin} 0.00',
+                fontFamily: FONT,
+                fontSize: size + 3,
+                fill: INK.text,
+                inlines: { coin: { object: coin, height: 'cap', margin: 3 } },
+            }),
+        ];
+
+        rich.forEach((r, i) => {
+            const x = phone ? 0 : i === 2 ? 0 : i * col;
+            const top = phone ? y + i * 48 : y + (i === 2 ? 52 : 0);
+
+            r.position.set(x + 48, top);
+            texts.push(r.textObject);
+            stage.addChild(r);
+        });
+        stage.addChild(...texts.filter((t) => !t.parent), boxes);
+        if (!phone) stage.addChild(new Graphics().rect(col - 0.5, 0, 1, 660).fill(INK.line));
+
+        let outline: boolean | null = null;
+        let shown: boolean | null = null;
+
+        tick(() => {
+            if (params.outline !== outline) {
+                outline = params.outline;
+                for (const t of texts) t.outline = outline ? { width: 2.5, color: 0x1d1d1f } : null;
+            }
+            if (params.boxes !== shown) shown = null;
+            if (shown === null) {
+                shown = params.boxes;
+                boxes.clear();
+                if (!shown) return;
+                for (const t of texts) {
+                    const parent = t.parent;
+                    const p = !parent || parent === stage ? t.position : { x: parent.x + t.x, y: parent.y + t.y };
+
+                    for (const line of t.lines) {
+                        boxes
+                            .rect(p.x + line.x, p.y + line.top, line.width, line.bottom - line.top)
+                            .stroke({ width: 1, color: PALETTE.blue, alpha: 0.5 });
+                    }
+                }
+            }
+        });
+    },
+});
+```
+
+Text in any script draws without options. Scripts that need shaping are baked a word or a run at a
+time, so Canvas shapes them with the font. That covers Burmese, Thai, Khmer, Lao, the Indic
+scripts, Arabic, emoji sequences and letters with combining accents. Latin, Cyrillic, Greek, Chinese, Japanese and
+Korean are baked one character at a time.
+
+Nothing is cut. Each glyph is drawn with room to spare, and the atlas keeps the ink it finds in
+the pixels, not the box `measureText` reports, which is too small for stacked marks. With
+`lineHeight` at 0, lines grow to fit the tallest ink and the outline, so Burmese or Vietnamese
+stacks never touch the next line. A fixed `lineHeight` is kept as given. Bounds cover the ink, so
+filters and culling do not clip it either.
+
+Lines wrap without spaces where the script allows it. Chinese and Japanese break between characters
+but never before closing punctuation or small kana. Korean breaks between syllables, or only at
+spaces with `wordBreak: 'keep-all'`. Thai, Burmese, Khmer and Lao break between words, found with
+`Intl.Segmenter`.
+
+Outlines are drawn for every glyph before any fill, so a thick outline never covers the letter
+next to it, even with tight letter spacing.
+
+To put an icon, a coin or any sprite in a line, write `{name}` in the text and use `SilkRichText`:
+
+```ts
+
+const win = new SilkRichText({
+    text: 'You won {coin} 250.00 {star}',
+    fontSize: 24,
+    inlines: {
+        // scaled to the height of capitals and digits, centred on them
+        coin: { object: new Sprite(Texture.WHITE), height: 'cap', margin: 2 },
+        // a function makes one object per {star} in the text
+        star: { object: () => new SilkGraphics().star(0, 0, 5, 10, 4).fill(0xffd60a), height: 'em', align: 'center' },
+    },
+});
+```
+
+Each token takes a box that wraps, aligns and follows right-to-left order like a character. A box
+taller than the text grows its line. `align` places it. `middle` (the default) centres it on
+capital letters and digits, and `center` on the line box. `baseline` stands it on the baseline, and
+`top` and `bottom` align it with the font's ascent and descent. `offsetY` nudges it. Sizes are local
+units or `em`, `cap` and `line`. Plain `SilkText` takes the same boxes as
+`inlines: { coin: { width, height } }` and returns where they landed from `inlineRects()`.
+
 ### Fonts and the atlas
 
 Each glyph is drawn with Canvas2D at 48 px the first time it appears, then turned into a distance
@@ -743,9 +945,8 @@ const heading = new SilkText({ text: 'Overview', fontSize: 40, atlas: big });
 Corners round off slightly at extreme zoom, because a single-channel distance field cannot hold a
 sharp corner. At the default 48 px bake the rounding is about a fiftieth of the font size.
 
-Emoji and colour fonts come out as one-colour silhouettes. Outside right-to-left text there is no
-shaping: no ligatures and no combining marks, and each code point is one glyph. Latin, Greek,
-Cyrillic, Arabic and Hebrew text works. Use PixiJS `Text` for emoji and Indic scripts.
+Emoji and colour fonts come out as one-colour silhouettes. Use PixiJS `Text` or a sprite for
+colour emoji. Latin text gets no font ligatures, because its letters are baked one by one.
 
 SilkText runs on WebGL2 and WebGPU. Pixi's WebGL1 fallback is not supported.
 
@@ -1135,7 +1336,7 @@ console.log(hit.index, caret.x, label.rangeRects(0, 5));
 Arabic and Hebrew lay out right to left, and in a right-to-left paragraph the left arrow moves
 forward through the text. The caret moves in source order, so at a change of direction it can jump
 across the line. A selection that crosses one shows as several boxes. Emoji count as one caret step but draw as one-colour
-silhouettes, and there are no ligatures, as in [SilkText](https://pixi-silk.schmooky.dev/docs/text/#where-it-stops).
+silhouettes, as in [SilkText](https://pixi-silk.schmooky.dev/docs/text/#where-it-stops).
 
 Spell check underlines do not show, because the hidden field is invisible.
 
@@ -5551,10 +5752,10 @@ import { batch, computed, signal, watch } from 'pixi-silk/signal';
 
 URL: https://pixi-silk.schmooky.dev/api/text/
 
-SilkText: distance-field text with outline, shadow and gradient fill. SdfAtlas, layoutText, caret helpers.
+SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers.
 
 ```ts
-import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text';
+import { SdfAtlas, SilkRichText, SilkText, SilkTextGeometry } from 'pixi-silk/text';
 ```
 
 #### Classes
@@ -5562,6 +5763,7 @@ import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text'
 | Class | Description |
 | ------ | ------ |
 | [SdfAtlas](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md) | Glyphs of any CSS font, rasterised with Canvas2D and turned into signed distance fields, in one 8-bit texture every [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) shares. |
+| [SilkRichText](https://pixi-silk.schmooky.dev/api/text/classes/SilkRichText.md) | A [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) with sprites, SilkGraphics or any container inside its lines. Write `{name}` in the text and list the object under `inlines`. Each token takes a box that flows with the text: it wraps, aligns and follows right-to-left order like a character, and the line grows when the object is taller than the text. The object is scaled to the box and placed in it every frame, so it follows text, style and size changes. |
 | [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) | Text from `pixi-silk/text`, drawn from signed distance fields. Glyphs come from any CSS font. They are baked once at one size into a shared [SdfAtlas](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md) and drawn scaled, with the same per-pixel anti-aliasing as SilkGraphics. Every glyph is an instance of one mesh. |
 | [SilkTextGeometry](https://pixi-silk.schmooky.dev/api/text/classes/SilkTextGeometry.md) | Geometry behind every [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md): one unit quad plus one instance of 12 floats per glyph. SilkText owns and fills it. You rarely need it directly. |
 
@@ -5571,18 +5773,23 @@ import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text'
 | ------ | ------ |
 | [CaretHit](https://pixi-silk.schmooky.dev/api/text/interfaces/CaretHit.md) | Where a point lands in a [TextLayout](https://pixi-silk.schmooky.dev/api/text/interfaces/TextLayout.md): the nearest caret position. |
 | [CaretRect](https://pixi-silk.schmooky.dev/api/text/interfaces/CaretRect.md) | A caret position in layout units: a vertical segment from `top` to `bottom` at `x`. |
-| [Cluster](https://pixi-silk.schmooky.dev/api/text/interfaces/Cluster.md) | A run of text drawn as one glyph: a character with its marks, or joined letters of a cursive script. |
+| [Cluster](https://pixi-silk.schmooky.dev/api/text/interfaces/Cluster.md) | A run of text drawn as one glyph, as [clusters](https://pixi-silk.schmooky.dev/api/text/functions/clusters.md) returns them. |
 | [FontMetrics](https://pixi-silk.schmooky.dev/api/text/interfaces/FontMetrics.md) | Vertical metrics of a font at the atlas size, measured the way PixiJS `Text` measures them. |
 | [FontSpec](https://pixi-silk.schmooky.dev/api/text/interfaces/FontSpec.md) | The font of a glyph: CSS family list, weight and style. Size does not matter, glyphs are baked at one size. |
 | [Glyph](https://pixi-silk.schmooky.dev/api/text/interfaces/Glyph.md) | A glyph baked into the atlas. Distances are in raster pixels, at [SdfAtlas.size](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md). |
 | [GlyphContext](https://pixi-silk.schmooky.dev/api/text/interfaces/GlyphContext.md) | The slice of a 2D canvas context the atlas needs. Pass your own to [SdfAtlasOptions.context](https://pixi-silk.schmooky.dev/api/text/interfaces/SdfAtlasOptions.md) to bake glyphs somewhere else (a worker canvas, or a fake one in tests). |
+| [InlineMetrics](https://pixi-silk.schmooky.dev/api/text/interfaces/InlineMetrics.md) | The box an inline object takes in a line, as [LayoutOptions.inlines](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutOptions.md) lists them. |
+| [InlineRect](https://pixi-silk.schmooky.dev/api/text/interfaces/InlineRect.md) | Where an inline object goes, as [SilkText.inlineRects](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) returns them, in local units. |
 | [LayoutLine](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutLine.md) | One line of a laid-out text. |
 | [LayoutOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutOptions.md) | What [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) needs besides the text. Sizes are in local units. |
 | [LineRun](https://pixi-silk.schmooky.dev/api/text/interfaces/LineRun.md) | A run of a line that goes one way, as [LayoutLine.runs](https://pixi-silk.schmooky.dev/api/text/interfaces/LayoutLine.md) lists them. |
 | [PlacedGlyph](https://pixi-silk.schmooky.dev/api/text/interfaces/PlacedGlyph.md) | A character placed by [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md). |
+| [RichInline](https://pixi-silk.schmooky.dev/api/text/interfaces/RichInline.md) | An object that flows with the text of a [SilkRichText](https://pixi-silk.schmooky.dev/api/text/classes/SilkRichText.md). |
 | [SdfAtlasOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/SdfAtlasOptions.md) | Options of an [SdfAtlas](https://pixi-silk.schmooky.dev/api/text/classes/SdfAtlas.md). |
+| [SilkRichTextOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkRichTextOptions.md) | Options of a [SilkRichText](https://pixi-silk.schmooky.dev/api/text/classes/SilkRichText.md): the options of its [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) plus the inline objects. |
 | [SilkTextOptions](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextOptions.md) | Options of a [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md): the style plus the text, anchor and atlas. |
 | [SilkTextStyle](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextStyle.md) | The look of a [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md). Every field can change later through its setter or [SilkText.set](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md). |
+| [TextInline](https://pixi-silk.schmooky.dev/api/text/interfaces/TextInline.md) | A box for an inline object, as [SilkTextStyle.inlines](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextOptions.md) lists them. Sizes are in local units. |
 | [TextLayout](https://pixi-silk.schmooky.dev/api/text/interfaces/TextLayout.md) | Result of [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md). |
 | [TextMeasurer](https://pixi-silk.schmooky.dev/api/text/interfaces/TextMeasurer.md) | Widths of characters at the size being laid out, in local units. |
 | [TextOutline](https://pixi-silk.schmooky.dev/api/text/interfaces/TextOutline.md) | A line drawn around the glyphs, outside their edge. |
@@ -5595,9 +5802,12 @@ import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text'
 | Type Alias | Description |
 | ------ | ------ |
 | [BidiClass](https://pixi-silk.schmooky.dev/api/text/types/BidiClass.md) | Bidi character types used here (UAX #9 table 4, minus the explicit formatting types). |
+| [InlineAlign](https://pixi-silk.schmooky.dev/api/text/types/InlineAlign.md) | How an inline box sits on the line. |
+| [InlineSize](https://pixi-silk.schmooky.dev/api/text/types/InlineSize.md) | A size for an inline object: local units, or a size that follows the font. `em` is the font size, `cap` the height of capital letters and digits, `line` the line height. |
 | [ResolvedTextStyle](https://pixi-silk.schmooky.dev/api/text/types/ResolvedTextStyle.md) | A [SilkTextStyle](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextStyle.md) with every field set, as [SilkText.defaults](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) holds it. |
 | [TextAlign](https://pixi-silk.schmooky.dev/api/text/types/TextAlign.md) | Horizontal alignment of the lines of a text block. `start` and `end` follow the direction of each line's paragraph: `start` is left for left-to-right text and right for right-to-left text. |
 | [TextDirection](https://pixi-silk.schmooky.dev/api/text/types/TextDirection.md) | Base direction of a paragraph. `auto` takes it from the first strong character, left to right when there is none. |
+| [WordBreak](https://pixi-silk.schmooky.dev/api/text/types/WordBreak.md) | How lines may break inside text without spaces, as in CSS `word-break`. |
 
 #### Functions
 
@@ -5607,7 +5817,7 @@ import { SdfAtlas, SilkText, SilkTextGeometry, bidiClass } from 'pixi-silk/text'
 | [caretAtPoint](https://pixi-silk.schmooky.dev/api/text/functions/caretAtPoint.md) | The caret position nearest to a point, in the layout's own units (the top left of the text box is 0, 0). Points above the first line or below the last snap to them. `isStop` filters the offsets a caret may take, for example grapheme cluster boundaries. |
 | [caretRect](https://pixi-silk.schmooky.dev/api/text/functions/caretRect.md) | Where to draw a caret at `index`, in the layout's units. |
 | [caretX](https://pixi-silk.schmooky.dev/api/text/functions/caretX.md) | The x of a caret at `index` on line `li`: the nearest caret stop at or before it. |
-| [clusters](https://pixi-silk.schmooky.dev/api/text/functions/clusters.md) | Splits a paragraph into clusters for the bidi pass. Marks stay with their base. Letters of a cursive script stay together while they join, so Canvas shapes the whole run (initial, medial and final forms, ligatures such as lam alef). A run breaks after a letter that does not join forward. |
+| [clusters](https://pixi-silk.schmooky.dev/api/text/functions/clusters.md) | Splits a paragraph into the clusters [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) measures and draws, in reading order. |
 | [fontString](https://pixi-silk.schmooky.dev/api/text/functions/fontString.md) | pixi-silk/text: [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md), text drawn from a shared signed distance field atlas, plus the layout and caret helpers it uses. Not part of the root `pixi-silk` import. |
 | [graphemeStops](https://pixi-silk.schmooky.dev/api/text/functions/graphemeStops.md) | Offsets where a caret can sit: 0, every grapheme cluster boundary, and the text's length. |
 | [hasRtl](https://pixi-silk.schmooky.dev/api/text/functions/hasRtl.md) | True when the text holds a right-to-left character, so it needs the bidi pass. |

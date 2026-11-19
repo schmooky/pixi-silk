@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { type GlyphContext, SdfAtlas } from '../src/text/atlas';
-import { bidiClass, clusters, hasRtl, mirror, paragraphLevel, resolveLevels, visualOrder } from '../src/text/bidi';
+import { SdfAtlas } from '../src/text/atlas';
+import { bidiClass, hasRtl, mirror, paragraphLevel, resolveLevels, visualOrder } from '../src/text/bidi';
+import { clusters } from '../src/text/cluster';
 import {
     caretAtPoint,
     caretRect,
@@ -10,11 +11,12 @@ import {
     type TextMeasurer,
 } from '../src/text/layout';
 import { SilkText } from '../src/text/SilkText';
+import { paintContext } from './ink-context';
 
 // ------------------------------------------------------------------------------------ helpers
 
-const ZWJ = '‍';
-const MARK = /[\p{Mn}\p{Me}‌‍]/u;
+const ZWJ = '\u200d';
+const MARK = /[\p{Mn}\p{Me}\u200c\u200d]/u;
 
 /**
  * Every code point 10 wide, `1` half that. Marks and joiners have no width, so a run of joined
@@ -69,8 +71,8 @@ describe('bidi algorithm', () => {
         expect(cls('-')).toBe('ES');
         expect(cls(' ')).toBe('WS');
         expect(cls('(')).toBe('ON');
-        expect(cls('َ')).toBe('NSM');
-        expect(cls('‏')).toBe('R');
+        expect(cls('\u064e')).toBe('NSM');
+        expect(cls('\u200f')).toBe('R');
         expect(hasRtl('hello')).toBe(false);
         expect(hasRtl('hello عالم')).toBe(true);
     });
@@ -101,7 +103,7 @@ describe('bidi algorithm', () => {
 
     it('mirrors brackets', () => {
         expect(mirror('(')).toBe(')');
-        expect(mirror('»')).toBe('«');
+        expect(mirror('\u00bb')).toBe('\u00ab');
         expect(mirror('a')).toBe('a');
     });
 
@@ -111,9 +113,9 @@ describe('bidi algorithm', () => {
         // lam alef stays in one run, so the font can use its ligature
         expect(clusters('سلام').map((c) => c.draw)).toEqual(['سلا', 'م']);
         // harakat ride on their letter and are not caret stops
-        const marked = clusters('بَيت');
+        const marked = clusters('ب\u064eيت');
 
-        expect(marked.map((c) => c.draw)).toEqual(['بَيت']);
+        expect(marked.map((c) => c.draw)).toEqual(['ب\u064eيت']);
         expect(marked[0].inner).toEqual([2, 3]);
         // digits, spaces and Latin letters are clusters of their own
         expect(clusters('ب 12').map((c) => c.draw)).toEqual(['ب', ' ', '1', '2']);
@@ -321,49 +323,9 @@ describe('carets in right-to-left text', () => {
 
 // ---------------------------------------------------------------------------------- SilkText
 
-/** A glyph context that records what it draws: every code point but marks and joiners is half an em wide. */
-function inkContext(): GlyphContext & { drawn: string[] } {
-    let size = 48;
-    let font = '';
-    const width = (s: string) => Array.from(s).filter((c) => !MARK.test(c)).length * 0.5 * size;
-    const ctx = {
-        drawn: [] as string[],
-        get font() {
-            return font;
-        },
-        set font(v: string) {
-            font = v;
-            size = Number(/(\d+(?:\.\d+)?)px/.exec(v)?.[1] ?? 48);
-        },
-        fillStyle: '#000' as unknown,
-        textBaseline: 'alphabetic',
-        textAlign: 'left',
-        direction: 'inherit',
-        canvas: { width: 64, height: 64 },
-        measureText(s: string) {
-            const ink = s.trim() !== '';
-
-            return {
-                width: width(s),
-                actualBoundingBoxLeft: 0,
-                actualBoundingBoxRight: ink ? width(s) : 0,
-                actualBoundingBoxAscent: ink ? 0.7 * size : 0,
-                actualBoundingBoxDescent: ink ? 0.2 * size : 0,
-            };
-        },
-        clearRect() {},
-        fillText(s: string) {
-            ctx.drawn.push(s);
-        },
-        getImageData: (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
-    };
-
-    return ctx;
-}
-
 describe('SilkText with right-to-left text', () => {
     it('bakes each joined Arabic run as one glyph, left to right on the canvas', () => {
-        const ctx = inkContext();
+        const ctx = paintContext();
         const atlas = new SdfAtlas({ context: ctx });
         const t = new SilkText({ text: 'مرحبا 2026', fontFamily: 'Test', fontSize: 20, atlas });
 

@@ -2,7 +2,9 @@ import { GlProgram, GpuProgram, Shader, type TextureSource, UniformGroup } from 
 import { GradientAtlas } from '../atlas';
 
 /*
- * One instanced quad per glyph (and one more per glyph for the shadow, drawn first). The fragment
+ * One instanced quad per glyph and pass. Passes: the shadow, then with an outline every outline and
+ * then every fill, so an outline never covers its neighbour's fill. aMeta.x is 1 for the shadow,
+ * aMeta.y is 0 (fill over outline), 1 (outline only) or 2 (fill only). The fragment
  * stage reads the glyph's distance field, converts it to device pixels with the screen-space scale
  * of the quad, and turns it into coverage with a box filter one device pixel wide. When a texel is
  * smaller than a pixel (small text), it averages four taps across the pixel instead of one.
@@ -173,7 +175,10 @@ void main(void)
         }
         if (uFx.y <= 0.0) oc = 0.0;
         vec4 fill = uPaint.x > 0.5 ? uFill * gradientColor(vPos) : uFill;
-        col = fill * fc + uOutline * (oc * (1.0 - fill.a * fc));
+        // vMeta.y: 0 fill over outline, 1 outline only, 2 fill only (outlines go in a pass of their own)
+        if (vMeta.y > 1.5) col = fill * fc;
+        else if (vMeta.y > 0.5) col = uOutline * oc;
+        else col = fill * fc + uOutline * (oc * (1.0 - fill.a * fc));
     }
 
     col *= vTint;
@@ -359,7 +364,13 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
         if (u.uPaint.x > 0.5) {
             fill = fill * gradientColor(input.vPos);
         }
-        col = fill * fc + u.uOutline * (oc * (1.0 - fill.a * fc));
+        if (input.vMeta.y > 1.5) {
+            col = fill * fc;
+        } else if (input.vMeta.y > 0.5) {
+            col = u.uOutline * oc;
+        } else {
+            col = fill * fc + u.uOutline * (oc * (1.0 - fill.a * fc));
+        }
     }
     col *= input.vTint;
     if (col.a <= 0.0) {

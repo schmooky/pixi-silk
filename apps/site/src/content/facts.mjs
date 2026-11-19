@@ -37,7 +37,7 @@ export const ENTRY_POINTS = {
     './text': {
         area: 'text',
         description:
-            'SilkText: distance-field text with outline, shadow and gradient fill. SdfAtlas, layoutText, caret helpers.',
+            'SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers.',
     },
     './layout': { area: 'layout', description: 'LayoutNode: a headless flex layout engine with no Pixi in it.' },
     './ui/layout': {

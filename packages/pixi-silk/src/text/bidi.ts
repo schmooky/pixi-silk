@@ -1,6 +1,6 @@
 /**
  * Bidirectional text for {@link layoutText}: the Unicode Bidirectional Algorithm (UAX #9) without
- * explicit embeddings, and the clusters that keep joined scripts such as Arabic shaped.
+ * explicit embeddings.
  *
  * Covered: paragraph direction (P2, P3) and weak types (W1 to W7), so signs, separators and percent
  * signs stay with their digits. Also neutrals (N1, N2), implicit levels (I1, I2), trailing
@@ -85,7 +85,7 @@ export function bidiClass(cp: number): BidiClass {
     return 'L';
 }
 
-const RTL_TEST = /[֐-ࣿ‏؜יִ-﷿ﹰ-﻾\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
+const RTL_TEST = /[֐-\u08ff\u200f\u061cיִ-﷿ﹰ-﻾\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
 
 /** True when the text holds a right-to-left character, so it needs the bidi pass. */
 export function hasRtl(text: string): boolean {
@@ -234,8 +234,8 @@ for (const pair of [
     '<>',
     '[]',
     '{}',
-    '«»',
-    '‹›',
+    '\u00ab\u00bb',
+    '\u2039\u203a',
     '⁅⁆',
     '⁽⁾',
     '₍₎',
@@ -267,85 +267,4 @@ for (const pair of [
 /** L4: the mirrored form of a character drawn right to left, such as `)` for `(`, or the character itself. */
 export function mirror(char: string): string {
     return MIRROR[char] ?? char;
-}
-
-// ------------------------------------------------------------------------------- clusters
-
-/** A run of text drawn as one glyph: a character with its marks, or joined letters of a cursive script. */
-export interface Cluster {
-    /** What to bake and draw. Joined runs that were split carry a zero width joiner at the cut. */
-    draw: string;
-    /** Offset of the first code point in the paragraph text. */
-    start: number;
-    /** Offset after the last code point. */
-    end: number;
-    /** Offsets of the code points inside the cluster after the first, for carets. Marks are left out. */
-    inner: number[];
-    /** Bidi type of the cluster's first character. */
-    type: BidiClass;
-}
-
-const JOINING =
-    /^[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}]$/u;
-const LETTER = /^\p{L}$/u;
-// Arabic letters that join to the letter before them but not to the one after (joining type R), and hamza (U)
-const RIGHT_JOINING = [
-    0x621, 0x625, 0x627, 0x627, 0x629, 0x629, 0x62f, 0x632, 0x648, 0x648, 0x671, 0x677, 0x688, 0x699, 0x6c0, 0x6c0,
-    0x6c3, 0x6cb, 0x6cd, 0x6cd, 0x6cf, 0x6cf, 0x6d2, 0x6d3, 0x6d5, 0x6d5, 0x6ee, 0x6ef, 0x759, 0x75b, 0x76b, 0x76c,
-    0x771, 0x771, 0x773, 0x774, 0x778, 0x779, 0x8aa, 0x8ac, 0x8ae, 0x8ae, 0x8b1, 0x8b2, 0x8b9, 0x8b9, 0x710, 0x710,
-    0x715, 0x719, 0x71e, 0x71e, 0x728, 0x728, 0x72a, 0x72a, 0x72c, 0x72c, 0x72f, 0x72f, 0x74d, 0x74d,
-];
-const ZWJ = '‍';
-const ZWNJ = 0x200c;
-/** Longest joined run baked as one glyph, in letters. Longer runs are cut and joined with ZWJ. */
-const MAX_RUN = 24;
-
-/**
- * Splits a paragraph into clusters for the bidi pass. Marks stay with their base. Letters of a
- * cursive script stay together while they join, so Canvas shapes the whole run (initial, medial and
- * final forms, ligatures such as lam alef). A run breaks after a letter that does not join forward.
- */
-export function clusters(text: string): Cluster[] {
-    const out: Cluster[] = [];
-    let cur: Cluster | null = null;
-    let open = false; // the current cluster ends in a letter that joins forward
-    let letters = 0;
-
-    for (let i = 0; i < text.length; ) {
-        const cp = text.codePointAt(i) as number;
-        const ch = String.fromCodePoint(cp);
-        const type = bidiClass(cp);
-        const next = i + ch.length;
-
-        if (cur && (type === 'NSM' || cp === 0x200d || cp === ZWNJ)) {
-            // marks and joiners ride on the cluster before them
-            cur.draw += ch;
-            cur.end = next;
-            if (cp === ZWNJ) open = false;
-            i = next;
-            continue;
-        }
-        const joins = JOINING.test(ch) && LETTER.test(ch);
-
-        if (cur && open && joins && letters >= MAX_RUN) {
-            // cut a long run: both halves keep their joined forms through a zero width joiner
-            cur.draw += ZWJ;
-            cur = { draw: ZWJ + ch, start: i, end: next, inner: [], type };
-            out.push(cur);
-            letters = 1;
-        } else if (cur && open && joins) {
-            cur.draw += ch;
-            cur.inner.push(i);
-            cur.end = next;
-            letters++;
-        } else {
-            cur = { draw: ch, start: i, end: next, inner: [], type };
-            out.push(cur);
-            letters = 1;
-        }
-        open = joins && !(cp >= 0x600 && cp <= 0x8ff && inRange(cp, RIGHT_JOINING));
-        i = next;
-    }
-
-    return out;
 }

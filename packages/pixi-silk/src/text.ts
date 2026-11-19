@@ -14,8 +14,6 @@ export {
 export {
     type BidiClass,
     bidiClass,
-    type Cluster,
-    clusters,
     hasRtl,
     mirror,
     paragraphLevel,
@@ -24,6 +22,7 @@ export {
     type TextDirection,
     visualOrder,
 } from './text/bidi';
+export { type Cluster, clusters, type WordBreak } from './text/cluster';
 export { sdfFromAlpha } from './text/edt';
 export { silkLabel } from './text/label';
 export {
@@ -32,6 +31,7 @@ export {
     caretAtPoint,
     caretRect,
     caretX,
+    type InlineMetrics,
     type LayoutLine,
     type LayoutOptions,
     type LineRun,
@@ -44,12 +44,16 @@ export {
     type TextMeasurer,
     type TextRect,
 } from './text/layout';
+export { type InlineSize, type RichInline, SilkRichText, type SilkRichTextOptions } from './text/rich';
 export {
+    type InlineAlign,
+    type InlineRect,
     type ResolvedTextStyle,
     SilkText,
     SilkTextGeometry,
     type SilkTextOptions,
     type SilkTextStyle,
+    type TextInline,
     type TextOutline,
     type TextShadow,
 } from './text/SilkText';

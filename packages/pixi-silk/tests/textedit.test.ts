@@ -237,9 +237,10 @@ describe('caret hit testing', () => {
         const stops = new Set(graphemeStops(text));
 
         expect([...stops]).toEqual([0, 1, 5, 6]);
-        // the flag is two code points, 20 wide: its middle is not a stop
-        expect(caretAtPoint(l, 19, 5, (i) => stops.has(i)).index).toBe(1);
-        expect(caretAtPoint(l, 26, 5, (i) => stops.has(i)).index).toBe(5);
+        // the flag is two code points drawn as one glyph, 10 wide: its middle is not a stop
+        expect(l.glyphs).toHaveLength(3);
+        expect(caretAtPoint(l, 14, 5, (i) => stops.has(i)).index).toBe(1);
+        expect(caretAtPoint(l, 16, 5, (i) => stops.has(i)).index).toBe(5);
     });
 });
 
