@@ -19,7 +19,7 @@ The package has one entry point per area. The root import is the core and does n
 | Area | Entry points |
 |---|---|
 | Core | `pixi-silk`: SilkGraphics, createSilkApp, gradients, colour, curves, motion, enableSilkBatching |
-| Rendering | `pixi-silk/webgpu` |
+| Rendering | `pixi-silk/webgpu`, `pixi-silk/webgl1` |
 | Paint | `pixi-silk/glass`, `pixi-silk/glow` |
 | Text | `pixi-silk/text` |
 | Layout | `pixi-silk/layout` (headless), `pixi-silk/ui/layout` (SmartContainer, FlexContainer) |
@@ -38,7 +38,7 @@ The package has one entry point per area. The root import is the core and does n
 | A UI framework | Widgets are containers with signal state. No routing, no app state, no DOM | The app, or a DOM UI over the canvas |
 | A document model for editors | Selection and History store references and commands, not your data | The app's own model |
 | Application-specific screens | Demos and examples live on the site | `apps/site/src/demos`, `apps/site/src/lab` |
-| Canvas 2D or WebGL1 | Needs WebGL2 or WebGPU | Not supported |
+| Canvas 2D | Needs a GPU renderer: WebGL2, WebGPU, or WebGL1 through the `pixi-silk/webgl1` opt-in | Not supported |
 
 If a request lands in the right column, say so and point at the alternative instead of adding it to the library.
 
@@ -56,6 +56,7 @@ packages/pixi-silk/
     batch.ts            enableSilkBatching, SilkPipe
     app.ts              createSilkApp
     webgpu.ts           enableWebGPU (pixi-silk/webgpu)
+    webgl1.ts webgl1/   enableWebGL1 (pixi-silk/webgl1): GLSL ES 1.00 built from the 3.00 sources
     glass/ glow/        pixi-silk/glass (GlassFilter has its WGSL twin in glass-wgsl.ts), pixi-silk/glow
     text/               pixi-silk/text: SDF atlas, layout, SilkText and its shader (GLSL and WGSL)
     layout/             pixi-silk/layout: the headless flex engine
@@ -78,7 +79,7 @@ apps/site/
 
 Break one of these and a check, a test or a user breaks.
 
-- Shaders come in twins. `shader.ts` (GLSL) and `shader-wgsl.ts` (WGSL) implement the same primitives, and so do the glass and text shaders. Change both. `pnpm build && pnpm check:wgsl` compiles the WGSL on a real device. `pnpm build && pnpm check:render` compares the two renderers pixel by pixel. Add a case to `scripts/render-cases.js` with every rendering fix.
+- Shaders come in twins. `shader.ts` (GLSL) and `shader-wgsl.ts` (WGSL) implement the same primitives, and so do the glass and text shaders. Change both. The WebGL1 programs are not a third copy: `webgl1/glsl100.ts` converts the GLSL ES 3.00 sources, with patches in `webgl1/programs.ts`. A patch that stops matching fails `tests/webgl1.test.ts`. `pnpm check:render --renderer=all` draws all three. `pnpm build && pnpm check:wgsl` compiles the WGSL on a real device. `pnpm build && pnpm check:render` compares the two renderers pixel by pixel. Add a case to `scripts/render-cases.js` with every rendering fix.
 - The instance layout is 44 floats (`STRIDE` in `constants.ts`). Packers, attributes and both shaders read it. Write the number from the constant, never from memory.
 - `sideEffects: false` and one output file per module. Nothing runs at import time: no registration, no globals, no `extensions.add` in a module body.
 - The root barrel must not import `ui/`, `text/`, `layout/`, `glass/`, `glow/` or `webgpu.ts`. `createSilkApp` loads `pixi-silk/webgpu` with a dynamic `import()`, so WebGL2 apps never download the WGSL. `pnpm size:check` fails when a bundle pulls in what it should not.
@@ -138,7 +139,7 @@ For shader or rendering changes add `pnpm check:render` and `pnpm check:wgsl` (b
 
 You cannot see a canvas from a terminal. Use these instead.
 
-- `pnpm site:dev`, then open a docs page. Add `?renderer=webgpu` to the URL to run every demo on WebGPU. Each canvas has `data-renderer` with the renderer Pixi picked.
+- `pnpm site:dev`, then open a docs page. Add `?renderer=webgpu` to the URL to run every demo on WebGPU, or `?renderer=webgl1` for a WebGL1 context. Each canvas has `data-renderer` with the renderer Pixi picked.
 - `node scripts/check-pages.mjs http://127.0.0.1:5178 1280 800` loads every page and reports WebGL and console errors. Add `--webkit` for Safari.
 - `pnpm check:render` writes pixel reports for the hard cases (self-crossing paths, fold-backs, dash caps, shape operations, batching) on both renderers.
 - Chrome on Windows runs WebGL2 on Direct3D 11, where FXC compiles the shader and can fail where every other backend works (the context is then lost). The Windows WebGL workflow runs the render cases there. `scripts/dump-hlsl.mjs` writes the HLSL ANGLE produced, and the workflow compiles it with FXC to print the error line.

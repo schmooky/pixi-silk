@@ -23,13 +23,16 @@ const work = join(root, 'node_modules/.cache/size-check');
 const TOLERANCE = 0.1;
 
 /** name: [what the app imports, markers that must NOT end up in that bundle, subpath (default the root)] */
-// '@fragment' only appears in WGSL: WebGL2 apps must not load the WebGPU shader up front
+// '@fragment' only appears in WGSL: WebGL2 apps must not load the WebGPU shader up front.
+// 'silk-instances-gl1' only appears in pixi-silk/webgl1: apps that do not opt in must not ship it.
 const IMPORTS = {
-    everything: ['*', ['@fragment']],
-    SilkGraphics: ['SilkGraphics', ['silk-batch-paths', '@fragment']],
+    everything: ['*', ['@fragment', 'silk-instances-gl1']],
+    SilkGraphics: ['SilkGraphics', ['silk-batch-paths', '@fragment', 'silk-instances-gl1']],
     'SilkGraphics + gradients': ['SilkGraphics, linear, vertical, radial, conic, along', ['@fragment']],
     createSilkApp: ['createSilkApp', ['#version 300 es', 'silk-gradient-atlas', '@fragment']],
     'webgpu (enableWebGPU)': ['*', ['#version 300 es', 'silk-gradient-atlas'], '/webgpu'],
+    // the converter's own patterns mention '#version 300 es': check it pulls in no shader source instead
+    'webgl1 (enableWebGL1)': ['*', ['silk-gradient-atlas', '@fragment', 'erfApprox'], '/webgl1'],
     gradients: ['linear, radial, conic', ['#version 300 es', 'silk-gradient-atlas']],
     'motion (damp, Spring, ease)': [
         'damp, dampAngle, Spring, ease',

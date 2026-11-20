@@ -1,10 +1,10 @@
 ---
 title: Renderers
-seoTitle: 'WebGL2 and WebGPU renderers in pixi-silk'
-description: 'pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. How to pick one, set up your own Pixi app and turn on batching.'
-keywords: ['PixiJS WebGPU', 'pixi.js webgpu renderer', 'WGSL shader PixiJS', 'PixiJS WebGL2', 'PixiJS batching']
-updated: 2026-11-08
-api: [createSilkApp, SilkAppOptions, enableWebGPU, enableSilkBatching]
+seoTitle: 'WebGL2, WebGPU and WebGL1 renderers in pixi-silk'
+description: 'pixi-silk renders on WebGL2 by default, on WebGPU when you ask for it, and on WebGL1 when you opt in. How to pick one, set up your own Pixi app and turn on batching.'
+keywords: ['PixiJS WebGPU', 'pixi.js webgpu renderer', 'WGSL shader PixiJS', 'PixiJS WebGL2', 'PixiJS WebGL1', 'PixiJS batching']
+updated: 2026-11-20
+api: [createSilkApp, SilkAppOptions, enableWebGPU, enableWebGL1, enableSilkBatching]
 ---
 
 pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. Both run the same
@@ -55,6 +55,39 @@ app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
 Objects created before the call have no WebGPU program. Pixi skips them and logs "Mesh shader has
 no gpuProgram". Calling `enableWebGPU()` in a WebGL2 app does nothing harmful.
 
+## Draw on WebGL1
+
+Pixi falls back to a WebGL1 context when the browser has no WebGL2. The shaders are GLSL ES 3.00,
+so without help silk shapes draw nothing there. WebGL1 support is opt-in: its shaders live in
+`pixi-silk/webgl1`, so apps that leave it out do not ship them. Pass `enableWebGL1` to
+`createSilkApp`:
+
+```ts
+import { createSilkApp, SilkGraphics } from 'pixi-silk';
+import { enableWebGL1 } from 'pixi-silk/webgl1';
+
+const silk = await createSilkApp({ parent: document.body, webgl1: enableWebGL1 });
+
+silk.app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
+```
+
+The app calls it only when Pixi started WebGL1. Without the option it logs an error there instead.
+In your own Pixi app, call `enableWebGL1(app.renderer)` after `app.init()` and before the first
+`SilkGraphics`. It does nothing on WebGL2 or WebGPU and returns `false`.
+
+The WebGL1 shaders are built from the WebGL2 ones when you call it, so they draw the same pixels.
+Some things differ:
+
+| Detail | WebGL1 |
+|---|---|
+| Batching | off: `enableSilkBatching()` has no effect, each object is one draw call |
+| Long paths | a filled path with more than 4096 edges, or a stroked path with more than 256 windows of 32 segments, draws in part and logs a warning once |
+| Device needs | `OES_texture_float`, `OES_texture_half_float` and `OES_standard_derivatives`. Without float textures it logs an error and returns `false` |
+| Precision | GPUs without `highp` in fragment shaders draw with artefacts, with a warning |
+| Other renderers on the page | the programs are global: once it runs, objects on a WebGL2 renderer on the same page use the WebGL1 shaders too, and do not batch |
+
+Add `?renderer=webgl1` to a docs URL to run every demo on that page on WebGL1.
+
 ## Batch objects into one draw
 
 Batching is off by default. Call `enableSilkBatching()` before you create the objects:
@@ -66,8 +99,8 @@ enableSilkBatching();
 const dot = new SilkGraphics().circle(0, 0, 4).fill(0x0a84ff);
 ```
 
-It works on WebGL2 and on WebGPU. On WebGPU it also needs `enableWebGPU()`, which `createSilkApp`
-calls for you. [Performance](/docs/performance/#batch-many-objects) says what breaks a batch.
+It works on WebGL2 and on WebGPU, not on WebGL1. On WebGPU it also needs `enableWebGPU()`, which
+`createSilkApp` calls for you. [Performance](/docs/performance/#batch-many-objects) says what breaks a batch.
 
 ## Glass on both renderers
 

@@ -11,6 +11,7 @@ export default defineConfig({
         'src/glass.ts',
         'src/glow.ts',
         'src/webgpu.ts',
+        'src/webgl1.ts',
         'src/text.ts',
         'src/layout.ts',
         'src/ui/index.ts',

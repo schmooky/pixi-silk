@@ -47,6 +47,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/glass`](https://pixi-silk.schmooky.dev/api/glass.md) | Paint | Glass: a frosted pane that blurs and bends what is behind it. |
 | [`pixi-silk/glow`](https://pixi-silk.schmooky.dev/api/glow.md) | Paint | Glow, Aurora and light helpers (neon, halo, rays, spectrum). |
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
+| [`pixi-silk/webgl1`](https://pixi-silk.schmooky.dev/api/webgl1.md) | Rendering | enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`. |
 | [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
@@ -90,6 +91,7 @@ Import each from its own path. The root import does not re-export the others.
 ## Gotchas
 
 - WebGL2 is the default renderer. For WebGPU pass `createSilkApp({ preference: 'webgpu' })`, or in your own Pixi app call `enableWebGPU()` from `pixi-silk/webgpu` before you create the first SilkGraphics.
+- WebGL1 is opt-in. Pass `createSilkApp({ webgl1: enableWebGL1 })` with `enableWebGL1` from `pixi-silk/webgl1`, or call `enableWebGL1(app.renderer)` in your own Pixi app before the first SilkGraphics. On WebGL1 nothing batches.
 - Stroke joins are `miter` by default, as in Canvas 2D and Pixi. `bevel` and `round` are the others. `miterLimit` defaults to 10.
 - Free-form paths (`moveTo`, `lineTo`, Bezier curves, `poly`, `svgPath`) both fill and stroke. A fill paints a path as one exact even-odd shape.
 - Shape operations: `fill({ op: 'union' | 'subtract' | 'intersect' | 'exclude' })` on the shapes of the active path, `g.boolean(op, a, b)` to nest them, and `g.svgPath(d)` for SVG path data.
@@ -161,7 +163,7 @@ The docs are grouped into areas. Each area overview tours its pages.
 ### Reference
 
 - [Reference overview](https://pixi-silk.schmooky.dev/docs/reference/): The API reference, renderers, resolution, performance and the glossary.
-- [Renderers](https://pixi-silk.schmooky.dev/docs/renderers/): pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. How to pick one, set up your own Pixi app and turn on batching. (Markdown: https://pixi-silk.schmooky.dev/docs/renderers.md)
+- [Renderers](https://pixi-silk.schmooky.dev/docs/renderers/): pixi-silk renders on WebGL2 by default, on WebGPU when you ask for it, and on WebGL1 when you opt in. How to pick one, set up your own Pixi app and turn on batching. (Markdown: https://pixi-silk.schmooky.dev/docs/renderers.md)
 - [Resolution & DPR](https://pixi-silk.schmooky.dev/docs/resolution/): createSilkApp maps the canvas 1:1 to device pixels, even at fractional DPRs, follows DPR changes and renders filters at screen resolution. (Markdown: https://pixi-silk.schmooky.dev/docs/resolution.md)
 - [Performance](https://pixi-silk.schmooky.dev/docs/performance/): What a SilkGraphics costs on the CPU and GPU, how batching joins objects into one draw, and how to keep static layers and large canvases cheap. (Markdown: https://pixi-silk.schmooky.dev/docs/performance.md)
 - [Glossary](https://pixi-silk.schmooky.dev/docs/glossary/): Short definitions of anti-aliasing, MSAA, SSAA, FXAA, signed distance fields, coverage, device pixel ratio, squircles, OKLab, banding and dithering. (Markdown: https://pixi-silk.schmooky.dev/docs/glossary.md)

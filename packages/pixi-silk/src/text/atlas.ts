@@ -1,4 +1,5 @@
 import { BufferImageSource, DOMAdapter, type Shader } from 'pixi.js';
+import { silkGl1 } from '../shader-slot';
 import { sdfFromAlpha } from './edt';
 
 /** The font of a glyph: CSS family list, weight and style. Size does not matter, glyphs are baked at one size. */
@@ -278,6 +279,7 @@ export class SdfAtlas {
         shader.resources.uAtlasSampler = this._source.style;
         shader.resources.uColorAtlas = this._cSource;
         shader.resources.uColorSampler = this._cSource.style;
+        silkGl1.hooks?.syncSizes(shader);
     }
 
     /** @internal Stops updating a shader passed to {@link SdfAtlas.track}. */
@@ -379,6 +381,7 @@ export class SdfAtlas {
                 for (const shader of this._shaders) {
                     shader.resources.uColorAtlas = this._cSource;
                     shader.resources.uColorSampler = this._cSource.style;
+                    silkGl1.hooks?.syncSizes(shader);
                 }
                 setTimeout(() => old.destroy(), 0);
             } else this._cSource.update();
@@ -395,6 +398,7 @@ export class SdfAtlas {
             for (const shader of this._shaders) {
                 shader.resources.uAtlas = this._source;
                 shader.resources.uAtlasSampler = this._source.style;
+                silkGl1.hooks?.syncSizes(shader);
             }
             setTimeout(() => old.destroy(), 0);
 
