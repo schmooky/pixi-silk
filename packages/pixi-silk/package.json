@@ -167,6 +167,10 @@
       "types": "./dist/webgpu.d.ts",
       "default": "./dist/webgpu.js"
     },
+    "./webgl1": {
+      "types": "./dist/webgl1.d.ts",
+      "default": "./dist/webgl1.js"
+    },
     "./text": {
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"

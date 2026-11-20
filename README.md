@@ -45,6 +45,7 @@ imports.
 | `pixi-silk/layout`, `pixi-silk/ui/layout` | A flex layout engine and the Pixi containers built on it |
 | `pixi-silk/glass`, `pixi-silk/glow` | Glass and glow filters |
 | `pixi-silk/webgpu` | The WGSL shader, for WebGPU in your own Pixi app |
+| `pixi-silk/webgl1` | Opt-in shaders for Pixi's WebGL1 fallback |
 | `pixi-silk/ui/*` | Buttons, radial menus, counters and the editor kit |
 
 [Choose an entry point](https://pixi-silk.schmooky.dev/docs/choose-an-entry-point/) lists every
@@ -57,6 +58,7 @@ may change in a minor release.
 - WebGL2 or WebGPU. WebGL2 is the default. For WebGPU, pass `preference: 'webgpu'` to
   `createSilkApp`, or call `enableWebGPU()` from `pixi-silk/webgpu` before the first
   `SilkGraphics` in your own Pixi app
+- WebGL1 is opt-in: pass `webgl1: enableWebGL1` from `pixi-silk/webgl1` to `createSilkApp`
 
 It does not do texture fills or SVG documents. The [FAQ](https://pixi-silk.schmooky.dev/faq/) lists the other limits.
 

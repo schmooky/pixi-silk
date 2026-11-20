@@ -7,10 +7,14 @@ import { Glass } from '/packages/pixi-silk/dist/glass.js';
 import { enableSilkBatching, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
 import { SilkText } from '/packages/pixi-silk/dist/text.js';
+import { enableWebGL1 } from '/packages/pixi-silk/dist/webgl1.js';
 import { enableWebGPU } from '/packages/pixi-silk/dist/webgpu.js';
 import { Application, Container, RenderTexture } from '/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs';
 
-const preference = new URLSearchParams(location.search).get('renderer') === 'webgpu' ? 'webgpu' : 'webgl';
+const mode = new URLSearchParams(location.search).get('renderer');
+const preference = mode === 'webgpu' ? 'webgpu' : 'webgl';
+// webgl1: Pixi's WebGL renderer on a WebGL1 context, with the GLSL ES 1.00 programs
+const preferWebGLVersion = mode === 'webgl1' ? 1 : 2;
 const W = 256;
 const H = 256;
 
@@ -548,7 +552,16 @@ let app;
 async function renderer() {
     if (!app) {
         app = new Application();
-        await app.init({ preference, width: W, height: H, backgroundAlpha: 0, antialias: false, resolution: 1 });
+        await app.init({
+            preference,
+            preferWebGLVersion,
+            width: W,
+            height: H,
+            backgroundAlpha: 0,
+            antialias: false,
+            resolution: 1,
+        });
+        if (mode === 'webgl1' && !enableWebGL1(app.renderer)) throw new Error('WebGL1 support did not start');
     }
 
     return app.renderer;
@@ -895,5 +908,7 @@ window.renderCases = async ({ only, png }) => {
         c.ref?.destroy();
     }
 
-    return { renderer: r.type === 1 ? 'WebGL2' : 'WebGPU', name: r.name, cases: out };
+    const label = r.type !== 1 ? 'WebGPU' : r.context.webGLVersion === 1 ? 'WebGL1' : 'WebGL2';
+
+    return { renderer: label, name: r.name, cases: out };
 };

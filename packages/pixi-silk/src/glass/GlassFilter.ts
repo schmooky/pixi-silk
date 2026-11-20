@@ -1,4 +1,5 @@
 import { Filter, GlProgram, GpuProgram, Texture, UniformGroup } from 'pixi.js';
+import { silkGl1 } from '../shader-slot';
 import { glassWgsl } from './glass-wgsl';
 
 /** @internal Filter vertex stage: Pixi's default filter vertex shader. */
@@ -191,7 +192,8 @@ export class GlassFilter extends Filter {
         });
 
         super({
-            glProgram: program,
+            // GLSL ES 1.00 version from `pixi-silk/webgl1`, when installed
+            glProgram: silkGl1.hooks?.program('silk-glass', glassVertex, glassFragment) ?? program,
             gpuProgram,
             resources: { glassUniforms: u, uBackTexture: Texture.EMPTY },
             blendRequired: true,

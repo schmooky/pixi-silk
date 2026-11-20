@@ -32,6 +32,11 @@ export const ENTRY_POINTS = {
         area: 'rendering',
         description: 'enableWebGPU: installs the WGSL shader for your own WebGPU Application.',
     },
+    './webgl1': {
+        area: 'rendering',
+        description:
+            "enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`.",
+    },
     './glass': { area: 'paint', description: 'Glass: a frosted pane that blurs and bends what is behind it.' },
     './glow': { area: 'paint', description: 'Glow, Aurora and light helpers (neon, halo, rays, spectrum).' },
     './text': {
@@ -153,6 +158,11 @@ export const FACTS = [
         id: 'renderers',
         // app.ts: preference 'webgl' default; webgpu.ts: enableWebGPU
         text: "WebGL2 is the default renderer. For WebGPU pass `createSilkApp({ preference: 'webgpu' })`, or in your own Pixi app call `enableWebGPU()` from `pixi-silk/webgpu` before you create the first SilkGraphics.",
+    },
+    {
+        id: 'webgl1',
+        // webgl1.ts: enableWebGL1; app.ts: webgl1 option; batch.ts: no batching while the hooks are set
+        text: 'WebGL1 is opt-in. Pass `createSilkApp({ webgl1: enableWebGL1 })` with `enableWebGL1` from `pixi-silk/webgl1`, or call `enableWebGL1(app.renderer)` in your own Pixi app before the first SilkGraphics. On WebGL1 nothing batches.',
     },
     {
         id: 'joins',

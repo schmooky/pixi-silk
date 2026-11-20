@@ -1,6 +1,6 @@
 import { BufferImageSource, GlProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
 import { GradientAtlas } from './atlas';
-import { silkGpu } from './shader-slot';
+import { silkGl1, silkGpu } from './shader-slot';
 
 /*
  * One uber-program draws every primitive. Each instance is a quad; the fragment
@@ -1080,6 +1080,8 @@ export function createSilkShader(
     polys: TextureSource,
     batch: TextureSource = emptyBatchTable(),
 ): Shader {
+    const gl1 = silkGl1.hooks;
+
     program ??= GlProgram.from({
         vertex,
         fragment,
@@ -1089,10 +1091,12 @@ export function createSilkShader(
     });
 
     return new Shader({
-        glProgram: program,
+        // GLSL ES 1.00 version from `pixi-silk/webgl1`, when installed
+        glProgram: gl1 ? gl1.program('silk-sdf', vertex, fragment) : program,
         // WGSL twin from `pixi-silk/webgpu` (shader-wgsl.ts), when installed: Pixi picks the one its renderer runs
         gpuProgram: silkGpu.program ?? undefined,
         resources: {
+            ...gl1?.resources('silk-sdf'),
             uGradients: GradientAtlas.shared.source,
             uPolys: polys,
             uBatch: batch,

@@ -3,7 +3,7 @@
  * Renders a set of hard cases to pixels in headless Chrome and checks them. Unit tests run in node
  * without a GPU, so this is where the shader output itself is measured.
  *
- * usage: pnpm build && node scripts/check-render.mjs [--renderer=webgl|webgpu|both] [--out=dir] [--only=name]
+ * usage: pnpm build && node scripts/check-render.mjs [--renderer=webgl|webgpu|webgl1|both|all] [--out=dir] [--only=name]
  *
  * Each case draws one scene into a 1x render texture and reads it back. The checks:
  *  - `maxAlpha`: a translucent stroke or fill must never be darker than its own alpha, so any place
@@ -11,7 +11,8 @@
  *  - `interior`: pixels a full pixel inside the shape (by the CPU hit test, which follows the same
  *    geometry) must be fully opaque, and pixels a full pixel outside must be empty. Dim pixels fail.
  *  - `same`: two scenes that draw the same geometry in different ways must match.
- * With both renderers, every case is also compared between WebGL2 and WebGPU.
+ * With both renderers, every case is also compared between WebGL2 and WebGPU. `webgl1` runs Pixi's
+ * WebGL renderer on a WebGL1 context with `enableWebGL1()`, and `all` compares it with WebGL2 too.
  *
  * Runs the installed Google Chrome (CHROME_PATH overrides) with WebGPU on. CHROME_ARGS replaces
  * the launch flags, which the Windows workflow uses to run WebGL2 on ANGLE's Direct3D 11 backend.
@@ -30,7 +31,12 @@ const args = Object.fromEntries(
         return [k, v];
     }),
 );
-const renderers = args.renderer === 'webgl' ? ['webgl'] : args.renderer === 'webgpu' ? ['webgpu'] : ['webgl', 'webgpu'];
+const renderers = {
+    webgl: ['webgl'],
+    webgpu: ['webgpu'],
+    webgl1: ['webgl1'],
+    all: ['webgl', 'webgpu', 'webgl1'],
+}[args.renderer] ?? ['webgl', 'webgpu'];
 const out = args.out ? resolve(args.out) : null;
 
 const page = /* html */ `<!doctype html>
@@ -40,7 +46,8 @@ const page = /* html */ `<!doctype html>
 { "imports": {
     "pixi.js": "/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs",
     "pixi-silk": "/packages/pixi-silk/dist/index.js",
-    "pixi-silk/webgpu": "/packages/pixi-silk/dist/webgpu.js"
+    "pixi-silk/webgpu": "/packages/pixi-silk/dist/webgpu.js",
+    "pixi-silk/webgl1": "/packages/pixi-silk/dist/webgl1.js"
 } }
 </script>
 <script type="module" src="/scripts/render-cases.js"></script>`;
@@ -115,10 +122,13 @@ for (const renderer of renderers) {
     await tab.close();
 }
 
-if (results.webgl && results.webgpu) {
-    console.log('check-render: WebGL2 vs WebGPU');
+const labels = { webgl: 'WebGL2', webgpu: 'WebGPU', webgl1: 'WebGL1' };
+
+for (const other of ['webgpu', 'webgl1']) {
+    if (!results.webgl || !results[other]) continue;
+    console.log(`check-render: WebGL2 vs ${labels[other]}`);
     for (const a of results.webgl.cases) {
-        const b = results.webgpu.cases.find((c) => c.name === a.name);
+        const b = results[other].cases.find((c) => c.name === a.name);
 
         if (!b) continue;
         const pa = Buffer.from(a.raw, 'base64');

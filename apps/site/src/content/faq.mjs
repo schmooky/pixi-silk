@@ -142,6 +142,11 @@ export const FAQ = [
     },
     {
         area: 'reference',
+        q: 'Does pixi-silk work on WebGL1?',
+        a: 'Yes, as an opt-in. Pass `webgl1: enableWebGL1` (from `pixi-silk/webgl1`) to `createSilkApp`, or call `enableWebGL1(app.renderer)` in your own Pixi app. Apps that leave it out do not ship the WebGL1 shaders. Batching is off on WebGL1.',
+    },
+    {
+        area: 'reference',
         q: 'How do I draw many SilkGraphics in one draw call?',
         a: 'Call `enableSilkBatching()` before you create the objects. It is off by default and works on WebGL2 and WebGPU. Without it, each SilkGraphics is one instanced draw call.',
     },
