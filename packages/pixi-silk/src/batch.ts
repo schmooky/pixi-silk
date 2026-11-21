@@ -19,7 +19,7 @@ import {
 import { POLY_WIDTH, STRIDE } from './constants';
 import { SilkGeometry, SilkGraphics } from './SilkGraphics';
 import { createSilkShader } from './shader';
-import { silkGpu } from './shader-slot';
+import { silkGl1, silkGpu } from './shader-slot';
 
 /*
  * Batching across objects. Consecutive SilkGraphics with the same blend mode and settings render
@@ -240,10 +240,11 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
 
     /**
      * Whether this renderer batches. WebGPU needs the WGSL program (`enableWebGPU()`), or the batch
-     * would have no program to draw with: without it, objects go to the mesh pipe as before.
+     * would have no program to draw with: without it, objects go to the mesh pipe as before. The
+     * WebGL1 program (`enableWebGL1()`) cannot batch, so WebGL draws one call per object then.
      */
     private get _batching(): boolean {
-        return this._renderer.type === RendererType.WEBGL || silkGpu.program !== null;
+        return this._renderer.type === RendererType.WEBGL ? silkGl1.hooks === null : silkGpu.program !== null;
     }
 
     /** Adds `g` to the current run when it can share its draw, or starts a new run. */

@@ -44,10 +44,20 @@ jobs:
           DEBUG: pw:browser
         run: node scripts/check-render.mjs --renderer=webgl 2>&1 | Tee-Object -FilePath render.log; exit $LASTEXITCODE
 
+      - name: Render cases on WebGL1, Direct3D 11 (WARP)
+        # the GLSL ES 1.00 programs of pixi-silk/webgl1: long loops with a constant cap and a break,
+        # the kind of code FXC is slow or fails to compile
+        if: always()
+        shell: pwsh
+        env:
+          CHROME_PATH: C:\Program Files\Google\Chrome\Application\chrome.exe
+          CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu --enable-logging=stderr --v=0 --enable-gpu-service-logging
+        run: node scripts/check-render.mjs --renderer=webgl1 2>&1 | Tee-Object -FilePath render-gl1.log; exit $LASTEXITCODE
+
       - name: Compiler errors from Chrome's log
         if: failure()
         shell: pwsh
-        run: Select-String -Path render.log -Pattern 'error X|warning X|HLSL|D3DCompile|Failed to compile|compiler' | Select-Object -First 80
+        run: Select-String -Path render.log, render-gl1.log -ErrorAction SilentlyContinue -Pattern 'error X|warning X|HLSL|D3DCompile|Failed to compile|compiler' | Select-Object -First 80
 
       - name: Translated HLSL, compiled with FXC
         # what ANGLE handed to Direct3D, compiled on its own so FXC prints the reason and the time
@@ -58,6 +68,7 @@ jobs:
           CHROME_ARGS: --use-gl=angle --use-angle=d3d11-warp --ignore-gpu-blocklist --enable-gpu
         run: |
           node scripts/dump-hlsl.mjs --out=hlsl
+          node scripts/dump-hlsl.mjs --out=hlsl --webgl1
           $fxc = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter fxc.exe | Where-Object FullName -like '*x64*' | Select-Object -First 1
           Write-Output "fxc: $($fxc.FullName)"
           foreach ($flags in @(@(), @('/D', 'ANGLE_ENABLE_LOOP_FLATTEN'))) {

@@ -1,5 +1,6 @@
 import { Container } from 'pixi.js';
 import { createSilkApp, type SilkApp } from 'pixi-silk';
+import { enableWebGL1, isWebGL1 } from 'pixi-silk/webgl1';
 import { BG } from './_theme';
 
 // the shared look (background, palette, label helpers): demos import it from here, so Studio resolves it
@@ -121,14 +122,19 @@ export const initialValues = (controls: Controls = {}, phone = false): Record<st
 export const runsPhone = (demo: Pick<Demo, 'phone'>, frameWidth: number): boolean =>
     demo.phone !== undefined && frameWidth > 0 && frameWidth < (demo.phone.below ?? 560);
 
-/** `?renderer=webgpu` (or `webgl`) in the page URL: a switch to check every demo on one renderer. */
-function urlRenderer(): RendererPreference | null {
-    const value = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('renderer');
+const urlParam = () => (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('renderer'));
 
-    return value === 'webgpu' || value === 'webgl' ? value : null;
+/**
+ * `?renderer=webgpu` (or `webgl`) in the page URL: a switch to check every demo on one renderer.
+ * `?renderer=webgl1` runs them on a WebGL1 context, as on a browser without WebGL2.
+ */
+function urlRenderer(): RendererPreference | null {
+    const value = urlParam();
+
+    return value === 'webgpu' || value === 'webgl' ? value : value === 'webgl1' ? 'webgl' : null;
 }
 
-const RENDERER_LABEL: Record<string, string> = { webgl: 'WebGL2', webgpu: 'WebGPU' };
+const RENDERER_LABEL: Record<string, string> = { webgl: 'WebGL2', webgl1: 'WebGL1', webgpu: 'WebGPU' };
 const FALLBACK_KEY = 'silk-renderer';
 
 /** The renderer this tab switched to after WebGL2 lost its context, if it did. */
@@ -215,8 +221,11 @@ async function mountOne(
         background: demo.background ?? BG,
         touchAction: demo.touchAction,
         preference,
+        // the site draws on WebGL1 too, for browsers without WebGL2
+        webgl1: enableWebGL1,
+        ...(urlParam() === 'webgl1' && { preferWebGLVersion: 1 as const }),
     });
-    const renderer = silk.app.renderer.name;
+    const renderer = isWebGL1(silk.app.renderer) ? 'webgl1' : silk.app.renderer.name;
     let label: HTMLElement | null = null;
 
     // page checks read which renderer each canvas got

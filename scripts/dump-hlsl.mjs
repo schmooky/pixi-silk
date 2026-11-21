@@ -5,8 +5,9 @@
  * compile and link logs and how long a first draw took. FXC can then compile the HLSL on its own and
  * print the error that Chrome only reports as "Error compiling dynamic pixel executable".
  *
- * usage: pnpm --filter pixi-silk build && node scripts/dump-hlsl.mjs [--out=hlsl] [--no-draw]
- * Takes CHROME_PATH and CHROME_ARGS like check-render.mjs.
+ * usage: pnpm --filter pixi-silk build && node scripts/dump-hlsl.mjs [--out=hlsl] [--no-draw] [--webgl1]
+ * Takes CHROME_PATH and CHROME_ARGS like check-render.mjs. `--webgl1` compiles the GLSL ES 1.00
+ * program of `pixi-silk/webgl1` on a WebGL1 context instead, and writes it with a `-gl1` suffix.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -19,19 +20,32 @@ const outArg = process.argv.find((a) => a.startsWith('--out='));
 const out = resolve(outArg ? outArg.slice(6) : 'hlsl');
 
 const draw = !process.argv.includes('--no-draw');
+const gl1 = process.argv.includes('--webgl1');
+const suffix = gl1 ? '-gl1' : '';
 const page = /* html */ `<!doctype html>
 <meta charset="utf-8">
 <script type="importmap">
 { "imports": { "pixi.js": "/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs" } }
 </script>
 <script type="module">
-import { fragment, vertex } from '/packages/pixi-silk/dist/shader.js';
+import { fragment as fragment3, vertex as vertex3 } from '/packages/pixi-silk/dist/shader.js';
+import { gl1Sources } from '/packages/pixi-silk/dist/webgl1/programs.js';
 const DRAW = ${draw};
+const GL1 = ${gl1};
 
 const canvas = document.createElement('canvas');
-const gl = canvas.getContext('webgl2');
+const gl = canvas.getContext(GL1 ? 'webgl' : 'webgl2');
+let vertex = vertex3;
+let fragment = fragment3;
+if (GL1) {
+    // the WebGL1 program as enableWebGL1 builds it. Pixi adds 'precision highp float' to the vertex stage.
+    gl.getExtension('OES_standard_derivatives');
+    const s = gl1Sources('silk-sdf', vertex3, fragment3);
+    vertex = 'precision highp float;\\n' + s.vertex.source;
+    fragment = s.fragment.source;
+}
 const dbg = gl.getExtension('WEBGL_debug_shaders');
-const report = { renderer: gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info')?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER) };
+const report = { renderer: gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info')?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER), webgl: GL1 ? 1 : 2 };
 // Pixi adds the precision lines after #version, as GlProgram does with preferred precision highp
 const withPrecision = (src) =>
     src.replace('#version 300 es', '#version 300 es\\nprecision highp float;\\nprecision highp int;\\nprecision highp sampler2D;');
@@ -129,9 +143,9 @@ function standalone(hlsl) {
 }
 
 mkdirSync(out, { recursive: true });
-writeFileSync(join(out, 'fragment.hlsl'), report.fragmentHlsl ?? '');
-if (report.fragmentHlsl) writeFileSync(join(out, 'fragment-fxc.hlsl'), standalone(report.fragmentHlsl));
-writeFileSync(join(out, 'vertex.hlsl'), report.vertexHlsl ?? '');
+writeFileSync(join(out, `fragment${suffix}.hlsl`), report.fragmentHlsl ?? '');
+if (report.fragmentHlsl && !gl1) writeFileSync(join(out, 'fragment-fxc.hlsl'), standalone(report.fragmentHlsl));
+writeFileSync(join(out, `vertex${suffix}.hlsl`), report.vertexHlsl ?? '');
 const { fragmentHlsl, vertexHlsl, ...summary } = report;
 
 console.log(JSON.stringify(summary, null, 1));

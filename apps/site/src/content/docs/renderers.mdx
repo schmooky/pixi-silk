@@ -1,10 +1,10 @@
 ---
 title: Renderers
-seoTitle: 'WebGL2 and WebGPU renderers in pixi-silk'
-description: 'pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. How to pick one, set up your own Pixi app and turn on batching.'
-keywords: ['PixiJS WebGPU', 'pixi.js webgpu renderer', 'WGSL shader PixiJS', 'PixiJS WebGL2', 'PixiJS batching']
-updated: 2026-11-08
-api: [createSilkApp, SilkAppOptions, enableWebGPU, enableSilkBatching]
+seoTitle: 'WebGL2, WebGPU and WebGL1 renderers in pixi-silk'
+description: 'pixi-silk renders on WebGL2 by default, on WebGPU when you ask for it, and on WebGL1 when you opt in. How to pick one, set up your own Pixi app and turn on batching.'
+keywords: ['PixiJS WebGPU', 'pixi.js webgpu renderer', 'WGSL shader PixiJS', 'PixiJS WebGL2', 'PixiJS WebGL1', 'PixiJS batching']
+updated: 2026-11-20
+api: [createSilkApp, SilkAppOptions, enableWebGPU, enableWebGL1, enableSilkBatching]
 ---
 
 pixi-silk renders on WebGL2 by default and on WebGPU when you ask for it. Both run the same
@@ -55,6 +55,74 @@ app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
 Objects created before the call have no WebGPU program. Pixi skips them and logs "Mesh shader has
 no gpuProgram". Calling `enableWebGPU()` in a WebGL2 app does nothing harmful.
 
+## Draw on WebGL1
+
+Pixi falls back to a WebGL1 context when the browser has no WebGL2. The shaders are GLSL ES 3.00,
+so without help silk shapes draw nothing there. WebGL1 support is opt-in: its shaders live in
+`pixi-silk/webgl1`, so apps that leave it out do not ship them. Pass `enableWebGL1` to
+`createSilkApp`:
+
+```ts
+import { createSilkApp, SilkGraphics } from 'pixi-silk';
+import { enableWebGL1 } from 'pixi-silk/webgl1';
+
+const silk = await createSilkApp({ parent: document.body, webgl1: enableWebGL1 });
+
+silk.app.stage.addChild(new SilkGraphics().circle(60, 60, 40).fill(0x30d158));
+```
+
+The app calls it only when Pixi started WebGL1. Without the option it logs an error there instead.
+In your own Pixi app, call `enableWebGL1(app.renderer)` after `app.init()` and before the first
+`SilkGraphics`. It does nothing on WebGL2 or WebGPU and returns `false`.
+
+The WebGL1 shaders are built from the WebGL2 ones when you call it, so they draw the same pixels.
+Some things differ:
+
+| Detail | WebGL1 |
+|---|---|
+| Batching | off: `enableSilkBatching()` has no effect, each object is one draw call |
+| Long paths | a filled path with more than 4096 edges, or a stroked path with more than 256 windows of 32 segments, draws in part and logs a warning once |
+| Device needs | `OES_texture_float`, `OES_texture_half_float`, `OES_standard_derivatives` and `highp` in fragment shaders. Without one of them it logs an error, installs nothing and returns `false` |
+| Gradient filtering | without `OES_texture_half_float_linear` the gradient ramps filter nearest and the shaders blend two texels themselves, so gradients look the same |
+| Other renderers on the page | the programs are global: once it runs, objects on a WebGL2 renderer on the same page use the WebGL1 shaders too, and do not batch |
+
+When `enableWebGL1()` returns `false`, silk objects draw nothing. Check the result and show a
+fallback, for example a Pixi `Graphics` scene or a static image.
+
+Add `?renderer=webgl1` to a docs URL to run every demo on that page on WebGL1.
+
+### WebGL1 caveats
+
+These are the costs and limits of the WebGL1 path. Read them before you ship to WebGL1-only
+devices.
+
+- **It is slower.** WebGL1 guarantees only 8 varyings, and the WebGL2 shader passes about 16 from
+  the vertex stage. So each pixel reads its shape from a float texture: 11 texture reads before any
+  shape work, and the inverse of the object matrix per pixel. Keep scenes on WebGL1 small, with few
+  objects and few large overlapping shapes.
+- **No batching.** Each SilkGraphics, SilkText and Glass is its own draw call.
+- **Each change uploads the whole instance texture.** Changing one shape of a SilkGraphics uploads
+  all its instances again, about 11 KB per 64 shapes. Split objects that animate from objects that
+  do not.
+- **Shapes do not move to varyings.** Interpolated varyings are not bit-exact across instances,
+  and the chunks of a long path must agree on every bit to shade each pixel once. The texture keeps
+  that.
+- **Long loops.** WebGL1 loops need a constant bound, so path loops run to a cap (4096 edges, 256
+  windows of 32 segments) and stop at the real count. Some compilers take longer on such loops.
+  The Windows workflow compiles them on Direct3D 11.
+- **Programs are global.** One call switches every later silk object on the page. Objects made
+  before the call keep the WebGL2 program and draw nothing on WebGL1. There is no way to turn it
+  off again.
+- **Nearest ramps are shared.** Without `OES_texture_half_float_linear` the gradient atlas, which
+  every renderer on the page shares, switches to nearest filtering. A WebGPU renderer on the same
+  page then samples its ramps without blending, which changes colours by at most one ramp step.
+- **Texture size.** Many WebGL1 devices allow textures of 2048 pixels only. The text atlas grows
+  to 4096 rows by default. When you draw many glyphs there, give the texts an atlas made with
+  `new SdfAtlas({ maxHeight: 2048 })` (see [Text](/docs/text/)).
+- **Where it was tested.** The render cases run on WebGL1 in Chrome on ANGLE (Metal and
+  SwiftShader) and on Direct3D 11 (WARP) in CI. They have not run on WebGL1-only hardware, where
+  limits, compile time and speed may differ.
+
 ## Batch objects into one draw
 
 Batching is off by default. Call `enableSilkBatching()` before you create the objects:
@@ -66,8 +134,8 @@ enableSilkBatching();
 const dot = new SilkGraphics().circle(0, 0, 4).fill(0x0a84ff);
 ```
 
-It works on WebGL2 and on WebGPU. On WebGPU it also needs `enableWebGPU()`, which `createSilkApp`
-calls for you. [Performance](/docs/performance/#batch-many-objects) says what breaks a batch.
+It works on WebGL2 and on WebGPU, not on WebGL1. On WebGPU it also needs `enableWebGPU()`, which
+`createSilkApp` calls for you. [Performance](/docs/performance/#batch-many-objects) says what breaks a batch.
 
 ## Glass on both renderers
 

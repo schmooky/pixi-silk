@@ -57,6 +57,7 @@ Import each from its own path. The root import does not re-export the others.
 |---|---|
 | `pixi-silk` | SilkGraphics, createSilkApp, gradients, colour and curve helpers, motion helpers (`damp`, `Spring`, `ease`), `enableSilkBatching`. |
 | `pixi-silk/webgpu` | `enableWebGPU` for your own WebGPU Application. |
+| `pixi-silk/webgl1` | `enableWebGL1`, opt-in shaders for Pixi's WebGL1 fallback. |
 | `pixi-silk/glass` | `Glass`, a frosted pane. |
 | `pixi-silk/glow` | `Glow`, `Aurora`, `neon`, `halo`, rays. |
 | `pixi-silk/text` | `SilkText`, `SdfAtlas`, `silkLabel`, `layoutText`, caret helpers. |

@@ -1,5 +1,6 @@
 import { GlProgram, GpuProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
 import { GradientAtlas } from '../atlas';
+import { silkGl1 } from '../shader-slot';
 
 /*
  * One instanced quad per glyph and pass. Passes: the shadow, then with an outline every outline and
@@ -418,13 +419,16 @@ export function createTextShader(atlas: TextureSource, colors: TextureSource = a
         vertex: { source: textWgsl, entryPoint: 'mainVertex' },
         fragment: { source: textWgsl, entryPoint: 'mainFragment' },
     });
+    const gl1 = silkGl1.hooks;
     const gradients = GradientAtlas.shared.source;
     const v4 = (): { value: Float32Array; type: 'vec4<f32>' } => ({ value: new Float32Array(4), type: 'vec4<f32>' });
 
-    return new Shader({
-        glProgram,
+    const shader = new Shader({
+        // GLSL ES 1.00 version from `pixi-silk/webgl1`, when installed
+        glProgram: gl1 ? gl1.program('silk-text', textVertex, textFragment) : glProgram,
         gpuProgram,
         resources: {
+            ...gl1?.resources('silk-text'),
             textUniforms: new UniformGroup({
                 uFill: v4(),
                 uOutline: v4(),
@@ -442,4 +446,8 @@ export function createTextShader(atlas: TextureSource, colors: TextureSource = a
             uColorSampler: colors.style,
         },
     });
+
+    gl1?.syncSizes(shader);
+
+    return shader;
 }

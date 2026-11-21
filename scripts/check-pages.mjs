@@ -5,13 +5,14 @@
  * exceptions.
  *
  * usage: node scripts/check-pages.mjs [origin=http://127.0.0.1:5178] [width=1280] [height=800]
- *        [--webkit | --firefox] [--webgpu]
+ *        [--webkit | --firefox] [--webgpu | --webgl1]
  *
  * Chromium runs the installed Google Chrome (CHROME_PATH overrides). `--webkit` runs Playwright's
  * WebKit, the engine behind Safari: the build Playwright expects, else the newest one in its cache
  * (`npx playwright install webkit` installs it). WEBKIT_PATH overrides. `--firefox` runs Playwright's
  * Firefox (`npx playwright install firefox`). `--webgpu` adds `?renderer=webgpu` to every page, so
  * the demos run on WebGPU where the browser has it and fall back to WebGL2 where it does not.
+ * `--webgl1` adds `?renderer=webgl1`: the demos run on a WebGL1 context, through `pixi-silk/webgl1`.
  */
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -24,7 +25,7 @@ const [origin = 'http://127.0.0.1:5178', w = '1280', h = '800'] = process.argv
     .filter((a) => !a.startsWith('--'));
 const useWebkit = flags.includes('--webkit');
 const useFirefox = flags.includes('--firefox');
-const query = flags.includes('--webgpu') ? '?renderer=webgpu' : '';
+const query = flags.includes('--webgpu') ? '?renderer=webgpu' : flags.includes('--webgl1') ? '?renderer=webgl1' : '';
 
 function webkitPath() {
     if (process.env.WEBKIT_PATH) return process.env.WEBKIT_PATH;

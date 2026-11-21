@@ -36,6 +36,7 @@ import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { drawPath, parseSvgPath } from './path';
 import { createSilkShader } from './shader';
+import { silkGl1 } from './shader-slot';
 import { joinPolygon, type NearWindow, nearWindows, type StrokeWindow } from './stroke';
 
 // ---------------------------------------------------------------------------------------------
@@ -604,7 +605,8 @@ export class SilkGeometry extends Geometry {
  * object is one instanced draw call, and `enableSilkBatching()` merges neighbours further.
  *
  * It renders on WebGL2. For WebGPU, call `enableWebGPU()` from `pixi-silk/webgpu` before the first
- * SilkGraphics, or create the app with `createSilkApp({ preference: 'webgpu' })`.
+ * SilkGraphics, or create the app with `createSilkApp({ preference: 'webgpu' })`. For Pixi's WebGL1
+ * fallback, use `enableWebGL1()` from `pixi-silk/webgl1`.
  *
  * Shapes go on the active path and are painted by {@link SilkGraphics.fill | fill()} or
  * {@link SilkGraphics.stroke | stroke()}. `stroke()` right after `fill()` paints the same shapes.
@@ -669,6 +671,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         super({ geometry, shader, label: options.label ?? 'SilkGraphics' });
         (this as { renderPipeId: string }).renderPipeId = options.batch === false ? 'mesh' : SilkGraphics._pipeId;
         this._polySource = polys;
+        // pixi-silk/webgl1: instances are read from a texture, indexed by a per-instance attribute
+        if (shader.resources.uInstances) silkGl1.hooks?.attach(geometry);
         this._f = geometry.instanceBuffer.data as Float32Array;
         this._uniforms = shader.resources.silkUniforms as UniformGroup;
         this._silk = this._uniforms.uniforms.uSilk as Float32Array;
@@ -1445,6 +1449,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
         super.destroy(options);
         geometry.destroy(true);
+        if (shader) silkGl1.hooks?.release(shader);
         shader?.destroy();
         this._polySource.destroy();
     }
@@ -1516,6 +1521,7 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
             }
             src.update();
         }
+        if (this.shader?.resources.uInstances) silkGl1.hooks?.commit(geometry, this.shader, this._f, this._count);
     }
 
     /** Appends the edges of every subpath of a filled path (each closed). Returns the first texel. */

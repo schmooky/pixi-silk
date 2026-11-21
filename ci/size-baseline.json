@@ -1,18 +1,21 @@
 {
   "everything": {
-    "gzip": 30505
+    "gzip": 30765
   },
   "SilkGraphics": {
-    "gzip": 26387
+    "gzip": 26554
   },
   "SilkGraphics + gradients": {
-    "gzip": 26839
+    "gzip": 26998
   },
   "createSilkApp": {
-    "gzip": 1160
+    "gzip": 1247
   },
   "webgpu (enableWebGPU)": {
     "gzip": 8566
+  },
+  "webgl1 (enableWebGL1)": {
+    "gzip": 5134
   },
   "gradients": {
     "gzip": 2224
@@ -36,52 +39,52 @@
     "gzip": 3670
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 31702
+    "gzip": 31872
   },
   "ui/button (SilkButton)": {
-    "gzip": 29429
+    "gzip": 29596
   },
   "ui/dock (ButtonDock)": {
     "gzip": 1044
   },
   "ui/gizmo": {
-    "gzip": 33810
+    "gzip": 33980
   },
   "ui/outline": {
-    "gzip": 28550
+    "gzip": 28718
   },
   "ui/pathgizmo": {
-    "gzip": 33510
+    "gzip": 33669
   },
   "ui/snap": {
-    "gzip": 29123
+    "gzip": 29287
   },
   "ui/camera": {
-    "gzip": 30347
+    "gzip": 30509
   },
   "ui/camera (Camera only)": {
     "gzip": 3404
   },
   "ui/measure": {
-    "gzip": 28772
+    "gzip": 28941
   },
   "ui/grid": {
-    "gzip": 27908
+    "gzip": 28067
   },
   "ui/ruler": {
-    "gzip": 29148
+    "gzip": 29315
   },
   "ui/guides": {
-    "gzip": 29676
+    "gzip": 29834
   },
   "ui/marquee": {
-    "gzip": 28882
+    "gzip": 29049
   },
   "ui/group": {
     "gzip": 1117
   },
   "ui/spacing": {
-    "gzip": 29008
+    "gzip": 29177
   },
   "ui/spacing (findSpacing)": {
     "gzip": 899
@@ -90,22 +93,22 @@
     "gzip": 1303
   },
   "ui/color": {
-    "gzip": 36294
+    "gzip": 36451
   },
   "ui/halo": {
-    "gzip": 30366
+    "gzip": 30540
   },
   "ui/brush": {
-    "gzip": 29220
+    "gzip": 29388
   },
   "ui/modes": {
-    "gzip": 33966
+    "gzip": 34119
   },
   "ui/dial": {
-    "gzip": 30955
+    "gzip": 31121
   },
   "ui/timeline": {
-    "gzip": 30328
+    "gzip": 30493
   },
   "ui/odometer": {
     "gzip": 2159
@@ -114,40 +117,40 @@
     "gzip": 940
   },
   "glass": {
-    "gzip": 29948
+    "gzip": 30155
   },
   "glow": {
-    "gzip": 28822
+    "gzip": 28974
   },
   "text": {
-    "gzip": 23218
+    "gzip": 23371
   },
   "text (SilkText)": {
-    "gzip": 21085
+    "gzip": 21276
   },
   "text (layoutText, sdfFromAlpha)": {
-    "gzip": 9134
+    "gzip": 9162
   },
   "ui/textedit (TextEditor)": {
-    "gzip": 54432
+    "gzip": 54731
   },
   "ui/pill (ValuePill)": {
-    "gzip": 27036
+    "gzip": 27199
   },
   "ui/panel (Panel)": {
-    "gzip": 56061
+    "gzip": 56511
   },
   "ui/layers (LayerTree)": {
-    "gzip": 69126
+    "gzip": 69412
   },
   "ui/layers (tree math)": {
     "gzip": 890
   },
   "ui/inspector (Inspector)": {
-    "gzip": 69892
+    "gzip": 70188
   },
   "ui/minimap (Minimap)": {
-    "gzip": 29330
+    "gzip": 29494
   },
   "layout": {
     "gzip": 3643
@@ -162,6 +165,6 @@
     "gzip": 10080
   },
   "ui (everything)": {
-    "gzip": 143190
+    "gzip": 143426
   }
 }

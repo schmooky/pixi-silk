@@ -11,6 +11,7 @@
       "pixi-silk/glass": ["../../packages/pixi-silk/src/glass.ts"],
       "pixi-silk/glow": ["../../packages/pixi-silk/src/glow.ts"],
       "pixi-silk/webgpu": ["../../packages/pixi-silk/src/webgpu.ts"],
+      "pixi-silk/webgl1": ["../../packages/pixi-silk/src/webgl1.ts"],
       "pixi-silk/text": ["../../packages/pixi-silk/src/text.ts"],
       "pixi-silk/selection": ["../../packages/pixi-silk/src/selection.ts"],
       "pixi-silk/history": ["../../packages/pixi-silk/src/history.ts"],

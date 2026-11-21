@@ -1,4 +1,4 @@
-import { Application, type ApplicationOptions, Filter } from 'pixi.js';
+import { Application, type ApplicationOptions, Filter, type Renderer, type WebGLRenderer } from 'pixi.js';
 
 /** Options of {@link createSilkApp}: Pixi application options plus the element to fill, DPR limits and touch behaviour. */
 export interface SilkAppOptions extends Partial<ApplicationOptions> {
@@ -29,6 +29,13 @@ export interface SilkAppOptions extends Partial<ApplicationOptions> {
      * the WGSL shader from `pixi-silk/webgpu` before it resolves, so SilkGraphics render on either.
      */
     preference?: ApplicationOptions['preference'];
+    /**
+     * Opt-in WebGL1 support: pass `enableWebGL1` from `pixi-silk/webgl1`. Pixi falls back to a
+     * WebGL1 context when the browser has no WebGL2, and the app then calls this function before
+     * it resolves. Without it, silk shapes draw nothing on WebGL1 and the app logs an error. The
+     * option takes the function rather than a flag, so apps that leave it out do not ship the code.
+     */
+    webgl1?: (renderer: Renderer) => unknown;
 }
 
 /** What {@link createSilkApp} returns: the Pixi application, its CSS size and resolution, and helpers to change or destroy it. */
@@ -73,6 +80,7 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
         onResize,
         inheritFilterResolution = true,
         touchAction = 'pan-y pinch-zoom',
+        webgl1,
         ...rest
     } = options;
 
@@ -112,6 +120,13 @@ export async function createSilkApp(options: SilkAppOptions): Promise<SilkApp> {
 
     // the WGSL program is a separate chunk: WebGL2 apps never download it
     if (app.renderer.name === 'webgpu') (await import('./webgpu')).enableWebGPU();
+    else if ((app.renderer as WebGLRenderer).context.webGLVersion === 1) {
+        if (webgl1) webgl1(app.renderer);
+        else
+            console.error(
+                "pixi-silk: Pixi started WebGL1. Pass { webgl1: enableWebGL1 } from 'pixi-silk/webgl1' to draw on it.",
+            );
+    }
 
     const canvas = app.canvas;
 
