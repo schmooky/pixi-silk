@@ -3467,11 +3467,46 @@ Some things differ:
 |---|---|
 | Batching | off: `enableSilkBatching()` has no effect, each object is one draw call |
 | Long paths | a filled path with more than 4096 edges, or a stroked path with more than 256 windows of 32 segments, draws in part and logs a warning once |
-| Device needs | `OES_texture_float`, `OES_texture_half_float` and `OES_standard_derivatives`. Without float textures it logs an error and returns `false` |
-| Precision | GPUs without `highp` in fragment shaders draw with artefacts, with a warning |
+| Device needs | `OES_texture_float`, `OES_texture_half_float`, `OES_standard_derivatives` and `highp` in fragment shaders. Without one of them it logs an error, installs nothing and returns `false` |
+| Gradient filtering | without `OES_texture_half_float_linear` the gradient ramps filter nearest and the shaders blend two texels themselves, so gradients look the same |
 | Other renderers on the page | the programs are global: once it runs, objects on a WebGL2 renderer on the same page use the WebGL1 shaders too, and do not batch |
 
+When `enableWebGL1()` returns `false`, silk objects draw nothing. Check the result and show a
+fallback, for example a Pixi `Graphics` scene or a static image.
+
 Add `?renderer=webgl1` to a docs URL to run every demo on that page on WebGL1.
+
+#### WebGL1 caveats
+
+These are the costs and limits of the WebGL1 path. Read them before you ship to WebGL1-only
+devices.
+
+- **It is slower.** WebGL1 guarantees only 8 varyings, and the WebGL2 shader passes about 16 from
+  the vertex stage. So each pixel reads its shape from a float texture: 11 texture reads before any
+  shape work, and the inverse of the object matrix per pixel. Keep scenes on WebGL1 small, with few
+  objects and few large overlapping shapes.
+- **No batching.** Each SilkGraphics, SilkText and Glass is its own draw call.
+- **Each change uploads the whole instance texture.** Changing one shape of a SilkGraphics uploads
+  all its instances again, about 11 KB per 64 shapes. Split objects that animate from objects that
+  do not.
+- **Shapes do not move to varyings.** Interpolated varyings are not bit-exact across instances,
+  and the chunks of a long path must agree on every bit to shade each pixel once. The texture keeps
+  that.
+- **Long loops.** WebGL1 loops need a constant bound, so path loops run to a cap (4096 edges, 256
+  windows of 32 segments) and stop at the real count. Some compilers take longer on such loops.
+  The Windows workflow compiles them on Direct3D 11.
+- **Programs are global.** One call switches every later silk object on the page. Objects made
+  before the call keep the WebGL2 program and draw nothing on WebGL1. There is no way to turn it
+  off again.
+- **Nearest ramps are shared.** Without `OES_texture_half_float_linear` the gradient atlas, which
+  every renderer on the page shares, switches to nearest filtering. A WebGPU renderer on the same
+  page then samples its ramps without blending, which changes colours by at most one ramp step.
+- **Texture size.** Many WebGL1 devices allow textures of 2048 pixels only. The text atlas grows
+  to 4096 rows by default. When you draw many glyphs there, give the texts an atlas made with
+  `new SdfAtlas({ maxHeight: 2048 })` (see [Text](https://pixi-silk.schmooky.dev/docs/text/)).
+- **Where it was tested.** The render cases run on WebGL1 in Chrome on ANGLE (Metal and
+  SwiftShader) and on Direct3D 11 (WARP) in CI. They have not run on WebGL1-only hardware, where
+  limits, compile time and speed may differ.
 
 ### Batch objects into one draw
 
@@ -6650,10 +6685,16 @@ Pass it to [createSilkApp](https://pixi-silk.schmooky.dev/api/functions/createSi
 application you create yourself. It does nothing unless the renderer runs WebGL1. Call it before
 you create any SilkGraphics: objects created earlier keep the WebGL2 program and draw nothing.
 
-On WebGL1, `enableSilkBatching()` has no effect: each object is one draw call. A filled path
-with more than 4096 edges, or a stroked path with more than 256 windows, draws in part with a
-warning. Programs are global: once enabled, objects on a WebGL2 renderer on the same page use the
-WebGL1 shaders too, which give the same pixels.
+The device needs `OES_texture_float`, `OES_texture_half_float`, `OES_standard_derivatives` and
+highp in fragment shaders. Without one of them this logs an error, installs nothing and returns
+`false`: silk objects then draw nothing, and the app can show a fallback. Without
+`OES_texture_half_float_linear` the gradient ramps switch to nearest filtering, which the WebGL1
+shaders blend themselves, so they look the same.
+
+Limits on WebGL1: `enableSilkBatching()` has no effect, each object is one draw call. A filled
+path with more than 4096 edges, or a stroked path with more than 256 windows, draws in part with
+a warning. Programs are global: once enabled, objects on a WebGL2 renderer on the same page use
+the WebGL1 shaders too and do not batch. They give the same pixels.
 
 ### Parameters
 
@@ -6665,8 +6706,8 @@ WebGL1 shaders too, which give the same pixels.
 
 `boolean`
 
-`true` when WebGL1 support is on for this renderer. `false` when the renderer is not WebGL1,
-or the device lacks `OES_texture_float` or `OES_texture_half_float` (an error is logged).
+`true` when WebGL1 support is on for this renderer. `false` when the renderer is not
+WebGL1, or the device lacks something the shaders need (an error is logged).
 
 ### Example
 

@@ -3,7 +3,7 @@
  * Renders a set of hard cases to pixels in headless Chrome and checks them. Unit tests run in node
  * without a GPU, so this is where the shader output itself is measured.
  *
- * usage: pnpm build && node scripts/check-render.mjs [--renderer=webgl|webgpu|webgl1|both|all] [--out=dir] [--only=name]
+ * usage: pnpm build && node scripts/check-render.mjs [--renderer=webgl|webgpu|webgl1|webgl1-nearest|both|all] [--out=dir] [--only=name]
  *
  * Each case draws one scene into a 1x render texture and reads it back. The checks:
  *  - `maxAlpha`: a translucent stroke or fill must never be darker than its own alpha, so any place
@@ -35,7 +35,8 @@ const renderers = {
     webgl: ['webgl'],
     webgpu: ['webgpu'],
     webgl1: ['webgl1'],
-    all: ['webgl', 'webgpu', 'webgl1'],
+    'webgl1-nearest': ['webgl1-nearest'],
+    all: ['webgl', 'webgpu', 'webgl1', 'webgl1-nearest'],
 }[args.renderer] ?? ['webgl', 'webgpu'];
 const out = args.out ? resolve(args.out) : null;
 
@@ -122,9 +123,9 @@ for (const renderer of renderers) {
     await tab.close();
 }
 
-const labels = { webgl: 'WebGL2', webgpu: 'WebGPU', webgl1: 'WebGL1' };
+const labels = { webgl: 'WebGL2', webgpu: 'WebGPU', webgl1: 'WebGL1', 'webgl1-nearest': 'WebGL1 (nearest ramps)' };
 
-for (const other of ['webgpu', 'webgl1']) {
+for (const other of ['webgpu', 'webgl1', 'webgl1-nearest']) {
     if (!results.webgl || !results[other]) continue;
     console.log(`check-render: WebGL2 vs ${labels[other]}`);
     for (const a of results.webgl.cases) {

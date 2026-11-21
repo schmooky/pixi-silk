@@ -145,6 +145,13 @@ export function createGl1Hooks(): SilkGl1 {
         },
 
         syncSizes(shader) {
+            const ramps = shader.resources.uGradients as TextureSource | undefined;
+
+            // the programs blend two ramp texels themselves, so nearest gives the same colours
+            if (hooks.nearestRamps && ramps && ramps.style.scaleMode !== 'nearest') {
+                ramps.style.scaleMode = 'nearest';
+                ramps.style.update();
+            }
             const group = shader.resources.gl1Sizes as UniformGroup | undefined;
 
             if (!group) return;
@@ -165,6 +172,8 @@ export function createGl1Hooks(): SilkGl1 {
         release(shader) {
             (shader.resources.uInstances as TextureSource | undefined)?.destroy();
         },
+
+        nearestRamps: false,
     };
 
     return hooks;

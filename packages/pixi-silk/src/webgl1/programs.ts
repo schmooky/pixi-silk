@@ -186,6 +186,33 @@ float closedSD(vec2 p, int type, float px)
     { find: 'void main(void)\n{', replace: `${instanceSetup()}void main(void)\n{\ngl1Setup();` },
 ];
 
+/*
+ * Gradient ramps: WebGL1 filters half floats only with OES_texture_half_float_linear. Without it the
+ * ramps switch to nearest filtering (hooks.ts), so the programs blend the two texels themselves.
+ * At a texel centre either filter gives the texel, so this matches linear filtering everywhere.
+ */
+const rampLinear = `vec4 rampLinear(float t, float row)
+{
+    float x = t * 255.0;
+    float i = floor(x);
+    float v = (row + 0.5) / 256.0;
+    vec4 a = texture(uGradients, vec2((i + 0.5) / 256.0, v));
+    vec4 b = texture(uGradients, vec2((min(i + 1.0, 255.0) + 0.5) / 256.0, v));
+    return mix(a, b, x - i);
+}
+`;
+
+const rampPatches: Patch[] = [
+    {
+        find: 'uniform highp sampler2D uGradients;\n',
+        replace: `uniform highp sampler2D uGradients;\n\n${rampLinear}\n`,
+    },
+    {
+        find: /textureLod\(uGradients, vec2\(\(t \* 255\.0 \+ 0\.5\) \/ 256\.0, \((\w+)\.y \+ 0\.5\) \/ 256\.0\), 0\.0\)/g,
+        replace: 'rampLinear(t, $1.y)',
+    },
+];
+
 /** @internal Both stages of one WebGL1 program. */
 export interface Gl1Sources {
     vertex: Glsl100;
@@ -197,10 +224,11 @@ const OPTIONS: Record<string, { vertex?: Glsl100Options; fragment?: Glsl100Optio
     'silk-sdf': {
         vertex: { patches: silkVertexPatches },
         fragment: {
-            patches: silkFragmentPatches,
+            patches: [...silkFragmentPatches, ...rampPatches],
             caps: { n: GL1_MAX_EDGES, nAll: GL1_MAX_WINDOWS, 's + cnt': PATH_CHUNK },
         },
     },
+    'silk-text': { fragment: { patches: rampPatches } },
 };
 
 /** @internal Converts the GLSL ES 3.00 stages of the program called `name` to GLSL ES 1.00. */

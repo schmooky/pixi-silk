@@ -1,4 +1,13 @@
-import type { BufferImageSource, Renderer, Shader } from 'pixi.js';
+import {
+    type BufferImageSource,
+    GlTextureSystem,
+    mapFormatToGlFormat,
+    mapFormatToGlInternalFormat,
+    mapFormatToGlType,
+    type Renderer,
+    type Shader,
+    type TextureSource,
+} from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { minifyGlsl } from '../build/glsl';
 import { INSTANCE_ATTRIBUTES, Prim, STRIDE } from '../src/constants';
@@ -74,6 +83,17 @@ describe('GLSL ES 1.00 conversion', () => {
         expect(s.fragment.source).toMatch(/^precision highp float;\n#extension GL_OES_standard_derivatives : enable\n/);
     });
 
+    it('blends gradient ramps in the shader, so nearest filtering gives the linear result', () => {
+        for (const name of ['silk-sdf', 'silk-text'] as const) {
+            const [v, f] = programs[name];
+            const { source } = gl1Sources(name, v, f).fragment;
+
+            expect(source).toContain('vec4 rampLinear(float t, float row)');
+            expect(source).not.toMatch(/texture2D\(uGradients, vec2\(\(t \* 255/);
+            expect(source).toMatch(/rampLinear\(t, [uv]Paint\.y\)/);
+        }
+    });
+
     it('rewrites flag tests, cap fields and int modulo', () => {
         const { source } = toGlsl100(
             'uniform float u;\nvoid main(void)\n{\nint flags = 1;\nbool a = (flags & 16) != 0;\nbool b = (flags & 32) == 0;\nint c = (flags >> 8) & 3;\nint d = (c % 4 + 4) % 4;\n}',
@@ -110,15 +130,24 @@ describe('GLSL ES 1.00 conversion', () => {
     });
 });
 
-function fakeRenderer(version: 1 | 2, floatTexture = true): Renderer & { formats: Record<string, number> } {
+interface FakeDevice {
+    floatTexture?: boolean;
+    halfFloatLinear?: boolean;
+    derivatives?: boolean;
+    highp?: boolean;
+    tables?: boolean;
+}
+
+function fakeRenderer(version: 1 | 2, device: FakeDevice = {}): Renderer & { formats: Record<string, number> } {
+    const { floatTexture = true, halfFloatLinear = true, derivatives = true, highp = true, tables = true } = device;
     const formats: Record<string, number> = { rgba32float: 0 };
     const gl = {
         RGBA: 6408,
         LUMINANCE: 6409,
         FRAGMENT_SHADER: 1,
         HIGH_FLOAT: 2,
-        getExtension: vi.fn(() => ({})),
-        getShaderPrecisionFormat: () => ({ precision: 23 }),
+        getExtension: vi.fn((name: string) => (name === 'OES_standard_derivatives' && !derivatives ? null : {})),
+        getShaderPrecisionFormat: () => ({ precision: highp ? 23 : 0 }),
     };
 
     return {
@@ -127,9 +156,13 @@ function fakeRenderer(version: 1 | 2, floatTexture = true): Renderer & { formats
         formats,
         context: {
             webGLVersion: version,
-            extensions: { floatTexture: floatTexture ? {} : null, textureHalfFloat: {} },
+            extensions: {
+                floatTexture: floatTexture ? {} : null,
+                textureHalfFloat: {},
+                textureHalfFloatLinear: halfFloatLinear ? {} : null,
+            },
         },
-        texture: { _mapFormatToInternalFormat: formats, _mapFormatToFormat: {}, _mapFormatToType: {} },
+        texture: tables ? { _mapFormatToInternalFormat: formats, _mapFormatToFormat: {}, _mapFormatToType: {} } : {},
         runners: { contextChange: { add: vi.fn() } },
     } as unknown as Renderer & { formats: Record<string, number> };
 }
@@ -157,10 +190,67 @@ describe('enableWebGL1', () => {
     it('refuses a WebGL1 device without float textures', () => {
         const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        expect(enableWebGL1(fakeRenderer(1, false))).toBe(false);
+        expect(enableWebGL1(fakeRenderer(1, { floatTexture: false }))).toBe(false);
         expect(isWebGL1Enabled()).toBe(false);
         expect(error).toHaveBeenCalledOnce();
         error.mockRestore();
+    });
+
+    // the programs declare highp ints, floats and samplers: without highp they do not compile
+    for (const [lack, device] of [
+        ['highp', { highp: false }],
+        ['OES_standard_derivatives', { derivatives: false }],
+        ['format tables', { tables: false }],
+    ] as const) {
+        it(`refuses a WebGL1 device or Pixi without ${lack}`, () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            expect(enableWebGL1(fakeRenderer(1, device))).toBe(false);
+            expect(isWebGL1Enabled()).toBe(false);
+            expect(error).toHaveBeenCalledOnce();
+            error.mockRestore();
+        });
+    }
+
+    it('switches the gradient ramps to nearest filtering without OES_texture_half_float_linear', () => {
+        expect(enableWebGL1(fakeRenderer(1))).toBe(true);
+        expect(silkGl1.hooks?.nearestRamps).toBe(false);
+        expect(enableWebGL1(fakeRenderer(1, { halfFloatLinear: false }))).toBe(true);
+        expect(silkGl1.hooks?.nearestRamps).toBe(true);
+
+        const g = new SilkGraphics();
+
+        g.circle(0, 0, 2).fill(0xffffff);
+        const ramps = (g.shader as Shader).resources.uGradients as TextureSource;
+
+        expect(ramps.style.scaleMode).toBe('nearest');
+        ramps.style.scaleMode = 'linear';
+        g.destroy();
+    });
+});
+
+describe("Pixi's private format tables", () => {
+    // enableWebGL1 edits these: a Pixi release that renames them must fail here, not on a device
+    it('still exist on GlTextureSystem and hold the formats silk patches', () => {
+        // contextChange builds the tables (protected in the types, so read it through a cast)
+        const source = String((GlTextureSystem.prototype as unknown as { contextChange: () => void }).contextChange);
+
+        for (const field of ['_mapFormatToInternalFormat', '_mapFormatToFormat', '_mapFormatToType'])
+            expect(source).toContain(field);
+        // a WebGL1 context: the class Pixi's adapter tests for, with every GL constant set
+        class WebGLRenderingContext {}
+        vi.stubGlobal('WebGLRenderingContext', WebGLRenderingContext);
+        const gl = new Proxy(new WebGLRenderingContext(), { get: () => 1 });
+        const tables = [
+            mapFormatToGlInternalFormat(gl as WebGL2RenderingContext, {} as never),
+            mapFormatToGlFormat(gl as WebGL2RenderingContext),
+            mapFormatToGlType(gl as WebGL2RenderingContext),
+        ];
+
+        for (const table of tables) {
+            for (const format of ['rgba32float', 'rgba16float', 'r8unorm']) expect(table).toHaveProperty(format);
+        }
+        vi.unstubAllGlobals();
     });
 });
 

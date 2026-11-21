@@ -32,6 +32,12 @@ export interface SilkGl1 {
     syncSizes(shader: Shader): void;
     /** Frees the instance texture {@link SilkGl1.resources} made for a SilkGraphics. */
     release(shader: Shader): void;
+    /**
+     * Set when a WebGL1 device cannot filter half floats (no `OES_texture_half_float_linear`).
+     * {@link SilkGl1.syncSizes} then switches the gradient ramps to nearest filtering, which the
+     * WebGL1 programs blend themselves.
+     */
+    nearestRamps: boolean;
 }
 
 /** @internal Set by `enableWebGL1()` from `pixi-silk/webgl1`. */

@@ -4,7 +4,8 @@
  */
 
 import { Glass } from '/packages/pixi-silk/dist/glass.js';
-import { enableSilkBatching, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
+import { enableSilkBatching, linear, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
+import { silkGl1 } from '/packages/pixi-silk/dist/shader-slot.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
 import { SilkText } from '/packages/pixi-silk/dist/text.js';
 import { enableWebGL1 } from '/packages/pixi-silk/dist/webgl1.js';
@@ -14,7 +15,9 @@ import { Application, Container, RenderTexture } from '/packages/pixi-silk/node_
 const mode = new URLSearchParams(location.search).get('renderer');
 const preference = mode === 'webgpu' ? 'webgpu' : 'webgl';
 // webgl1: Pixi's WebGL renderer on a WebGL1 context, with the GLSL ES 1.00 programs
-const preferWebGLVersion = mode === 'webgl1' ? 1 : 2;
+// webgl1-nearest: as on a device without OES_texture_half_float_linear
+const gl1 = mode === 'webgl1' || mode === 'webgl1-nearest';
+const preferWebGLVersion = gl1 ? 1 : 2;
 const W = 256;
 const H = 256;
 
@@ -521,6 +524,22 @@ const cases = {
 
         return { scene: root, kind: 'none' };
     },
+    // wide gradient ramps on shapes and text: on WebGL1 without OES_texture_half_float_linear the
+    // ramps filter nearest and the shaders blend them (compared between renderers)
+    'gradient-ramps': () => {
+        const root = new Container();
+        const g = new SilkGraphics();
+        const ramp = [0x0a84ff, 0xff375f, 0xffd60a, 0x30d158];
+
+        g.rect(8, 8, 240, 60).fill({ gradient: linear(ramp, { from: [0, 0], to: [1, 0] }) });
+        g.circle(64, 140, 56).fill({ gradient: radial([0xffffff, 0x5e5ce6, 0x000000]) });
+        const text = new SilkText({ text: 'Ramp', fontSize: 64, fontWeight: 800, fill: linear(ramp) });
+
+        text.position.set(124, 100);
+        root.addChild(g, text);
+
+        return { scene: root, kind: 'none' };
+    },
     // colour emoji from the colour texture, a justified Arabic paragraph with kashida, and a line
     // cut with an ellipsis (compared between renderers)
     'text-color-justify': () => {
@@ -561,7 +580,8 @@ async function renderer() {
             antialias: false,
             resolution: 1,
         });
-        if (mode === 'webgl1' && !enableWebGL1(app.renderer)) throw new Error('WebGL1 support did not start');
+        if (gl1 && !enableWebGL1(app.renderer)) throw new Error('WebGL1 support did not start');
+        if (mode === 'webgl1-nearest') silkGl1.hooks.nearestRamps = true;
     }
 
     return app.renderer;
