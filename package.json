@@ -11,8 +11,8 @@
   "scripts": {
     "build": "pnpm --filter pixi-silk build",
     "build:all": "node scripts/build-all-publishable.mjs",
-    "test": "pnpm lint && pnpm --filter pixi-silk test && pnpm --filter @pixi-silk/compiler test && pnpm --filter @pixi-silk/shaper-kb test",
-    "typecheck": "pnpm --filter pixi-silk typecheck && pnpm --filter @pixi-silk/compiler typecheck && pnpm --filter @pixi-silk/shaper-kb typecheck && pnpm --filter @pixi-silk/site typecheck && pnpm check:skills",
+    "test": "pnpm lint && pnpm --filter pixi-silk test && pnpm --filter @pixi-silk/compiler test",
+    "typecheck": "pnpm --filter pixi-silk typecheck && pnpm --filter @pixi-silk/compiler typecheck && pnpm --filter @pixi-silk/site typecheck && pnpm check:skills",
     "lint": "biome check . && pnpm lint:prose",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -31,6 +31,7 @@
     "changeset:status": "changeset status",
     "version-packages": "changeset version && pnpm install --lockfile-only",
     "release": "pnpm build:all && changeset publish",
+    "publish:npm": "bash scripts/publish.sh",
     "bench": "pnpm --filter @pixi-silk/compiler bench",
     "size": "node scripts/size-check.mjs",
     "size:check": "node scripts/size-check.mjs --check",

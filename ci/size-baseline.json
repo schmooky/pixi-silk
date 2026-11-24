@@ -1,15 +1,15 @@
 {
   "everything": {
-    "gzip": 30765,
-    "brotli": 27120
+    "gzip": 30812,
+    "brotli": 27152
   },
   "SilkGraphics": {
-    "gzip": 26554,
-    "brotli": 23354
+    "gzip": 26602,
+    "brotli": 23422
   },
   "SilkGraphics + gradients": {
-    "gzip": 26998,
-    "brotli": 23769
+    "gzip": 27046,
+    "brotli": 23824
   },
   "createSilkApp": {
     "gzip": 1247,
@@ -52,68 +52,68 @@
     "brotli": 3376
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 31872,
-    "brotli": 28172
+    "gzip": 31926,
+    "brotli": 28226
   },
   "ui/button (SilkButton)": {
-    "gzip": 29596,
-    "brotli": 26172
+    "gzip": 29646,
+    "brotli": 26184
   },
   "ui/dock (ButtonDock)": {
     "gzip": 1044,
     "brotli": 942
   },
   "ui/gizmo": {
-    "gzip": 33980,
-    "brotli": 30032
+    "gzip": 34018,
+    "brotli": 30020
   },
   "ui/outline": {
-    "gzip": 28718,
-    "brotli": 25327
+    "gzip": 28765,
+    "brotli": 25349
   },
   "ui/pathgizmo": {
-    "gzip": 33669,
-    "brotli": 29741
+    "gzip": 33719,
+    "brotli": 29775
   },
   "ui/snap": {
-    "gzip": 29287,
-    "brotli": 25855
+    "gzip": 29335,
+    "brotli": 25871
   },
   "ui/camera": {
-    "gzip": 30509,
-    "brotli": 26890
+    "gzip": 30558,
+    "brotli": 26945
   },
   "ui/camera (Camera only)": {
     "gzip": 3404,
     "brotli": 3057
   },
   "ui/measure": {
-    "gzip": 28941,
-    "brotli": 25458
+    "gzip": 28990,
+    "brotli": 25474
   },
   "ui/grid": {
-    "gzip": 28067,
-    "brotli": 24726
+    "gzip": 28112,
+    "brotli": 24777
   },
   "ui/ruler": {
-    "gzip": 29315,
-    "brotli": 25824
+    "gzip": 29370,
+    "brotli": 25898
   },
   "ui/guides": {
-    "gzip": 29834,
-    "brotli": 26337
+    "gzip": 29883,
+    "brotli": 26334
   },
   "ui/marquee": {
-    "gzip": 29049,
-    "brotli": 25603
+    "gzip": 29095,
+    "brotli": 25634
   },
   "ui/group": {
     "gzip": 1117,
     "brotli": 1018
   },
   "ui/spacing": {
-    "gzip": 29177,
-    "brotli": 25708
+    "gzip": 29220,
+    "brotli": 25768
   },
   "ui/spacing (findSpacing)": {
     "gzip": 899,
@@ -124,28 +124,28 @@
     "brotli": 1230
   },
   "ui/color": {
-    "gzip": 36451,
-    "brotli": 32099
+    "gzip": 36499,
+    "brotli": 32132
   },
   "ui/halo": {
-    "gzip": 30540,
-    "brotli": 26959
+    "gzip": 30590,
+    "brotli": 27021
   },
   "ui/brush": {
-    "gzip": 29388,
-    "brotli": 25949
+    "gzip": 29431,
+    "brotli": 25970
   },
   "ui/modes": {
-    "gzip": 34119,
-    "brotli": 30202
+    "gzip": 34168,
+    "brotli": 30237
   },
   "ui/dial": {
-    "gzip": 31121,
-    "brotli": 27541
+    "gzip": 31164,
+    "brotli": 27565
   },
   "ui/timeline": {
-    "gzip": 30493,
-    "brotli": 26949
+    "gzip": 30541,
+    "brotli": 26944
   },
   "ui/odometer": {
     "gzip": 2159,
@@ -156,12 +156,12 @@
     "brotli": 859
   },
   "glass": {
-    "gzip": 30155,
-    "brotli": 26397
+    "gzip": 30189,
+    "brotli": 26464
   },
   "glow": {
-    "gzip": 28974,
-    "brotli": 25508
+    "gzip": 29033,
+    "brotli": 25529
   },
   "text": {
     "gzip": 23371,
@@ -195,33 +195,37 @@
     "gzip": 2069,
     "brotli": 1902
   },
+  "i18n/shaper (createShapedText)": {
+    "gzip": 3571,
+    "brotli": 3293
+  },
   "ui/textedit (TextEditor)": {
-    "gzip": 54731,
-    "brotli": 47082
+    "gzip": 54785,
+    "brotli": 47131
   },
   "ui/pill (ValuePill)": {
-    "gzip": 27199,
-    "brotli": 23973
+    "gzip": 27251,
+    "brotli": 23976
   },
   "ui/panel (Panel)": {
-    "gzip": 56511,
-    "brotli": 48923
+    "gzip": 56563,
+    "brotli": 49000
   },
   "ui/layers (LayerTree)": {
-    "gzip": 69412,
-    "brotli": 59906
+    "gzip": 69472,
+    "brotli": 59818
   },
   "ui/layers (tree math)": {
     "gzip": 890,
     "brotli": 817
   },
   "ui/inspector (Inspector)": {
-    "gzip": 70188,
-    "brotli": 60393
+    "gzip": 70249,
+    "brotli": 60589
   },
   "ui/minimap (Minimap)": {
-    "gzip": 29494,
-    "brotli": 25975
+    "gzip": 29540,
+    "brotli": 26027
   },
   "layout": {
     "gzip": 3643,
@@ -240,7 +244,7 @@
     "brotli": 9187
   },
   "ui (everything)": {
-    "gzip": 143426,
-    "brotli": 120325
+    "gzip": 143484,
+    "brotli": 120424
   }
 }

@@ -42,6 +42,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/i18n`](https://pixi-silk.schmooky.dev/api/i18n.md) | Text | Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables. |
 | [`pixi-silk/i18n/pixi`](https://pixi-silk.schmooky.dev/api/i18n/pixi.md) | Text | Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU. |
 | [`pixi-silk/i18n/canvas`](https://pixi-silk.schmooky.dev/api/i18n/canvas.md) | Text | The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk. |
+| [`pixi-silk/i18n/shaper`](https://pixi-silk.schmooky.dev/api/i18n/shaper.md) | Text | The shaper path for text slots: kb_text_shape in WebAssembly (62 kB brotli) shapes player names with the font the bundle was baked from, drawn as a distance-field run sprite. TrueType fonts only. |
 | [`pixi-silk/text/bidi`](https://pixi-silk.schmooky.dev/api/text/bidi.md) | Text | The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
@@ -1283,7 +1284,7 @@ const exact = await Silk.create({
 ```
 
 The canvas path is small and draws emoji, but the system font may not match the baked text.
-`@pixi-silk/shaper-kb` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
+`pixi-silk/i18n/shaper` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
 same font, shaping and metrics as the baked text on every platform. It reads TrueType outlines
 only. Values the font has no glyph for go to `fallback`.
 
@@ -6148,6 +6149,48 @@ import { MessageGeometry, PageArraySource, PixiBackend, PixiStyleRows } from 'pi
 | ------ | ------ |
 | [installPageArrays](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/installPageArrays.md) | Adds the page array uploaders to a renderer's texture system. Returns false when the renderer cannot draw array textures (WebGL1), so the caller keeps binding pages one by one. |
 | [loadAtlasPage](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/loadAtlasPage.md) | Fetches and decodes one atlas page, without premultiplied alpha or colour conversion. |
+
+## `pixi-silk/i18n/shaper`
+
+URL: https://pixi-silk.schmooky.dev/api/i18n/shaper/
+
+The shaper path for text slots: kb_text_shape in WebAssembly (62 kB brotli) shapes player names with the font the bundle was baked from, drawn as a distance-field run sprite. TrueType fonts only.
+
+```ts
+import { KbShaper, ShapedTextProvider, createKbShaper, createShapedText } from 'pixi-silk/i18n/shaper';
+```
+
+#### Classes
+
+| Class | Description |
+| ------ | ------ |
+| [KbShaper](https://pixi-silk.schmooky.dev/api/i18n/shaper/classes/KbShaper.md) | A [RuntimeShaper](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RuntimeShaper.md) for one TrueType font, backed by kb_text_shape compiled to WebAssembly (62 kB with brotli). It shapes Arabic, Hebrew, Latin and the other scripts kb_text_shape knows, with the bidi algorithm for mixed runs. Each shaper owns one WebAssembly instance and its memory. |
+| [ShapedTextProvider](https://pixi-silk.schmooky.dev/api/i18n/shaper/classes/ShapedTextProvider.md) | The text slot provider [createShapedText](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/createShapedText.md) returns. |
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [FontTables](https://pixi-silk.schmooky.dev/api/i18n/shaper/interfaces/FontTables.md) | The tables of a TrueType font a run sprite needs. |
+| [KbShaperOptions](https://pixi-silk.schmooky.dev/api/i18n/shaper/interfaces/KbShaperOptions.md) | Options of [createKbShaper](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/createKbShaper.md). |
+| [OutlinePoint](https://pixi-silk.schmooky.dev/api/i18n/shaper/interfaces/OutlinePoint.md) | A point of a flattened outline, in font units, y up. |
+| [ShapedTextOptions](https://pixi-silk.schmooky.dev/api/i18n/shaper/interfaces/ShapedTextOptions.md) | Options of [createShapedText](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/createShapedText.md). |
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [Contour](https://pixi-silk.schmooky.dev/api/i18n/shaper/types/Contour.md) | One closed contour as a polyline: quadratic curves are flattened. |
+| [KbWasmSource](https://pixi-silk.schmooky.dev/api/i18n/shaper/types/KbWasmSource.md) | Where the kb_text_shape WebAssembly module comes from: its bytes, a compiled module or a URL. |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [createKbShaper](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/createKbShaper.md) | Loads kb_text_shape and a TrueType font into a [KbShaper](https://pixi-silk.schmooky.dev/api/i18n/shaper/classes/KbShaper.md). |
+| [createShapedText](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/createShapedText.md) | The shaper path for text slots (brief sec. 6.5, `shaper` mode). kb_text_shape shapes the value with the font the bundle was baked from, the outlines are filled in JavaScript and a distance transform turns them into a run sprite. Slots then match the baked text in font, shaping and metrics on every platform, with no canvas. Pass the result as `dynamicText` to `Silk.create`. |
+| [fillContours](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/fillContours.md) | Fills polygons into a coverage bitmap with exact area anti-aliasing: each edge adds its signed area to an accumulation buffer, and a running sum gives the coverage. Overlapping contours of the same direction (variable fonts) clamp to full coverage. Coordinates are in pixels, y down. |
+| [readFont](https://pixi-silk.schmooky.dev/api/i18n/shaper/functions/readFont.md) | pixi-silk/i18n/shaper: draws text slots (player names) with the font a bundle was baked from. kb_text_shape in WebAssembly shapes the value. The TrueType outlines are filled in JavaScript, and a distance transform turns them into a run sprite. Pass `await createShapedText({ font })` as `dynamicText` to `Silk.create`. The `kb.wasm` file is fetched next to this module. |
 
 ## `pixi-silk/layout`
 

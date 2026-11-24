@@ -1,6 +1,6 @@
 /**
  * Compares the runtime shaper candidates (docs/v2/DECISIONS.md D10): kb_text_shape built to WASM
- * (packages/shaper-kb/wasm) and HarfBuzz (the harfbuzzjs WASM): compressed size, agreement on the
+ * (packages/pixi-silk/wasm) and HarfBuzz (the harfbuzzjs WASM): compressed size, agreement on the
  * shaping corpus (Arabic with and without marks, Hebrew, Latin), and speed.
  *
  *   node scripts/measure-shapers.ts
@@ -11,7 +11,7 @@ import { brotliCompressSync, constants } from 'node:zlib';
 import * as hb from 'harfbuzzjs';
 
 const fonts = new URL('../fixtures/fonts/', import.meta.url);
-const kbWasm = readFileSync(new URL('../../shaper-kb/wasm/kb.wasm', import.meta.url));
+const kbWasm = readFileSync(new URL('../../pixi-silk/wasm/kb.wasm', import.meta.url));
 const hbWasm = readFileSync(createRequire(import.meta.url).resolve('harfbuzzjs/dist/harfbuzz.wasm'));
 const br = (b: Uint8Array) =>
     (brotliCompressSync(b, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }).length / 1024).toFixed(1);

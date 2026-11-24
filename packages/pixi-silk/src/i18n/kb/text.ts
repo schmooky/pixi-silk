@@ -1,9 +1,10 @@
-import type { BundleFace, RunSprite, SilkBundle } from 'pixi-silk/i18n';
-import type { DynamicTextProvider, TextSlotRender } from 'pixi-silk/i18n/pixi';
-import { sdfFromAlpha } from 'pixi-silk/text';
+import { sdfFromAlpha } from '../../text/edt';
+import type { RunSprite } from '../backend';
+import type { BundleFace, SilkBundle } from '../messages';
+import type { DynamicTextProvider, TextSlotRender } from '../pixi/silk';
 import type { Contour } from './font';
+import { createKbShaper, type KbShaper, type KbWasmSource } from './kb';
 import { fillContours } from './raster';
-import { createKbShaper, type KbShaper, type KbWasmSource } from './shaper';
 
 /** Options of {@link createShapedText}. */
 export interface ShapedTextOptions {
@@ -38,7 +39,7 @@ export async function createShapedText(options: ShapedTextOptions): Promise<Shap
     if (typeof font === 'string' || font instanceof URL) {
         const response = await fetch(font);
 
-        if (!response.ok) throw new Error(`@pixi-silk/shaper-kb: cannot load ${String(font)} (${response.status})`);
+        if (!response.ok) throw new Error(`pixi-silk: cannot load ${String(font)} (${response.status})`);
         font = await response.arrayBuffer();
     }
     const shaper = await createKbShaper(font, { wasm: options.wasm });
@@ -71,7 +72,7 @@ export class ShapedTextProvider implements DynamicTextProvider {
     checkBundle(bundle: SilkBundle): BundleFace | undefined {
         for (const face of bundle.faces.values()) if (face.hash === this.shaper.fontHash) return face;
         console.warn(
-            `@pixi-silk/shaper-kb: the font (hash ${this.shaper.fontHash}) is not a face of bundle ${bundle.locale}. Text slots will not match the baked text`,
+            `pixi-silk: the font (hash ${this.shaper.fontHash}) is not a face of bundle ${bundle.locale}. Text slots will not match the baked text`,
         );
         return undefined;
     }

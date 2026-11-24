@@ -1,4 +1,4 @@
-import { fontHash, type RuntimeShaper, type ShapedGlyphOut } from 'pixi-silk/i18n';
+import { fontHash, type RuntimeShaper, type ShapedGlyphOut } from '../shaper';
 import { type FontTables, readFont } from './font';
 
 /** Where the kb_text_shape WebAssembly module comes from: its bytes, a compiled module or a URL. */
@@ -28,7 +28,7 @@ function compile(source?: KbWasmSource): Promise<WebAssembly.Module> {
     const url = source ?? new URL('./kb.wasm', import.meta.url);
     const module = fetch(url)
         .then((r) => {
-            if (!r.ok) throw new Error(`@pixi-silk/shaper-kb: cannot load ${String(url)} (${r.status})`);
+            if (!r.ok) throw new Error(`pixi-silk: cannot load ${String(url)} (${r.status})`);
             return r.arrayBuffer();
         })
         .then((bytes) => WebAssembly.compile(bytes));
@@ -68,8 +68,7 @@ export class KbShaper implements RuntimeShaper {
         const ptr = this._kb.kb_alloc(bytes.length);
 
         new Uint8Array(this._kb.memory.buffer, ptr, bytes.length).set(bytes);
-        if (!this._kb.kb_init(ptr, bytes.length))
-            throw new Error('@pixi-silk/shaper-kb: kb_text_shape cannot read the font');
+        if (!this._kb.kb_init(ptr, bytes.length)) throw new Error('pixi-silk: kb_text_shape cannot read the font');
     }
 
     /**

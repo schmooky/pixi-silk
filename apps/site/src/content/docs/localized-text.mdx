@@ -59,8 +59,8 @@ which the compiler cannot bake. Pick how it is drawn with `dynamicText`. Both pa
 glow and shadow apply.
 
 ```ts
-import { createShapedText } from '@pixi-silk/shaper-kb';
 import { createCanvasText } from 'pixi-silk/i18n/canvas';
+import { createShapedText } from 'pixi-silk/i18n/shaper';
 import { Silk } from 'pixi-silk/i18n/pixi';
 
 // the browser's fonts and shaping: nothing to download
@@ -76,6 +76,6 @@ const exact = await Silk.create({
 ```
 
 The canvas path is small and draws emoji, but the system font may not match the baked text.
-`@pixi-silk/shaper-kb` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
+`pixi-silk/i18n/shaper` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
 same font, shaping and metrics as the baked text on every platform. It reads TrueType outlines
 only. Values the font has no glyph for go to `fallback`.

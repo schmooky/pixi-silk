@@ -124,7 +124,7 @@ importers:
         specifier: 1.6.4
         version: 1.6.4
       pixi-silk:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../pixi-silk
     devDependencies:
       '@types/node':
@@ -151,36 +151,15 @@ importers:
       '@arethetypeswrong/core':
         specifier: ^0.18.5
         version: 0.18.5
+      harfbuzzjs:
+        specifier: 1.6.4
+        version: 1.6.4
       pixi.js:
         specifier: ^8.21.0
         version: 8.21.0
       publint:
         specifier: ^0.3.24
         version: 0.3.24
-      tsdown:
-        specifier: ^0.23.0
-        version: 0.23.0(@arethetypeswrong/core@0.18.5)(@volar/typescript@2.4.28)(publint@0.3.24)(typescript@7.0.2)
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@types/node@26.6.6)(vite@8.3.1(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-
-  packages/shaper-kb:
-    devDependencies:
-      '@types/node':
-        specifier: ^26.6.6
-        version: 26.6.6
-      harfbuzzjs:
-        specifier: 1.6.4
-        version: 1.6.4
-      pixi-silk:
-        specifier: workspace:*
-        version: link:../pixi-silk
-      pixi.js:
-        specifier: ^8.21.0
-        version: 8.21.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(@arethetypeswrong/core@0.18.5)(@volar/typescript@2.4.28)(publint@0.3.24)(typescript@7.0.2)

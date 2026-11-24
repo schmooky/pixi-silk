@@ -70,7 +70,7 @@ Pixi 8.21 allocates array textures but has no uploader for array data. `pixi-sil
 
 ## D10. Runtime shaper
 
-kb_text_shape v2.32, in the new package `@pixi-silk/shaper-kb`. Measured with `packages/compiler/scripts/measure-shapers.ts` against HarfBuzz 11 from harfbuzzjs 1.6.4:
+kb_text_shape v2.32, in the entry point `pixi-silk/i18n/shaper` (first a package of its own, folded in before its first release). Measured with `packages/compiler/scripts/measure-shapers.ts` against HarfBuzz 11 from harfbuzzjs 1.6.4:
 
 | | kb_text_shape | HarfBuzz (harfbuzzjs) |
 |---|---|---|
@@ -80,9 +80,9 @@ kb_text_shape v2.32, in the new package `@pixi-silk/shaper-kb`. Measured with `p
 
 On the test corpus (Latin, Arabic with and without marks, lam-alef ligatures, Hebrew) both give the same glyphs, advances and offsets. The one difference is clusters: HarfBuzz merges a mark into its base's cluster, kb_text_shape keeps the mark's own offset. Slots do not use clusters, so it does not matter here.
 
-The build needs no Emscripten. `wasm/build.sh` compiles a freestanding wrapper (`wasm/kb_wasm.c`: memset, memcpy, a free-list allocator and three exports) with stock clang and lld for `wasm32`. The built `kb.wasm` is committed, so the package builds without LLVM. A HarfBuzz HB_TINY build would need Emscripten for its C++ runtime, and harfbuzzjs is already more than twice the size, so it was not built.
+The build needs no Emscripten. `packages/pixi-silk/wasm/build.sh` compiles a freestanding wrapper (`kb_wasm.c`: memset, memcpy, a free-list allocator and three exports) with stock clang and lld for `wasm32`. The built `kb.wasm` is committed, so the library builds without LLVM. A HarfBuzz HB_TINY build would need Emscripten for its C++ runtime, and harfbuzzjs is already more than twice the size, so it was not built.
 
-The package fills TrueType outlines in JavaScript (an exact area rasterizer, 4.7 kB with the rest of the package) and runs the distance transform of `pixi-silk/text`. It needs no canvas, so it runs in Node and in workers. `ShapedTextProvider.checkBundle` compares `fontHash` with the bundle faces and warns on a mismatch. CFF fonts are not supported.
+The entry point fills TrueType outlines in JavaScript (an exact area rasterizer, 4.7 kB with the rest of the entry point) and runs the distance transform of `pixi-silk/text`. It needs no canvas, so it runs in Node and in workers. `ShapedTextProvider.checkBundle` compares `fontHash` with the bundle faces and warns on a mismatch. CFF fonts are not supported.
 
 ## D11. Atlas page format
 

@@ -187,6 +187,11 @@
       "types": "./dist/i18n-canvas.d.ts",
       "default": "./dist/i18n-canvas.js"
     },
+    "./i18n/shaper": {
+      "types": "./dist/i18n-shaper.d.ts",
+      "default": "./dist/i18n-shaper.js"
+    },
+    "./i18n/kb.wasm": "./dist/i18n/kb/kb.wasm",
     "./text/bidi": {
       "types": "./dist/text/bidi.d.ts",
       "default": "./dist/text/bidi.js"
@@ -213,6 +218,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "build:wasm": "sh wasm/build.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "node bench/primitives.mjs",
@@ -225,6 +231,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
+    "harfbuzzjs": "1.6.4",
     "pixi.js": "^8.21.0",
     "publint": "^0.3.24",
     "tsdown": "^0.23.0",

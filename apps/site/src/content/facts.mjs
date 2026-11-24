@@ -64,6 +64,11 @@ export const ENTRY_POINTS = {
         description:
             'The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk.',
     },
+    './i18n/shaper': {
+        area: 'text',
+        description:
+            'The shaper path for text slots: kb_text_shape in WebAssembly (62 kB brotli) shapes player names with the font the bundle was baked from, drawn as a distance-field run sprite. TrueType fonts only.',
+    },
     './layout': { area: 'layout', description: 'LayoutNode: a headless flex layout engine with no Pixi in it.' },
     './ui/layout': {
         area: 'layout',
