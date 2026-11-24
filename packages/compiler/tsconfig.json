@@ -9,5 +9,5 @@
       "pixi-silk/text/bidi": ["../pixi-silk/src/text/bidi.ts"]
     }
   },
-  "include": ["src", "tests", "scripts", "*.config.ts"]
+  "include": ["src", "tests", "scripts", "bench", "*.config.ts"]
 }

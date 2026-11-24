@@ -76,13 +76,16 @@ export interface SlotDecl {
     tabular: boolean;
     /** The slot selects the plural variant. */
     plural: boolean;
+    /** Numbers show as percentages: 0.25 is 25%. */
+    percent?: boolean;
 }
 
 const SLOT = /^([a-z][a-zA-Z0-9_]*)\s*:\s*(number|text)\s*(?:\(([^)]*)\))?\s*(:\s*plural)?$/;
 
 /**
  * Parses a `slots` cell or config entry: declarations separated by `;` or new lines, each
- * `name:number(maxDigits=7,tabular)`, `name:text(maxChars=16)` or `count:number:plural`.
+ * `name:number(maxDigits=7,tabular)`, `share:number(percent)`, `name:text(maxChars=16)` or
+ * `count:number:plural`.
  * Returns the declarations and the problems found.
  */
 export function parseSlots(source: string): { slots: SlotDecl[]; errors: string[] } {
@@ -119,6 +122,7 @@ export function parseSlots(source: string): { slots: SlotDecl[]; errors: string[
             else if (k === 'tabular' && decl.type === 'number' && v === undefined) decl.tabular = true;
             else if (k === 'proportional' && decl.type === 'number' && v === undefined) decl.tabular = false;
             else if (k === 'plural' && decl.type === 'number' && v === undefined) decl.plural = true;
+            else if (k === 'percent' && decl.type === 'number' && v === undefined) decl.percent = true;
             else errors.push(`slot "${decl.name}": unknown option "${opt}"`);
         }
         if (decl.plural && decl.type !== 'number') errors.push(`slot "${decl.name}": only number slots select plurals`);
@@ -131,7 +135,11 @@ export function parseSlots(source: string): { slots: SlotDecl[]; errors: string[
 /** Writes a declaration back in the `slots` syntax. */
 export function formatSlot(decl: SlotDecl): string {
     if (decl.type === 'text') return `${decl.name}:text(maxChars=${decl.maxChars})`;
-    const opts = [`maxDigits=${decl.maxDigits}`, decl.tabular ? 'tabular' : 'proportional'];
+    const opts = [
+        `maxDigits=${decl.maxDigits}`,
+        decl.tabular ? 'tabular' : 'proportional',
+        ...(decl.percent ? ['percent'] : []),
+    ];
 
     return `${decl.name}:number(${opts.join(',')})${decl.plural ? ':plural' : ''}`;
 }

@@ -33,8 +33,8 @@ export default defineDemo({
                 fetch(`${base}/theme.json`).then((r) => r.json() as Promise<ThemeData>),
             ]);
 
-            await silk.useBundle(en);
-            await silk.useBundle(ar);
+            await silk.addBundle(en);
+            await silk.addBundle(ar);
             if (!alive) return;
             const coin = new Graphics()
                 .circle(32, 32, 30)

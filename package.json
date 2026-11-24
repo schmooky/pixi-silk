@@ -29,6 +29,7 @@
     "changeset:status": "changeset status",
     "version-packages": "changeset version && pnpm install --lockfile-only",
     "release": "pnpm build:all && changeset publish",
+    "bench": "pnpm --filter @pixi-silk/compiler bench",
     "size": "node scripts/size-check.mjs",
     "size:check": "node scripts/size-check.mjs --check",
     "size:update": "node scripts/size-check.mjs --update",

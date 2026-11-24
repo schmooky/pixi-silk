@@ -238,7 +238,8 @@ export class SilkBundle {
     }
 
     /**
-     * Formats a number for a slot with `Intl.NumberFormat` in the bundle's pinned numbering system,
+     * Formats a number for a slot with `Intl.NumberFormat` in the bundle's pinned numbering system
+     * (as a percentage for slots declared `percent`),
      * then maps every character through the slot's digit table. A character the table lacks (a
      * browser whose ICU differs) falls back to Latin digits from the same table, never to a missing
      * glyph.
@@ -246,12 +247,17 @@ export class SilkBundle {
     formatNumber(slot: BundleSlot, value: number): FormattedNumber {
         const table = slot.digitTable;
         const ns = this.data.numberingSystem || 'latn';
+        const percent = (slot.flags & SlotFlag.Percent) !== 0;
         const format = (system: string) => {
-            const key = `${system}`;
+            const key = `${system}|${percent}`;
             let f = this._formats.get(key);
 
             if (!f) {
-                f = new Intl.NumberFormat(this.locale, { numberingSystem: system, maximumFractionDigits: 20 });
+                f = new Intl.NumberFormat(this.locale, {
+                    numberingSystem: system,
+                    style: percent ? 'percent' : 'decimal',
+                    maximumFractionDigits: percent ? 2 : 20,
+                });
                 this._formats.set(key, f);
             }
             return f.format(value);

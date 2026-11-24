@@ -125,7 +125,7 @@ Done when the goldens match, the conformance suites pass, the atlas is determini
    - hit rects per visual fragment.
 3. `i18n/theme.ts`: style rows and composite rows per unique tag stack. The paint vs shape table lives here, and the compiler imports it.
 4. `i18n-pixi.ts`:
-   - `Silk.create`, `useBundle`, `prepare`, `SilkMessage`, and `silkBundleLoader` (the app registers it with `extensions.add`);
+   - `Silk.create`, `addBundle`, `prepare`, `SilkMessage`, and `silkBundleLoader` (the app registers it with `extensions.add`);
    - the instanced pipe, with glyph metrics and style rows in data textures.
 5. Shader twins: `msdf` (median), `sdf` and `mtsdf` by page kind. Pixel range comes from `fwidth`. Outline, glow, shadow and weight bias in linear space, with premultiplied alpha.
 6. Decorations (underline and strike) and `accessibleText`.

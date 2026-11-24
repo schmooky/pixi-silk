@@ -90,6 +90,8 @@ export const SlotFlag = {
     Plural: 2,
     /** The face has no `tnum`: the `value-fast` update is disabled for this slot. */
     NoFastPath: 4,
+    /** Format as a percentage (`Intl.NumberFormat` style `percent`): 0.25 shows as 25%. */
+    Percent: 8,
 } as const;
 
 /** Glyph kinds of atlas pages. */

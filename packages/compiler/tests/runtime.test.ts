@@ -3,6 +3,7 @@ import { INSTANCE_FLOATS, layoutMessage, reorder, SilkBundle, StyleTable, update
 import { beforeAll, describe, expect, it } from 'vitest';
 import { compileProject } from '../src/compile';
 import { loadProject } from '../src/project';
+import { project } from './helpers';
 
 const fixtures = fileURLToPath(new URL('../fixtures/', import.meta.url));
 let bundles: Map<string, SilkBundle>;
@@ -149,5 +150,77 @@ describe('message layout from baked data', () => {
         expect(change.shapeChanged).toEqual([]);
         expect(styles.dirtyFrom).toBe(1);
         expect(styles.set('gold', { weight: 400 }).shapeChanged).toEqual(['weight']);
+    });
+});
+
+describe('number slots inside right-to-left text (brief sec. 9.2 item 13)', () => {
+    const cases = {
+        start: '{n} عملة',
+        middle: 'لديك {n} عملة',
+        end: 'الرصيد {n}',
+    };
+    let ar: SilkBundle;
+    let styles: StyleTable;
+
+    beforeAll(() => {
+        const rows = Object.fromEntries(Object.entries(cases).map(([k, text]) => [k, { 'ar.other': text }]));
+        const p = project(
+            { ...rows, share: { 'ar.other': 'النسبة {p}' } },
+            {
+                ...Object.fromEntries(Object.keys(cases).map((k) => [k, 'n:number(maxDigits=7,tabular)'])),
+                share: 'p:number(percent)',
+            },
+        );
+        const r = compileProject(p);
+
+        expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+        ar = new SilkBundle(r.bundles.get('ar')?.slice().buffer as ArrayBuffer);
+        styles = new StyleTable(p.theme);
+    });
+
+    const place = (key: string, values: Record<string, number>) => {
+        const layout = layoutMessage(ar, ar.variant(ar.message(key)), { ...options(values), styles });
+        const slot = layout.slots[0];
+        const xs: number[] = [];
+        const others: number[] = [];
+
+        for (let i = 0; i < layout.count; i++) {
+            const x = layout.instances[i * INSTANCE_FLOATS];
+
+            if (i >= slot.first && i < slot.first + slot.count) xs.push(x);
+            else others.push(x);
+        }
+        return { layout, slot, xs, others };
+    };
+
+    for (const value of [1250, -5]) {
+        it(`places {n} = ${value} at the start, middle and end, digits left to right`, () => {
+            const start = place('start', { n: value });
+            const middle = place('middle', { n: value });
+            const end = place('end', { n: value });
+
+            for (const c of [start, middle, end]) {
+                expect([...c.xs].sort((a, b) => a - b)).toEqual(c.xs);
+                expect(c.slot.formatted.fellBack).toBe(false);
+            }
+            // logical start is the right edge in Arabic
+            expect(Math.min(...start.xs)).toBeGreaterThan(Math.max(...start.others));
+            expect(Math.max(...end.xs)).toBeLessThan(Math.min(...end.others));
+            expect(Math.min(...middle.xs)).toBeGreaterThan(Math.min(...middle.others));
+            expect(Math.max(...middle.xs)).toBeLessThan(Math.max(...middle.others));
+        });
+    }
+
+    it('formats a minus sign with its bidi mark, and a percent slot', () => {
+        const minus = place('middle', { n: -5 });
+
+        expect(minus.slot.formatted.text).toBe('؜-٥');
+        // the Arabic letter mark is zero width and draws nothing
+        expect(minus.slot.formatted.glyphs[0]).toBe(0);
+        expect(minus.slot.formatted.advances[0]).toBe(0);
+        const share = place('share', { p: 0.25 });
+
+        expect(share.slot.formatted.text).toBe('٢٥٪؜');
+        expect(share.layout.text).toContain('٢٥٪');
     });
 });

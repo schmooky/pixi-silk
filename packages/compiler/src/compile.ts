@@ -407,7 +407,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
     const messages: { hash: number; key: string; record: number[] }[] = [];
     const dumpMessages: unknown[] = [];
     const slotId = (decl: SlotDecl, table: number) => {
-        const k = `${decl.name}|${decl.type}|${decl.maxDigits}|${decl.maxChars}|${decl.tabular}|${decl.plural}|${table}`;
+        const k = `${decl.name}|${decl.type}|${decl.maxDigits}|${decl.maxChars}|${decl.tabular}|${decl.plural}|${decl.percent}|${table}`;
         let id = slotIds.get(k);
 
         if (id === undefined) {
@@ -417,6 +417,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
             const flags =
                 (decl.tabular ? SlotFlag.Tabular : 0) |
                 (decl.plural ? SlotFlag.Plural : 0) |
+                (decl.percent ? SlotFlag.Percent : 0) |
                 (tableRecord && tableRecord[5] & SlotFlag.NoFastPath ? SlotFlag.NoFastPath : 0);
 
             slots.push(

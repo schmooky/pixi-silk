@@ -8,5 +8,9 @@ export default defineConfig({
             'pixi-silk/text/bidi': fileURLToPath(new URL('../pixi-silk/src/text/bidi.ts', import.meta.url)),
         },
     },
-    test: { environment: 'node', include: ['tests/**/*.test.ts'], testTimeout: 60000 },
+    test: {
+        environment: 'node',
+        include: ['tests/**/*.test.ts', 'bench/**/*.bench.ts'],
+        testTimeout: 60000,
+    },
 });

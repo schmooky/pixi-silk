@@ -577,8 +577,7 @@ const i18n = gl1
               new SilkBundle(await (await fetch(`${base}/${l}.silk`)).arrayBuffer(), `${base}/${l}.silk`);
           const theme = silk.createTheme(await (await fetch(`${base}/theme.json`)).json());
 
-          // biome-ignore lint/correctness/useHookAtTopLevel: Silk.useBundle is not a React hook
-          for (const l of ['en', 'ar', 'he']) await silk.useBundle(await load(l));
+          for (const l of ['en', 'ar', 'he']) await silk.addBundle(await load(l));
           return { silk, theme };
       })();
 

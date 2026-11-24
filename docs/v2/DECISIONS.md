@@ -93,6 +93,32 @@ Measured with `pnpm size` (minified, brotli quality 11), and kept by the size ch
 | Entry | Brotli | Brief target |
 |---|---|---|
 | `pixi-silk/i18n` (core, everything) | 5.79 kB | 20 kB |
-| `pixi-silk/i18n/pixi` (`Silk`, `SilkMessage`, loader; core included) | 10.66 kB | 12 kB for the Pixi part alone |
+| `pixi-silk/i18n/pixi` (`Silk`, `SilkMessage` and the loader, core included) | 10.66 kB | 12 kB for the Pixi part alone |
 
 Both entries are checked for bidi class names, HarfBuzz, exceljs and Node built-ins. The shop example compiles to `en.silk` 1.19 kB, `ar.silk` 2.09 kB and `he.silk` 1.25 kB brotli, plus three PNG pages of 54, 96 and 29 kB.
+
+## D16. Names that differ from the brief
+
+- `Silk.addBundle` instead of the brief's `silk.useBundle`. A `use` prefix reads as a React hook to linters: Biome's `useHookAtTopLevel` flagged every call in a loop. Apps with React lint rules would see the same.
+- `SilkMessage` instead of a second `SilkText` (D2).
+- `pnpm bench` runs timed loops in `packages/compiler/bench`. Vitest 5 has no `bench` export, so the bench is plain timing code. It reports numbers and gates nothing.
+
+## D17. Update tier gates (M4)
+
+`packages/pixi-silk/tests/i18n.test.ts` asserts which tier runs for each kind of change. It also counts what the tier touches:
+
+- `paint` writes no instance and keeps the layout.
+- `value-fast` writes the instance buffer once and changes only the glyph field of the slot's instances.
+- `value`, `variant` and `layout` lay out again.
+- `shape` warns and reshapes nothing.
+
+JavaScript has no portable allocation counter, so the brief's "zero allocations" for `paint` is checked as "no instance write and no layout", and the paint path allocates only the patched style object.
+
+`pnpm bench` on an Apple M-series laptop (Node 24), for reference only:
+
+| Operation | Time |
+|---|---|
+| prepare and lay out one of 200 messages | 7.0 us |
+| lay out a 3-line Arabic message | 26.7 us |
+| `value-fast` number update | 0.87 us |
+| `paint`, one style in two rows | 1.63 us |

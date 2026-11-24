@@ -215,7 +215,7 @@ export class SilkTheme {
  *
  * extensions.add(silkBundleLoader);
  * const silk = await Silk.create();
- * await silk.useBundle(await Assets.load('/i18n/ar.silk'));
+ * await silk.addBundle(await Assets.load('/i18n/ar.silk'));
  * const theme = silk.createTheme(await Assets.load('/i18n/theme.json'));
  * const set = await silk.prepare({ locale: 'ar', theme, messages: { title: { key: 'shop.title', size: 44 } } });
  * app.stage.addChild(new SilkMessage(set.get('title')));
@@ -227,6 +227,8 @@ export class Silk {
     /** Draws text slots. */
     dynamicText: DynamicTextProvider | null;
     private readonly _gpu = new Map<SilkBundle, BundleGpu>();
+    /** Atlas pages by URL, shared by every bundle that draws from them, with their user counts. */
+    private readonly _pages = new Map<string, { source: Promise<TextureSource>; users: number }>();
     private readonly _inline = new Map<string, InlineObject>();
     private readonly _listeners = new Set<(e: UpdateEvent) => void>();
     private readonly _devEvents: boolean;
@@ -252,10 +254,10 @@ export class Silk {
     /**
      * Puts a bundle in use: uploads its glyph metrics and loads its atlas pages (lossless PNG,
      * loaded without premultiplied alpha or colour conversion, so distances arrive unchanged).
-     * Page files resolve against the bundle's URL. `loadPage` replaces the loading, for tests or
-     * custom asset pipelines.
+     * Page files resolve against the bundle's URL, and bundles that share a page (locales of one
+     * script) load it once. `loadPage` replaces the loading, for tests or custom asset pipelines.
      */
-    async useBundle(
+    async addBundle(
         bundle: SilkBundle,
         loadPage: (url: string, page: BundlePage) => Promise<TextureSource> = loadAtlasPage,
     ): Promise<void> {
@@ -267,7 +269,20 @@ export class Silk {
                 `bundle ${bundle.locale} draws from ${pages.length} atlas pages: only 4 are bound per draw. Split it with --split-by`,
             );
         }
-        const sources = await Promise.all(pages.slice(0, 4).map((p) => loadPage(resolveUrl(bundle.url, p.file), p)));
+        // locales share pages by script: load each page once
+        const sources = await Promise.all(
+            pages.slice(0, 4).map((p) => {
+                const url = resolveUrl(bundle.url, p.file);
+                let entry = this._pages.get(url);
+
+                if (!entry) {
+                    entry = { source: loadPage(url, p), users: 0 };
+                    this._pages.set(url, entry);
+                }
+                entry.users++;
+                return entry.source;
+            }),
+        );
         const slotOf = new Map(pages.map((p, i) => [p.id, i]));
         const count = bundle.glyphCount;
         const rows = Math.max(1, Math.ceil(count / 512));
@@ -321,13 +336,20 @@ export class Silk {
         this.bundles.set(bundle.locale, bundle);
     }
 
-    /** Stops using a bundle and destroys its GPU resources. */
+    /** Stops using a bundle. Its metrics are destroyed, and its pages once no bundle in use draws from them. */
     releaseBundle(bundle: SilkBundle): void {
         const gpu = this._gpu.get(bundle);
 
         if (!gpu) return;
         gpu.metrics.destroy();
-        for (const p of gpu.pages) p.destroy();
+        for (const p of bundle.pages().slice(0, 4)) {
+            const url = resolveUrl(bundle.url, p.file);
+            const entry = this._pages.get(url);
+
+            if (!entry || --entry.users > 0) continue;
+            this._pages.delete(url);
+            void entry.source.then((source) => source.destroy());
+        }
         this._gpu.delete(bundle);
         if (this.bundles.get(bundle.locale) === bundle) this.bundles.delete(bundle.locale);
     }
@@ -367,7 +389,7 @@ export class Silk {
         const fallback = options.fallbackLocale ? this.bundles.get(options.fallbackLocale) : undefined;
 
         if (!bundle && !fallback)
-            throw new Error(`pixi-silk: no bundle in use for ${options.locale}: call useBundle first`);
+            throw new Error(`pixi-silk: no bundle in use for ${options.locale}: call addBundle first`);
         const out = new Map<Names, PreparedMessage>();
         const d = options.defaults ?? {};
 
@@ -425,7 +447,7 @@ export class Silk {
     gpu(bundle: SilkBundle): BundleGpu {
         const g = this._gpu.get(bundle);
 
-        if (!g) throw new Error(`pixi-silk: bundle ${bundle.locale} is not in use: call useBundle first`);
+        if (!g) throw new Error(`pixi-silk: bundle ${bundle.locale} is not in use: call addBundle first`);
         return g;
     }
 

@@ -33,7 +33,7 @@ import { Silk, SilkMessage, silkBundleLoader } from 'pixi-silk/i18n/pixi';
 extensions.add(silkBundleLoader);
 const silk = await Silk.create();
 
-await silk.useBundle(await Assets.load('/i18n/ar.silk'));
+await silk.addBundle(await Assets.load('/i18n/ar.silk'));
 const theme = silk.createTheme(await (await fetch('/i18n/theme.json')).json());
 const set = await silk.prepare({
     locale: 'ar',
