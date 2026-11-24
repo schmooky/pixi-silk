@@ -1,12 +1,8 @@
 import {
-    Buffer,
     BufferImageSource,
-    BufferUsage,
     Container,
     DOMAdapter,
     ExtensionType,
-    Geometry,
-    ImageSource,
     Mesh,
     Rectangle,
     type Shader,
@@ -14,6 +10,7 @@ import {
     type Texture,
     type TextureSource,
 } from 'pixi.js';
+import type { RunSprite, TextBufferHandle } from '../backend';
 import { cloneLayout, LayoutCache } from '../cache';
 import { GLYPH_STRIDE, PageKind } from '../format';
 import {
@@ -27,6 +24,8 @@ import {
 import { type BundlePage, SilkBundle } from '../messages';
 import { StyleTable } from '../styles';
 import { STYLE_FLOATS, type ThemeData, type ThemeStyle } from '../theme';
+import { PixiBackend, PixiStyleRows } from './backend';
+import { MessageGeometry } from './geometry';
 import { createMessageShader } from './shader';
 
 /** The update tiers of brief sec. 6.3, cheapest first. */
@@ -52,8 +51,6 @@ export interface TextSlotRender {
     style: ThemeStyle;
     /** The slot's style row, for drawing with the message shader. */
     row: number;
-    /** The theme the row belongs to. */
-    theme: SilkTheme;
     /** Width the layout reserved. */
     width: number;
     /** Height of the line box. */
@@ -66,8 +63,8 @@ export interface TextSlotRender {
 export interface DynamicTextProvider {
     /** Width of `value` in pixels at `size`, for layout. */
     measure(value: string, size: number, style: ThemeStyle): number;
-    /** A display object showing the value, with the top left of its box at 0, 0. */
-    render(slot: TextSlotRender): Container;
+    /** The value as a run sprite: SDF pixels a `SilkBackend` draws as one glyph with the slot's style. */
+    draw(slot: TextSlotRender): RunSprite;
     /** Gets fonts and canvases ready before the first slot draws. Called by `prepare`. Optional. */
     prewarm?(values: readonly string[], size: number): void;
 }
@@ -178,24 +175,19 @@ interface BundleGpu {
 export class SilkTheme {
     /** The style rows. */
     readonly table: StyleTable;
-    /** The style rows as an RGBA32F texture (8 texels per row, 64 rows per texture row). */
-    readonly source: BufferImageSource;
+    /** Where the rows go on the GPU: the `writeStyleRows` part of the Pixi backend. */
+    readonly rows: PixiStyleRows = new PixiStyleRows();
     private readonly _silk: Silk;
     private _uploaded = -1;
 
     constructor(silk: Silk, data: ThemeData) {
         this._silk = silk;
         this.table = new StyleTable(data);
-        this.source = new BufferImageSource({
-            resource: new Float32Array(512 * 4),
-            width: 512,
-            height: 1,
-            format: 'rgba32float',
-            alphaMode: 'premultiplied-alpha',
-            scaleMode: 'nearest',
-            autoGenerateMipmaps: false,
-            label: 'silk-message-styles',
-        });
+    }
+
+    /** The style rows as an RGBA32F texture (8 texels per row, 64 rows per texture row). */
+    get source(): BufferImageSource {
+        return this.rows.source;
     }
 
     /** Changes a style (`base` for untagged text). See the class notes for what can change. */
@@ -237,16 +229,7 @@ export class SilkTheme {
         const t = this.table;
 
         if (t.version === this._uploaded) return;
-        const rows = Math.max(1, Math.ceil(t.count / 64));
-        const need = rows * 512 * 4;
-        const src = this.source;
-
-        if ((src.resource as Float32Array).length < need) {
-            src.resource = new Float32Array(need);
-            src.resize(512, rows);
-        }
-        (src.resource as Float32Array).set(t.data.subarray(0, Math.min(t.data.length, t.count * STYLE_FLOATS)));
-        src.update();
+        this.rows.writeStyleRows(0, t.data.subarray(0, t.count * STYLE_FLOATS));
         t.clean();
         this._uploaded = t.version;
     }
@@ -276,9 +259,11 @@ export class Silk {
     dynamicText: DynamicTextProvider | null;
     /** Laid out messages, shared by every SilkMessage that shows the same thing. */
     readonly layouts: LayoutCache = new LayoutCache();
+    /** The PixiJS backend: atlas pages, text buffers and run sprites (brief sec. 2.3). */
+    readonly backend: PixiBackend = new PixiBackend();
     private readonly _gpu = new Map<SilkBundle, BundleGpu>();
     /** Atlas pages by URL, shared by every bundle that draws from them, with their user counts. */
-    private readonly _pages = new Map<string, { source: Promise<TextureSource>; users: number }>();
+    private readonly _pages = new Map<string, { id: number; ready: Promise<TextureSource>; users: number }>();
     private readonly _inline = new Map<string, InlineObject>();
     private readonly _listeners = new Set<(e: UpdateEvent) => void>();
     private readonly _devEvents: boolean;
@@ -321,7 +306,7 @@ export class Silk {
      */
     async addBundle(
         bundle: SilkBundle,
-        loadPage: (url: string, page: BundlePage) => Promise<TextureSource> = loadAtlasPage,
+        loadPage: (url: string, page: BundlePage) => Promise<ImageBitmap | Uint8Array> = loadAtlasPage,
     ): Promise<void> {
         if (this._gpu.has(bundle)) return;
         const pages = bundle.pages();
@@ -338,11 +323,19 @@ export class Silk {
                 let entry = this._pages.get(url);
 
                 if (!entry) {
-                    entry = { source: loadPage(url, p), users: 0 };
+                    const id = this._pages.size ? Math.max(...[...this._pages.values()].map((e) => e.id)) + 1 : 0;
+                    const ready = loadPage(url, p).then((pixels) => {
+                        const kind = p.kind === PageKind.Sdf ? 'sdf' : p.kind === PageKind.Mtsdf ? 'mtsdf' : 'msdf';
+
+                        this.backend.uploadAtlasPage(id, pixels, p.width, p.height, kind);
+                        return this.backend.pages.get(id) as TextureSource;
+                    });
+
+                    entry = { id, ready, users: 0 };
                     this._pages.set(url, entry);
                 }
                 entry.users++;
-                return entry.source;
+                return entry.ready;
             }),
         );
         const slotOf = new Map(pages.map((p, i) => [p.id, i]));
@@ -410,7 +403,7 @@ export class Silk {
 
             if (!entry || --entry.users > 0) continue;
             this._pages.delete(url);
-            void entry.source.then((source) => source.destroy());
+            void entry.ready.then(() => this.backend.removeAtlasPage(entry.id));
         }
         this._gpu.delete(bundle);
         if (this.bundles.get(bundle.id) === bundle) this.bundles.delete(bundle.id);
@@ -606,23 +599,13 @@ function resolveUrl(base: string, file: string): string {
     return cut < 0 ? file : base.slice(0, cut + 1) + file;
 }
 
-/** Loads one atlas page without premultiplied alpha or colour conversion. */
-export async function loadAtlasPage(url: string): Promise<TextureSource> {
+/** Fetches and decodes one atlas page, without premultiplied alpha or colour conversion. */
+export async function loadAtlasPage(url: string): Promise<ImageBitmap> {
     const response = await DOMAdapter.get().fetch(url);
 
     if (!response.ok) throw new Error(`pixi-silk: atlas page ${url}: HTTP ${response.status}`);
-    const bitmap = await createImageBitmap(await response.blob(), {
-        premultiplyAlpha: 'none',
-        colorSpaceConversion: 'none',
-    });
-
-    return new ImageSource({
-        resource: bitmap,
-        alphaMode: 'no-premultiply-alpha',
-        scaleMode: 'linear',
-        autoGenerateMipmaps: false,
-        label: url,
-    });
+    // decoded as stored: distances must not be premultiplied or colour managed
+    return createImageBitmap(await response.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
 }
 
 /**
@@ -652,44 +635,6 @@ export const silkBundleLoader: {
     unload(): void {},
 };
 
-/** @internal The geometry of a SilkMessage: one unit quad, one instance per glyph or line. */
-export class MessageGeometry extends Geometry {
-    /** Instance data, `INSTANCE_FLOATS` floats per instance. */
-    readonly instances: Buffer;
-
-    constructor() {
-        const instances = new Buffer({
-            data: new Float32Array(INSTANCE_FLOATS * 16),
-            usage: BufferUsage.VERTEX | BufferUsage.COPY_DST,
-            label: 'silk-message-instances',
-            shrinkToFit: false,
-        });
-        const inst = (offset: number) => ({
-            buffer: instances,
-            format: 'float32x4' as const,
-            stride: INSTANCE_FLOATS * 4,
-            offset,
-            instance: true,
-        });
-
-        super({
-            attributes: {
-                aCorner: {
-                    buffer: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
-                    format: 'float32x2',
-                    stride: 8,
-                    offset: 0,
-                },
-                aInst0: inst(0),
-                aInst1: inst(16),
-            },
-            indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]),
-            instanceCount: 0,
-        });
-        this.instances = instances;
-    }
-}
-
 /** What a `tagtap` event carries. */
 export interface TagTapEvent {
     /** The tapped tag. */
@@ -714,7 +659,11 @@ export class SilkMessage extends Container {
     /** Tags that emit `tagtap`. Default every interactive style. */
     interactiveTags: string[] | null = null;
     private readonly _mesh: Mesh<MessageGeometry, Shader>;
-    private readonly _geometry = new MessageGeometry();
+    /** The message's text buffer in the backend. */
+    private readonly _buffer: TextBufferHandle;
+    private readonly _geometry: MessageGeometry;
+    private readonly _slots = new Container({ label: 'silk-text-slots' });
+    private _slotCount = 0;
     private readonly _values: Record<string, number | string>;
     private _size: number;
     private _maxWidth: number;
@@ -738,6 +687,9 @@ export class SilkMessage extends Container {
         this._lineHeight = spec.lineHeight;
         const gpu = silk.gpu(bundle);
 
+        this._buffer = silk.backend.createTextBuffer(64);
+        silk.backend.bindStyles(this._buffer, theme.source);
+        this._geometry = silk.backend.geometry(this._buffer);
         this._mesh = new Mesh({
             geometry: this._geometry,
             shader: createMessageShader({
@@ -747,7 +699,7 @@ export class SilkMessage extends Container {
                 pageInfo: gpu.pageInfo,
             }),
         });
-        this.addChild(this._mesh, this._extras);
+        this.addChild(this._mesh, this._extras, this._slots);
         theme.messages.add(this);
         this.eventMode = 'static';
         this.on('pointertap', (e) => {
@@ -817,7 +769,19 @@ export class SilkMessage extends Container {
             this._relayout('value');
             return this;
         }
-        this._upload(this._layout);
+        // value-fast: write only the slots' instance ranges
+        for (const name of Object.keys(values)) {
+            const p = this._layout.slots.find((s) => s.name === name);
+
+            if (!p) continue;
+            const range = this._layout.instances.subarray(
+                p.first * INSTANCE_FLOATS,
+                (p.first + p.count) * INSTANCE_FLOATS,
+            );
+
+            this.prepared.silk.backend.writeInstances(this._buffer, p.first, range);
+        }
+        this.version++;
         this.prepared.silk.emit({ tier: 'value-fast', ms: performance.now() - t0, key: this.prepared.spec.key });
 
         return this;
@@ -919,22 +883,30 @@ export class SilkMessage extends Container {
             sprite.setSize(o.width, o.height);
             this._extras.addChild(sprite);
         }
-        for (const s of layout.textSlots) {
-            const view = silk.dynamicText?.render({
+        // text slots: the dynamic path draws pixels, the backend turns them into run sprites
+        this._slots.removeChildren();
+        const backend = silk.backend;
+
+        layout.textSlots.forEach((s, i) => {
+            const sprite = silk.dynamicText?.draw({
                 value: s.value,
                 size: this._size,
                 style: styles.resolve(styles.stackOf(s.style)),
                 row: s.style,
-                theme,
                 width: s.width,
                 height: s.height,
                 baseline: s.baseline,
             });
 
-            if (!view) continue;
-            view.position.set(s.x, s.y);
-            this._extras.addChild(view);
-        }
+            backend.setRunSprite(this._buffer, i, sprite ?? null);
+            const view = backend.runSprite(this._buffer, i);
+
+            if (!view) return;
+            view.position.set(s.x, s.y + s.baseline);
+            this._slots.addChild(view);
+        });
+        for (let i = layout.textSlots.length; i < this._slotCount; i++) backend.setRunSprite(this._buffer, i, null);
+        this._slotCount = layout.textSlots.length;
         // Pixi's accessibility system reads these when it is enabled
         this.accessibleText = layout.text;
         this.accessibleTitle = layout.text;
@@ -942,14 +914,11 @@ export class SilkMessage extends Container {
     }
 
     private _upload(layout: MessageLayout): void {
-        const buffer = this._geometry.instances;
-        const need = layout.count * INSTANCE_FLOATS;
-
-        if ((buffer.data as Float32Array).length < need)
-            buffer.data = new Float32Array(Math.max(need, (buffer.data as Float32Array).length * 2));
-        (buffer.data as Float32Array).set(layout.instances.subarray(0, need));
-        buffer.update(need * 4);
-        this._geometry.instanceCount = layout.count;
+        this.prepared.silk.backend.writeInstances(
+            this._buffer,
+            0,
+            layout.instances.subarray(0, layout.count * INSTANCE_FLOATS),
+        );
         this._mesh.visible = layout.count > 0 && !this._batched;
         this.boundsArea = new Rectangle(0, 0, layout.width, layout.height);
         this.version++;
@@ -976,7 +945,8 @@ export class SilkMessage extends Container {
 
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this.prepared.theme.messages.delete(this);
-        this._geometry.destroy();
+        this._slots.removeChildren();
+        this.prepared.silk.backend.destroyTextBuffer(this._buffer);
         super.destroy(options);
     }
 }

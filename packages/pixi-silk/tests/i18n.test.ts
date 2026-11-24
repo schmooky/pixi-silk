@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { BufferImageSource } from 'pixi.js';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { INSTANCE_FLOATS, SilkBundle, type ThemeData } from '../src/i18n';
 import { Silk, SilkMessage, type SilkTheme, type UpdateEvent } from '../src/i18n-pixi';
@@ -8,7 +7,7 @@ import { Silk, SilkMessage, type SilkTheme, type UpdateEvent } from '../src/i18n
 const dir = new URL('../../../apps/site/public/i18n/', import.meta.url);
 const bundle = (locale: string) =>
     new SilkBundle(readFileSync(new URL(`${locale}.silk`, dir)).buffer.slice(0) as ArrayBuffer, `/i18n/${locale}.silk`);
-const page = async () => new BufferImageSource({ resource: new Uint8Array(4), width: 1, height: 1 });
+const page = async (_url: string, p: { width: number; height: number }) => new Uint8Array(p.width * p.height * 4);
 
 let silk: Silk;
 let theme: SilkTheme;
@@ -218,5 +217,28 @@ describe('layout cache (brief sec. 8)', () => {
         expect(cache.get('b')).toBeUndefined();
         expect(cache.get('a')).toBeDefined();
         expect(cache.bytes).toBeLessThanOrEqual(3000);
+    });
+});
+
+describe('the Pixi backend (brief sec. 2.3)', () => {
+    it('goes through SilkBackend: one buffer per message, slot-range writes for value-fast', async () => {
+        const backend = silk.backend;
+        const create = vi.spyOn(backend, 'createTextBuffer');
+        const write = vi.spyOn(backend, 'writeInstances');
+        const m = await coins('en', 4444);
+
+        expect(create).toHaveBeenCalledOnce();
+        write.mockClear();
+        m.set({ count: 5555 });
+        const slot = m.layout.slots[0];
+
+        expect(write).toHaveBeenCalledOnce();
+        expect(write.mock.calls[0][1]).toBe(slot.first);
+        expect((write.mock.calls[0][2] as Float32Array).length).toBe(slot.count * INSTANCE_FLOATS);
+        const destroy = vi.spyOn(backend, 'destroyTextBuffer');
+
+        m.destroy();
+        expect(destroy).toHaveBeenCalledOnce();
+        expect(backend.pages.size).toBe(2);
     });
 });

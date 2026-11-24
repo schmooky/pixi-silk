@@ -180,20 +180,20 @@
     "brotli": 2685
   },
   "i18n (core)": {
-    "gzip": 7994,
-    "brotli": 7307
+    "gzip": 8925,
+    "brotli": 8110
   },
   "i18n (runtime path)": {
-    "gzip": 5677,
-    "brotli": 5217
+    "gzip": 6431,
+    "brotli": 5879
   },
   "i18n/pixi (Silk, SilkMessage)": {
-    "gzip": 13125,
-    "brotli": 11933
+    "gzip": 15096,
+    "brotli": 13712
   },
   "i18n/canvas (createCanvasText)": {
-    "gzip": 5504,
-    "brotli": 4989
+    "gzip": 1619,
+    "brotli": 1481
   },
   "ui/textedit (TextEditor)": {
     "gzip": 54731,

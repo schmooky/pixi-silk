@@ -10,9 +10,12 @@ export interface TextBufferHandle {
     readonly id: number;
 }
 
-/** A text slot drawn by the dynamic path: a single-channel SDF bitmap. */
+/**
+ * A text slot drawn by the dynamic path: a single-channel SDF bitmap of the whole value, drawn as one
+ * glyph with the slot's style, plus the colour pixels of any emoji.
+ */
 export interface RunSprite {
-    /** Width in pixels. */
+    /** Width in pixels (a multiple of 4: WebGL uploads single-byte rows with 4-byte alignment). */
     width: number;
     /** Height in pixels. */
     height: number;
@@ -20,6 +23,18 @@ export interface RunSprite {
     pixels: Uint8Array;
     /** Distance range in pixels. */
     range: number;
+    /** Bitmap pixels per local pixel. */
+    scale: number;
+    /** Left edge of the bitmap from the pen, in local pixels (negative: it starts before the pen). */
+    left: number;
+    /** Top edge of the bitmap above the baseline, in local pixels. */
+    top: number;
+    /** Style row of the slot. */
+    row: number;
+    /** Font size in local pixels, for effects in em. */
+    size: number;
+    /** RGBA pixels of colour glyphs (emoji), same size as `pixels`, or absent. */
+    color?: Uint8Array;
 }
 
 /**

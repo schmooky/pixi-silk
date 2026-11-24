@@ -1,8 +1,7 @@
-import { BufferImageSource, Container, DOMAdapter, Mesh, Sprite, Texture } from 'pixi.js';
+import { DOMAdapter } from 'pixi.js';
 import { sdfFromAlpha } from '../text/edt';
-import { INSTANCE_FLOATS } from './layout';
-import { createMessageShader } from './pixi/shader';
-import { MessageGeometry, type TextSlotRender } from './pixi/silk';
+import type { RunSprite } from './backend';
+import type { TextSlotRender } from './pixi/silk';
 import type { ThemeStyle } from './theme';
 
 /** A font to download for text slots, instead of the system font. */
@@ -50,8 +49,8 @@ function colored(px: Uint8ClampedArray, i: number): boolean {
 
 /**
  * The canvas path for text slots (brief sec. 6.5). The browser shapes and orders the value with
- * Canvas2D `fillText`. A distance transform turns it into a single-channel SDF "run sprite". The
- * message shader draws it as one glyph, so outline, glow and shadow of the slot's style apply.
+ * Canvas2D `fillText`. A distance transform turns it into a single-channel SDF "run sprite", which a
+ * `SilkBackend` draws as one glyph, so outline, glow and shadow of the slot's style apply.
  * Colour emoji cannot be distance fields: they are drawn as a bitmap sprite on top, without
  * outline or glow. One style per slot.
  *
@@ -119,7 +118,7 @@ export class CanvasTextProvider {
     }
 
     /** Draws a value as a run sprite. See {@link createCanvasText}. */
-    render(slot: TextSlotRender): Container {
+    draw(slot: TextSlotRender): RunSprite {
         const { value, size, style } = slot;
         const ctx = this._context();
         const s = this.scale;
@@ -144,90 +143,26 @@ export class CanvasTextProvider {
         ctx.fillText(value, pad, pad + ascent);
         const px = ctx.getImageData(0, 0, width, height).data;
         const alpha = new Uint8Array(width * height);
-        let emoji: Uint8Array | null = null;
+        let color: Uint8Array | undefined;
 
         for (let i = 0; i < alpha.length; i++) {
             if (colored(px, i * 4)) {
-                emoji ??= new Uint8Array(width * height * 4);
-                emoji.set(px.subarray(i * 4, i * 4 + 4), i * 4);
+                color ??= new Uint8Array(width * height * 4);
+                color.set(px.subarray(i * 4, i * 4 + 4), i * 4);
             } else alpha[i] = px[i * 4 + 3];
         }
-        const field = sdfFromAlpha(alpha, width, height, this.range, 0.5, 1);
-        const view = new Container({ label: 'silk-text-slot' });
-        const page = new BufferImageSource({
-            resource: field,
+
+        return {
             width,
             height,
-            format: 'r8unorm',
-            scaleMode: 'linear',
-            autoGenerateMipmaps: false,
-            label: 'silk-run-sprite',
-        });
-        // one glyph: local pixels are its font units, atlas pixels per unit is the raster scale
-        const metrics = new BufferImageSource({
-            resource: new Float32Array([
-                ...new Float32Array(12),
-                0,
-                0,
-                0,
-                width,
-                height,
-                -pad / s,
-                (pad + ascent - height) / s,
-                (width - pad) / s,
-                (pad + ascent) / s,
-                s,
-                0,
-                0,
-            ]),
-            width: 6,
-            height: 1,
-            format: 'rgba32float',
-            alphaMode: 'premultiplied-alpha',
-            scaleMode: 'nearest',
-            autoGenerateMipmaps: false,
-            label: 'silk-run-sprite-metrics',
-        });
-        const geometry = new MessageGeometry();
-        const instance = new Float32Array(INSTANCE_FLOATS);
-
-        // pen at the slot's left edge on the baseline, scale 1, glyph 1, the slot's style row
-        instance.set([0, slot.baseline, 1, 1, slot.row, 0, size, 0]);
-        geometry.instances.data = instance;
-        geometry.instances.update();
-        geometry.instanceCount = 1;
-        view.addChild(
-            new Mesh({
-                geometry,
-                shader: createMessageShader({
-                    metrics,
-                    styles: slot.theme.source,
-                    pages: [page],
-                    pageInfo: [new Float32Array([width, height, this.range, 1])],
-                }),
-            }),
-        );
-        if (emoji) {
-            const bitmap = new BufferImageSource({
-                resource: emoji,
-                width,
-                height,
-                format: 'rgba8unorm',
-                alphaMode: 'premultiply-alpha-on-upload',
-                scaleMode: 'linear',
-                label: 'silk-run-emoji',
-            });
-            const sprite = new Sprite(new Texture({ source: bitmap }));
-
-            sprite.position.set(-pad / s, slot.baseline - (pad + ascent) / s);
-            sprite.scale.set(1 / s);
-            view.addChild(sprite);
-        }
-        view.on('destroyed', () => {
-            page.destroy();
-            metrics.destroy();
-        });
-
-        return view;
+            pixels: sdfFromAlpha(alpha, width, height, this.range, 0.5, 1),
+            range: this.range,
+            scale: s,
+            left: -pad / s,
+            top: (pad + ascent) / s,
+            row: slot.row,
+            size,
+            color,
+        };
     }
 }

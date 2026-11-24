@@ -3,6 +3,8 @@
  * and WebGPU. `Silk` holds bundles, atlas pages and themes. `SilkMessage` shows one message.
  * Register `silkBundleLoader` with `extensions.add` to load `.silk` files through `Assets`.
  */
+export { PixiBackend, PixiStyleRows } from './i18n/pixi/backend';
+export { MessageGeometry } from './i18n/pixi/geometry';
 export {
     type DynamicTextMode,
     type DynamicTextProvider,
