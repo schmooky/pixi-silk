@@ -40,6 +40,8 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/webgl1`](https://pixi-silk.schmooky.dev/api/webgl1.md) | Rendering | enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`. |
 | [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
 | [`pixi-silk/i18n`](https://pixi-silk.schmooky.dev/api/i18n.md) | Text | Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables. |
+| [`pixi-silk/i18n/pixi`](https://pixi-silk.schmooky.dev/api/i18n/pixi.md) | Text | Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU. |
+| [`pixi-silk/i18n/canvas`](https://pixi-silk.schmooky.dev/api/i18n/canvas.md) | Text | The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk. |
 | [`pixi-silk/text/bidi`](https://pixi-silk.schmooky.dev/api/text/bidi.md) | Text | The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
@@ -1096,6 +1098,169 @@ own.
 
 SilkText runs on WebGL2 and WebGPU, and on Pixi's WebGL1 fallback with `enableWebGL1()` from
 `pixi-silk/webgl1` (see [Renderers](https://pixi-silk.schmooky.dev/docs/renderers/#draw-on-webgl1)).
+
+---
+
+# Localized text
+
+URL: https://pixi-silk.schmooky.dev/docs/localized-text/
+Area: Text
+
+> pixi-silk/i18n draws translated rich text in any script from bundles shaped with HarfBuzz at build time. No font file and no shaper at runtime.
+
+`pixi-silk/i18n` shows translated, styled text from `.silk` bundles. The `silk` command of
+`@pixi-silk/compiler` builds them from a spreadsheet, your fonts and a theme. It shapes every
+message with HarfBuzz, bakes the line break opportunities and bidi levels, and writes MSDF atlas
+pages. The browser only lays out lines and draws, so it downloads no font and no shaper.
+
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `i18n-shop` (source):
+
+```ts
+import { Assets, extensions, Graphics, type Texture } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import type { ThemeData } from 'pixi-silk/i18n';
+import { Silk, SilkMessage, silkBundleLoader } from 'pixi-silk/i18n/pixi';
+import { defineDemo, INK } from './runtime';
+
+// The shop screen of the localized text guide: English and Arabic from baked .silk bundles, no
+// font file and no shaper. The counter counts up through the value-fast tier, the plural form
+// changes on the way, and the terms link reports taps.
+export default defineDemo({
+    title: 'Localized shop screen',
+    size: [720, 380],
+    phone: { size: [360, 640] },
+    controls: {
+        count: { type: 'range', label: 'coins', min: 0, max: 2000, step: 1, value: 1250 },
+        gold: { type: 'select', label: 'gold', options: ['#FFC53D', '#7CFFB2', '#FF7AB8'], value: '#FFC53D' },
+    },
+    renderers: ['webgl', 'webgpu'],
+    setup({ stage, params, tick, phone, silk: app }) {
+        let alive = true;
+        const messages: SilkMessage[] = [];
+        let theme: ReturnType<Silk['createTheme']> | null = null;
+        let lastCount = -1;
+        let lastGold = '';
+
+        (async () => {
+            extensions.add(silkBundleLoader);
+            const silk = await Silk.create({ dynamicText: { mode: 'canvas' } });
+            const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/i18n`;
+            const [en, ar, themeData] = await Promise.all([
+                Assets.load(`${base}/en.silk`),
+                Assets.load(`${base}/ar.silk`),
+                fetch(`${base}/theme.json`).then((r) => r.json() as Promise<ThemeData>),
+            ]);
+
+            await silk.addBundle(en);
+            await silk.addBundle(ar);
+            if (!alive) return;
+            const coin = new Graphics()
+                .circle(32, 32, 30)
+                .fill('#FFC53D')
+                .circle(32, 32, 20)
+                .stroke({ width: 4, color: '#B07A00' });
+            const coinTexture: Texture = app.app.renderer.generateTexture({ target: coin, resolution: 2 });
+
+            silk.registerInline({ coin: { texture: coinTexture, size: '1.1em', baseline: 0.15 } });
+            theme = silk.createTheme(themeData);
+            const columns = phone ? [16, 16] : [24, 376];
+
+            for (const [i, locale] of ['en', 'ar'].entries()) {
+                const set = await silk.prepare({
+                    locale,
+                    fallbackLocale: 'en',
+                    theme,
+                    defaults: { size: phone ? 22 : 24, maxWidth: phone ? 328 : 320, lineHeight: 1.35 },
+                    messages: {
+                        title: { key: 'shop.title', size: phone ? 34 : 40 },
+                        // a name typed by the player: drawn by the canvas path, mixed direction on purpose
+                        greeting: {
+                            key: 'player.greeting',
+                            values: { name: locale === 'ar' ? 'Alex' : '\u0644\u064a\u0644\u0649' },
+                        },
+                        coins: { key: 'shop.coins', values: { count: params.count } },
+                        terms: { key: 'shop.terms', size: 18 },
+                    },
+                });
+                const x = columns[i];
+                const y0 = phone ? 24 + i * 300 : 40;
+                const title = new SilkMessage(set.get('title'));
+                const greeting = new SilkMessage(set.get('greeting'));
+                const coins = new SilkMessage(set.get('coins'));
+                const terms = new SilkMessage(set.get('terms'));
+
+                title.position.set(x, y0);
+                greeting.position.set(x, y0 + 70);
+                coins.position.set(x, y0 + 120);
+                terms.position.set(x, y0 + 190);
+                terms.on('tagtap', (e) => {
+                    terms.alpha = terms.alpha === 1 ? 0.6 : 1;
+                    void e;
+                });
+                stage.addChild(title, greeting, coins, terms);
+                messages.push(coins);
+            }
+        })().catch((e) => console.error('i18n-shop:', e));
+
+        stage.addChild(
+            new SilkGraphics().roundRect(8, 8, phone ? 344 : 704, phone ? 624 : 364, 20, 0.6).fill(INK.surface),
+        );
+        tick(() => {
+            if (!theme) return;
+            if (params.count !== lastCount) {
+                lastCount = params.count;
+                for (const m of messages) m.set({ count: params.count });
+            }
+            if (params.gold !== lastGold) {
+                lastGold = params.gold;
+                theme.set('gold', { fill: params.gold });
+            }
+        });
+
+        return () => {
+            alive = false;
+        };
+    },
+});
+```
+
+### Compile the strings
+
+```bash
+npx silk compile --config silk.config.json --strings strings.xlsx --theme theme.json --out public/i18n
+```
+
+The sheet has a `key` column, then one column per locale and plural form, such as `en.other` or
+`ar.few`. Messages use `{name}` for values, `<tag>...</tag>` for styles from the theme, and
+`<coin/>` for inline objects.
+
+### Show a message
+
+```ts
+
+extensions.add(silkBundleLoader);
+const silk = await Silk.create();
+
+await silk.addBundle(await Assets.load('/i18n/ar.silk'));
+const theme = silk.createTheme(await (await fetch('/i18n/theme.json')).json());
+const set = await silk.prepare({
+    locale: 'ar',
+    theme,
+    defaults: { size: 24, maxWidth: 320 },
+    messages: { coins: { key: 'shop.coins', values: { count: 0 } } },
+});
+const coins = new SilkMessage(set.get('coins'));
+
+app.stage.addChild(coins);
+coins.set({ count: 1250 });
+theme.set('gold', { fill: '#FFF4B0' });
+```
+
+`coins.set` with a number of the same length rewrites only that number's glyphs. A new plural
+form swaps the baked variant. `theme.set` with colours, outlines, glows, shadows or lines changes a
+few style rows and moves no glyph.
 
 ---
 
@@ -5742,6 +5907,42 @@ import { History, bindHistoryKeys, recordGizmo, recordSignals } from 'pixi-silk/
 | [recordGizmo](https://pixi-silk.schmooky.dev/api/history/functions/recordGizmo.md) | Records every drag of a transform gizmo as one undoable step. The gizmo knows nothing about history: this watches its `dragging` signal. Returns the function that stops recording. |
 | [recordSignals](https://pixi-silk.schmooky.dev/api/history/functions/recordSignals.md) | Records every change of `signals` into `history`, so undo works without writing commands. Changes made in the same synchronous run (one handler, one `batch`) become one step. Inside a transaction everything merges into the transaction's step. |
 
+## `pixi-silk/i18n/canvas`
+
+URL: https://pixi-silk.schmooky.dev/api/i18n/canvas/
+
+The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk.
+
+```ts
+import { CanvasTextProvider, createCanvasText, slotDirection } from 'pixi-silk/i18n/canvas';
+```
+
+#### Classes
+
+| Class | Description |
+| ------ | ------ |
+| [CanvasTextProvider](https://pixi-silk.schmooky.dev/api/i18n/canvas/classes/CanvasTextProvider.md) | The text slot provider [createCanvasText](https://pixi-silk.schmooky.dev/api/i18n/canvas/functions/createCanvasText.md) returns. |
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [CanvasFont](https://pixi-silk.schmooky.dev/api/i18n/canvas/interfaces/CanvasFont.md) | A font to download for text slots, instead of the system font. |
+| [CanvasTextOptions](https://pixi-silk.schmooky.dev/api/i18n/canvas/interfaces/CanvasTextOptions.md) | Options of [createCanvasText](https://pixi-silk.schmooky.dev/api/i18n/canvas/functions/createCanvasText.md). |
+
+#### Variables
+
+| Variable | Description |
+| ------ | ------ |
+| [SYSTEM\_FONTS](https://pixi-silk.schmooky.dev/api/i18n/canvas/variables/SYSTEM_FONTS.md) | The fonts `system` stands for. |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [createCanvasText](https://pixi-silk.schmooky.dev/api/i18n/canvas/functions/createCanvasText.md) | pixi-silk/i18n/canvas: draws text slots (player names, user input) of baked messages. The browser shapes the value with Canvas2D, and a distance transform turns it into a run sprite the message shader draws with the slot's style. Loaded lazily by `Silk.create({ dynamicText: { mode: 'canvas' } })`. |
+| [slotDirection](https://pixi-silk.schmooky.dev/api/i18n/canvas/functions/slotDirection.md) | pixi-silk/i18n/canvas: draws text slots (player names, user input) of baked messages. The browser shapes the value with Canvas2D, and a distance transform turns it into a run sprite the message shader draws with the slot's style. Loaded lazily by `Silk.create({ dynamicText: { mode: 'canvas' } })`. |
+
 ## `pixi-silk/i18n`
 
 URL: https://pixi-silk.schmooky.dev/api/i18n/
@@ -5749,13 +5950,15 @@ URL: https://pixi-silk.schmooky.dev/api/i18n/
 Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables.
 
 ```ts
-import { SilkBundle, SilkBundleError, StyleTable, BundleFlag } from 'pixi-silk/i18n';
+import { HeadlessBackend, LayoutCache, SilkBundle, SilkBundleError } from 'pixi-silk/i18n';
 ```
 
 #### Classes
 
 | Class | Description |
 | ------ | ------ |
+| [HeadlessBackend](https://pixi-silk.schmooky.dev/api/i18n/classes/HeadlessBackend.md) | A reference backend with no GPU: it keeps everything in arrays and rasterizes the fill of every glyph and line into an RGBA buffer on the CPU (bilinear distance samples, one-pixel ramp). Slow, and with no outline, glow or shadow: it exists to prove the core needs no renderer, and for tests. |
+| [LayoutCache](https://pixi-silk.schmooky.dev/api/i18n/classes/LayoutCache.md) | A least-recently-used cache of laid out messages with a memory budget (brief sec. 8). Messages that show the same variant, values, size and width share one layout. Entries are immutable: a message that updates a slot in place clones its layout first ([cloneLayout](https://pixi-silk.schmooky.dev/api/i18n/functions/cloneLayout.md)). |
 | [SilkBundle](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundle.md) | A loaded `.silk` bundle (brief sec. 5) with lookups: messages by key, faces by id, slots, tags, variants by plural category, and number formatting through the baked digit tables. Holds typed arrays over the fetched buffer and decodes nothing up front. |
 | [SilkBundleError](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundleError.md) | Thrown when a buffer is not a `.silk` bundle this runtime can read. |
 | [StyleTable](https://pixi-silk.schmooky.dev/api/i18n/classes/StyleTable.md) | The style rows of a theme: one row per unique stack of tags in use (the base style, then each tag from the outermost in). Rows are packed by [packStyle](https://pixi-silk.schmooky.dev/api/i18n/functions/packStyle.md) into one Float32Array, ready to upload as a data texture. Changing a paint property rewrites only the rows that include that tag. |
@@ -5774,8 +5977,14 @@ import { SilkBundle, SilkBundleError, StyleTable, BundleFlag } from 'pixi-silk/i
 | [LayoutBox](https://pixi-silk.schmooky.dev/api/i18n/interfaces/LayoutBox.md) | A box in local pixels. |
 | [MessageLayout](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayout.md) | A laid out message: instances ready to upload, plus boxes for objects, text slots and taps. |
 | [MessageLayoutOptions](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayoutOptions.md) | Options of [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md). |
+| [RunSprite](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RunSprite.md) | A text slot drawn by the dynamic path: a single-channel SDF bitmap. |
+| [RuntimeShaper](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RuntimeShaper.md) | A runtime shaper for one font file. |
+| [ShapedGlyphOut](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ShapedGlyphOut.md) | One shaped glyph, in visual order, font units. |
+| [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md) | What a renderer implements to draw baked text (brief sec. 2.3). The core lays out and writes instances (`INSTANCE_FLOATS` floats each) and style rows (`STYLE_FLOATS` floats each). A backend stores and draws them. `pixi-silk/i18n/pixi` is the PixiJS one, [HeadlessBackend](https://pixi-silk.schmooky.dev/api/i18n/classes/HeadlessBackend.md) a software reference. |
 | [SlotPlacement](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SlotPlacement.md) | A number slot as laid out, for `value-fast` updates. |
+| [StoredPage](https://pixi-silk.schmooky.dev/api/i18n/interfaces/StoredPage.md) | An atlas page as [HeadlessBackend](https://pixi-silk.schmooky.dev/api/i18n/classes/HeadlessBackend.md) stores it. |
 | [StyleChange](https://pixi-silk.schmooky.dev/api/i18n/interfaces/StyleChange.md) | What a [StyleTable.set](https://pixi-silk.schmooky.dev/api/i18n/classes/StyleTable.md) changed. |
+| [TextBufferHandle](https://pixi-silk.schmooky.dev/api/i18n/interfaces/TextBufferHandle.md) | A text buffer a backend made. |
 | [ThemeData](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeData.md) | A theme file, `$silk: 2`. |
 | [ThemeGlow](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeGlow.md) | A soft halo around the glyphs. |
 | [ThemeLine](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeLine.md) | A line under or through the glyphs. |
@@ -5832,22 +6041,79 @@ import { SilkBundle, SilkBundleError, StyleTable, BundleFlag } from 'pixi-silk/i
 | Function | Description |
 | ------ | ------ |
 | [align8](https://pixi-silk.schmooky.dev/api/i18n/functions/align8.md) | Rounds `n` up to the next multiple of 8. |
-| [bundleCounts](https://pixi-silk.schmooky.dev/api/i18n/functions/bundleCounts.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
-| [digitGlyph](https://pixi-silk.schmooky.dev/api/i18n/functions/digitGlyph.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [bundleCounts](https://pixi-silk.schmooky.dev/api/i18n/functions/bundleCounts.md) | Number of faces, pages and digit tables, for diagnostics. |
+| [cloneLayout](https://pixi-silk.schmooky.dev/api/i18n/functions/cloneLayout.md) | A copy of a layout whose instances and number slots can change without touching the original. |
+| [digitGlyph](https://pixi-silk.schmooky.dev/api/i18n/functions/digitGlyph.md) | Digit table entry for code point `cp` in table `table`, as `[glyph, advance]`, or null. |
 | [effectReach](https://pixi-silk.schmooky.dev/api/i18n/functions/effectReach.md) | How far the paint effects of a style reach past the glyph edge, in pixels at scale 1: the largest of the outline width, the glow width and the shadow blur. The compiler sizes the atlas distance range from it. |
-| [findMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/findMessage.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [findMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/findMessage.md) | Index of the message with key hash `hash` (binary search), or -1. |
+| [fontHash](https://pixi-silk.schmooky.dev/api/i18n/functions/fontHash.md) | 64-bit FNV-1a of font bytes as 16 hex digits: the hash the compiler stores per face. Compare it with `SilkBundle.faces.get(id).hash` before shaping with a font at runtime. |
 | [hashKey](https://pixi-silk.schmooky.dev/api/i18n/functions/hashKey.md) | 32-bit FNV-1a hash of a message key, over its UTF-16 code units. Production bundles store only this. The compiler fails when two keys of one bundle collide. |
-| [isLittleEndian](https://pixi-silk.schmooky.dev/api/i18n/functions/isLittleEndian.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [isLittleEndian](https://pixi-silk.schmooky.dev/api/i18n/functions/isLittleEndian.md) | True on little-endian platforms. The format is little-endian and typed arrays use the platform order. |
 | [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md) | Lays out one variant of a message from baked data (brief sec. 6.2): greedy line filling over the baked advances, breaking only where the compiler marked a break opportunity, then visual reordering of every line from the baked bidi levels. No shaping and no Unicode tables. Number slots map their characters through the digit tables. Text slots and inline objects are boxes. |
 | [mergeStyles](https://pixi-silk.schmooky.dev/api/i18n/functions/mergeStyles.md) | Merges styles left to right: later ones override the fields they set. `null` removes an effect. |
 | [packStyle](https://pixi-silk.schmooky.dev/api/i18n/functions/packStyle.md) | Packs a resolved style into one style row of [STYLE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/STYLE_FLOATS.md) floats at `offset`: |
 | [parseHex](https://pixi-silk.schmooky.dev/api/i18n/functions/parseHex.md) | `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` as linear-free 0 to 1 RGBA, or null. |
 | [propertyClass](https://pixi-silk.schmooky.dev/api/i18n/functions/propertyClass.md) | `paint`, `shape` or `behaviour` for a style property. The compiler and the runtime both use this table. |
-| [readBundle](https://pixi-silk.schmooky.dev/api/i18n/functions/readBundle.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [readBundle](https://pixi-silk.schmooky.dev/api/i18n/functions/readBundle.md) | Reads a `.silk` bundle without copying: every table is a typed-array view over `buffer`, and only the string table is decoded. Throws [SilkBundleError](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundleError.md) on a wrong magic, another major version, a truncated buffer or a misaligned section. A newer minor version calls `warn`. |
 | [reorder](https://pixi-silk.schmooky.dev/api/i18n/functions/reorder.md) | Visual order of a line from its levels (UAX #9 rule L2). |
+| [sameFont](https://pixi-silk.schmooky.dev/api/i18n/functions/sameFont.md) | True when a shaper's font is the one a bundle face was baked from. When it is not, the brief's rule applies: warn, and keep the baked data for static text. |
 | [shapeKey](https://pixi-silk.schmooky.dev/api/i18n/functions/shapeKey.md) | Shape-relevant fields of a style, the part that decides how text is shaped. |
+| [submitLayout](https://pixi-silk.schmooky.dev/api/i18n/functions/submitLayout.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
 | [updateNumberSlot](https://pixi-silk.schmooky.dev/api/i18n/functions/updateNumberSlot.md) | Rewrites the glyphs of a number slot in place when the new value has as many characters, each with the advance of the one it replaces (brief sec. 6.3, `value-fast`): no layout, no allocation beyond the formatting. Returns false when the caller must lay out again. |
 | [validateTheme](https://pixi-silk.schmooky.dev/api/i18n/functions/validateTheme.md) | Checks a parsed theme file. Returns problems as sentences. An empty list means the theme is valid. |
+
+## `pixi-silk/i18n/pixi`
+
+URL: https://pixi-silk.schmooky.dev/api/i18n/pixi/
+
+Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU.
+
+```ts
+import { PreparedSet, Silk, SilkMessage, SilkMessageLayer } from 'pixi-silk/i18n/pixi';
+```
+
+#### Classes
+
+| Class | Description |
+| ------ | ------ |
+| [PreparedSet](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PreparedSet.md) | A set of prepared messages. |
+| [Silk](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) | Baked localized text for Pixi (brief sec. 6.1). Holds the bundles in use, their atlas pages and glyph metrics on the GPU, the inline objects and the dev update events. Create it once. |
+| [SilkMessage](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/SilkMessage.md) | A prepared message on screen (brief sec. 6.1). Glyphs are instances of one mesh, drawn in one draw call. Updates take the cheapest tier that can serve them (sec. 6.3). `set` with a number of the same length rewrites only that slot's glyphs (`value-fast`). Other values lay out again. A plural change swaps the baked variant. `maxWidth`, `align`, `size` and `lineHeight` lay out again without shaping. Tag taps on interactive styles arrive as `tagtap`. `accessibleText` holds the plain text with values filled in, for Pixi's accessibility system. |
+| [SilkMessageLayer](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/SilkMessageLayer.md) | A container that draws the glyphs of its SilkMessage children together: one draw call per bundle and theme, however many messages (brief sec. 7, M6). The merged instances carry each message's index, and a data texture carries each message's transform and alpha, so moving a message costs no instance write. Messages stay normal children: position, rotate, scale, hide and tap them as usual. Inline objects and text slots still draw on their own. |
+| [SilkTheme](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/SilkTheme.md) | A theme bound to its style-row texture. `set` changes a style at runtime: paint properties (colours, outline, glow, shadow, lines, weight bias) rewrite a few style rows and move no glyph. Shape-relevant properties (weight, size, family, letter spacing, features) cannot change baked text: a dev warning says to run `silk compile` again. |
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [DynamicTextMode](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextMode.md) | The built-in dynamic text modes of [SilkOptions.dynamicText](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/SilkOptions.md). |
+| [DynamicTextProvider](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextProvider.md) | Draws a text slot's value (the dynamic path, `pixi-silk/i18n/canvas`). |
+| [InlineObject](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/InlineObject.md) | An inline object, as [Silk.registerInline](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) takes it. |
+| [MessageSpec](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/MessageSpec.md) | Per-message options of [Silk.prepare](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
+| [PreparedMessage](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PreparedMessage.md) | A message ready to show. Immutable and shared by every SilkMessage made from it. |
+| [PrepareOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PrepareOptions.md) | Options of [Silk.prepare](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
+| [SilkOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/SilkOptions.md) | Options of [Silk.create](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
+| [TagTapEvent](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/TagTapEvent.md) | What a `tagtap` event carries. |
+| [TextSlotRender](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/TextSlotRender.md) | A text slot to draw, as [DynamicTextProvider.render](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextProvider.md) receives it. Sizes in local pixels. |
+| [UpdateEvent](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/UpdateEvent.md) | What [Silk.on](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) reports for every update. |
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [UpdateTier](https://pixi-silk.schmooky.dev/api/i18n/pixi/types/UpdateTier.md) | The update tiers of brief sec. 6.3, cheapest first. |
+
+#### Variables
+
+| Variable | Description |
+| ------ | ------ |
+| [silkBundleLoader](https://pixi-silk.schmooky.dev/api/i18n/pixi/variables/silkBundleLoader.md) | The Pixi `Assets` loader for `.silk` bundles. Register it once with `extensions.add(silkBundleLoader)`. `Assets.load('/i18n/ar.silk')` then returns a [SilkBundle](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundle.md). |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [loadAtlasPage](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/loadAtlasPage.md) | pixi-silk/i18n/pixi: draws baked localized text from `pixi-silk/i18n` with PixiJS v8, on WebGL2 and WebGPU. `Silk` holds bundles, atlas pages and themes. `SilkMessage` shows one message. Register `silkBundleLoader` with `extensions.add` to load `.silk` files through `Assets`. |
 
 ## `pixi-silk/layout`
 
@@ -7410,18 +7676,6 @@ import { MiniTimeline } from 'pixi-silk/ui/timeline';
 ---
 
 # FAQ
-
-## Why is PixiJS Text blurry when I zoom in?
-
-PixiJS `Text` is a bitmap, so scaling it stretches its pixels. `SilkText` from `pixi-silk/text` draws glyphs from a distance field atlas and keeps its edges under a zooming camera.
-
-## Which scripts does SilkText support?
-
-All the common ones: Latin, Cyrillic, Greek, Vietnamese, Arabic and Hebrew (right to left, with numbers kept in order), Burmese, Thai, Khmer, Lao, the Indic scripts, Chinese, Japanese and Korean. Words that need shaping are baked whole, stacked marks are never cut, and lines wrap where each script allows. Emoji keep their colours, from a second texture that softens under deep zoom.
-
-## Do IME and mobile keyboards work in the text editor?
-
-`TextEditor` types through a hidden `<textarea>` that follows the caret, so input methods, mobile keyboards, autocorrect and the clipboard work. Spell check underlines do not show.
 
 ## Do pointer events work on SilkGraphics?
 

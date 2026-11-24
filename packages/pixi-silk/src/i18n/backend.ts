@@ -68,10 +68,15 @@ export function submitLayout(
     return h;
 }
 
-interface StoredPage {
+/** An atlas page as {@link HeadlessBackend} stores it. */
+export interface StoredPage {
+    /** RGBA pixels. */
     pixels: Uint8Array;
+    /** Width in pixels. */
     width: number;
+    /** Height in pixels. */
     height: number;
+    /** Glyph kind. */
     kind: string;
 }
 

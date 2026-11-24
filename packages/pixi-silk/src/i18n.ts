@@ -9,6 +9,7 @@ export {
     HeadlessBackend,
     type RunSprite,
     type SilkBackend,
+    type StoredPage,
     submitLayout,
     type TextBufferHandle,
 } from './i18n/backend';

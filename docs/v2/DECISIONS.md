@@ -66,9 +66,9 @@ Production bundles store a 32-bit FNV-1a hash of each key. The compiler fails on
 
 Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on WebGL2 and WebGPU. SilkMessage binds up to four atlas pages as separate textures and picks one per glyph with the page slot in the glyph metrics. A bundle with more than four pages warns and should be split with `--split-by`. The shop example uses two pages per locale. Texture arrays have not been spiked yet. They would lift the four-page limit and are an optimization, not a format change.
 
-## D10. Runtime shaper (to measure in M7)
+## D10. Runtime shaper (deferred)
 
-kb_text_shape WASM against HarfBuzz HB_TINY (built with `-Oz`, LTO and `wasm-opt -Oz`, exporting only the shaping calls). Compare compressed size, Arabic results and speed.
+kb_text_shape WASM against HarfBuzz HB_TINY (built with `-Oz`, LTO and `wasm-opt -Oz`, exporting only the shaping calls), compared on compressed size, Arabic results and speed. Not built: this machine has no emscripten, and the user chose to defer it rather than install a toolchain of about 1 GB. What ships is the contract the plugin implements: `RuntimeShaper`, `fontHash` (the compiler's 64-bit face hash, tested equal on real fonts) and `sameFont`. Text slots use the canvas path meanwhile (D18).
 
 ## D11. Atlas page format (to measure in M2)
 

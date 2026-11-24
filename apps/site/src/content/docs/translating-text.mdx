@@ -1,0 +1,61 @@
+---
+title: Translating text
+seoTitle: 'Translating pixi-silk game text in a spreadsheet'
+description: 'How translators fill the pixi-silk/i18n strings sheet: columns, placeholders, tags, plural forms and the Excel habits that break text.'
+keywords: ['game localization spreadsheet', 'translator guide', 'plural forms', 'Excel translation', 'RTL translation']
+updated: 2026-11-24
+---
+
+This page is for translators. You work in a spreadsheet, and a build step turns it into the text
+the game draws. You never need to install anything.
+
+## The sheet
+
+Each row is one message. Fill only the columns of your language.
+
+| Column | What it holds |
+|---|---|
+| `key` | The message's name. Never change it, never delete it. |
+| `context` | A note for you: where the text appears and what the placeholders are. |
+| `slots` | The placeholders and their kind. Leave it as it is. |
+| `maxLen` | The longest the text should be, in characters. |
+| `ar.other`, `ar.few` and so on | Your text, one column per plural form. |
+
+Your language column names use the game's own codes, such as `iq` for Iraqi Arabic or `kz` for
+Kazakh. Your producer tells you which column is yours.
+
+## Placeholders, tags and objects
+
+- `{name}` is a value the game fills in, such as a player name or a number. Keep every placeholder
+  of the English text, with the same name. You may move it anywhere in the sentence.
+- `<gold>1,250</gold>` is a style, such as gold coloured text. Keep the same tags. Put them around
+  the words that carry the meaning in your language.
+- `<coin/>` is an icon. Keep it, and place it where it reads well.
+- To write a brace or an angle bracket as text, put a backslash before it: `\{`, `\<`.
+
+## Plural forms
+
+A message with a number has one column per plural form your language uses. Arabic has six forms
+(`zero`, `one`, `two`, `few`, `many`, `other`), English two, Japanese one. Fill every form your
+language has. The build reports a missing one, and it ignores forms your language does not use.
+
+## Excel habits that break text
+
+Format your columns as text before typing. The build reads exactly what the cell holds and stops
+on these mistakes, with the sheet, the row and the column:
+
+- A cell that starts with `=`, `+`, `-` or `@` becomes a formula.
+- `007` becomes the number 7, and `1/2` becomes a date.
+- Invisible characters pasted from other programs are removed, with a warning. Right-to-left marks
+  and no-break spaces are common ones. Write `<nbsp/>` where you want a no-break space.
+
+Smart quotes, ellipses and line breaks (Alt+Enter) are fine.
+
+## See your text before you send it
+
+Your producer can open the preview: every message drawn as in the game, and every problem listed by
+cell.
+
+<img src="/docs-img/i18n/lint-by-cell.png" width="440" height="1200" loading="lazy" alt="The preview listing lint problems by cell: a formula, a number, a date and pasted invisible characters" />
+
+<img src="/docs-img/i18n/preview-ar.png" width="1180" height="620" loading="lazy" alt="The preview drawing the Arabic shop messages from right to left, with a theme editor beside them" />
