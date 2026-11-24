@@ -91,6 +91,8 @@ const IMPORTS = {
     ],
     // the canvas path for text slots: Pixi-side code it shares with i18n/pixi is counted there
     'i18n/canvas (createCanvasText)': ['createCanvasText', ['FSI', 'harfbuzz', 'exceljs', 'node:'], '/i18n/canvas'],
+    // the shaper path: the WebAssembly file (62 kB brotli) is fetched apart and not counted here
+    'i18n/shaper (createShapedText)': ['createShapedText', ['FSI', 'harfbuzz', 'exceljs', 'node:'], '/i18n/shaper'],
     'ui/textedit (TextEditor)': ['TextEditor', ['RadialMenu', 'TransformGizmo', 'ColorModel'], '/ui/textedit'],
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
     // editor panels: a panel frame never pulls in the layer tree, the inspector or the colour pickers

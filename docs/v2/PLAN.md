@@ -158,7 +158,7 @@ Done when the en and ar shop screen renders from baked data on WebGL2 and WebGPU
 
 ## M7: shaper plugin and tooling
 
-- Prototype kb_text_shape WASM and HarfBuzz HB_TINY, then measure compressed size, Arabic results and speed (D10). Done: kb_text_shape ships as `@pixi-silk/shaper-kb`.
+- Prototype kb_text_shape WASM and HarfBuzz HB_TINY, then measure compressed size, Arabic results and speed (D10). Done: kb_text_shape ships as `pixi-silk/i18n/shaper`.
 - Ship the winner with a runtime atlas page and the font-hash check.
 - `silk export` and `silk import` round trip.
 - `apps/preview`: live theme editing, lint errors per cell, and RTL.

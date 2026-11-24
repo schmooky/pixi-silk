@@ -66,6 +66,7 @@ Import each from its own path. The root import does not re-export the others.
 | `pixi-silk/i18n` | Baked localized text core: `readBundle`, themes, layout from `.silk` bundles. |
 | `pixi-silk/i18n/pixi` | `Silk`, `SilkMessage`, `silkBundleLoader`: draws `.silk` bundles. |
 | `pixi-silk/i18n/canvas` | `createCanvasText`: draws text slots such as player names. |
+| `pixi-silk/i18n/shaper` | `createShapedText`: draws text slots with the baked font, shaped by kb_text_shape in WebAssembly. |
 | `pixi-silk/layout` | `LayoutNode`, a headless flex engine. |
 | `pixi-silk/ui/layout` | `SmartContainer`, `FlexContainer`, `simulateViewport`, `layoutDebug`. |
 | `pixi-silk/signal` | `signal`, `computed`, `watch`, `batch`. |

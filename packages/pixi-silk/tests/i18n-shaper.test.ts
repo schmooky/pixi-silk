@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import * as hb from 'harfbuzzjs';
-import { fontHash } from 'pixi-silk/i18n';
 import { describe, expect, it } from 'vitest';
-import { createKbShaper, createShapedText, fillContours, readFont } from '../src/index';
+import { fontHash } from '../src/i18n';
+import { createKbShaper, createShapedText, fillContours, readFont } from '../src/i18n-shaper';
 
 const fonts = new URL('../../compiler/fixtures/fonts/', import.meta.url);
 const wasm = readFileSync(new URL('../wasm/kb.wasm', import.meta.url));

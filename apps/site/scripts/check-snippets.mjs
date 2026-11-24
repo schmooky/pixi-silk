@@ -124,7 +124,7 @@ writeFileSync(
                 'pixi-silk/i18n/pixi': [join(SRC, 'i18n-pixi.ts')],
                 'pixi-silk/i18n/canvas': [join(SRC, 'i18n-canvas.ts')],
                 'pixi-silk/layout': [join(SRC, 'layout.ts')],
-                '@pixi-silk/shaper-kb': [join(SRC, '../../shaper-kb/src/index.ts')],
+                'pixi-silk/i18n/shaper': [join(SRC, 'i18n-shaper.ts')],
             },
         },
         include: ['*.ts'],

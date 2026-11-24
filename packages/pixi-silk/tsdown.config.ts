@@ -17,6 +17,7 @@ export default defineConfig({
         'src/i18n.ts',
         'src/i18n-pixi.ts',
         'src/i18n-canvas.ts',
+        'src/i18n-shaper.ts',
         // loaded with new Worker(new URL('./canvas-worker.js', import.meta.url))
         'src/i18n/canvas-worker.ts',
         'src/layout.ts',
@@ -66,6 +67,9 @@ export default defineConfig({
     sourcemap: false,
     plugins: [glsl()],
     // package checks on every build: exports, files and types must resolve for ESM consumers
+    // the committed kb_text_shape build, loaded with new URL('./kb.wasm', import.meta.url)
+    copy: [{ from: ['wasm/kb.wasm', 'wasm/LICENSE-kb_text_shape.txt'], to: 'dist/i18n/kb' }],
     publint: true,
-    attw: { profile: 'esm-only', level: 'error' },
+    // the WebAssembly file is an asset export with no types
+    attw: { profile: 'esm-only', level: 'error', excludeEntrypoints: [/\.wasm$/] },
 });

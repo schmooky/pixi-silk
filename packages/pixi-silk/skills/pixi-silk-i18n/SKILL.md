@@ -57,7 +57,7 @@ app.stage.addChild(layer);
 
 ### Text slots in the baked font
 
-`{ mode: 'canvas' }` draws player names with the system font. For the baked font on every platform, install `@pixi-silk/shaper-kb` and pass `await createShapedText({ font: '/fonts/NotoSans-Regular.ttf', fallback: await createCanvasText() })` as `dynamicText`. Use the TrueType file the bundle was baked from. `provider.checkBundle(bundle)` warns when the hashes differ.
+`{ mode: 'canvas' }` draws player names with the system font. For the baked font on every platform, import `createShapedText` from `pixi-silk/i18n/shaper` and pass `await createShapedText({ font: '/fonts/NotoSans-Regular.ttf', fallback: await createCanvasText() })` as `dynamicText`. Use the TrueType file the bundle was baked from. `provider.checkBundle(bundle)` warns when the hashes differ.
 
 ### Icons and taps
 

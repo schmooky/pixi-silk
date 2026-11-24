@@ -1,4 +1,4 @@
-// WebAssembly build of kb_text_shape for @pixi-silk/shaper-kb. Freestanding: no C runtime.
+// WebAssembly build of kb_text_shape for pixi-silk/i18n/shaper. Freestanding: no C runtime.
 // Build: see build.sh. The header itself is fetched into packages/compiler/.cache/kb (kb_text_shape v2.32, zlib License).
 typedef __SIZE_TYPE__ size_t;
 

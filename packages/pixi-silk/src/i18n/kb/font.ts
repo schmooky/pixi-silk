@@ -46,10 +46,10 @@ export function readFont(bytes: Uint8Array): FontTables {
     const glyf = tables.get('glyf');
 
     if (head === undefined || maxp === undefined || hhea === undefined) {
-        throw new Error('@pixi-silk/shaper-kb: not a TrueType or OpenType font');
+        throw new Error('pixi-silk: not a TrueType or OpenType font');
     }
     if (loca === undefined || glyf === undefined) {
-        throw new Error('@pixi-silk/shaper-kb: the font has no glyf outlines (a CFF font?). Use a TrueType font');
+        throw new Error('pixi-silk: the font has no glyf outlines (a CFF font?). Use a TrueType font');
     }
     const unitsPerEm = view.getUint16(head + 18);
     const longLoca = view.getInt16(head + 50) === 1;

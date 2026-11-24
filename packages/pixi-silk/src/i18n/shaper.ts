@@ -1,6 +1,6 @@
 /**
  * The contract of a runtime shaper plugin (brief sec. 6.5, `shaper` mode): glyph-level shaping for
- * apps with lots of user text, loaded lazily. `@pixi-silk/shaper-kb` implements it with kb_text_shape
+ * apps with lots of user text, loaded lazily. `pixi-silk/i18n/shaper` implements it with kb_text_shape
  * in WebAssembly (see docs/v2/DECISIONS.md D10). The font hash check keeps
  * it from mixing with baked data of another font.
  */
