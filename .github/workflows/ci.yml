@@ -45,6 +45,13 @@ jobs:
       - name: Test
         run: pnpm --filter pixi-silk test
 
+      # the Unicode conformance data (about 8 MB) is fetched, not committed
+      - name: Fetch Unicode test data
+        run: node packages/compiler/scripts/fetch-ucd.ts
+
+      - name: Test compiler
+        run: pnpm --filter @pixi-silk/compiler test
+
       - name: Build library
         run: pnpm build
 

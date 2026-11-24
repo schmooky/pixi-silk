@@ -11,7 +11,12 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const packagesDir = join(root, 'packages');
 
-for (const entry of await readdir(packagesDir, { withFileTypes: true })) {
+// pixi-silk first: @pixi-silk/compiler builds against its types
+const entries = (await readdir(packagesDir, { withFileTypes: true })).sort((a, b) =>
+    a.name === 'pixi-silk' ? -1 : b.name === 'pixi-silk' ? 1 : a.name.localeCompare(b.name),
+);
+
+for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const dir = join(packagesDir, entry.name);
     let pkg;

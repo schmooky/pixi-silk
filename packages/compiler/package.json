@@ -18,7 +18,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsdown",
@@ -37,5 +39,10 @@
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schmooky/pixi-silk.git",
+    "directory": "packages/compiler"
   }
 }
