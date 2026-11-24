@@ -39,13 +39,21 @@ export function hash64(bytes: Uint8Array): bigint {
     return h;
 }
 
-const PAGE_SCRIPTS: [string, RegExp][] = [
-    ['latin', /\p{Script=Latin}/u],
-    ['arabic', /\p{Script=Arabic}/u],
-    ['hebrew', /\p{Script=Hebrew}/u],
-    ['greek', /\p{Script=Greek}/u],
-    ['cyrillic', /\p{Script=Cyrillic}/u],
-];
+/** Page names of scripts. Faces are grouped on pages by the script most of their characters have. */
+const PAGE_NAMES: Record<string, string> = {
+    Latn: 'latin',
+    Arab: 'arabic',
+    Hebr: 'hebrew',
+    Grek: 'greek',
+    Cyrl: 'cyrillic',
+    Hani: 'han',
+    Hang: 'hangul',
+};
+
+/** Page name of a script tag. */
+export function pageName(script: string): string {
+    return PAGE_NAMES[script] ?? script.toLowerCase();
+}
 
 /** Loads every face of the config, resolving files against `root`. */
 export function loadFaces(fonts: readonly FontConfig[], root: string): LoadedFace[] {
@@ -53,17 +61,21 @@ export function loadFaces(fonts: readonly FontConfig[], root: string): LoadedFac
         const bytes = new Uint8Array(readFileSync(resolve(root, f.file)));
         const face = new hb.Face(new hb.Blob(bytes));
         const font = new hb.Font(face);
-        const unicodes = face.collectUnicodes();
+        const counts = new Map<string, number>();
+
+        for (const cp of face.collectUnicodes()) {
+            const s = scriptOf(cp);
+
+            if (s !== 'Zyyy' && s !== 'Zinh' && s !== 'Zzzz') counts.set(s, (counts.get(s) ?? 0) + 1);
+        }
+        // Latin wins ties: the default face's pages stay `latin`
         let script = 'latin';
         let best = 0;
 
-        for (const [name, re] of PAGE_SCRIPTS) {
-            let n = 0;
-
-            for (const cp of unicodes) if (re.test(String.fromCodePoint(cp))) n++;
-            if (n > best) {
+        for (const [s, n] of counts) {
+            if (n > best || (n === best && s === 'Latn')) {
                 best = n;
-                script = name;
+                script = pageName(s);
             }
         }
 
@@ -83,11 +95,23 @@ export function loadFaces(fonts: readonly FontConfig[], root: string): LoadedFac
 }
 
 /**
- * The fallback chain for a family and weight: the requested family first, then the other families
- * in config order. Within each family, the face with the nearest weight.
+ * The fallback chain for a family and weight: the requested family first, then the locale's
+ * preferred families, then the other families in config order. Within each family, the face with
+ * the nearest weight.
  */
-export function faceChain(faces: readonly LoadedFace[], family: string | undefined, weight: number): LoadedFace[] {
+export function faceChain(
+    faces: readonly LoadedFace[],
+    family: string | undefined,
+    weight: number,
+    preferred: readonly string[] = [],
+): LoadedFace[] {
     const families = [...new Set(faces.map((f) => f.family))];
+
+    for (const p of [...preferred].reverse()) {
+        if (!families.includes(p)) continue;
+        families.splice(families.indexOf(p), 1);
+        families.unshift(p);
+    }
 
     if (family && families.includes(family)) {
         families.splice(families.indexOf(family), 1);
@@ -128,6 +152,19 @@ const SCRIPTS: [string, RegExp][] = [
     ['Armn', /\p{Script=Armenian}/u],
     ['Geor', /\p{Script=Georgian}/u],
     ['Deva', /\p{Script=Devanagari}/u],
+    ['Beng', /\p{Script=Bengali}/u],
+    ['Guru', /\p{Script=Gurmukhi}/u],
+    ['Gujr', /\p{Script=Gujarati}/u],
+    ['Orya', /\p{Script=Oriya}/u],
+    ['Taml', /\p{Script=Tamil}/u],
+    ['Telu', /\p{Script=Telugu}/u],
+    ['Knda', /\p{Script=Kannada}/u],
+    ['Mlym', /\p{Script=Malayalam}/u],
+    ['Sinh', /\p{Script=Sinhala}/u],
+    ['Ethi', /\p{Script=Ethiopic}/u],
+    ['Thaa', /\p{Script=Thaana}/u],
+    ['Mong', /\p{Script=Mongolian}/u],
+    ['Tibt', /\p{Script=Tibetan}/u],
     ['Thai', /\p{Script=Thai}/u],
     ['Laoo', /\p{Script=Lao}/u],
     ['Khmr', /\p{Script=Khmer}/u],
@@ -138,5 +175,8 @@ const SCRIPTS: [string, RegExp][] = [
     ['Hang', /\p{Script=Hangul}/u],
 ];
 
-/** Scripts whose line breaking v2 does not support (brief sec. 9.2 item 20). */
-export const UNSUPPORTED_SCRIPTS = new Set(['Thai', 'Laoo', 'Khmr', 'Mymr', 'Hani', 'Hira', 'Kana', 'Hang']);
+/**
+ * Scripts written without spaces between words, whose line breaks need a dictionary. The compiler
+ * takes them from ICU's word segmenter (`Intl.Segmenter`), so the runtime still needs no tables.
+ */
+export const DICTIONARY_SCRIPTS: ReadonlySet<string> = new Set(['Thai', 'Laoo', 'Khmr', 'Mymr']);

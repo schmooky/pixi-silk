@@ -5,7 +5,7 @@ import type { Diagnostic } from '../author/lint';
 import { HOLE, type ParsedMessage } from '../author/parse';
 import type { SlotDecl } from '../config';
 import { exactBidiClass } from './bidi-classes';
-import { covers, faceChain, type LoadedFace, scriptOf, UNSUPPORTED_SCRIPTS } from './fonts';
+import { covers, DICTIONARY_SCRIPTS, faceChain, type LoadedFace, pageName, scriptOf } from './fonts';
 import { breakOpportunities } from './linebreak';
 
 /** One shaped glyph, in logical order. Positions are font units of its face. */
@@ -57,10 +57,10 @@ export interface ShapeContext {
     locale: string;
     /** Paragraph direction of the locale. */
     dir: 0 | 1;
+    /** Font families the locale prefers. */
+    families?: readonly string[];
     /** The message's slots, to give break analysis a stand-in character. */
     slots: readonly SlotDecl[];
-    /** Allow scripts v2 cannot break. */
-    allowUnsupportedScripts?: boolean;
     /** Where to report problems. */
     report: (d: Omit<Diagnostic, 'severity'> & { severity?: Diagnostic['severity'] }) => void;
 }
@@ -112,6 +112,8 @@ export function shapeVariant(message: ParsedMessage, ctx: ShapeContext): ShapedV
         }
     }
     const breaks = new Map(breakOpportunities(analysis).map((b) => [b.position, b.required]));
+
+    addDictionaryBreaks(analysis, ctx.locale, breaks);
     const levels: number[] = new Array(units.length).fill(ctx.dir);
 
     // bidi per paragraph
@@ -172,17 +174,9 @@ export function shapeVariant(message: ParsedMessage, ctx: ShapeContext): ShapedV
 
         if (pick >= 0) scripts[i] = raw[pick];
     }
-    for (const s of new Set(scripts)) {
-        if (UNSUPPORTED_SCRIPTS.has(s) && !ctx.allowUnsupportedScripts) {
-            ctx.report({
-                code: 'unsupported-script',
-                message: `script ${s} needs dictionary line breaking, which v2 does not support (pass --allow-unsupported-scripts to compile it anyway)`,
-            });
-        }
-    }
     const faceOf = (i: number, style: ThemeStyle): number => {
         const u = units[i];
-        const chain = faceChain(ctx.faces, style.family, style.weight ?? 400);
+        const chain = faceChain(ctx.faces, style.family, style.weight ?? 400, ctx.families);
         const isMark = u.type === 'NSM' || scriptOf(u.cp) === 'Zinh';
         const common = scriptOf(u.cp) === 'Zyyy';
 
@@ -303,16 +297,30 @@ export function shapeVariant(message: ParsedMessage, ctx: ShapeContext): ShapedV
     };
 }
 
+/**
+ * Break opportunities between words of scripts written without spaces (Thai, Lao, Khmer, Burmese),
+ * from ICU's dictionaries through `Intl.Segmenter`. UAX #14 alone cannot find them. Runs at compile
+ * time only: they end up as baked break flags.
+ */
+export function addDictionaryBreaks(text: string, locale: string, breaks: Map<number, boolean>): void {
+    const inScript = (i: number) =>
+        i >= 0 && i < text.length && DICTIONARY_SCRIPTS.has(scriptOf(text.codePointAt(i) ?? 0));
+
+    if (![...text].some((_, i) => inScript(i))) return;
+    let segmenter: Intl.Segmenter;
+
+    try {
+        segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+    } catch {
+        segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+    }
+    for (const { index } of segmenter.segment(text)) {
+        if (index > 0 && inScript(index) && inScript(index - 1) && !breaks.has(index)) breaks.set(index, false);
+    }
+}
+
 function pageScriptOf(script: string): string {
-    return script === 'Arab'
-        ? 'arabic'
-        : script === 'Hebr'
-          ? 'hebrew'
-          : script === 'Grek'
-            ? 'greek'
-            : script === 'Cyrl'
-              ? 'cyrillic'
-              : 'latin';
+    return pageName(script);
 }
 
 function breakFlags(breaks: Map<number, boolean>, offset: number): number {

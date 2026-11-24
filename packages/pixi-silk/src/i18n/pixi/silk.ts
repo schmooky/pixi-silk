@@ -124,7 +124,7 @@ export interface MessageSpec {
 
 /** Options of {@link Silk.prepare}. */
 export interface PrepareOptions<Names extends string = string> {
-    /** Locale to show. Its bundle must be in use. */
+    /** App locale code to show, as the bundle names it (`SilkBundle.id`). Its bundle must be in use. */
     locale: string;
     /** Locale to take messages from when `locale` lacks them. */
     fallbackLocale?: string;
@@ -254,7 +254,7 @@ export class SilkTheme {
  * ```
  */
 export class Silk {
-    /** Bundles in use, by locale. */
+    /** Bundles in use, by the app's locale code (`SilkBundle.id`). */
     readonly bundles: Map<string, SilkBundle> = new Map();
     /** Draws text slots. */
     dynamicText: DynamicTextProvider | null;
@@ -379,7 +379,7 @@ export class Silk {
                     (p) => new Float32Array([p.width, p.height, p.distanceRange, p.kind === PageKind.Sdf ? 1 : p.kind]),
                 ),
         });
-        this.bundles.set(bundle.locale, bundle);
+        this.bundles.set(bundle.id, bundle);
     }
 
     /** Stops using a bundle. Its metrics are destroyed, and its pages once no bundle in use draws from them. */
@@ -397,7 +397,7 @@ export class Silk {
             void entry.source.then((source) => source.destroy());
         }
         this._gpu.delete(bundle);
-        if (this.bundles.get(bundle.locale) === bundle) this.bundles.delete(bundle.locale);
+        if (this.bundles.get(bundle.id) === bundle) this.bundles.delete(bundle.id);
     }
 
     /** Makes a theme from a theme file (`$silk: 2`). */

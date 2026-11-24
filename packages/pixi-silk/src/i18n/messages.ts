@@ -119,9 +119,14 @@ export class SilkBundle {
         }
     }
 
-    /** BCP 47 locale. */
+    /** BCP 47 locale: what plural rules and number formatting use. */
     get locale(): string {
         return this.data.locale;
+    }
+
+    /** The app's code for the locale (the bundle name), such as `iq` for `ar-IQ`. */
+    get id(): string {
+        return this.data.id || this.data.locale;
     }
 
     /** Paragraph direction: 0 left to right, 1 right to left. */

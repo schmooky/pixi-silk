@@ -167,4 +167,4 @@ Done when the en and ar shop screen renders from baked data on WebGL2 and WebGPU
 
 ## Not in v2
 
-The same list as brief sec. 14, plus WebGL1 for v2 text (open question 2).
+The same list as brief sec. 14, plus WebGL1 for v2 text (open question 2). Thai, Lao, Khmer, Burmese and CJK line breaking moved into scope (DECISIONS.md D20).

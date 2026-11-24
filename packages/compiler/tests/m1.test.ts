@@ -14,6 +14,7 @@ function sample(): BundleData {
         minor: SILK_MINOR,
         flags: 1,
         locale: 'ar',
+        id: 'ar',
         dir: 1,
         numberingSystem: 'arab',
         strings: ['ar', 'arab', 'shop.title', 'gold', 'latin-0.png'],

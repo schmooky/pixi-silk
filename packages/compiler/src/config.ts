@@ -10,11 +10,18 @@ export interface FontConfig {
     weight?: number;
 }
 
-/** Per-locale settings. */
+/** Per-locale settings. Keys of `SilkConfig.locales` are the app's codes, such as `iq` or `kz`. */
 export interface LocaleConfig {
     /**
+     * BCP 47 tag the code stands for, for plural rules, numbers, script and direction. Default from
+     * the compiler's `APP_LOCALES` table, else the code itself.
+     */
+    bcp47?: string;
+    /** Font families to prefer for this locale, before the config's order (a Japanese face for `ja`). */
+    families?: string[];
+    /**
      * Numbering system number slots use, pinned because browsers disagree on defaults, such as
-     * `arab` for `ar` and `latn` for `ar-MA`. Default `latn`.
+     * `arab` for `ar` and `latn` for `ar-MA`. Default CLDR's for the BCP 47 tag.
      */
     numberingSystem?: string;
 }
@@ -58,8 +65,6 @@ export interface SilkConfig {
     limits?: Partial<ParseLimits>;
     /** Keep message keys as strings in the bundles (dev builds). Default false. */
     devKeys?: boolean;
-    /** Compile Thai, Lao, Khmer, Burmese and CJK, whose line breaking v2 does not support. Default false. */
-    allowUnsupportedScripts?: boolean;
 }
 
 /** A parsed slot declaration. */

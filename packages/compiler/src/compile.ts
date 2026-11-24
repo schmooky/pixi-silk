@@ -20,6 +20,7 @@ import { type CatalogMessage, type Diagnostic, pluralCategories } from './author
 import type { SlotDecl } from './config';
 import { emitMessagesDts } from './emit/dts';
 import { writeBundle } from './emit/writer';
+import { resolveLocale } from './locales';
 import type { Project } from './project';
 import { faceChain, type LoadedFace, loadFaces } from './shape/fonts';
 import { buildDigitTable, type DigitTable, type ShapedGlyph, type ShapedVariant, shapeVariant } from './shape/shape';
@@ -61,11 +62,9 @@ export interface CompileResult {
     diagnostics: Diagnostic[];
 }
 
-const RTL_LOCALES = /^(ar|he|iw|fa|ur|ps|sd|ug|yi|dv|ckb)(-|$)/;
-
-/** 0 for left-to-right locales, 1 for right-to-left ones. */
+/** 0 for left-to-right locales, 1 for right-to-left ones, from the script of the locale's BCP 47 tag. */
 export function localeDirection(locale: string): 0 | 1 {
-    return RTL_LOCALES.test(locale) ? 1 : 0;
+    return resolveLocale(locale).dir;
 }
 
 interface ShapedMessage {
@@ -132,17 +131,17 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
     const digitTables = new Map<string, Map<string, DigitTable>>();
 
     for (const [locale, localeConfig] of Object.entries(config.locales)) {
-        const dir = localeDirection(locale);
+        const resolved = resolveLocale(locale, localeConfig);
+        const { dir, numberingSystem, families } = resolved;
         const shaped: ShapedMessage[] = [];
         const tables = new Map<string, DigitTable>();
-        const numberingSystem = localeConfig.numberingSystem ?? 'latn';
 
         for (const message of catalog.messages.values()) {
             const variants = message.locales[locale];
 
             if (!variants) continue;
             const selector = message.slots.find((s) => s.plural);
-            const categories: PluralCategory[] = selector ? pluralCategories(locale) : ['other'];
+            const categories: PluralCategory[] = selector ? pluralCategories(resolved.bcp47) : ['other'];
             const out: ShapedMessage['variants'] = [];
 
             for (const category of categories) {
@@ -152,10 +151,10 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
                 const shapedVariant = shapeVariant(parsed, {
                     faces,
                     theme,
-                    locale,
+                    locale: resolved.bcp47,
                     dir,
+                    families,
                     slots: message.slots,
-                    allowUnsupportedScripts: config.allowUnsupportedScripts,
                     report: (d) =>
                         diagnostics.push({
                             severity: 'error',
@@ -176,7 +175,7 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
 
                         if (decl?.type !== 'number') continue;
                         const style = styleAtOffset(shapedVariant, allStyles, seg.offset);
-                        const chain = faceChain(faces, style.family, style.weight ?? 400);
+                        const chain = faceChain(faces, style.family, style.weight ?? 400, families);
                         const key = `${chain.map((f) => f.id).join(',')}|${numberingSystem}`;
 
                         if (!tables.has(key)) {
@@ -222,9 +221,13 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
             const shaped = allShaped.filter((m) => chunkOf(m.message, options.splitBy) === chunk);
             const name = chunk ? `${locale}.${chunk}` : locale;
             const localeDiagnostics: Diagnostic[] = [];
+            const resolved = resolveLocale(locale, config.locales[locale]);
             const { data, dump } = assembleBundle({
-                locale,
-                numberingSystem: config.locales[locale].numberingSystem ?? 'latn',
+                locale: resolved.bcp47,
+                id: locale,
+                dir: resolved.dir,
+                families: resolved.families,
+                numberingSystem: resolved.numberingSystem,
                 shaped,
                 faces,
                 atlas,
@@ -252,7 +255,14 @@ function styleAtOffset(variant: ShapedVariant, styles: Record<string, ThemeStyle
 }
 
 interface AssembleInput {
+    /** BCP 47 tag. */
     locale: string;
+    /** App code, the bundle name. */
+    id?: string;
+    /** Paragraph direction. Default from the tag. */
+    dir?: 0 | 1;
+    /** Preferred families. */
+    families?: string[];
     numberingSystem: string;
     shaped: ShapedMessage[];
     faces: readonly LoadedFace[];
@@ -474,7 +484,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
 
                     if (decl.type === 'number') {
                         const style = styleAtOffset(shaped, input.theme, seg.offset);
-                        const chain = faceChain(faces, style.family, style.weight ?? 400);
+                        const chain = faceChain(faces, style.family, style.weight ?? 400, input.families);
                         const key = `${chain.map((f) => f.id).join(',')}|${input.numberingSystem}`;
 
                         table = tableIndex.get(key) ?? NONE;
@@ -571,7 +581,8 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
         minor: SILK_MINOR,
         flags: input.devKeys ? BundleFlag.DevKeys : 0,
         locale: input.locale,
-        dir: localeDirection(input.locale),
+        id: input.id ?? input.locale,
+        dir: input.dir ?? localeDirection(input.locale),
         numberingSystem: input.numberingSystem,
         strings,
         tags: tagRefs,

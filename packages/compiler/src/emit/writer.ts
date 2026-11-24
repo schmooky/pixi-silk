@@ -53,7 +53,7 @@ export function writeBundle(data: BundleData): Uint8Array {
         ref(data.locale),
         data.numberingSystem ? ref(data.numberingSystem) : NONE,
         data.dir,
-        0,
+        ref(data.id || data.locale),
     ]);
     const tags = new Uint32Array(1 + data.tags.length);
 

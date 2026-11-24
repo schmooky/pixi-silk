@@ -43,8 +43,10 @@ export interface BundleData {
     minor: number;
     /** {@link BundleFlag} bits. */
     flags: number;
-    /** BCP 47 locale, such as `ar`. */
+    /** BCP 47 locale, such as `ar` or `ku-Arab-IQ`: what plural rules and number formatting use. */
     locale: string;
+    /** The app's code for the locale, such as `iq`: the bundle's name. Equal to `locale` when not set. */
+    id: string;
     /** Base direction of the locale: 0 left to right, 1 right to left. */
     dir: 0 | 1;
     /** Numbering system number slots format with, such as `arab` or `latn`. */
@@ -182,6 +184,8 @@ export function readBundle(buffer: ArrayBuffer, warn: (message: string) => void 
         minor,
         flags,
         locale: str(meta[0]),
+        // meta[3] is 0 in bundles without an id: string 0 is the locale itself
+        id: str(meta[3]),
         numberingSystem: str(meta[1]),
         dir: meta[2] === 1 ? 1 : 0,
         strings,

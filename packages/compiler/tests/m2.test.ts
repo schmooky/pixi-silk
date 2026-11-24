@@ -118,12 +118,6 @@ describe('errors', () => {
         expect(d?.message).toContain('U+2603');
         expect(r.bundles.size).toBe(0);
     });
-
-    it('refuses scripts v2 cannot break unless allowed', () => {
-        const r = compileProject(project({ k: { 'en.other': 'Thai ก' } }));
-
-        expect(r.diagnostics.some((x) => x.code === 'unsupported-script')).toBe(true);
-    });
 });
 
 describe('atlas and outputs', () => {

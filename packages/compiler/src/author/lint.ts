@@ -1,5 +1,6 @@
 import type { PluralCategory } from 'pixi-silk/i18n';
 import { formatSlot, parseSlots, type SilkConfig, type SlotDecl } from '../config';
+import { resolveLocale } from '../locales';
 import { DEFAULT_LIMITS, type ParsedMessage, parseMessage, plainText } from './parse';
 
 /** A compiler problem. Errors stop `silk compile`. Warnings do not. */
@@ -347,7 +348,7 @@ export function lintRows(rows: SheetRow[], config: SilkConfig, styleNames: Itera
                 }
                 continue;
             }
-            const required = pluralCategories(locale);
+            const required = pluralCategories(resolveLocale(locale, config.locales[locale]).bcp47);
 
             for (const c of required) {
                 if (!variants[c]) {
