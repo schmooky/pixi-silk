@@ -175,7 +175,7 @@ describe('every script of the app locales (fixtures/world)', () => {
 
     it('compiles without a missing glyph', () => {
         expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
-        expect(result.bundles.size).toBe(31);
+        expect(result.bundles.size).toBe(32);
     });
 
     const bundle = (code: string) => new SilkBundle(result.bundles.get(code)?.slice().buffer as ArrayBuffer);

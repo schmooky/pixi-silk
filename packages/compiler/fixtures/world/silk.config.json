@@ -27,6 +27,7 @@
     "ja": {},
     "ko": {},
     "vi": {},
+    "pa": {},
     "gu": {},
     "kn": {},
     "ml": {},
@@ -118,6 +119,11 @@
       "family": "Noto Sans Gujarati",
       "weight": 400,
       "file": "../fonts/world/NotoSansGujarati-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Gurmukhi",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansGurmukhi-Regular.subset.ttf"
     },
     {
       "family": "Noto Sans Kannada",

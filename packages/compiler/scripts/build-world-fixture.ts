@@ -38,6 +38,7 @@ export const WELCOME: Record<string, string> = {
     ja: 'ショップへようこそ',
     ko: '상점에 오신 것을 환영합니다',
     vi: 'Chào mừng đến cửa hàng',
+    pa: '\u0a26\u0a41\u0a15\u0a3e\u0a28 \u0a35\u0a3f\u0a71\u0a1a \u0a1c\u0a40 \u0a06\u0a07\u0a06\u0a02 \u0a28\u0a42\u0a70',
     gu: 'દુકાનમાં આપનું સ્વાગત છે',
     kn: 'ಅಂಗಡಿಗೆ ಸ್ವಾಗತ',
     ml: 'കടയിലേക്ക് സ്വാഗതം',
@@ -60,6 +61,8 @@ const CACHED: Record<string, string> = {
     'NotoSansEthiopic-Regular.ttf': 'Noto Sans Ethiopic',
     'NotoNastaliqUrdu-Regular.ttf': 'Noto Nastaliq Urdu',
     'NotoSansGujarati-Regular.ttf': 'Noto Sans Gujarati',
+    // from the @expo-google-fonts/noto-sans-gurmukhi npm package (OFL): the GitHub mirrors refused it
+    'NotoSansGurmukhi-Regular.ttf': 'Noto Sans Gurmukhi',
     'NotoSansKannada-Regular.ttf': 'Noto Sans Kannada',
     'NotoSansMalayalam-Regular.ttf': 'Noto Sans Malayalam',
     'NotoSansOriya-Regular.ttf': 'Noto Sans Oriya',
