@@ -1,0 +1,77 @@
+# v2 text: decisions
+
+Each entry records what was decided, why, and what would change it. Entries marked "to measure" are open until a script in the repo produces the numbers.
+
+## D1. Runtime as subpaths, compiler as its own package
+
+- Runtime: `pixi-silk/i18n` (core), `pixi-silk/i18n/pixi` and `pixi-silk/i18n/canvas`, all in the existing `pixi-silk` package.
+- Compiler and CLI: one Node-only package, `@pixi-silk/compiler`, with the `silk` bin.
+
+Why:
+- Tree-shaking already keeps unused entry points out of app bundles, and the size check proves it per import. Separate runtime packages would add version skew and release work and save nothing.
+- The compiler is different. harfbuzzjs (WASM), exceljs and an MSDF generator would become install dependencies of every `pixi-silk` user, including apps that never compile a string. A bundler resolving Node-only code from the same package is also a risk.
+- The CLI is a thin wrapper, so it ships inside the compiler package.
+
+What would change it: a runtime entry point whose code needs its own release cadence, such as the WASM shaper plugin (decided in M7).
+
+## D2. v1 text stays and is the dynamic path
+
+`pixi-silk/text` (`SilkText`, `SdfAtlas`, `layoutText` and the rest) is unchanged and not deprecated. v2 baked text gets its own class, `SilkMessage`.
+
+Why:
+- v1 handles arbitrary runtime strings, CJK, editing (`TextEditor`) and justification. Baked text cannot take a plain string without a compile step, so a "compatibility layer" that turns `new SilkText('x')` into baked data cannot exist without a runtime shaper.
+- Keeping one `SilkText` meaning avoids a breaking rename.
+- v2 dynamic slots reuse v1's `edt.ts` and canvas rasterizing.
+
+## D3. Base branch
+
+`feat/v2-text` branches from `origin/main` at `bba143c` (pixi-silk 1.2.0, which includes the WebGL1 opt-in from PR #16).
+
+## D4. Brotli budgets
+
+`scripts/size-check.mjs` reports minified, gzip (level 9) and brotli (quality 11) sizes. The 10% regression gate stays on gzip for existing entries. v2 entry points are budgeted in brotli, as the brief asks.
+
+v1 baseline, from `pnpm size`:
+- `SilkText`: 18.36 kB brotli.
+- `pixi-silk/text` (everything): 20.16 kB brotli.
+- v1 Unicode data and the UBA: 2.62 kB brotli.
+
+## D5. Loader registration is explicit
+
+`pixi-silk/i18n/pixi` exports `silkBundleLoader`, and the app calls `extensions.add(silkBundleLoader)`. No module registers anything at import time (repo invariant, AGENTS.md sec. 4). This replaces the brief's "explicit loader registration entry point", and `sideEffects` stays `false` everywhere.
+
+## D6. Compiler dependencies (to measure in M1 and M2)
+
+| Need | Choice | Notes |
+|---|---|---|
+| Shaping | `harfbuzzjs` 1.6.4, MIT | The brief's choice. Goldens are compared with `hb-shape` from the same HarfBuzz version |
+| xlsx | `exceljs` 4.4.0, MIT | The npm `xlsx` (SheetJS) is 0.18.5. Known advisories affect it, and fixed releases are only on the SheetJS CDN |
+| MSDF | `msdfgen-wasm` 1.0.0, MIT, or our own TypeScript port | Pick by measurement: byte-identical output across two runs and two machines, plus quality on the corpus |
+| Glyph outlines | From harfbuzzjs draw callbacks | No second font parser, unless the MSDF choice needs one |
+| PNG writing | Node `zlib` and a small encoder | Deterministic, with no dependency |
+
+Each one is a dependency of `@pixi-silk/compiler` only. None is a runtime dependency of `pixi-silk`, so the runtime budget is unaffected.
+
+## D7. Versioning
+
+"v2" names the text system and the `.silk` format (major 2). In `pixi-silk` it is an additive minor release, because no v1 API changes. The compiler package starts at 0.x until M7.
+
+## D8. Key hashing
+
+Production bundles store a 32-bit FNV-1a hash of each key. The compiler fails on a collision within a bundle and reports both keys. Dev bundles also store the key strings.
+
+## D9. Atlas binding (to measure in M3)
+
+Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on WebGL2 and WebGPU. A spike decides between texture arrays and multi-texture binding. Multi-texture binding is the default until then.
+
+## D10. Runtime shaper (to measure in M7)
+
+kb_text_shape WASM against HarfBuzz HB_TINY (built with `-Oz`, LTO and `wasm-opt -Oz`, exporting only the shaping calls). Compare compressed size, Arabic results and speed.
+
+## D11. Atlas page format (to measure in M2)
+
+Lossless PNG, lossless WebP, and KTX2 (raw data with Zstd), compared after brotli.
+
+## D12. RUNS encoding (to measure in M2)
+
+Plain i16 columns against delta-encoded clusters, compared after brotli.

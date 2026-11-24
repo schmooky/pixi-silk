@@ -23,6 +23,7 @@ const SCOPE = [
     'README.md',
     'CONTRIBUTING.md',
     'AGENTS.md',
+    'docs',
     'packages/pixi-silk/skills',
     '.changeset',
     '.github',
