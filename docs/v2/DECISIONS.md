@@ -133,7 +133,7 @@ JavaScript has no portable allocation counter, so the brief's "zero allocations"
 ## D18. The canvas path for text slots (M5)
 
 - A text slot is drawn as one glyph of a one-glyph `sdf` page. The run sprite is built from Canvas2D `fillText` with v1's distance transform (`text/edt.ts`). The message shader draws it, so the slot's outline, glow and shadow apply. Colour emoji pixels go to a bitmap sprite on top.
-- No worker yet. The transform of a name sprite takes 0.36 ms (200x80) to 0.87 ms (400x100) in Node 24, run once per value. A worker would add a script to ship and a round trip per name. It can come later behind the same `DynamicTextProvider` interface.
+- Run sprites are drawn in a worker on an OffscreenCanvas. The worker is `canvas-worker.js`, loaded with `new Worker(new URL(..., import.meta.url))`, a pattern bundlers follow. The main thread does neither the drawing nor the distance transform (0.36 to 0.87 ms per name in Node 24). Pixels come back transferred, not copied. Without `Worker` or `OffscreenCanvas`, or if the worker fails to start, slots draw on the main thread. `check:i18n` reports which path ran: the worker, on WebGL2 and WebGPU.
 - Run sprites are padded to a multiple of 4 pixels wide. WebGL uploads single-byte rows with 4-byte alignment, and an odd width sheared the sprite on WebGL2 (seen in the demo, fixed).
 - Size: `createCanvasText` alone is 4.61 kB brotli, because it includes the shader. Loaded lazily from `pixi-silk/i18n/pixi`, it adds 1.99 kB gzip on demand (brief target: 4 kB).
 - The `system` font is the default and downloads nothing. A `CanvasFont` downloads one file before the first slot.

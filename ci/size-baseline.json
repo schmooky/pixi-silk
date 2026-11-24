@@ -188,12 +188,12 @@
     "brotli": 5879
   },
   "i18n/pixi (Silk, SilkMessage)": {
-    "gzip": 15096,
-    "brotli": 13712
+    "gzip": 15145,
+    "brotli": 13757
   },
   "i18n/canvas (createCanvasText)": {
-    "gzip": 1619,
-    "brotli": 1481
+    "gzip": 2069,
+    "brotli": 1902
   },
   "ui/textedit (TextEditor)": {
     "gzip": 54731,

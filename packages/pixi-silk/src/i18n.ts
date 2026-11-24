@@ -76,7 +76,7 @@ export {
     SilkBundle,
 } from './i18n/messages';
 export { fontHash, type RuntimeShaper, type ShapedGlyphOut, sameFont } from './i18n/shaper';
-export { type StyleChange, StyleTable } from './i18n/styles';
+export { type RowLayout, type StyleChange, StyleTable } from './i18n/styles';
 export {
     effectReach,
     mergeStyles,

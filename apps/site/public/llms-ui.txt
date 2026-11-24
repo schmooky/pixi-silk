@@ -5977,7 +5977,8 @@ import { HeadlessBackend, LayoutCache, SilkBundle, SilkBundleError } from 'pixi-
 | [LayoutBox](https://pixi-silk.schmooky.dev/api/i18n/interfaces/LayoutBox.md) | A box in local pixels. |
 | [MessageLayout](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayout.md) | A laid out message: instances ready to upload, plus boxes for objects, text slots and taps. |
 | [MessageLayoutOptions](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayoutOptions.md) | Options of [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md). |
-| [RunSprite](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RunSprite.md) | A text slot drawn by the dynamic path: a single-channel SDF bitmap. |
+| [RowLayout](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RowLayout.md) | How a style row changes layout compared with what was baked. |
+| [RunSprite](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RunSprite.md) | A text slot drawn by the dynamic path: a single-channel SDF bitmap of the whole value, drawn as one glyph with the slot's style, plus the colour pixels of any emoji. |
 | [RuntimeShaper](https://pixi-silk.schmooky.dev/api/i18n/interfaces/RuntimeShaper.md) | A runtime shaper for one font file. |
 | [ShapedGlyphOut](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ShapedGlyphOut.md) | One shaped glyph, in visual order, font units. |
 | [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md) | What a renderer implements to draw baked text (brief sec. 2.3). The core lays out and writes instances (`INSTANCE_FLOATS` floats each) and style rows (`STYLE_FLOATS` floats each). A backend stores and draws them. `pixi-silk/i18n/pixi` is the PixiJS one, [HeadlessBackend](https://pixi-silk.schmooky.dev/api/i18n/classes/HeadlessBackend.md) a software reference. |
@@ -6011,6 +6012,8 @@ import { HeadlessBackend, LayoutCache, SilkBundle, SilkBundleError } from 'pixi-
 | [HEADER\_BYTES](https://pixi-silk.schmooky.dev/api/i18n/variables/HEADER_BYTES.md) | Bytes before the section table. |
 | [INSTANCE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/INSTANCE_FLOATS.md) | Floats per glyph instance: x, y, scale, glyph, style row, kind, size, width. |
 | [InstanceKind](https://pixi-silk.schmooky.dev/api/i18n/variables/InstanceKind.md) | What an instance draws. |
+| [LAYOUT\_ALIGNS](https://pixi-silk.schmooky.dev/api/i18n/variables/LAYOUT_ALIGNS.md) | Align codes of baked layouts. |
+| [LAYOUT\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/LAYOUT_STRIDE.md) | Float32 per baked layout (LAYOUTS, brief sec. 5): variant, size, max width, align (0 start, 1 end, 2 left, 3 center, 4 right), line height, first instance, instance count, width, height, first line, line count, 0. Instances use `INSTANCE_FLOATS` floats with a stack index in place of the style row. Lines are 3 floats: baseline, left, right. |
 | [MESSAGE\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/MESSAGE_STRIDE.md) | Uint32 per message: key hash, key string ref (or `NONE`), selector slot (or `NONE`), first variant, variant count, flags. |
 | [NONE](https://pixi-silk.schmooky.dev/api/i18n/variables/NONE.md) | "No value" in u32 fields. |
 | [PAGE\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/PAGE_STRIDE.md) | Float32 per page: page id, file ref, kind, width, height, distance range (atlas px), em size (atlas px per em). |
@@ -6049,7 +6052,7 @@ import { HeadlessBackend, LayoutCache, SilkBundle, SilkBundleError } from 'pixi-
 | [fontHash](https://pixi-silk.schmooky.dev/api/i18n/functions/fontHash.md) | 64-bit FNV-1a of font bytes as 16 hex digits: the hash the compiler stores per face. Compare it with `SilkBundle.faces.get(id).hash` before shaping with a font at runtime. |
 | [hashKey](https://pixi-silk.schmooky.dev/api/i18n/functions/hashKey.md) | 32-bit FNV-1a hash of a message key, over its UTF-16 code units. Production bundles store only this. The compiler fails when two keys of one bundle collide. |
 | [isLittleEndian](https://pixi-silk.schmooky.dev/api/i18n/functions/isLittleEndian.md) | True on little-endian platforms. The format is little-endian and typed arrays use the platform order. |
-| [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md) | Lays out one variant of a message from baked data (brief sec. 6.2): greedy line filling over the baked advances, breaking only where the compiler marked a break opportunity, then visual reordering of every line from the baked bidi levels. No shaping and no Unicode tables. Number slots map their characters through the digit tables. Text slots and inline objects are boxes. |
+| [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md) | Lays out one variant of a message from baked data (brief sec. 6.2): greedy line filling over the baked advances, breaking only where the compiler marked a break opportunity, then visual reordering of every line from the baked bidi levels. No shaping and no Unicode tables. Number slots map their characters through the digit tables. Text slots and inline objects are boxes. A layout the compiler baked for exactly these options is returned as is (`baked: true`). |
 | [mergeStyles](https://pixi-silk.schmooky.dev/api/i18n/functions/mergeStyles.md) | Merges styles left to right: later ones override the fields they set. `null` removes an effect. |
 | [packStyle](https://pixi-silk.schmooky.dev/api/i18n/functions/packStyle.md) | Packs a resolved style into one style row of [STYLE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/STYLE_FLOATS.md) floats at `offset`: |
 | [parseHex](https://pixi-silk.schmooky.dev/api/i18n/functions/parseHex.md) | `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` as linear-free 0 to 1 RGBA, or null. |
@@ -6069,13 +6072,16 @@ URL: https://pixi-silk.schmooky.dev/api/i18n/pixi/
 Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU.
 
 ```ts
-import { PreparedSet, Silk, SilkMessage, SilkMessageLayer } from 'pixi-silk/i18n/pixi';
+import { MessageGeometry, PixiBackend, PixiStyleRows, PreparedSet } from 'pixi-silk/i18n/pixi';
 ```
 
 #### Classes
 
 | Class | Description |
 | ------ | ------ |
+| [MessageGeometry](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/MessageGeometry.md) | The geometry of a SilkMessage's text buffer: one unit quad, and one instance (`INSTANCE_FLOATS` floats) per glyph or line. `PixiBackend` owns it. You rarely need it directly. |
+| [PixiBackend](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PixiBackend.md) | The PixiJS [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md) (brief sec. 2.3): atlas pages as textures, style rows as a data texture, text buffers as instanced geometries, run sprites as one-glyph meshes drawn by the message shader. `Silk` drives it. The core never touches Pixi. |
+| [PixiStyleRows](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PixiStyleRows.md) | Style rows on the GPU: an RGBA32F texture, 8 texels per row and 64 rows per texture row, as `packStyle` packs them. The `writeStyleRows` part of [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md), one per theme. |
 | [PreparedSet](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PreparedSet.md) | A set of prepared messages. |
 | [Silk](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) | Baked localized text for Pixi (brief sec. 6.1). Holds the bundles in use, their atlas pages and glyph metrics on the GPU, the inline objects and the dev update events. Create it once. |
 | [SilkMessage](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/SilkMessage.md) | A prepared message on screen (brief sec. 6.1). Glyphs are instances of one mesh, drawn in one draw call. Updates take the cheapest tier that can serve them (sec. 6.3). `set` with a number of the same length rewrites only that slot's glyphs (`value-fast`). Other values lay out again. A plural change swaps the baked variant. `maxWidth`, `align`, `size` and `lineHeight` lay out again without shaping. Tag taps on interactive styles arrive as `tagtap`. `accessibleText` holds the plain text with values filled in, for Pixi's accessibility system. |
@@ -6094,7 +6100,7 @@ import { PreparedSet, Silk, SilkMessage, SilkMessageLayer } from 'pixi-silk/i18n
 | [PrepareOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PrepareOptions.md) | Options of [Silk.prepare](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
 | [SilkOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/SilkOptions.md) | Options of [Silk.create](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
 | [TagTapEvent](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/TagTapEvent.md) | What a `tagtap` event carries. |
-| [TextSlotRender](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/TextSlotRender.md) | A text slot to draw, as [DynamicTextProvider.render](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextProvider.md) receives it. Sizes in local pixels. |
+| [TextSlotRender](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/TextSlotRender.md) | A text slot to draw, as [DynamicTextProvider.draw](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextProvider.md) receives it. Sizes in local pixels. |
 | [UpdateEvent](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/UpdateEvent.md) | What [Silk.on](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) reports for every update. |
 
 #### Type Aliases
@@ -6113,7 +6119,7 @@ import { PreparedSet, Silk, SilkMessage, SilkMessageLayer } from 'pixi-silk/i18n
 
 | Function | Description |
 | ------ | ------ |
-| [loadAtlasPage](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/loadAtlasPage.md) | pixi-silk/i18n/pixi: draws baked localized text from `pixi-silk/i18n` with PixiJS v8, on WebGL2 and WebGPU. `Silk` holds bundles, atlas pages and themes. `SilkMessage` shows one message. Register `silkBundleLoader` with `extensions.add` to load `.silk` files through `Assets`. |
+| [loadAtlasPage](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/loadAtlasPage.md) | Fetches and decodes one atlas page, without premultiplied alpha or colour conversion. |
 
 ## `pixi-silk/layout`
 

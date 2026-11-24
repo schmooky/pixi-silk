@@ -1,6 +1,6 @@
 import { DOMAdapter } from 'pixi.js';
-import { sdfFromAlpha } from '../text/edt';
 import type { RunSprite } from './backend';
+import { type RunRaster, type RunRequest, rasterizeRun } from './canvas-raster';
 import type { TextSlotRender } from './pixi/silk';
 import type { ThemeStyle } from './theme';
 
@@ -25,6 +25,11 @@ export interface CanvasTextOptions {
     scale?: number;
     /** Distance range of the run sprites in atlas pixels. Effects reach half of it. Default 12. */
     range?: number;
+    /**
+     * Draw run sprites in a worker on an OffscreenCanvas, so the main thread does no drawing or
+     * distance transform. Ignored where the platform has neither. Default true.
+     */
+    worker?: boolean;
 }
 
 /** The fonts `system` stands for. */
@@ -36,15 +41,6 @@ const RTL_START = /^[^A-Za-zÀ-ɏͰ-ϿЀ-ӿ]*?[֐-ࣿיִ-﷿ﹰ-\ufeff]/;
 /** `rtl` when the first strong letter of `value` is Hebrew or Arabic. Enough for a name. */
 export function slotDirection(value: string): 'ltr' | 'rtl' {
     return RTL_START.test(value) ? 'rtl' : 'ltr';
-}
-
-/** True when a pixel is coloured, not a grey of the white text: an emoji. */
-function colored(px: Uint8ClampedArray, i: number): boolean {
-    const r = px[i];
-    const g = px[i + 1];
-    const b = px[i + 2];
-
-    return px[i + 3] > 16 && Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b)) > 24;
 }
 
 /**
@@ -69,7 +65,24 @@ export async function createCanvasText(options: CanvasTextOptions = {}): Promise
         family = `"${font.family}", ${SYSTEM_FONTS}`;
     }
 
-    return new CanvasTextProvider(family, options.scale ?? 2, options.range ?? 12);
+    // run sprites in a worker where the platform can, else on the main thread
+    let worker: Worker | null = null;
+
+    if (options.worker !== false && typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined') {
+        try {
+            worker = new Worker(new URL('./canvas-worker.js', import.meta.url), { type: 'module' });
+        } catch {
+            worker = null;
+        }
+    }
+
+    return new CanvasTextProvider(
+        family,
+        options.scale ?? 2,
+        options.range ?? 12,
+        worker,
+        font === 'system' ? undefined : font,
+    );
 }
 
 /** The text slot provider {@link createCanvasText} returns. */
@@ -82,10 +95,42 @@ export class CanvasTextProvider {
     readonly range: number;
     private _ctx: CanvasRenderingContext2D | null = null;
 
-    constructor(family: string, scale: number, range: number) {
+    private _worker: Worker | null = null;
+    private readonly _pending = new Map<number, { resolve: (raster: RunRaster) => void; request: RunRequest }>();
+    private _nextId = 1;
+
+    constructor(family: string, scale: number, range: number, worker: Worker | null = null, font?: CanvasFont) {
         this.family = family;
         this.scale = scale;
         this.range = range;
+        if (worker) {
+            this._worker = worker;
+            worker.onmessage = (e: MessageEvent) => {
+                const { id, raster } = e.data as { id: number; raster: RunRaster };
+
+                this._pending.get(id)?.resolve(raster);
+                this._pending.delete(id);
+            };
+            // a worker that cannot start (a bundler that did not ship its file): draw here instead
+            worker.onerror = () => {
+                this.destroy();
+                for (const { resolve, request } of this._pending.values())
+                    resolve(rasterizeRun(this._context(), request));
+                this._pending.clear();
+            };
+            if (font) worker.postMessage({ font });
+        }
+    }
+
+    /** True when run sprites are drawn in a worker. */
+    get usesWorker(): boolean {
+        return this._worker !== null;
+    }
+
+    /** Stops the worker. Later slots draw on the main thread. */
+    destroy(): void {
+        this._worker?.terminate();
+        this._worker = null;
     }
 
     /** CSS font shorthand for a style at a size. */
@@ -117,52 +162,49 @@ export class CanvasTextProvider {
         return ctx.measureText(value).width;
     }
 
-    /** Draws a value as a run sprite. See {@link createCanvasText}. */
-    draw(slot: TextSlotRender): RunSprite {
-        const { value, size, style } = slot;
-        const ctx = this._context();
+    /** The request for a slot: bitmap sizes for this provider's scale and range. */
+    private _request(slot: TextSlotRender): RunRequest {
         const s = this.scale;
-        const pad = Math.ceil(this.range / 2) + 1;
-        const font = this.font(style, size * s);
-
-        ctx.font = font;
-        // a multiple of 4: WebGL uploads single-byte rows with 4-byte alignment
-        const width = Math.ceil(Math.max(1, ctx.measureText(value).width + 2 * pad) / 4) * 4;
-        const ascent = Math.ceil(slot.baseline * s);
-        const height = Math.max(1, Math.ceil(slot.height * s + 2 * pad));
-        const canvas = ctx.canvas;
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.font = font;
-        ctx.direction = slotDirection(value);
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = '#fff';
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillText(value, pad, pad + ascent);
-        const px = ctx.getImageData(0, 0, width, height).data;
-        const alpha = new Uint8Array(width * height);
-        let color: Uint8Array | undefined;
-
-        for (let i = 0; i < alpha.length; i++) {
-            if (colored(px, i * 4)) {
-                color ??= new Uint8Array(width * height * 4);
-                color.set(px.subarray(i * 4, i * 4 + 4), i * 4);
-            } else alpha[i] = px[i * 4 + 3];
-        }
 
         return {
-            width,
-            height,
-            pixels: sdfFromAlpha(alpha, width, height, this.range, 0.5, 1),
+            value: slot.value,
+            font: this.font(slot.style, slot.size * s),
+            direction: slotDirection(slot.value),
+            pad: Math.ceil(this.range / 2) + 1,
+            ascent: Math.ceil(slot.baseline * s),
+            height: slot.height * s,
             range: this.range,
-            scale: s,
-            left: -pad / s,
-            top: (pad + ascent) / s,
-            row: slot.row,
-            size,
-            color,
         };
+    }
+
+    private _sprite(slot: TextSlotRender, req: RunRequest, raster: RunRaster): RunSprite {
+        return {
+            ...raster,
+            range: this.range,
+            scale: this.scale,
+            left: -req.pad / this.scale,
+            top: (req.pad + req.ascent) / this.scale,
+            row: slot.row,
+            size: slot.size,
+        };
+    }
+
+    /**
+     * Draws a value as a run sprite. With a worker (the default where `OffscreenCanvas` and
+     * `Worker` exist) the result is a promise and the main thread does no drawing. See
+     * {@link createCanvasText}.
+     */
+    draw(slot: TextSlotRender): RunSprite | Promise<RunSprite> {
+        const req = this._request(slot);
+
+        if (this._worker) {
+            const id = this._nextId++;
+
+            return new Promise<RunRaster>((resolve) => {
+                this._pending.set(id, { resolve, request: req });
+                this._worker?.postMessage({ id, request: req });
+            }).then((raster) => this._sprite(slot, req, raster));
+        }
+        return this._sprite(slot, req, rasterizeRun(this._context(), req));
     }
 }

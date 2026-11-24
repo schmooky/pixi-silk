@@ -136,8 +136,10 @@ for (const renderer of ['webgl', 'webgpu']) {
         ...errors,
     ];
 
+    const worker = requests.some((u) => u.endsWith('/canvas-worker.js'));
+
     console.log(
-        `check-i18n: ${renderer} (${result.renderer}), ${requests.length} requests, ${result.drawn.length} messages`,
+        `check-i18n: ${renderer} (${result.renderer}), ${requests.length} requests, ${result.drawn.length} messages, name sprites ${worker ? 'in a worker' : 'on the main thread'}`,
     );
     for (const d of result.drawn)
         console.log(`  ${d.locale} ${d.name.padEnd(8)} ${String(d.instances).padStart(3)} instances  ${d.text}`);

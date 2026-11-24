@@ -41,7 +41,7 @@ export interface UpdateEvent {
     key?: string;
 }
 
-/** A text slot to draw, as {@link DynamicTextProvider.render} receives it. Sizes in local pixels. */
+/** A text slot to draw, as {@link DynamicTextProvider.draw} receives it. Sizes in local pixels. */
 export interface TextSlotRender {
     /** The value. */
     value: string;
@@ -63,8 +63,11 @@ export interface TextSlotRender {
 export interface DynamicTextProvider {
     /** Width of `value` in pixels at `size`, for layout. */
     measure(value: string, size: number, style: ThemeStyle): number;
-    /** The value as a run sprite: SDF pixels a `SilkBackend` draws as one glyph with the slot's style. */
-    draw(slot: TextSlotRender): RunSprite;
+    /**
+     * The value as a run sprite: SDF pixels a `SilkBackend` draws as one glyph with the slot's style.
+     * A promise when the drawing happens elsewhere (a worker): the slot shows when it resolves.
+     */
+    draw(slot: TextSlotRender): RunSprite | Promise<RunSprite>;
     /** Gets fonts and canvases ready before the first slot draws. Called by `prepare`. Optional. */
     prewarm?(values: readonly string[], size: number): void;
 }
@@ -664,6 +667,7 @@ export class SilkMessage extends Container {
     private readonly _geometry: MessageGeometry;
     private readonly _slots = new Container({ label: 'silk-text-slots' });
     private _slotCount = 0;
+    private _slotToken = 0;
     private readonly _values: Record<string, number | string>;
     private _size: number;
     private _maxWidth: number;
@@ -887,8 +891,10 @@ export class SilkMessage extends Container {
         this._slots.removeChildren();
         const backend = silk.backend;
 
+        const token = ++this._slotToken;
+
         layout.textSlots.forEach((s, i) => {
-            const sprite = silk.dynamicText?.draw({
+            const drawn = silk.dynamicText?.draw({
                 value: s.value,
                 size: this._size,
                 style: styles.resolve(styles.stackOf(s.style)),
@@ -898,12 +904,19 @@ export class SilkMessage extends Container {
                 baseline: s.baseline,
             });
 
-            backend.setRunSprite(this._buffer, i, sprite ?? null);
-            const view = backend.runSprite(this._buffer, i);
+            const show = (sprite: RunSprite | null) => {
+                // a newer layout or a destroyed message: drop the late result
+                if (token !== this._slotToken || this.destroyed) return;
+                backend.setRunSprite(this._buffer, i, sprite);
+                const view = backend.runSprite(this._buffer, i);
 
-            if (!view) return;
-            view.position.set(s.x, s.y + s.baseline);
-            this._slots.addChild(view);
+                if (!view) return;
+                view.position.set(s.x, s.y + s.baseline);
+                this._slots.addChild(view);
+            };
+
+            if (drawn instanceof Promise) void drawn.then(show);
+            else show(drawn ?? null);
         });
         for (let i = layout.textSlots.length; i < this._slotCount; i++) backend.setRunSprite(this._buffer, i, null);
         this._slotCount = layout.textSlots.length;
