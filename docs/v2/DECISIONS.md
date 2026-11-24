@@ -93,7 +93,9 @@ Measured with `packages/compiler/scripts/measure-formats.ts`, as the browser dow
 | shop (en, ar, he) | 3 | 179.9 kB | 128.2 kB | 361.2 kB |
 | world (31 locales, every script) | 19 | 738.5 kB | 533.9 kB | 1335.4 kB |
 
-Lossless WebP is 28% smaller than PNG and decodes to the same pixels (tested). KTX2 with an uncompressed payload is twice the PNG, so it is out (the brief allowed it only if smaller). PNG stays the default because it needs no native dependency. `atlas.format: "webp"` writes WebP and needs the optional `sharp` package.
+Lossless WebP is 28% smaller than PNG and decodes to the same pixels (tested). KTX2 with an uncompressed payload is twice the PNG, so it is out (the brief allowed it only if smaller). WebP is the default when the optional `sharp` package is installed. Without it the compiler writes PNG and warns (`png-pages`). `atlas.format: "png"` keeps PNG without the warning.
+
+AVIF was measured too, on the shop pages. Lossless AVIF is 247.7 kB, 38% larger than the PNG. Lossy WebP subsamples colour and breaks MSDF channels (largest channel error 188 of 255). Lossy AVIF with 4:4:4 colour at quality 90 is 88.9 kB, but moves some edges by up to 30 of 255 (about 1.8 atlas pixels at range 15). Neither lossy format is offered, since distances must arrive unchanged.
 
 ## D12. RUNS encoding
 
@@ -116,7 +118,7 @@ Measured with `pnpm size` (minified, brotli quality 11), and kept by the size ch
 | `pixi-silk/i18n` (core, everything) | 5.79 kB | 20 kB |
 | `pixi-silk/i18n/pixi` (`Silk`, `SilkMessage` and the loader, core included) | 10.66 kB | 12 kB for the Pixi part alone |
 
-Both entries are checked for bidi class names, HarfBuzz, exceljs and Node built-ins. The shop example compiles to `en.silk` 1.19 kB, `ar.silk` 2.09 kB and `he.silk` 1.25 kB brotli, plus three PNG pages of 54, 96 and 29 kB.
+Both entries are checked for bidi class names, HarfBuzz, exceljs and Node built-ins. The shop example compiles to `en.silk` 1.19 kB, `ar.silk` 2.09 kB and `he.silk` 1.25 kB brotli. Its three atlas pages are 40, 68 and 20 kB as lossless WebP (54, 96 and 29 kB as PNG).
 
 ## D16. Names that differ from the brief
 

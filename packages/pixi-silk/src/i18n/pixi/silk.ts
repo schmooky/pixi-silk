@@ -308,8 +308,8 @@ export class Silk {
     }
 
     /**
-     * Puts a bundle in use: uploads its glyph metrics and loads its atlas pages (lossless PNG,
-     * loaded without premultiplied alpha or colour conversion, so distances arrive unchanged).
+     * Puts a bundle in use: uploads its glyph metrics and loads its atlas pages (lossless WebP
+     * or PNG, loaded without premultiplied alpha or colour conversion, so distances arrive unchanged).
      * Page files resolve against the bundle's URL, and bundles that share a page (locales of one
      * script) load it once. `loadPage` replaces the loading, for tests or custom asset pipelines.
      */

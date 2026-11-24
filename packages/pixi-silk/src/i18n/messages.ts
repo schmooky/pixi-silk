@@ -39,7 +39,7 @@ export interface BundleFace {
 export interface BundlePage {
     /** Global page id, shared by every bundle of one compile. */
     id: number;
-    /** File, relative to the bundle, such as `atlas/latin-0.png`. */
+    /** File, relative to the bundle, such as `atlas/latin-0.webp`. */
     file: string;
     /** 0 msdf, 1 sdf, 2 mtsdf. */
     kind: number;

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { RunFlag, readBundle } from 'pixi-silk/i18n';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { compileProject } from '../src/compile';
 import { loadProject } from '../src/project';
 import { CORPUS } from './corpus';
@@ -137,12 +137,12 @@ describe('atlas and outputs', () => {
     it('groups pages by script and shares them between locales', async () => {
         const r = compileProject(await fixtureProject());
 
-        expect(r.atlas.pages.map((p) => p.file)).toEqual(['arabic-0.png', 'hebrew-0.png', 'latin-0.png']);
+        expect(r.atlas.pages.map((p) => p.file)).toEqual(['arabic-0.webp', 'hebrew-0.webp', 'latin-0.webp']);
         const en = r.debug.get('en') as { pages: string[] };
         const ar = r.debug.get('ar') as { pages: string[] };
 
-        expect(en.pages).toEqual(['latin-0.png']);
-        expect(ar.pages).toContain('arabic-0.png');
+        expect(en.pages).toEqual(['latin-0.webp']);
+        expect(ar.pages).toContain('arabic-0.webp');
     });
 
     it('derives the distance range from the theme and warns when an effect clips', () => {
@@ -173,7 +173,7 @@ describe('per-chunk bundles (--split-by, M6)', () => {
 
         expect(player.messages.length / 6).toBe(1);
         expect(shop.messages.length / 6).toBe(3);
-        expect((r.debug.get('en.player') as { pages: string[] }).pages).toEqual(['latin-0.png']);
+        expect((r.debug.get('en.player') as { pages: string[] }).pages).toEqual(['latin-0.webp']);
     });
 });
 
@@ -192,6 +192,57 @@ describe('missing weights', () => {
 });
 
 describe('atlas page formats (D11)', () => {
+    it('writes WebP by default when sharp is installed, PNG when asked', async () => {
+        const p = await fixtureProject();
+        const webp = compileProject(p);
+
+        expect(webp.atlas.pages.every((page) => page.file.endsWith('.webp'))).toBe(true);
+        expect(webp.diagnostics.some((d) => d.code === 'png-pages')).toBe(false);
+        p.config.atlas = { ...p.config.atlas, format: 'png' };
+        const png = compileProject(p);
+
+        expect(png.atlas.pages.every((page) => page.file.endsWith('.png'))).toBe(true);
+        expect(png.diagnostics.some((d) => d.code === 'png-pages')).toBe(false);
+    });
+
+    it('keeps the colour of transparent pixels on mtsdf pages', async () => {
+        const { encodeAtlasPages } = await import('../src/atlas/pack');
+        const sharp = (await import('sharp')).default;
+        const p = await fixtureProject();
+
+        p.config.atlas = { ...p.config.atlas, kind: 'mtsdf', format: 'webp' };
+        const r = compileProject(p);
+        const files = await encodeAtlasPages(r.atlas);
+
+        for (const page of r.atlas.pages) {
+            const a = await sharp(Buffer.from(page.png)).ensureAlpha().raw().toBuffer();
+            const b = await sharp(Buffer.from(files.get(page.file) as Uint8Array))
+                .ensureAlpha()
+                .raw()
+                .toBuffer();
+
+            expect(b.equals(a)).toBe(true);
+        }
+    });
+
+    it('falls back to PNG with a warning when sharp is missing', async () => {
+        vi.resetModules();
+        vi.doMock('../src/atlas/pack', async (load) => ({
+            ...(await load<typeof import('../src/atlas/pack')>()),
+            canWriteWebp: () => false,
+        }));
+        try {
+            const { compileProject: compile } = await import('../src/compile');
+            const r = compile(await fixtureProject());
+
+            expect(r.atlas.pages.every((page) => page.file.endsWith('.png'))).toBe(true);
+            expect(r.diagnostics.find((d) => d.code === 'png-pages')?.severity).toBe('warning');
+        } finally {
+            vi.doUnmock('../src/atlas/pack');
+            vi.resetModules();
+        }
+    });
+
     it('writes lossless WebP pages with the same pixels as the PNG', async () => {
         const { encodeAtlasPages } = await import('../src/atlas/pack');
         const sharp = (await import('sharp')).default;

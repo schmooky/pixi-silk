@@ -23,7 +23,7 @@ import {
     type ThemeStyle,
     VARIANT_STRIDE,
 } from 'pixi-silk/i18n';
-import { type Atlas, buildAtlas, type GlyphRequest } from './atlas/pack';
+import { type Atlas, buildAtlas, canWriteWebp, type GlyphRequest } from './atlas/pack';
 import { type CatalogMessage, type Diagnostic, pluralCategories } from './author/lint';
 import type { FixedLayout, SlotDecl } from './config';
 import { emitMessagesDts } from './emit/dts';
@@ -129,7 +129,7 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
         kind: config.atlas?.kind ?? 'msdf',
         emSize: config.atlas?.emSize ?? 40,
         maxPageSize: config.atlas?.maxPageSize ?? 1024,
-        format: config.atlas?.format ?? 'png',
+        format: config.atlas?.format ?? (canWriteWebp() ? 'webp' : 'png'),
         emSizeByScript: { ...DEFAULT_EM_BY_SCRIPT, ...config.atlas?.emSizeByScript },
     };
     const allStyles = { base: theme.base ?? {}, ...(theme.styles ?? {}) };
@@ -142,6 +142,14 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
     const distanceRange = config.atlas?.distanceRange || fromTheme.range;
 
     diagnostics.push(...fromTheme.warnings);
+    if (!config.atlas?.format && atlasConfig.format === 'png') {
+        diagnostics.push({
+            severity: 'warning',
+            code: 'png-pages',
+            message:
+                'atlas pages are written as PNG because the sharp package is not installed. Install sharp for lossless WebP pages, about 28% smaller with the same pixels, or set atlas.format to "png" to keep PNG',
+        });
+    }
     const shapedByLocale = new Map<string, ShapedMessage[]>();
     const requests: GlyphRequest[] = [];
     const digitTables = new Map<string, Map<string, DigitTable>>();
