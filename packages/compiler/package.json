@@ -1,6 +1,6 @@
 {
   "name": "@pixi-silk/compiler",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Build-time compiler for pixi-silk localized text: imports spreadsheets, lints messages, shapes them with HarfBuzz, bakes MSDF atlases and writes .silk bundles.",
   "type": "module",
   "license": "MIT",
