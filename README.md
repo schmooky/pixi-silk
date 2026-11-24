@@ -42,6 +42,9 @@ imports.
 |---|---|
 | `pixi-silk` | Shapes, lines, free paths, shape operations, gradients, blur and shadows |
 | `pixi-silk/text` | `SilkText`, distance field text |
+| `pixi-silk/i18n`, `pixi-silk/i18n/pixi` | Localized rich text, shaped at build time, in any script |
+| `pixi-silk/i18n/canvas`, `pixi-silk/i18n/shaper` | Player names inside localized messages |
+| `pixi-silk/text/bidi` | The Unicode Bidirectional Algorithm on its own |
 | `pixi-silk/layout`, `pixi-silk/ui/layout` | A flex layout engine and the Pixi containers built on it |
 | `pixi-silk/glass`, `pixi-silk/glow` | Glass and glow filters |
 | `pixi-silk/webgpu` | The WGSL shader, for WebGPU in your own Pixi app |
@@ -51,6 +54,40 @@ imports.
 [Choose an entry point](https://pixi-silk.schmooky.dev/docs/choose-an-entry-point/) lists every
 subpath. The editor kit (camera, rulers, gizmos, pickers, panels) is experimental in 1.0: its API
 may change in a minor release.
+
+## Localized text
+
+Translated messages in any script, Arabic and Hebrew included, are compiled ahead of time. The
+`silk` command of `@pixi-silk/compiler` reads a strings spreadsheet, your fonts and a theme. It
+shapes every message with HarfBuzz and writes `.silk` bundles and lossless WebP atlas pages. The
+game then downloads no font and no shaper.
+
+```bash
+npm install -D @pixi-silk/compiler
+npx silk compile --config silk.config.json --strings strings.xlsx --theme theme.json --out public/i18n
+```
+
+```ts
+import { Assets, extensions } from 'pixi.js';
+import { Silk, SilkMessage, silkBundleLoader } from 'pixi-silk/i18n/pixi';
+
+extensions.add(silkBundleLoader);
+const silk = await Silk.create();
+
+await silk.addBundle(await Assets.load('/i18n/ar.silk'));
+const theme = silk.createTheme(await (await fetch('/i18n/theme.json')).json());
+const set = await silk.prepare({
+    locale: 'ar',
+    theme,
+    messages: { coins: { key: 'shop.coins', values: { count: 0 } } },
+});
+const coins = new SilkMessage(set.get('coins'));
+
+app.stage.addChild(coins);
+coins.set({ count: 1250 }); // rewrites only the digits
+```
+
+[Localized text](https://pixi-silk.schmooky.dev/docs/localized-text/) has the guide.
 
 ## Requirements
 
