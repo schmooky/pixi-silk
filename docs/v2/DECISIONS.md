@@ -70,13 +70,20 @@ Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on
 
 kb_text_shape WASM against HarfBuzz HB_TINY (built with `-Oz`, LTO and `wasm-opt -Oz`, exporting only the shaping calls), compared on compressed size, Arabic results and speed. Not built: this machine has no emscripten, and the user chose to defer it rather than install a toolchain of about 1 GB. What ships is the contract the plugin implements: `RuntimeShaper`, `fontHash` (the compiler's 64-bit face hash, tested equal on real fonts) and `sameFont`. Text slots use the canvas path meanwhile (D18).
 
-## D11. Atlas page format (to measure in M2)
+## D11. Atlas page format
 
-Lossless PNG, lossless WebP, and KTX2 (raw data with Zstd), compared after brotli.
+Measured with `packages/compiler/scripts/measure-formats.ts`, as the browser downloads each file:
 
-## D12. RUNS encoding (to measure in M2)
+| Example | Pages | PNG | Lossless WebP | KTX2, raw + Zstd 19 |
+|---|---|---|---|---|
+| shop (en, ar, he) | 3 | 179.9 kB | 128.2 kB | 361.2 kB |
+| world (31 locales, every script) | 19 | 738.5 kB | 533.9 kB | 1335.4 kB |
 
-Plain i16 columns against delta-encoded clusters, compared after brotli.
+Lossless WebP is 28% smaller than PNG and decodes to the same pixels (tested). KTX2 with an uncompressed payload is twice the PNG, so it is out (the brief allowed it only if smaller). PNG stays the default because it needs no native dependency. `atlas.format: "webp"` writes WebP and needs the optional `sharp` package.
+
+## D12. RUNS encoding
+
+Delta-encoding the cluster column saves 0.0 kB on the shop bundles and 0.2 kB of 26.8 kB (under 1%) on the world bundles after brotli. Runs stay plain i16 and u16 columns, which the runtime reads with no decoding step.
 
 ## D13. Line breaking in the compiler
 

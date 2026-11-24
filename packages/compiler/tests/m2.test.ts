@@ -190,3 +190,28 @@ describe('missing weights', () => {
         expect(r.bundles.size).toBe(1);
     });
 });
+
+describe('atlas page formats (D11)', () => {
+    it('writes lossless WebP pages with the same pixels as the PNG', async () => {
+        const { encodeAtlasPages } = await import('../src/atlas/pack');
+        const sharp = (await import('sharp')).default;
+        const p = await fixtureProject();
+
+        p.config.atlas = { ...p.config.atlas, format: 'webp' };
+        const r = compileProject(p);
+        const files = await encodeAtlasPages(r.atlas);
+
+        expect([...files.keys()]).toEqual(['arabic-0.webp', 'hebrew-0.webp', 'latin-0.webp']);
+        const ar = readBundle(r.bundles.get('ar')?.slice().buffer as ArrayBuffer);
+
+        expect(ar.strings).toContain('atlas/arabic-0.webp');
+        for (const page of r.atlas.pages) {
+            const webp = files.get(page.file) as Uint8Array;
+            const a = await sharp(Buffer.from(page.png)).raw().toBuffer();
+            const b = await sharp(Buffer.from(webp)).raw().toBuffer();
+
+            expect(webp.length).toBeLessThan(page.png.length);
+            expect(b.equals(a)).toBe(true);
+        }
+    });
+});

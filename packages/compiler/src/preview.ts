@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { encodeAtlasPages } from './atlas/pack';
 import { formatDiagnostic } from './author/lint';
 import { compileProject } from './compile';
 import { loadProject } from './project';
@@ -26,6 +27,7 @@ const TYPES: Record<string, string> = {
     '.css': 'text/css',
     '.json': 'application/json',
     '.png': 'image/png',
+    '.webp': 'image/webp',
 };
 
 /** The folder of an installed package, found from its resolved entry file. */
@@ -63,7 +65,7 @@ export async function startPreview(options: PreviewOptions): Promise<Server> {
         const files = new Map<string, Uint8Array>();
 
         for (const [name, bytes] of result.bundles) files.set(`/i18n/${name}.silk`, bytes);
-        for (const page of result.atlas.pages) files.set(`/i18n/atlas/${page.file}`, page.png);
+        for (const [file, bytes] of await encodeAtlasPages(result.atlas)) files.set(`/i18n/atlas/${file}`, bytes);
         files.set('/i18n/theme.json', new Uint8Array(readFileSync(options.theme)));
         const version = state.version + 1;
 

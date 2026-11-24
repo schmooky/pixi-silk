@@ -14,6 +14,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { brotliCompressSync, constants } from 'node:zlib';
+import { encodeAtlasPages } from './atlas/pack';
 import { type Diagnostic, formatDiagnostic, lintRows } from './author/lint';
 import { compileProject } from './compile';
 import { checkKeys, exportWorkbook, mergeTranslations, writeWorkbook } from './exchange';
@@ -28,6 +29,7 @@ const USAGE = `usage: silk <compile|bake|lint|size|export|import|preview> [optio
   --emit-json         also write <locale>.debug.json
   --split-by <mode>   sheet or keyPrefix: one bundle per chunk
   --allow-csv         accept a UTF-8 CSV with a byte order mark
+  --atlas-kind <kind> msdf, sdf or mtsdf: overrides atlas.kind of the config
   --locale <locale>   export and import: the target locale
   --file <file>       export and import: the translator workbook
   --write             import: write the merged strings back
@@ -68,6 +70,7 @@ async function main(argv: string[]): Promise<number> {
                 'emit-json': { type: 'boolean', default: false },
                 'split-by': { type: 'string' },
                 'allow-csv': { type: 'boolean', default: false },
+                'atlas-kind': { type: 'string' },
                 locale: { type: 'string' },
                 file: { type: 'string' },
                 write: { type: 'boolean', default: false },
@@ -107,6 +110,15 @@ async function main(argv: string[]): Promise<number> {
         case 'compile':
         case 'bake': {
             const project = await loadProject(inputs);
+            const kind = o['atlas-kind'];
+
+            if (kind !== undefined) {
+                if (kind !== 'msdf' && kind !== 'sdf' && kind !== 'mtsdf') {
+                    console.error(`silk: --atlas-kind must be msdf, sdf or mtsdf\n${USAGE}`);
+                    return 2;
+                }
+                project.config.atlas = { ...project.config.atlas, kind };
+            }
 
             if (
                 report(
@@ -120,7 +132,8 @@ async function main(argv: string[]): Promise<number> {
             if (report(result.diagnostics, o.quiet)) return 1;
             mkdirSync(join(o.out, 'atlas'), { recursive: true });
             for (const [name, bytes] of result.bundles) writeFileSync(join(o.out, `${name}.silk`), bytes);
-            for (const page of result.atlas.pages) writeFileSync(join(o.out, 'atlas', page.file), page.png);
+            for (const [file, bytes] of await encodeAtlasPages(result.atlas))
+                writeFileSync(join(o.out, 'atlas', file), bytes);
             writeFileSync(join(o.out, 'atlas', 'pages.json'), `${JSON.stringify(result.manifest, null, 2)}\n`);
             writeFileSync(join(o.out, 'messages.d.ts'), result.dts);
             if (o['emit-json']) {

@@ -136,6 +136,9 @@ importers:
       pixi.js:
         specifier: ^8.21.0
         version: 8.21.0
+      sharp:
+        specifier: ^0.35.4
+        version: 0.35.4(@types/node@26.6.6)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(@arethetypeswrong/core@0.18.5)(@volar/typescript@2.4.28)(publint@0.3.24)(typescript@7.0.2)

@@ -44,7 +44,7 @@ export interface AtlasPage {
     width: number;
     /** Height in pixels. */
     height: number;
-    /** Lossless PNG. */
+    /** Lossless PNG of the page, whatever `file`'s format (see {@link encodeAtlasPages}). */
     png: Uint8Array;
     /** Glyphs on the page. */
     glyphs: number;
@@ -72,6 +72,8 @@ export interface AtlasOptions {
     distanceRange: number;
     /** Largest page side. */
     maxPageSize: number;
+    /** File format the pages will be written in: sets the file extension. Default `png`. */
+    format?: 'png' | 'webp';
 }
 
 const GAP = 1;
@@ -136,7 +138,7 @@ export function buildAtlas(
                 });
             }
             pages.push({
-                file: `${script}-${index++}.png`,
+                file: `${script}-${index++}.${options.format ?? 'png'}`,
                 script,
                 kind: options.kind,
                 width,
@@ -200,4 +202,29 @@ function packPage(items: Item[], max: number) {
     if (r.placed.length === 0) throw new Error(`a glyph is larger than the ${max} px page`);
 
     return { ...r, width: max, height: max };
+}
+
+/**
+ * The bytes of every page in the format its file name says: the PNG as is, or lossless WebP made
+ * from it with the optional `sharp` package. Pixels are identical either way.
+ */
+export async function encodeAtlasPages(atlas: Atlas): Promise<Map<string, Uint8Array>> {
+    const out = new Map<string, Uint8Array>();
+
+    for (const page of atlas.pages) {
+        if (!page.file.endsWith('.webp')) {
+            out.set(page.file, page.png);
+            continue;
+        }
+        let sharp: (input: Uint8Array) => { webp(o: object): { toBuffer(): Promise<Uint8Array> } };
+
+        try {
+            sharp = (await import('sharp' as string)).default;
+        } catch {
+            throw new Error('atlas.format "webp" needs the sharp package: npm install sharp, or use "png"');
+        }
+        out.set(page.file, new Uint8Array(await sharp(page.png).webp({ lossless: true, effort: 6 }).toBuffer()));
+    }
+
+    return out;
 }

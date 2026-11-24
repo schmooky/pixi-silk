@@ -17,7 +17,8 @@
  * Runs the installed Google Chrome (CHROME_PATH overrides) with WebGPU on. CHROME_ARGS replaces
  * the launch flags, which the Windows workflow uses to run WebGL2 on ANGLE's Direct3D 11 backend.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,6 +55,34 @@ const page = /* html */ `<!doctype html>
 <script type="module" src="/scripts/render-cases.js"></script>`;
 
 const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html', '.map': 'application/json' };
+// the i18n glyph-kind cases read the shop example compiled as msdf, sdf and mtsdf pages
+const cli = join(root, 'packages/compiler/dist/cli.mjs');
+
+if (existsSync(cli)) {
+    const fixtures = join(root, 'packages/compiler/fixtures');
+
+    for (const kind of ['msdf', 'sdf', 'mtsdf']) {
+        const out = join(root, 'packages/compiler/.cache/render', kind);
+
+        execFileSync('node', [
+            cli,
+            'compile',
+            '--config',
+            join(fixtures, 'silk.config.json'),
+            '--strings',
+            join(fixtures, 'strings.xlsx'),
+            '--theme',
+            join(fixtures, 'theme.json'),
+            '--out',
+            out,
+            '--atlas-kind',
+            kind,
+            '--quiet',
+        ]);
+        copyFileSync(join(fixtures, 'theme.json'), join(out, 'theme.json'));
+    }
+} else console.log('check-render: build @pixi-silk/compiler to include the glyph-kind cases');
+
 const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
 

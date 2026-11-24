@@ -36,6 +36,11 @@ export interface AtlasConfig {
     distanceRange?: number;
     /** Largest page side in pixels. Default 1024. */
     maxPageSize?: number;
+    /**
+     * File format of the pages. `png` needs nothing. `webp` (lossless) is about 28% smaller and needs
+     * the `sharp` package installed (see docs/v2/DECISIONS.md D11). Default `png`.
+     */
+    format?: 'png' | 'webp';
     /** Smallest text size the theme's effects must fit at, in pixels. Sets the derived distance range. Default 24. */
     minSize?: number;
     /** Largest derived distance range in atlas pixels. Effects that need more clip, with a warning. Default 16. */

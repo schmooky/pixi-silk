@@ -115,6 +115,7 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
         kind: config.atlas?.kind ?? 'msdf',
         emSize: config.atlas?.emSize ?? 40,
         maxPageSize: config.atlas?.maxPageSize ?? 1024,
+        format: config.atlas?.format ?? 'png',
     };
     const allStyles = { base: theme.base ?? {}, ...(theme.styles ?? {}) };
     const fromTheme = distanceRangeFor(

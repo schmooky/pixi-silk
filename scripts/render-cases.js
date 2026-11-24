@@ -638,6 +638,60 @@ if (i18n) {
         return root;
     };
 
+    // glyph kinds: the same Arabic and English lines from sdf and mtsdf pages, against msdf
+    const kinds = {};
+
+    for (const kind of ['msdf', 'sdf', 'mtsdf']) {
+        const base = `/packages/compiler/.cache/render/${kind}`;
+        const response = await fetch(`${base}/ar.silk`);
+
+        if (!response.ok) continue;
+        const silk = await Silk.create({ devEvents: false });
+
+        for (const l of ['en', 'ar']) {
+            await silk.addBundle(
+                new SilkBundle(await (await fetch(`${base}/${l}.silk`)).arrayBuffer(), `${base}/${l}.silk`),
+            );
+        }
+        kinds[kind] = { silk, theme: silk.createTheme(await (await fetch(`${base}/theme.json`)).json()) };
+    }
+    const kindScene = ({ silk, theme }) => {
+        const root = new Container();
+
+        [
+            ['ar', 'shop.title', 34, {}],
+            ['ar', 'shop.coins', 20, { count: 1250 }],
+            ['en', 'shop.title', 34, {}],
+            ['en', 'shop.terms', 16, {}],
+        ].forEach(([locale, key, size, values], i) => {
+            const bundle = silk.bundles.get(locale);
+            const m = new SilkMessage({
+                silk,
+                bundle,
+                index: bundle.message(key),
+                theme,
+                spec: { key, size, maxWidth: 240, align: 'start', lineHeight: 1.35, style: '', values },
+            });
+
+            m.position.set(8, 12 + i * 60);
+            root.addChild(m);
+        });
+        return root;
+    };
+
+    for (const kind of ['sdf', 'mtsdf']) {
+        if (!kinds[kind] || !kinds.msdf) continue;
+        // a single-channel field rounds sharp corners: allow 2% of the covered pixels to differ for
+        // sdf (about 0.9% do), the usual 40 for mtsdf, whose colour channels keep the corners
+        cases[`i18n-kind-${kind}`] = () => ({
+            scene: kindScene(kinds[kind]),
+            ref: kindScene(kinds.msdf),
+            kind: 'coverage',
+            limit: kind === 'sdf' ? 190 : 40,
+            warm: true,
+        });
+    }
+
     cases['i18n-batch-50'] = () => ({
         scene: fifty(true),
         ref: fifty(false),
@@ -935,7 +989,7 @@ function checkExact(px, g, scale) {
 }
 
 /** Compares where two scenes are more than half covered, by alpha. A few edge pixels may differ. */
-function checkCoverage(a, b) {
+function checkCoverage(a, b, limit = 40) {
     let differ = 0;
     let inside = 0;
     let at = '';
@@ -950,7 +1004,7 @@ function checkCoverage(a, b) {
     return {
         note: `${differ} of ${inside} covered pixels differ`,
         at,
-        failures: differ > 40 ? [`${differ} pixels differ in coverage (first at ${at})`] : [],
+        failures: differ > limit ? [`${differ} pixels differ in coverage (first at ${at})`] : [],
     };
 }
 
@@ -995,7 +1049,7 @@ window.renderCases = async ({ only, png }) => {
         else if (c.kind === 'exact') res = checkExact(px, c.hit, c.scale);
         else if (c.kind === 'none') res = { note: 'compared between renderers', failures: [] };
         else if (c.kind === 'coverage') {
-            res = checkCoverage(px, await draw(c.ref));
+            res = checkCoverage(px, await draw(c.ref), c.limit);
             if (png && res.at) out.push({ name: `${name}-ref`, failures: [], raw: '', png: toPng(await draw(c.ref)) });
         } else {
             draws.count = 0;

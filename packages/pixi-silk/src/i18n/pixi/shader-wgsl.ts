@@ -141,6 +141,15 @@ fn distanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>) -> f32 {
     return (v - 0.5) * p.z / info.y;
 }
 
+// the true distance, for soft effects: alpha of mtsdf pages, the median elsewhere
+fn softDistanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>) -> f32 {
+    let p = page(info.x);
+    let s = sampleAtlas(info.x, uv, cell);
+    let v = select(select(median3(s.rgb), s.r, p.w > 0.5 && p.w < 1.5), s.a, p.w > 1.5);
+
+    return (v - 0.5) * p.z / info.y;
+}
+
 fn over(top: vec4<f32>, bottom: vec4<f32>) -> vec4<f32> {
     return top + bottom * (1.0 - top.a);
 }
@@ -174,14 +183,15 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
         let reach = max(0.5 * page(input.vInfo.x).z / input.vInfo.y - aa, 0.0);
         let ow = min(fx.x, reach);
         let room = max(reach - ow, 0.0);
-        let ss = distanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell) + bias + ow;
+        let ss = softDistanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell) + bias + ow;
+        let soft = softDistanceAt(input.vUv, input.vInfo, input.vCell) + bias;
 
         if (shadow.a > 0.0) {
             let blur = min(fx.z * 4.0, 2.0 * room);
             color = premul(shadow, smoothstep(-0.5 * blur - aa * 0.5, 0.5 * blur + aa * 0.5, ss));
         }
         if (glow.a > 0.0 && fx.y > 0.0) {
-            let g = clamp(1.0 + (sd + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
+            let g = clamp(1.0 + (soft + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
             color = over(premul(glow, g * g), color);
         }
         if (outline.a > 0.0 && ow > 0.0) {

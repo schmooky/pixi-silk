@@ -162,6 +162,14 @@ float distanceAt(vec2 uv) {
     return (v - 0.5) * p.z / vInfo.y;
 }
 
+// the true distance, for soft effects: alpha of mtsdf pages, the median elsewhere
+float softDistanceAt(vec2 uv) {
+    vec4 p = page(vInfo.x);
+
+    if (p.w < 1.5) return distanceAt(uv);
+    return (sampleAtlas(vInfo.x, uv).a - 0.5) * p.z / vInfo.y;
+}
+
 vec4 over(vec4 top, vec4 bottom) {
     return top + bottom * (1.0 - top.a);
 }
@@ -200,13 +208,13 @@ void main(void)
         color = vec4(0.0);
         if (shadow.a > 0.0) {
             float blur = min(fx.z * 4.0, 2.0 * room);
-            float ss = distanceAt(vUv - s5.xy * vInfo.y) + bias + ow;
+            float ss = softDistanceAt(vUv - s5.xy * vInfo.y) + bias + ow;
             float cov = smoothstep(-0.5 * blur - aa * 0.5, 0.5 * blur + aa * 0.5, ss);
 
             color = premul(shadow, cov);
         }
         if (glow.a > 0.0 && fx.y > 0.0) {
-            float g = clamp(1.0 + (sd + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
+            float g = clamp(1.0 + (softDistanceAt(vUv) + bias + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
 
             color = over(premul(glow, g * g), color);
         }
