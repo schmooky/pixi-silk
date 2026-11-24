@@ -242,3 +242,23 @@ describe('the Pixi backend (brief sec. 2.3)', () => {
         expect(backend.pages.size).toBe(2);
     });
 });
+
+describe('page arrays', () => {
+    it('builds array variants of both shaders that sample one texture array', async () => {
+        const { messageFragmentArray } = await import('../src/i18n/pixi/shader');
+        const { messageWgslArray } = await import('../src/i18n/pixi/shader-wgsl');
+        const { minifyGlsl } = await import('../build/glsl');
+
+        for (const source of [messageFragmentArray, messageWgslArray]) {
+            expect(source).toContain('uAtlasArray');
+            expect(source).not.toContain('uAtlas0');
+            expect(source).not.toMatch(/fn page\(|vec4 page\(/);
+        }
+        // the same holds after the build strips comments and whitespace
+        const { messageFragment } = await import('../src/i18n/pixi/shader');
+
+        expect(
+            minifyGlsl(messageFragment).replace(/uniform sampler2D uAtlas0;[\s\S]*?(?=out vec4 finalColor;)/, ''),
+        ).not.toContain('uAtlas1');
+    });
+});

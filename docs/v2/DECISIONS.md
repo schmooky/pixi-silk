@@ -64,7 +64,9 @@ Production bundles store a 32-bit FNV-1a hash of each key. The compiler fails on
 
 ## D9. Atlas binding
 
-Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on WebGL2 and WebGPU. SilkMessage binds up to four atlas pages as separate textures and picks one per glyph with the page slot in the glyph metrics. A bundle with more than four pages warns and should be split with `--split-by`. The shop example uses two pages per locale. Texture arrays have not been spiked yet. They would lift the four-page limit and are an optimization, not a format change.
+A bundle with up to four pages binds them as four textures, and the shader picks one per glyph. A bundle with more pages binds them as one `2d-array` texture, with the page slot as the layer, so it still draws in one call. Layers are as large as the largest page.
+
+Pixi 8.21 allocates array textures but has no uploader for array data. `pixi-silk/i18n/pixi` brings its own (`PageArraySource`, one `texSubImage3D` or `copyExternalImageToTexture` per layer). It adds the uploader to the renderer passed to `Silk.create({ renderer })`. Without a renderer, or on WebGL1, more than four pages still warn. Each glyph's metrics now carry its page's distance range and kind, so neither shader variant needs per-page uniforms for distances. The render case `i18n-page-array` draws the shop compiled on 128-pixel pages (7 pages) against the normal bundle: max difference 1 on WebGL2 and WebGPU.
 
 ## D10. Runtime shaper (deferred)
 

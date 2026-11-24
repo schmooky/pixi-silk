@@ -61,7 +61,8 @@ const cli = join(root, 'packages/compiler/dist/cli.mjs');
 if (existsSync(cli)) {
     const fixtures = join(root, 'packages/compiler/fixtures');
 
-    for (const kind of ['msdf', 'sdf', 'mtsdf']) {
+    // 'many': the shop on 128-pixel pages, so a bundle draws from more than four of them
+    for (const kind of ['msdf', 'sdf', 'mtsdf', 'many']) {
         const out = join(root, 'packages/compiler/.cache/render', kind);
 
         execFileSync('node', [
@@ -76,7 +77,8 @@ if (existsSync(cli)) {
             '--out',
             out,
             '--atlas-kind',
-            kind,
+            kind === 'many' ? 'msdf' : kind,
+            ...(kind === 'many' ? ['--max-page-size', '128'] : []),
             '--quiet',
         ]);
         copyFileSync(join(fixtures, 'theme.json'), join(out, 'theme.json'));

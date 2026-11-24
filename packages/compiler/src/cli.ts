@@ -30,6 +30,7 @@ const USAGE = `usage: silk <compile|bake|lint|size|export|import|preview> [optio
   --split-by <mode>   sheet or keyPrefix: one bundle per chunk
   --allow-csv         accept a UTF-8 CSV with a byte order mark
   --atlas-kind <kind> msdf, sdf or mtsdf: overrides atlas.kind of the config
+  --max-page-size <n> largest page side in pixels: overrides atlas.maxPageSize
   --locale <locale>   export and import: the target locale
   --file <file>       export and import: the translator workbook
   --write             import: write the merged strings back
@@ -71,6 +72,7 @@ async function main(argv: string[]): Promise<number> {
                 'split-by': { type: 'string' },
                 'allow-csv': { type: 'boolean', default: false },
                 'atlas-kind': { type: 'string' },
+                'max-page-size': { type: 'string' },
                 locale: { type: 'string' },
                 file: { type: 'string' },
                 write: { type: 'boolean', default: false },
@@ -118,6 +120,9 @@ async function main(argv: string[]): Promise<number> {
                     return 2;
                 }
                 project.config.atlas = { ...project.config.atlas, kind };
+            }
+            if (o['max-page-size'] !== undefined) {
+                project.config.atlas = { ...project.config.atlas, maxPageSize: Number(o['max-page-size']) };
             }
 
             if (

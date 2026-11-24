@@ -5,6 +5,7 @@
  */
 export { PixiBackend, PixiStyleRows } from './i18n/pixi/backend';
 export { MessageGeometry } from './i18n/pixi/geometry';
+export { installPageArrays, PageArraySource, type PageLayer } from './i18n/pixi/page-array';
 export {
     type DynamicTextMode,
     type DynamicTextProvider,

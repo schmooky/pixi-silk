@@ -26,6 +26,7 @@ import { StyleTable } from '../styles';
 import { STYLE_FLOATS, type ThemeData, type ThemeStyle } from '../theme';
 import { PixiBackend, PixiStyleRows } from './backend';
 import { MessageGeometry } from './geometry';
+import { installPageArrays, PageArraySource } from './page-array';
 import { createMessageShader } from './shader';
 
 /** The update tiers of brief sec. 6.3, cheapest first. */
@@ -165,6 +166,8 @@ function emOf(size: InlineObject['size'], fallback: number): number {
 /** @internal GPU side of a bundle: its glyph metrics texture and atlas pages. */
 interface BundleGpu {
     metrics: BufferImageSource;
+    /** Every page as one array texture, for bundles with more than four pages. */
+    array?: PageArraySource;
     pages: TextureSource[];
     pageInfo: Float32Array[];
 }
@@ -265,6 +268,8 @@ export class Silk {
     /** The PixiJS backend: atlas pages, text buffers and run sprites (brief sec. 2.3). */
     readonly backend: PixiBackend = new PixiBackend();
     private readonly _gpu = new Map<SilkBundle, BundleGpu>();
+    /** The renderer can bind every page of a bundle as one array texture. */
+    private readonly _arrays: boolean;
     /** Atlas pages by URL, shared by every bundle that draws from them, with their user counts. */
     private readonly _pages = new Map<string, { id: number; ready: Promise<TextureSource>; users: number }>();
     private readonly _inline = new Map<string, InlineObject>();
@@ -274,6 +279,7 @@ export class Silk {
 
     private constructor(options: SilkOptions, dynamicText: DynamicTextProvider | null) {
         this.dynamicText = dynamicText;
+        this._arrays = options.renderer ? installPageArrays(options.renderer) : false;
         this._devEvents = options.devEvents ?? true;
     }
 
@@ -314,14 +320,29 @@ export class Silk {
         if (this._gpu.has(bundle)) return;
         const pages = bundle.pages();
 
+        // more than four pages: one array texture when the renderer can (Silk.create({ renderer }))
+        let array: PageArraySource | undefined;
+
         if (pages.length > 4) {
-            this.warn(
-                `bundle ${bundle.locale} draws from ${pages.length} atlas pages: only 4 are bound per draw. Split it with --split-by`,
-            );
+            if (this._arrays) {
+                const layers = await Promise.all(
+                    pages.map(async (p) => ({
+                        pixels: await loadPage(resolveUrl(bundle.url, p.file), p),
+                        width: p.width,
+                        height: p.height,
+                    })),
+                );
+
+                array = new PageArraySource(layers, `silk-pages-${bundle.id}`);
+            } else {
+                this.warn(
+                    `bundle ${bundle.locale} draws from ${pages.length} atlas pages: only 4 are bound per draw. Pass the renderer to Silk.create to bind them as one array texture, or split the bundle with --split-by`,
+                );
+            }
         }
         // locales share pages by script: load each page once
         const sources = await Promise.all(
-            pages.slice(0, 4).map((p) => {
+            (array ? [] : pages.slice(0, 4)).map((p) => {
                 const url = resolveUrl(bundle.url, p.file);
                 let entry = this._pages.get(url);
 
@@ -365,8 +386,9 @@ export class Silk {
                     g[o + 7],
                     g[o + 8],
                     page.emSize / upem,
-                    0,
-                    0,
+                    // the page's distance range and glyph kind (0 msdf, 1 sdf, 2 mtsdf), read per glyph
+                    page.distanceRange,
+                    page.kind,
                 ],
                 at,
             );
@@ -384,6 +406,7 @@ export class Silk {
 
         this._gpu.set(bundle, {
             metrics,
+            array,
             pages: sources,
             pageInfo: pages
                 .slice(0, 4)
@@ -400,7 +423,8 @@ export class Silk {
 
         if (!gpu) return;
         gpu.metrics.destroy();
-        for (const p of bundle.pages().slice(0, 4)) {
+        gpu.array?.destroy();
+        for (const p of gpu.array ? [] : bundle.pages().slice(0, 4)) {
             const url = resolveUrl(bundle.url, p.file);
             const entry = this._pages.get(url);
 
@@ -701,6 +725,7 @@ export class SilkMessage extends Container {
                 styles: theme.source,
                 pages: gpu.pages,
                 pageInfo: gpu.pageInfo,
+                array: gpu.array,
             }),
         });
         this.addChild(this._mesh, this._extras, this._slots);
@@ -1074,6 +1099,7 @@ export class SilkMessageLayer extends Container {
                         styles: theme.source,
                         pages: gpu.pages,
                         pageInfo: gpu.pageInfo,
+                        array: gpu.array,
                         transforms,
                     }),
                 });

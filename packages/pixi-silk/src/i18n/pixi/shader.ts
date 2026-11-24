@@ -1,5 +1,5 @@
 import { BufferImageSource, GlProgram, GpuProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
-import { messageWgsl } from './shader-wgsl';
+import { messageWgsl, messageWgslArray } from './shader-wgsl';
 
 /**
  * @internal The shader of `SilkMessage`: one instanced quad per glyph or decoration.
@@ -86,7 +86,8 @@ void main(void)
         vUv = t0.yz + (pos - lo) * k;
         vCell = vec4(t0.yz, t0.yz + vec2(t0.w, t1.x));
         vInfo = vec4(t0.x, k, kind, aInst1.x);
-        vRect = vec4(0.0, size, 0.0, 0.0);
+        // the page's distance range and glyph kind, from the glyph's metrics
+        vRect = vec4(0.0, size, t2.z, t2.w);
     } else {
         vec4 s5 = styleTexel(aInst1.x, 5);
         vec4 s7 = styleTexel(aInst1.x, 7);
@@ -130,13 +131,6 @@ uniform vec4 uPage1;
 uniform vec4 uPage2;
 uniform vec4 uPage3;
 
-out vec4 finalColor;
-
-vec4 styleTexel(float row, int t) {
-    int r = int(row);
-    return texelFetch(uStyles, ivec2((r % 64) * 8 + t, r / 64), 0);
-}
-
 vec4 page(float slot) {
     return slot < 0.5 ? uPage0 : slot < 1.5 ? uPage1 : slot < 2.5 ? uPage2 : uPage3;
 }
@@ -149,25 +143,29 @@ vec4 sampleAtlas(float slot, vec2 uv) {
     return texture(uAtlas3, c);
 }
 
+out vec4 finalColor;
+
+vec4 styleTexel(float row, int t) {
+    int r = int(row);
+    return texelFetch(uStyles, ivec2((r % 64) * 8 + t, r / 64), 0);
+}
+
 float median(vec3 v) {
     return max(min(v.r, v.g), min(max(v.r, v.g), v.b));
 }
 
 // signed distance in local pixels, positive inside
 float distanceAt(vec2 uv) {
-    vec4 p = page(vInfo.x);
     vec4 s = sampleAtlas(vInfo.x, uv);
-    float v = p.w > 0.5 && p.w < 1.5 ? s.r : median(s.rgb);
+    float v = vRect.w > 0.5 && vRect.w < 1.5 ? s.r : median(s.rgb);
 
-    return (v - 0.5) * p.z / vInfo.y;
+    return (v - 0.5) * vRect.z / vInfo.y;
 }
 
 // the true distance, for soft effects: alpha of mtsdf pages, the median elsewhere
 float softDistanceAt(vec2 uv) {
-    vec4 p = page(vInfo.x);
-
-    if (p.w < 1.5) return distanceAt(uv);
-    return (sampleAtlas(vInfo.x, uv).a - 0.5) * p.z / vInfo.y;
+    if (vRect.w < 1.5) return distanceAt(uv);
+    return (sampleAtlas(vInfo.x, uv).a - 0.5) * vRect.z / vInfo.y;
 }
 
 vec4 over(vec4 top, vec4 bottom) {
@@ -201,7 +199,7 @@ void main(void)
         float bias = fx.w * vRect.y;
         float sd = distanceAt(vUv) + bias;
         // effects end where the distance field ends (half the range, in local pixels)
-        float reach = max(0.5 * page(vInfo.x).z / vInfo.y - aa, 0.0);
+        float reach = max(0.5 * vRect.z / vInfo.y - aa, 0.0);
         float ow = min(fx.x, reach);
         float room = max(reach - ow, 0.0);
 
@@ -227,8 +225,37 @@ void main(void)
 }
 `;
 
+/**
+ * @internal The array variant of the fragment stage: every page of a bundle in one
+ * `sampler2DArray`, the page slot as the layer. For bundles with more than four pages.
+ */
+export const messageFragmentArray: string = messageFragment.replace(
+    // anchored on code, not comments: the build strips comments from shader sources
+    /uniform sampler2D uAtlas0;[\s\S]*?(?=out vec4 finalColor;)/,
+    `uniform highp sampler2DArray uAtlasArray;
+
+vec4 sampleAtlas(float slot, vec2 uv) {
+    vec2 size = vec2(textureSize(uAtlasArray, 0).xy);
+    vec2 c = clamp(uv, vCell.xy + 0.5, vCell.zw - 0.5) / size;
+
+    return texture(uAtlasArray, vec3(c, slot));
+}
+`,
+);
+
 let glProgram: GlProgram | null = null;
 let gpuProgram: GpuProgram | null = null;
+let glArrayProgram: GlProgram | null = null;
+let gpuArrayProgram: GpuProgram | null = null;
+
+/** The data textures are RGBA32F and read with textureLoad only: WebGPU needs them unfilterable. */
+function unfilterable(program: GpuProgram): GpuProgram {
+    for (const entry of program.gpuLayout[2] ?? []) {
+        if (entry.texture && (entry.binding <= 2 || entry.binding === 8))
+            entry.texture.sampleType = 'unfilterable-float';
+    }
+    return program;
+}
 
 /** @internal The resources one SilkMessage binds: its bundle's metrics and pages, its theme's styles. */
 export interface MessageResources {
@@ -242,6 +269,8 @@ export interface MessageResources {
     pageInfo: Float32Array[];
     /** Message transforms of a batch. Default the identity for one message. */
     transforms?: TextureSource;
+    /** Every page in one array texture, layer = page slot. Replaces `pages` (bundles with more than four pages). */
+    array?: TextureSource;
 }
 
 let identity: BufferImageSource | null = null;
@@ -264,6 +293,41 @@ export function identityTransforms(): BufferImageSource {
 
 /** @internal Builds a SilkMessage shader: shared programs, the message's own resources. */
 export function createMessageShader(r: MessageResources): Shader {
+    const info = (i: number) => ({
+        value: r.pageInfo[i] ?? r.pageInfo[0] ?? new Float32Array(4),
+        type: 'vec4<f32>' as const,
+    });
+    const uniforms = () => new UniformGroup({ uPage0: info(0), uPage1: info(1), uPage2: info(2), uPage3: info(3) });
+
+    if (r.array) {
+        glArrayProgram ??= GlProgram.from({
+            vertex: messageVertex,
+            fragment: messageFragmentArray,
+            name: 'silk-message-array',
+            preferredVertexPrecision: 'highp',
+            preferredFragmentPrecision: 'highp',
+        });
+        gpuArrayProgram ??= unfilterable(
+            GpuProgram.from({
+                name: 'silk-message-array',
+                vertex: { source: messageWgslArray, entryPoint: 'mainVertex' },
+                fragment: { source: messageWgslArray, entryPoint: 'mainFragment' },
+            }),
+        );
+
+        return new Shader({
+            glProgram: glArrayProgram,
+            gpuProgram: gpuArrayProgram,
+            resources: {
+                messageUniforms: uniforms(),
+                uMetrics: r.metrics,
+                uStyles: r.styles,
+                uAtlasArray: r.array,
+                uAtlasSampler: r.array.style,
+                uTransforms: r.transforms ?? identityTransforms(),
+            },
+        });
+    }
     glProgram ??= GlProgram.from({
         vertex: messageVertex,
         fragment: messageFragment,
@@ -271,26 +335,20 @@ export function createMessageShader(r: MessageResources): Shader {
         preferredVertexPrecision: 'highp',
         preferredFragmentPrecision: 'highp',
     });
-    if (!gpuProgram) {
-        gpuProgram = GpuProgram.from({
+    gpuProgram ??= unfilterable(
+        GpuProgram.from({
             name: 'silk-message',
             vertex: { source: messageWgsl, entryPoint: 'mainVertex' },
             fragment: { source: messageWgsl, entryPoint: 'mainFragment' },
-        });
-        // the data textures are RGBA32F and read with textureLoad only
-        for (const entry of gpuProgram.gpuLayout[2] ?? []) {
-            if (entry.texture && (entry.binding <= 2 || entry.binding === 8))
-                entry.texture.sampleType = 'unfilterable-float';
-        }
-    }
+        }),
+    );
     const page = (i: number) => r.pages[i] ?? r.pages[0];
-    const info = (i: number) => ({ value: r.pageInfo[i] ?? r.pageInfo[0], type: 'vec4<f32>' as const });
 
     return new Shader({
         glProgram,
         gpuProgram,
         resources: {
-            messageUniforms: new UniformGroup({ uPage0: info(0), uPage1: info(1), uPage2: info(2), uPage3: info(3) }),
+            messageUniforms: uniforms(),
             uMetrics: r.metrics,
             uStyles: r.styles,
             uAtlas0: page(0),

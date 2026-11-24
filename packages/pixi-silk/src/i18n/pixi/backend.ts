@@ -197,8 +197,9 @@ function runSpriteView(sprite: RunSprite, styles: TextureSource): Container {
             left + width / s,
             top,
             s,
-            0,
-            0,
+            // distance range and kind: a single-channel field
+            sprite.range,
+            1,
         ]),
         width: 6,
         height: 1,

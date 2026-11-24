@@ -88,7 +88,8 @@ fn mainVertex(
         out.vUv = t0.yz + (pos - lo) * k;
         out.vCell = vec4<f32>(t0.yz, t0.yz + vec2<f32>(t0.w, t1.x));
         out.vInfo = vec4<f32>(t0.x, k, kind, aInst1.x);
-        out.vRect = vec4<f32>(0.0, size, 0.0, 0.0);
+        // the page's distance range and glyph kind, from the glyph's metrics
+        out.vRect = vec4<f32>(0.0, size, t2.z, t2.w);
     } else {
         let s5 = styleTexel(aInst1.x, 5);
         let s7 = styleTexel(aInst1.x, 7);
@@ -133,21 +134,20 @@ fn median3(v: vec3<f32>) -> f32 {
     return max(min(v.r, v.g), min(max(v.r, v.g), v.b));
 }
 
-fn distanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>) -> f32 {
-    let p = page(info.x);
+// rect.z is the page's distance range, rect.w its glyph kind (0 msdf, 1 sdf, 2 mtsdf)
+fn distanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>, rect: vec4<f32>) -> f32 {
     let s = sampleAtlas(info.x, uv, cell);
-    let v = select(median3(s.rgb), s.r, p.w > 0.5 && p.w < 1.5);
+    let v = select(median3(s.rgb), s.r, rect.w > 0.5 && rect.w < 1.5);
 
-    return (v - 0.5) * p.z / info.y;
+    return (v - 0.5) * rect.z / info.y;
 }
 
 // the true distance, for soft effects: alpha of mtsdf pages, the median elsewhere
-fn softDistanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>) -> f32 {
-    let p = page(info.x);
+fn softDistanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>, rect: vec4<f32>) -> f32 {
     let s = sampleAtlas(info.x, uv, cell);
-    let v = select(select(median3(s.rgb), s.r, p.w > 0.5 && p.w < 1.5), s.a, p.w > 1.5);
+    let v = select(select(median3(s.rgb), s.r, rect.w > 0.5 && rect.w < 1.5), s.a, rect.w > 1.5);
 
-    return (v - 0.5) * p.z / info.y;
+    return (v - 0.5) * rect.z / info.y;
 }
 
 fn over(top: vec4<f32>, bottom: vec4<f32>) -> vec4<f32> {
@@ -178,13 +178,13 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
         let fx = styleTexel(row, 4);
         let s5 = styleTexel(row, 5);
         let bias = fx.w * input.vRect.y;
-        let sd = distanceAt(input.vUv, input.vInfo, input.vCell) + bias;
+        let sd = distanceAt(input.vUv, input.vInfo, input.vCell, input.vRect) + bias;
         // effects end where the distance field ends (half the range, in local pixels)
-        let reach = max(0.5 * page(input.vInfo.x).z / input.vInfo.y - aa, 0.0);
+        let reach = max(0.5 * input.vRect.z / input.vInfo.y - aa, 0.0);
         let ow = min(fx.x, reach);
         let room = max(reach - ow, 0.0);
-        let ss = softDistanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell) + bias + ow;
-        let soft = softDistanceAt(input.vUv, input.vInfo, input.vCell) + bias;
+        let ss = softDistanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell, input.vRect) + bias + ow;
+        let soft = softDistanceAt(input.vUv, input.vInfo, input.vCell, input.vRect) + bias;
 
         if (shadow.a > 0.0) {
             let blur = min(fx.z * 4.0, 2.0 * room);
@@ -203,3 +203,24 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
     return color * input.vTint;
 }
 `;
+
+/**
+ * @internal The array variant: every page of a bundle in one `texture_2d_array`, the page slot as
+ * the layer. For bundles with more than four pages.
+ */
+export const messageWgslArray: string = messageWgsl
+    // anchored on code, not comments: the build strips comments from shader sources
+    .replace(
+        /@group\(2\)\s*@binding\(3\)\s*var\s+uAtlas0[\s\S]*?uAtlas3:\s*texture_2d<f32>;/,
+        '@group(2) @binding(3) var uAtlasArray: texture_2d_array<f32>;',
+    )
+    .replace(
+        /fn page\([\s\S]*?(?=fn median3)/,
+        `fn sampleAtlas(slot: f32, uv: vec2<f32>, cell: vec4<f32>) -> vec4<f32> {
+    let size = vec2<f32>(textureDimensions(uAtlasArray, 0));
+    let c = clamp(uv, cell.xy + 0.5, cell.zw - 0.5) / size;
+
+    return textureSampleLevel(uAtlasArray, uAtlasSampler, c, i32(slot + 0.5), 0.0);
+}
+`,
+    );

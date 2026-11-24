@@ -13,7 +13,7 @@
 import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 import { glassWgsl } from '../packages/pixi-silk/dist/glass/glass-wgsl.js';
-import { messageWgsl } from '../packages/pixi-silk/dist/i18n/pixi/shader-wgsl.js';
+import { messageWgsl, messageWgslArray } from '../packages/pixi-silk/dist/i18n/pixi/shader-wgsl.js';
 import { createSilkGpuProgram } from '../packages/pixi-silk/dist/shader-wgsl.js';
 import { textWgsl } from '../packages/pixi-silk/dist/text/shader.js';
 // the library's own pixi.js (the workspace root has none)
@@ -48,7 +48,14 @@ const message = GpuProgram.from({
     fragment: { source: messageWgsl, entryPoint: 'mainFragment' },
 });
 
-for (const entry of message.gpuLayout[2] ?? []) {
+// the variant for bundles with more than four pages: one texture_2d_array
+const messageArray = GpuProgram.from({
+    name: 'silk-message-array',
+    vertex: { source: messageWgslArray, entryPoint: 'mainVertex' },
+    fragment: { source: messageWgslArray, entryPoint: 'mainFragment' },
+});
+
+for (const entry of [...(message.gpuLayout[2] ?? []), ...(messageArray.gpuLayout[2] ?? [])]) {
     if (entry.texture && (entry.binding <= 2 || entry.binding === 8)) entry.texture.sampleType = 'unfilterable-float';
 }
 const programs = [
@@ -99,6 +106,22 @@ const programs = [
         },
     ]),
     describe('silk-message', message, (attrs) => [
+        {
+            arrayStride: 8,
+            stepMode: 'vertex',
+            attributes: [{ shaderLocation: attrs.aCorner.location, offset: 0, format: attrs.aCorner.format }],
+        },
+        {
+            arrayStride: 32,
+            stepMode: 'instance',
+            attributes: ['aInst0', 'aInst1'].map((n, i) => ({
+                shaderLocation: attrs[n].location,
+                offset: i * 16,
+                format: attrs[n].format,
+            })),
+        },
+    ]),
+    describe('silk-message-array', messageArray, (attrs) => [
         {
             arrayStride: 8,
             stepMode: 'vertex',

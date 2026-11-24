@@ -22,6 +22,8 @@ const gl1 = mode === 'webgl1' || mode === 'webgl1-nearest';
 const preferWebGLVersion = gl1 ? 1 : 2;
 const W = 256;
 const H = 256;
+/** The application the cases render with, made on first use by renderer(). */
+let app;
 
 if (preference === 'webgpu') enableWebGPU();
 // every case renders through the batching pipe; the batch cases compare it with `batch: false`
@@ -641,12 +643,13 @@ if (i18n) {
     // glyph kinds: the same Arabic and English lines from sdf and mtsdf pages, against msdf
     const kinds = {};
 
-    for (const kind of ['msdf', 'sdf', 'mtsdf']) {
+    for (const kind of ['msdf', 'sdf', 'mtsdf', 'many']) {
         const base = `/packages/compiler/.cache/render/${kind}`;
         const response = await fetch(`${base}/ar.silk`);
 
         if (!response.ok) continue;
-        const silk = await Silk.create({ devEvents: false });
+        // the renderer lets Silk bind more than four pages as one array texture
+        const silk = await Silk.create({ devEvents: false, renderer: await renderer() });
 
         for (const l of ['en', 'ar']) {
             await silk.addBundle(
@@ -692,6 +695,17 @@ if (i18n) {
         });
     }
 
+    // more than four pages: one texture array instead of four bound pages, the same pixels
+    if (kinds.many && kinds.msdf) {
+        cases['i18n-page-array'] = () => ({
+            scene: kindScene(kinds.many),
+            ref: kindScene(kinds.msdf),
+            kind: 'same',
+            tolerance: 2,
+            warm: true,
+        });
+    }
+
     cases['i18n-batch-50'] = () => ({
         scene: fifty(true),
         ref: fifty(false),
@@ -703,8 +717,6 @@ if (i18n) {
 }
 
 export const extraCases = cases;
-
-let app;
 
 async function renderer() {
     if (!app) {
