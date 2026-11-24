@@ -1,0 +1,19 @@
+{
+  "sourceLocale": "en",
+  "locales": {
+    "en": { "numberingSystem": "latn" },
+    "ar": { "numberingSystem": "arab" },
+    "he": { "numberingSystem": "latn" }
+  },
+  "fonts": [
+    { "family": "Noto Sans", "weight": 400, "file": "fonts/NotoSans-Regular.ttf" },
+    { "family": "Noto Sans", "weight": 700, "file": "fonts/NotoSans-Bold.ttf" },
+    { "family": "Noto Sans Arabic", "weight": 400, "file": "fonts/NotoSansArabic-Regular.ttf" },
+    { "family": "Noto Sans Arabic", "weight": 700, "file": "fonts/NotoSansArabic-Bold.ttf" },
+    { "family": "Noto Sans Hebrew", "weight": 400, "file": "fonts/NotoSansHebrew-Regular.ttf" },
+    { "family": "Noto Sans Hebrew", "weight": 700, "file": "fonts/NotoSansHebrew-Bold.ttf" }
+  ],
+  "objects": ["coin"],
+  "atlas": { "kind": "msdf", "emSize": 40, "maxPageSize": 1024 },
+  "devKeys": true
+}

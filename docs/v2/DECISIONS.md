@@ -46,9 +46,11 @@ v1 baseline, from `pnpm size`:
 |---|---|---|
 | Shaping | `harfbuzzjs` 1.6.4, MIT | The brief's choice. Goldens are compared with `hb-shape` from the same HarfBuzz version |
 | xlsx | `exceljs` 4.4.0, MIT | The npm `xlsx` (SheetJS) is 0.18.5. Known advisories affect it, and fixed releases are only on the SheetJS CDN |
-| MSDF | `msdfgen-wasm` 1.0.0, MIT, or our own TypeScript port | Pick by measurement: byte-identical output across two runs and two machines, plus quality on the corpus |
+| MSDF | Our own TypeScript generator (`src/atlas/msdf.ts`) | `msdfgen-wasm` loads glyphs by Unicode code point, so it cannot generate the contextual forms HarfBuzz picks for Arabic (they have no code point). The TypeScript port is plain arithmetic, so its output is byte-identical (tested) |
 | Glyph outlines | From harfbuzzjs draw callbacks | No second font parser, unless the MSDF choice needs one |
-| PNG writing | Node `zlib` and a small encoder | Deterministic, with no dependency |
+| PNG writing | Node `zlib` and a small encoder (`src/atlas/png.ts`) | Deterministic, with no dependency |
+| Line breaking (UAX #14) | `linebreak` 2.0.0, MIT | See D13 |
+| Bidi classes | Generated from Unicode 16.0.0 `DerivedBidiClass.txt` (`src/shape/bidi-classes.ts`) | The UBA itself is v1's `pixi-silk/text/bidi`, which passes all 91 707 cases of `BidiCharacterTest.txt` with these classes |
 
 Each one is a dependency of `@pixi-silk/compiler` only. None is a runtime dependency of `pixi-silk`, so the runtime budget is unaffected.
 
@@ -75,3 +77,11 @@ Lossless PNG, lossless WebP, and KTX2 (raw data with Zstd), compared after brotl
 ## D12. RUNS encoding (to measure in M2)
 
 Plain i16 columns against delta-encoded clusters, compared after brotli.
+
+## D13. Line breaking in the compiler
+
+The compiler uses the `linebreak` package (UAX #14 for Unicode 13). It passes 7594 of the 7652 cases of `LineBreakTest.txt` for that version. The 58 differences are listed one by one in `tests/linebreak-known.json`, so a new failure, or a fixed one, fails the test. Writing our own UAX #14 for Unicode 16 is possible later. It changes only compiler output, never the runtime or the format.
+
+## D14. Unicode data for tests
+
+`scripts/fetch-ucd.ts` downloads `BidiCharacterTest.txt`, `DerivedBidiClass.txt` and `LineBreakTest.txt` into `packages/compiler/.cache/ucd` (not committed, about 8 MB). The conformance tests are skipped when the files are missing, and CI fetches them first.

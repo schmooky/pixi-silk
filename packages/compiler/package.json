@@ -1,0 +1,40 @@
+{
+  "name": "@pixi-silk/compiler",
+  "version": "0.1.0",
+  "description": "Build-time compiler for pixi-silk localized text: imports spreadsheets, lints messages, shapes them with HarfBuzz, bakes MSDF atlases and writes .silk bundles.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "silk": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "harfbuzzjs": "1.6.4",
+    "linebreak": "2.0.0",
+    "pixi-silk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}
