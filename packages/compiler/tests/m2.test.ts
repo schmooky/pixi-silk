@@ -161,3 +161,24 @@ describe('atlas and outputs', () => {
         expect(r.diagnostics.find((d) => d.code === 'effect-clips')?.message).toContain('style "haze"');
     });
 });
+
+describe('per-chunk bundles (--split-by, M6)', () => {
+    it('writes one bundle per key prefix and locale, each with only its pages', async () => {
+        const r = compileProject(await fixtureProject(), { splitBy: 'keyPrefix' });
+
+        expect([...r.bundles.keys()].sort()).toEqual([
+            'ar.player',
+            'ar.shop',
+            'en.player',
+            'en.shop',
+            'he.player',
+            'he.shop',
+        ]);
+        const player = readBundle(r.bundles.get('en.player')?.slice().buffer as ArrayBuffer);
+        const shop = readBundle(r.bundles.get('en.shop')?.slice().buffer as ArrayBuffer);
+
+        expect(player.messages.length / 6).toBe(1);
+        expect(shop.messages.length / 6).toBe(3);
+        expect((r.debug.get('en.player') as { pages: string[] }).pages).toEqual(['latin-0.png']);
+    });
+});

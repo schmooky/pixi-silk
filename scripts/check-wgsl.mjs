@@ -49,7 +49,7 @@ const message = GpuProgram.from({
 });
 
 for (const entry of message.gpuLayout[2] ?? []) {
-    if (entry.texture && entry.binding <= 2) entry.texture.sampleType = 'unfilterable-float';
+    if (entry.texture && (entry.binding <= 2 || entry.binding === 8)) entry.texture.sampleType = 'unfilterable-float';
 }
 const programs = [
     // corner quad per vertex, everything else per instance (one interleaved buffer)

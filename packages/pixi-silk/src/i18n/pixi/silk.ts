@@ -14,6 +14,7 @@ import {
     type Texture,
     type TextureSource,
 } from 'pixi.js';
+import { cloneLayout, LayoutCache } from '../cache';
 import { GLYPH_STRIDE, PageKind } from '../format';
 import {
     INSTANCE_FLOATS,
@@ -257,6 +258,8 @@ export class Silk {
     readonly bundles: Map<string, SilkBundle> = new Map();
     /** Draws text slots. */
     dynamicText: DynamicTextProvider | null;
+    /** Laid out messages, shared by every SilkMessage that shows the same thing. */
+    readonly layouts: LayoutCache = new LayoutCache();
     private readonly _gpu = new Map<SilkBundle, BundleGpu>();
     /** Atlas pages by URL, shared by every bundle that draws from them, with their user counts. */
     private readonly _pages = new Map<string, { source: Promise<TextureSource>; users: number }>();
@@ -479,6 +482,21 @@ export class Silk {
         for (const l of this._listeners) l(e);
     }
 
+    private readonly _keys = new WeakMap<object, number>();
+
+    /** @internal A number that names a bundle or a theme in cache keys. */
+    keyOf(o: object): number {
+        let k = this._keys.get(o);
+
+        if (k === undefined) {
+            k = this._nextKey++;
+            this._keys.set(o, k);
+        }
+        return k;
+    }
+
+    private _nextKey = 1;
+
     /** @internal Warns once per message text. */
     warn(message: string): void {
         if (this._warned.has(message)) return;
@@ -495,10 +513,16 @@ export class Silk {
     }
 
     /**
-     * Memory and cache numbers (brief sec. 8): atlas pages and their GPU bytes (4 bytes per texel,
-     * 1 for SDF pages decoded as RGBA still take 4), glyph metrics bytes, and bundles in use.
+     * Memory and cache numbers (brief sec. 8). It counts bundles in use, atlas pages and their GPU
+     * bytes (4 per texel, since pages decode to RGBA), glyph metrics bytes, and the layout cache.
      */
-    stats(): { bundles: number; pages: number; atlasBytes: number; metricsBytes: number } {
+    stats(): {
+        bundles: number;
+        pages: number;
+        atlasBytes: number;
+        metricsBytes: number;
+        layouts: { entries: number; bytes: number; hits: number; misses: number };
+    } {
         let pages = 0;
         let atlasBytes = 0;
         let metricsBytes = 0;
@@ -513,7 +537,15 @@ export class Silk {
                 atlasBytes += p.pixelWidth * p.pixelHeight * 4;
             }
         }
-        return { bundles: this._gpu.size, pages, atlasBytes, metricsBytes };
+        const l = this.layouts;
+
+        return {
+            bundles: this._gpu.size,
+            pages,
+            atlasBytes,
+            metricsBytes,
+            layouts: { entries: l.size, bytes: l.bytes, hits: l.hits, misses: l.misses },
+        };
     }
 }
 
@@ -667,6 +699,8 @@ export class SilkMessage extends Container {
     private _lineHeight: number;
     private _variant = -1;
     private _layout: MessageLayout | null = null;
+    /** The layout came from the cache and other messages may show it. */
+    private _shared = false;
     private readonly _extras = new Container();
 
     constructor(prepared: PreparedMessage) {
@@ -731,6 +765,11 @@ export class SilkMessage extends Container {
         if (variant !== this._variant) {
             this._relayout('variant');
             return this;
+        }
+        // a cached layout is shared: copy it before writing into it
+        if (this._layout && this._shared) {
+            this._layout = cloneLayout(this._layout);
+            this._shared = false;
         }
         for (const [name, value] of Object.entries(values)) {
             const placement = this._layout?.slots.find((s) => s.name === name);
@@ -821,21 +860,27 @@ export class SilkMessage extends Container {
         this._variant = this._resolveVariant();
         const baseStyle = spec.style;
         const styles = theme.table;
-        const layout = layoutMessage(bundle, this._variant, {
-            size: this._size,
-            maxWidth: this._maxWidth,
-            align: this._align,
-            lineHeight: this._lineHeight,
-            values: this._values,
-            styles: baseStyle ? prefixed(styles, baseStyle) : styles,
-            inline: (name) => silk.inlineMetrics(name),
-            measureText: silk.dynamicText
-                ? (_name, value, size, row) =>
-                      silk.dynamicText?.measure(value, size, styles.resolve(styles.stackOf(row))) ?? 0
-                : undefined,
-        });
+        const key = `${silk.keyOf(bundle)}|${silk.keyOf(theme)}|${this._variant}|${this._size}|${this._maxWidth}|${this._align}|${this._lineHeight}|${baseStyle}|${JSON.stringify(this._values)}`;
+        const cached = silk.layouts.get(key);
+        const layout =
+            cached ??
+            layoutMessage(bundle, this._variant, {
+                size: this._size,
+                maxWidth: this._maxWidth,
+                align: this._align,
+                lineHeight: this._lineHeight,
+                values: this._values,
+                styles: baseStyle ? prefixed(styles, baseStyle) : styles,
+                inline: (name) => silk.inlineMetrics(name),
+                measureText: silk.dynamicText
+                    ? (_name, value, size, row) =>
+                          silk.dynamicText?.measure(value, size, styles.resolve(styles.stackOf(row))) ?? 0
+                    : undefined,
+            });
 
+        if (!cached) silk.layouts.set(key, layout);
         this._layout = layout;
+        this._shared = true;
         theme.sync();
         this._upload(layout);
         // inline objects and text slots
@@ -881,8 +926,23 @@ export class SilkMessage extends Container {
         (buffer.data as Float32Array).set(layout.instances.subarray(0, need));
         buffer.update(need * 4);
         this._geometry.instanceCount = layout.count;
-        this._mesh.visible = layout.count > 0;
+        this._mesh.visible = layout.count > 0 && !this._batched;
         this.boundsArea = new Rectangle(0, 0, layout.width, layout.height);
+        this.version++;
+    }
+
+    /** @internal Bumped on every instance upload, so a {@link SilkMessageLayer} knows to merge again. */
+    version = 0;
+    private _batched = false;
+
+    /** @internal True while a {@link SilkMessageLayer} draws this message's glyphs. */
+    get batched(): boolean {
+        return this._batched;
+    }
+
+    set batched(v: boolean) {
+        this._batched = v;
+        this._mesh.visible = !v && (this._layout?.count ?? 0) > 0;
     }
 
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
@@ -899,4 +959,189 @@ function prefixed(table: StyleTable, style: string): StyleTable {
             return Reflect.get(target, prop, receiver);
         },
     });
+}
+
+/** @internal One draw of a layer: the messages that share a bundle and a theme. */
+interface LayerGroup {
+    mesh: Mesh<MessageGeometry, Shader>;
+    geometry: MessageGeometry;
+    transforms: BufferImageSource;
+    members: SilkMessage[];
+    versions: number[];
+}
+
+/**
+ * A container that draws the glyphs of its SilkMessage children together: one draw call per bundle
+ * and theme, however many messages (brief sec. 7, M6). The merged instances carry each message's
+ * index, and a data texture carries each message's transform and alpha, so moving a message costs
+ * no instance write. Messages stay normal children: position, rotate, scale, hide and tap them as
+ * usual. Inline objects and text slots still draw on their own.
+ *
+ * @example
+ * ```ts
+ * import { SilkMessage, SilkMessageLayer } from 'pixi-silk/i18n/pixi';
+ *
+ * const layer = new SilkMessageLayer();
+ * for (const name of set.names()) layer.addChild(new SilkMessage(set.get(name)));
+ * app.stage.addChild(layer);
+ * ```
+ */
+export class SilkMessageLayer extends Container {
+    private readonly _draw = new Container({ label: 'silk-message-layer-draws' });
+    private readonly _groups = new Map<string, LayerGroup>();
+    private readonly _ids = new WeakMap<object, number>();
+    private _nextId = 0;
+
+    constructor() {
+        super({ label: 'SilkMessageLayer' });
+        this.addChild(this._draw);
+        this.onRender = () => this._sync();
+        this.on('childRemoved', (child) => {
+            if (child instanceof SilkMessage) child.batched = false;
+        });
+    }
+
+    /** Draw calls the layer issues for its messages: one per bundle and theme in use. */
+    get drawCount(): number {
+        return this._groups.size;
+    }
+
+    private _id(o: object): number {
+        let id = this._ids.get(o);
+
+        if (id === undefined) {
+            id = this._nextId++;
+            this._ids.set(o, id);
+        }
+        return id;
+    }
+
+    private _sync(): void {
+        const byKey = new Map<string, SilkMessage[]>();
+
+        for (const child of this.children) {
+            if (!(child instanceof SilkMessage) || child.destroyed) continue;
+            const key = `${this._id(child.prepared.bundle)}:${this._id(child.prepared.theme)}`;
+            let list = byKey.get(key);
+
+            if (!list) {
+                list = [];
+                byKey.set(key, list);
+            }
+            list.push(child);
+        }
+        for (const [key, group] of this._groups) {
+            if (byKey.has(key)) continue;
+            group.mesh.destroy();
+            group.geometry.destroy();
+            group.transforms.destroy();
+            this._groups.delete(key);
+        }
+        for (const [key, members] of byKey) {
+            let group = this._groups.get(key);
+
+            if (!group) {
+                const { silk, bundle, theme } = members[0].prepared;
+                const gpu = silk.gpu(bundle);
+                const geometry = new MessageGeometry();
+                const transforms = new BufferImageSource({
+                    resource: new Float32Array(1024 * 4),
+                    width: 1024,
+                    height: 1,
+                    format: 'rgba32float',
+                    alphaMode: 'premultiplied-alpha',
+                    scaleMode: 'nearest',
+                    autoGenerateMipmaps: false,
+                    label: 'silk-message-transforms',
+                });
+                const mesh = new Mesh({
+                    geometry,
+                    shader: createMessageShader({
+                        metrics: gpu.metrics,
+                        styles: theme.source,
+                        pages: gpu.pages,
+                        pageInfo: gpu.pageInfo,
+                        transforms,
+                    }),
+                });
+
+                group = { mesh, geometry, transforms, members: [], versions: [] };
+                this._groups.set(key, group);
+                this._draw.addChild(mesh);
+            }
+            this._merge(group, members);
+            this._place(group);
+        }
+    }
+
+    /** Rebuilds the merged instances when a member changed or the members did. */
+    private _merge(group: LayerGroup, members: SilkMessage[]): void {
+        const same =
+            members.length === group.members.length &&
+            members.every((m, i) => m === group.members[i] && m.version === group.versions[i]);
+
+        if (same) return;
+        for (const m of group.members) if (!members.includes(m)) m.batched = false;
+        let total = 0;
+
+        for (const m of members) total += m.layout.count;
+        const buffer = group.geometry.instances;
+        let data = buffer.data as Float32Array;
+
+        if (data.length < total * INSTANCE_FLOATS) data = new Float32Array(Math.max(total, 16) * INSTANCE_FLOATS * 2);
+        let at = 0;
+
+        members.forEach((m, index) => {
+            const layout = m.layout;
+            const n = layout.count * INSTANCE_FLOATS;
+
+            data.set(layout.instances.subarray(0, n), at);
+            // the message index rides on the kind field
+            for (let i = at + 5; i < at + n; i += INSTANCE_FLOATS) data[i] += index * 4;
+            at += n;
+            m.batched = true;
+        });
+        buffer.data = data;
+        buffer.update(at * 4);
+        group.geometry.instanceCount = total;
+        group.members = [...members];
+        group.versions = members.map((m) => m.version);
+    }
+
+    /** Writes every member's transform and alpha (cheap: 8 floats each, no instance write). */
+    private _place(group: LayerGroup): void {
+        const src = group.transforms;
+        const rows = Math.max(1, Math.ceil(group.members.length / 512));
+        let data = src.resource as Float32Array;
+
+        if (data.length < rows * 1024 * 4) {
+            data = new Float32Array(rows * 1024 * 4);
+            src.resource = data;
+            src.resize(1024, rows);
+        }
+        group.members.forEach((m, i) => {
+            m.updateLocalTransform();
+            const t = m.localTransform;
+            const o = i * 8;
+
+            data[o] = t.a;
+            data[o + 1] = t.b;
+            data[o + 2] = t.c;
+            data[o + 3] = t.d;
+            data[o + 4] = t.tx;
+            data[o + 5] = t.ty;
+            data[o + 6] = m.visible && m.renderable ? m.alpha : 0;
+            data[o + 7] = 0;
+        });
+        src.update();
+    }
+
+    override destroy(options?: Parameters<Container['destroy']>[0]): void {
+        for (const g of this._groups.values()) {
+            g.geometry.destroy();
+            g.transforms.destroy();
+        }
+        this._groups.clear();
+        super.destroy(options);
+    }
 }

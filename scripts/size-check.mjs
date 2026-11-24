@@ -78,6 +78,12 @@ const IMPORTS = {
     'text (bidi)': ['bidiClass, resolveLevels, visualOrder', ['#version 300 es', 'silk-text-atlas'], '/text'],
     // baked text: no Pixi in the core, no Unicode tables ('FSI' is a bidi class name), nothing from the compiler
     'i18n (core)': ['*', ['FSI', 'harfbuzz', 'exceljs', 'node:', 'pixi.js', '#version 300 es'], '/i18n'],
+    // what a renderer needs from the core: no reference backend, no cache helpers it does not use
+    'i18n (runtime path)': [
+        'SilkBundle, layoutMessage, StyleTable, updateNumberSlot',
+        ['FSI', 'harfbuzz', 'exceljs', 'node:', 'pixi.js', 'HeadlessBackend'],
+        '/i18n',
+    ],
     'i18n/pixi (Silk, SilkMessage)': [
         'Silk, SilkMessage, silkBundleLoader',
         ['FSI', 'harfbuzz', 'exceljs', 'node:', 'silk-text-atlas'],

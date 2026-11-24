@@ -33,6 +33,7 @@ struct MessageUniforms {
 @group(2) @binding(5) var uAtlas2: texture_2d<f32>;
 @group(2) @binding(6) var uAtlas3: texture_2d<f32>;
 @group(2) @binding(7) var uAtlasSampler: sampler;
+@group(2) @binding(8) var uTransforms: texture_2d<f32>;
 
 struct VSOutput {
     @builtin(position) position: vec4<f32>,
@@ -61,12 +62,17 @@ fn mainVertex(
     @location(2) aInst1: vec4<f32>,
 ) -> VSOutput {
     let m = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
-    let kind = aInst1.y;
+    // kind holds the instance kind (0 to 2) plus 4 times its message index in a batch
+    let message = i32(aInst1.y / 4.0);
+    let kind = aInst1.y - f32(message) * 4.0;
+    let xf0 = textureLoad(uTransforms, vec2<i32>((message % 512) * 2, message / 512), 0);
+    let xf1 = textureLoad(uTransforms, vec2<i32>((message % 512) * 2 + 1, message / 512), 0);
     let size = aInst1.z;
     var out: VSOutput;
     var pos: vec2<f32>;
 
-    out.vTint = localUniforms.uColor * globalUniforms.uWorldColorAlpha;
+    // uColor is premultiplied: the batch alpha scales all four channels
+    out.vTint = localUniforms.uColor * globalUniforms.uWorldColorAlpha * xf1.z;
     if (kind < 0.5) {
         let t0 = metric(aInst0.w, 0);
         let t1 = metric(aInst0.w, 1);
@@ -98,7 +104,9 @@ fn mainVertex(
         out.vRect = vec4<f32>(centre, size, thickness, 0.0);
     }
     out.vPos = pos;
-    out.position = vec4<f32>((m * vec3<f32>(pos, 1.0)).xy, 0.0, 1.0);
+    let placed = vec2<f32>(xf0.x * pos.x + xf0.z * pos.y + xf1.x, xf0.y * pos.x + xf0.w * pos.y + xf1.y);
+
+    out.position = vec4<f32>((m * vec3<f32>(placed, 1.0)).xy, 0.0, 1.0);
 
     return out;
 }
@@ -162,22 +170,26 @@ fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
         let s5 = styleTexel(row, 5);
         let bias = fx.w * input.vRect.y;
         let sd = distanceAt(input.vUv, input.vInfo, input.vCell) + bias;
-        let ss = distanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell) + bias + fx.x;
+        // effects end where the distance field ends (half the range, in local pixels)
+        let reach = max(0.5 * page(input.vInfo.x).z / input.vInfo.y - aa, 0.0);
+        let ow = min(fx.x, reach);
+        let room = max(reach - ow, 0.0);
+        let ss = distanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell) + bias + ow;
 
         if (shadow.a > 0.0) {
-            let blur = fx.z * 4.0;
+            let blur = min(fx.z * 4.0, 2.0 * room);
             color = premul(shadow, smoothstep(-0.5 * blur - aa * 0.5, 0.5 * blur + aa * 0.5, ss));
         }
         if (glow.a > 0.0 && fx.y > 0.0) {
-            let g = clamp(1.0 + (sd + fx.x) / fx.y, 0.0, 1.0);
+            let g = clamp(1.0 + (sd + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
             color = over(premul(glow, g * g), color);
         }
-        if (outline.a > 0.0 && fx.x > 0.0) {
-            color = over(premul(outline, clamp((sd + fx.x) / aa + 0.5, 0.0, 1.0)), color);
+        if (outline.a > 0.0 && ow > 0.0) {
+            color = over(premul(outline, clamp((sd + ow) / aa + 0.5, 0.0, 1.0)), color);
         }
         color = over(premul(fill, clamp(sd / aa + 0.5, 0.0, 1.0)), color);
     }
 
-    return color * input.vTint.a * vec4<f32>(input.vTint.rgb, 1.0);
+    return color * input.vTint;
 }
 `;

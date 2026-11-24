@@ -5,7 +5,7 @@
 
 import { Glass } from '/packages/pixi-silk/dist/glass.js';
 import { SilkBundle } from '/packages/pixi-silk/dist/i18n.js';
-import { Silk, SilkMessage } from '/packages/pixi-silk/dist/i18n-pixi.js';
+import { Silk, SilkMessage, SilkMessageLayer } from '/packages/pixi-silk/dist/i18n-pixi.js';
 import { enableSilkBatching, linear, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { silkGl1 } from '/packages/pixi-silk/dist/shader-slot.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
@@ -609,6 +609,43 @@ if (i18n) {
             return { scene: root, kind: 'none' };
         };
     }
+    // 50 messages in a SilkMessageLayer: one draw for the glyphs, the same pixels as 50 draws
+    const fifty = (layered) => {
+        const root = layered ? new SilkMessageLayer() : new Container();
+        const bundle = i18n.silk.bundles.get('en');
+
+        for (let i = 0; i < 50; i++) {
+            const m = new SilkMessage({
+                silk: i18n.silk,
+                bundle,
+                index: bundle.message(i % 2 ? 'shop.terms' : 'shop.coins'),
+                theme: i18n.theme,
+                spec: {
+                    key: 'x',
+                    size: 10,
+                    maxWidth: 0,
+                    align: 'start',
+                    lineHeight: 1.2,
+                    style: '',
+                    values: { count: i * 37 },
+                },
+            });
+
+            m.position.set(4 + (i % 2) * 124, 4 + Math.floor(i / 2) * 10);
+            if (i % 5 === 0) m.alpha = 0.5;
+            root.addChild(m);
+        }
+        return root;
+    };
+
+    cases['i18n-batch-50'] = () => ({
+        scene: fifty(true),
+        ref: fifty(false),
+        kind: 'same',
+        tolerance: 2,
+        counts: true,
+        warm: true,
+    });
 }
 
 export const extraCases = cases;

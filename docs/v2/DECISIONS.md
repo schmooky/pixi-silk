@@ -130,3 +130,13 @@ JavaScript has no portable allocation counter, so the brief's "zero allocations"
 - Run sprites are padded to a multiple of 4 pixels wide. WebGL uploads single-byte rows with 4-byte alignment, and an odd width sheared the sprite on WebGL2 (seen in the demo, fixed).
 - Size: `createCanvasText` alone is 4.61 kB brotli, because it includes the shader. Loaded lazily from `pixi-silk/i18n/pixi`, it adds 1.99 kB gzip on demand (brief target: 4 kB).
 - The `system` font is the default and downloads nothing. A `CanvasFont` downloads one file before the first slot.
+
+## D19. Scale (M6)
+
+- **Cross-text batching.** `SilkMessageLayer` merges the instances of its SilkMessage children into one draw per bundle and theme. Each instance carries its message index in the kind field, plus 4 times the index. A data texture carries each message's matrix and alpha, so moving a message writes 8 floats and no instance. The render case `i18n-batch-50` draws 50 messages in 1 draw call against 50 unbatched, with a max pixel difference of 1 on WebGL2 and WebGPU.
+- **Effects stop where the distance field stops.** Outline, glow and shadow blur are clamped to half the page's distance range in local pixels. Before, a glow wider than the field drew a square around small glyphs.
+- **Tint.** Pixi's `uColor` is premultiplied, so the shader multiplies by it once. Before, a message with alpha below 1 had its colour multiplied by alpha twice.
+- **Layout cache.** `Silk.layouts` is an LRU with a 4 MB budget. Messages that show the same variant, values, size and width share one layout. A message copies a shared layout before a `value-fast` write.
+- **`silk.stats()`** reports bundles, pages, atlas bytes, metrics bytes and the layout cache.
+- **Chunks.** `silk compile --split-by sheet|keyPrefix` writes `<locale>.<chunk>.silk`. Each chunk refers only to the pages its glyphs use. The pages stay shared, one set per compile.
+- **SilkBackend.** `pixi-silk/i18n` defines the brief's backend interface, `submitLayout` drives any backend, and `HeadlessBackend` is the reference. It draws the shop messages on the CPU in a test, with no renderer. The Pixi side calls the same core functions (`layoutMessage`, `StyleTable`) directly instead of going through the interface object. That is a deliberate deviation: Pixi's own buffer and texture objects already play the backend's part. The size check's `i18n (runtime path)` entry keeps the reference backend out of what apps load.

@@ -4,6 +4,14 @@
  * digit tables, lays out lines from baked advances and break flags, and writes glyph instances.
  * It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it.
  */
+
+export {
+    HeadlessBackend,
+    type RunSprite,
+    type SilkBackend,
+    submitLayout,
+    type TextBufferHandle,
+} from './i18n/backend';
 export {
     type BundleData,
     type BundleRuns,
@@ -14,6 +22,7 @@ export {
     readBundle,
     SilkBundleError,
 } from './i18n/bundle';
+export { cloneLayout, LayoutCache } from './i18n/cache';
 export {
     align8,
     BundleFlag,

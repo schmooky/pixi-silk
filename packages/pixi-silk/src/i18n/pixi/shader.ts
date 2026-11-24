@@ -1,11 +1,15 @@
-import { GlProgram, GpuProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
+import { BufferImageSource, GlProgram, GpuProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
 import { messageWgsl } from './shader-wgsl';
 
 /**
  * @internal The shader of `SilkMessage`: one instanced quad per glyph or decoration.
  *
- * Instances (8 floats, `INSTANCE_FLOATS`): aInst0 = pen x, pen y (baseline), pixels per font unit,
- * atlas glyph index. aInst1 = style row, kind (0 glyph, 1 underline, 2 strike), font size, width.
+ * Each instance has 8 floats (`INSTANCE_FLOATS`). The first vec4 (aInst0) holds the pen x and y
+ * on the baseline, the pixels per font unit and the atlas glyph index. The second (aInst1) holds the
+ * style row, the kind (0 glyph, 1 underline, 2 strike) plus 4 times the message index in a batch,
+ * the font size and the width.
+ *
+ * uTransforms is RGBA32F with 2 texels per message: a, b, c, d of its matrix, then tx, ty and alpha.
  *
  * uMetrics is RGBA32F with 3 texels per glyph and 512 glyphs per row. Texel 0 holds the page
  * slot and x, y, w in atlas pixels. Texel 1 holds h, then planeL, planeB, planeR in font units.
@@ -32,6 +36,7 @@ uniform vec4 uColor;
 
 uniform sampler2D uMetrics;
 uniform sampler2D uStyles;
+uniform sampler2D uTransforms;
 
 out vec2 vPos;
 out vec2 vUv;
@@ -53,11 +58,16 @@ vec4 styleTexel(float row, int t) {
 void main(void)
 {
     mat3 m = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
-    float kind = aInst1.y;
+    // kind holds the instance kind (0 to 2) plus 4 times its message index in a batch
+    float kind = mod(aInst1.y, 4.0);
+    int message = int(aInst1.y / 4.0);
+    vec4 xf0 = texelFetch(uTransforms, ivec2((message % 512) * 2, message / 512), 0);
+    vec4 xf1 = texelFetch(uTransforms, ivec2((message % 512) * 2 + 1, message / 512), 0);
     float size = aInst1.z;
     vec2 pos;
 
-    vTint = uColor * uWorldColorAlpha;
+    // uColor is premultiplied: the batch alpha scales all four channels
+    vTint = uColor * uWorldColorAlpha * xf1.z;
     if (kind < 0.5) {
         vec4 t0 = metric(aInst0.w, 0);
         vec4 t1 = metric(aInst0.w, 1);
@@ -92,7 +102,10 @@ void main(void)
         vRect = vec4(centre, size, thickness, 0.0);
     }
     vPos = pos;
-    gl_Position = vec4((m * vec3(pos, 1.0)).xy, 0.0, 1.0);
+    // the message's transform inside its batch (identity outside one)
+    vec2 placed = vec2(xf0.x * pos.x + xf0.z * pos.y + xf1.x, xf0.y * pos.x + xf0.w * pos.y + xf1.y);
+
+    gl_Position = vec4((m * vec3(placed, 1.0)).xy, 0.0, 1.0);
 }
 `;
 
@@ -179,26 +192,30 @@ void main(void)
         vec4 s5 = styleTexel(row, 5);
         float bias = fx.w * vRect.y;
         float sd = distanceAt(vUv) + bias;
+        // effects end where the distance field ends (half the range, in local pixels)
+        float reach = max(0.5 * page(vInfo.x).z / vInfo.y - aa, 0.0);
+        float ow = min(fx.x, reach);
+        float room = max(reach - ow, 0.0);
 
         color = vec4(0.0);
         if (shadow.a > 0.0) {
-            float blur = fx.z * 4.0;
-            float ss = distanceAt(vUv - s5.xy * vInfo.y) + bias + fx.x;
+            float blur = min(fx.z * 4.0, 2.0 * room);
+            float ss = distanceAt(vUv - s5.xy * vInfo.y) + bias + ow;
             float cov = smoothstep(-0.5 * blur - aa * 0.5, 0.5 * blur + aa * 0.5, ss);
 
             color = premul(shadow, cov);
         }
         if (glow.a > 0.0 && fx.y > 0.0) {
-            float g = clamp(1.0 + (sd + fx.x) / fx.y, 0.0, 1.0);
+            float g = clamp(1.0 + (sd + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
 
             color = over(premul(glow, g * g), color);
         }
-        if (outline.a > 0.0 && fx.x > 0.0) {
-            color = over(premul(outline, clamp((sd + fx.x) / aa + 0.5, 0.0, 1.0)), color);
+        if (outline.a > 0.0 && ow > 0.0) {
+            color = over(premul(outline, clamp((sd + ow) / aa + 0.5, 0.0, 1.0)), color);
         }
         color = over(premul(fill, clamp(sd / aa + 0.5, 0.0, 1.0)), color);
     }
-    finalColor = color * vTint.a * vec4(vTint.rgb, 1.0);
+    finalColor = color * vTint;
 }
 `;
 
@@ -215,6 +232,26 @@ export interface MessageResources {
     pages: TextureSource[];
     /** Width, height, distance range and kind of each page. */
     pageInfo: Float32Array[];
+    /** Message transforms of a batch. Default the identity for one message. */
+    transforms?: TextureSource;
+}
+
+let identity: BufferImageSource | null = null;
+
+/** @internal The transform texture of an unbatched message: one identity matrix, alpha 1. */
+export function identityTransforms(): BufferImageSource {
+    identity ??= new BufferImageSource({
+        resource: new Float32Array([1, 0, 0, 1, 0, 0, 1, 0]),
+        width: 2,
+        height: 1,
+        format: 'rgba32float',
+        alphaMode: 'premultiplied-alpha',
+        scaleMode: 'nearest',
+        autoGenerateMipmaps: false,
+        label: 'silk-message-identity',
+    });
+
+    return identity;
 }
 
 /** @internal Builds a SilkMessage shader: shared programs, the message's own resources. */
@@ -234,7 +271,8 @@ export function createMessageShader(r: MessageResources): Shader {
         });
         // the data textures are RGBA32F and read with textureLoad only
         for (const entry of gpuProgram.gpuLayout[2] ?? []) {
-            if (entry.texture && entry.binding <= 2) entry.texture.sampleType = 'unfilterable-float';
+            if (entry.texture && (entry.binding <= 2 || entry.binding === 8))
+                entry.texture.sampleType = 'unfilterable-float';
         }
     }
     const page = (i: number) => r.pages[i] ?? r.pages[0];
@@ -252,6 +290,7 @@ export function createMessageShader(r: MessageResources): Shader {
             uAtlas2: page(2),
             uAtlas3: page(3),
             uAtlasSampler: page(0).style,
+            uTransforms: r.transforms ?? identityTransforms(),
         },
     });
 }

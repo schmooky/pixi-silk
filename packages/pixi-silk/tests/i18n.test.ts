@@ -50,12 +50,15 @@ describe('update tiers (brief sec. 6.3)', () => {
         events.length = 0;
         m.set({ count: 5678 });
         expect(events.map((e) => e.tier)).toEqual(['value-fast']);
-        expect(w.layout()).toBe(before);
+        // no new layout: the same lines and instance count (the cached layout is copied, not redone)
+        expect(w.layout().lines).toEqual(before.lines);
+        expect(w.layout().count).toBe(before.count);
         expect(w.writes()).toBe(1);
         const slot = before.slots[0];
+        const after = m.layout.instances;
 
         for (let i = 0; i < instances.length; i++) {
-            if (instances[i] === before.instances[i]) continue;
+            if (instances[i] === after[i]) continue;
             const instance = Math.floor(i / INSTANCE_FLOATS);
 
             expect(instance).toBeGreaterThanOrEqual(slot.first);
@@ -162,5 +165,47 @@ describe('canvas text slots', () => {
         expect(slotDirection('ليلى')).toBe('rtl');
         expect(slotDirection('42 שלום')).toBe('rtl');
         expect(slotDirection('\u{1F600} Sam')).toBe('ltr');
+    });
+});
+
+describe('layout cache (brief sec. 8)', () => {
+    it('shares one layout between messages that show the same thing, and copies it before a value-fast write', async () => {
+        const a = await coins('en', 4321);
+        const b = await coins('en', 4321);
+
+        expect(b.layout).toBe(a.layout);
+        const shared = a.layout;
+        const before = shared.instances.slice();
+
+        a.set({ count: 8765 });
+        expect(a.layout).not.toBe(shared);
+        expect(shared.instances).toEqual(before);
+        expect(silk.stats().layouts.hits).toBeGreaterThan(0);
+    });
+
+    it('evicts the least recently used layouts past its budget', async () => {
+        const { LayoutCache } = await import('../src/i18n');
+        // 200 floats take 800 bytes plus 256 of bookkeeping: two fit in 3000 bytes, three do not
+        const cache = new LayoutCache(3000);
+        const empty = {
+            width: 0,
+            height: 0,
+            lines: [],
+            objects: [],
+            textSlots: [],
+            hits: [],
+            text: '',
+            count: 0,
+            slots: [],
+        };
+        const layout = (n: number) => ({ ...empty, instances: new Float32Array(n) }) as never;
+
+        cache.set('a', layout(200));
+        cache.set('b', layout(200));
+        cache.get('a');
+        cache.set('c', layout(200));
+        expect(cache.get('b')).toBeUndefined();
+        expect(cache.get('a')).toBeDefined();
+        expect(cache.bytes).toBeLessThanOrEqual(3000);
     });
 });
