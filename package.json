@@ -21,6 +21,8 @@
     "check:pages": "node scripts/check-pages.mjs",
     "check:wgsl": "node scripts/check-wgsl.mjs",
     "check:render": "node scripts/check-render.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "i18n:preview": "node apps/preview/server.mjs",
     "check:skills": "node scripts/check-skills.mjs",
     "site:dev": "pnpm --filter @pixi-silk/site dev",
     "site:build": "pnpm --filter @pixi-silk/site build",

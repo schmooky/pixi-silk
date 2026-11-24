@@ -1,0 +1,15 @@
+{
+  "name": "@pixi-silk/preview",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Preview for pixi-silk/i18n: compiles a strings sheet on every save, renders every message with pixi-silk, shows lint errors per cell and edits the theme live.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@pixi-silk/compiler": "workspace:*",
+    "pixi-silk": "workspace:*",
+    "pixi.js": "^8.21.0"
+  }
+}

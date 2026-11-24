@@ -18,7 +18,8 @@ export async function exportWorkbook(rows: SheetRow[], config: SilkConfig, targe
     const sourceCats = new Set<string>();
 
     for (const r of rows) for (const c of r.cells) if (c.locale === source) sourceCats.add(c.category);
-    const sourceCols = [...sourceCats].map((c) => `${source}.${c}`);
+    const order = ['zero', 'one', 'two', 'few', 'many', 'other'];
+    const sourceCols = [...sourceCats].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((c) => `${source}.${c}`);
     const hasPlural = rows.some((r) => /:plural|plural\b/.test(r.slots));
     const targetCols = (hasPlural ? pluralCategories(target) : ['other']).map((c) => `${target}.${c}`);
     const header = ['key', 'context', 'slots', 'maxLen', ...sourceCols, ...targetCols];

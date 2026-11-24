@@ -72,6 +72,7 @@ export {
     type FormattedNumber,
     SilkBundle,
 } from './i18n/messages';
+export { fontHash, type RuntimeShaper, type ShapedGlyphOut, sameFont } from './i18n/shaper';
 export { type StyleChange, StyleTable } from './i18n/styles';
 export {
     effectReach,

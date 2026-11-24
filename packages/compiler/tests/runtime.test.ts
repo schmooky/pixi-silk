@@ -263,3 +263,23 @@ describe('text slots (brief sec. 6.5, M5)', () => {
         expect(layout.text).toContain('Alex،');
     });
 });
+
+describe('runtime shaper contract (M7)', () => {
+    it('hashes font files exactly like the compiler, without BigInt', async () => {
+        const { fontHash } = await import('pixi-silk/i18n');
+        const { hash64 } = await import('../src/shape/fonts');
+        const { readFileSync } = await import('node:fs');
+        const bytes = new Uint8Array(readFileSync(`${fixtures}fonts/NotoSansHebrew-Regular.ttf`));
+        const en = bundles.get('en') as SilkBundle;
+
+        expect(fontHash(bytes)).toBe(hash64(bytes).toString(16).padStart(16, '0'));
+        expect(fontHash(new Uint8Array([1, 2, 3]))).toBe(
+            hash64(new Uint8Array([1, 2, 3]))
+                .toString(16)
+                .padStart(16, '0'),
+        );
+        const latin = new Uint8Array(readFileSync(`${fixtures}fonts/NotoSans-Regular.ttf`));
+
+        expect(en.face(0).hash).toBe(fontHash(latin));
+    });
+});

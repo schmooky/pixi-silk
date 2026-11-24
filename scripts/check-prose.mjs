@@ -35,6 +35,8 @@ const SCOPE = [
     'packages/compiler/src',
     'packages/compiler/scripts',
     'packages/compiler/tests',
+    'apps/preview/server.mjs',
+    'apps/preview/public',
     'apps/site/src',
     'apps/site/scripts',
     'apps/site/public/search.js',
