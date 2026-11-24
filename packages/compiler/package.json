@@ -32,7 +32,6 @@
   "dependencies": {
     "exceljs": "4.4.0",
     "harfbuzzjs": "1.6.4",
-    "linebreak": "2.0.0",
     "pixi-silk": "workspace:*"
   },
   "devDependencies": {

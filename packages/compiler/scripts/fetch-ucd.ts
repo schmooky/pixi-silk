@@ -1,7 +1,7 @@
 /**
- * Downloads the Unicode data the compiler's tests and generators read into .cache/ucd (not committed):
- * DerivedBidiClass.txt and BidiCharacterTest.txt (Unicode 16.0.0), LineBreakTest.txt (13.0.0, the
- * version the linebreak package implements).
+ * Downloads the Unicode 16.0.0 data the compiler's tests and generators read into .cache/ucd (not
+ * committed): bidi classes and BidiCharacterTest.txt, line break classes, East Asian widths and
+ * LineBreakTest.txt.
  *
  *   node scripts/fetch-ucd.ts
  */
@@ -11,7 +11,9 @@ const dir = new URL('../.cache/ucd/', import.meta.url);
 const FILES: Record<string, string> = {
     'DerivedBidiClass.txt': 'https://www.unicode.org/Public/16.0.0/ucd/extracted/DerivedBidiClass.txt',
     'BidiCharacterTest.txt': 'https://www.unicode.org/Public/16.0.0/ucd/BidiCharacterTest.txt',
-    'LineBreakTest-13.txt': 'https://www.unicode.org/Public/13.0.0/ucd/auxiliary/LineBreakTest.txt',
+    'LineBreak.txt': 'https://www.unicode.org/Public/16.0.0/ucd/extracted/DerivedLineBreak.txt',
+    'EastAsianWidth.txt': 'https://www.unicode.org/Public/16.0.0/ucd/EastAsianWidth.txt',
+    'LineBreakTest-16.txt': 'https://www.unicode.org/Public/16.0.0/ucd/auxiliary/LineBreakTest.txt',
 };
 
 mkdirSync(dir, { recursive: true });
