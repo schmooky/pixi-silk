@@ -5,8 +5,9 @@ import { Silk, SilkMessage, type SilkTheme, type UpdateEvent } from '../src/i18n
 
 // The site compiles the compiler's shop example into apps/site/public/i18n (committed, deterministic).
 const dir = new URL('../../../apps/site/public/i18n/', import.meta.url);
+// a copy: a small file's Buffer is a view into Node's shared pool, at any offset
 const bundle = (locale: string) =>
-    new SilkBundle(readFileSync(new URL(`${locale}.silk`, dir)).buffer.slice(0) as ArrayBuffer, `/i18n/${locale}.silk`);
+    new SilkBundle(new Uint8Array(readFileSync(new URL(`${locale}.silk`, dir))).buffer, `/i18n/${locale}.silk`);
 const page = async (_url: string, p: { width: number; height: number }) => new Uint8Array(p.width * p.height * 4);
 
 let silk: Silk;
