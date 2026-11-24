@@ -33,6 +33,12 @@ import type { Project } from './project';
 import { faceChain, type LoadedFace, loadFaces } from './shape/fonts';
 import { buildDigitTable, type DigitTable, type ShapedGlyph, type ShapedVariant, shapeVariant } from './shape/shape';
 
+/**
+ * Default atlas sizes of page groups that need more detail than the default 40 pixels per em: Han
+ * and Hangul glyphs pack many strokes into one em (see docs/v2/DECISIONS.md D21).
+ */
+export const DEFAULT_EM_BY_SCRIPT: Record<string, number> = { han: 56, hangul: 48 };
+
 /** Options of {@link compileProject}. */
 export interface CompileOptions {
     /**
@@ -124,6 +130,7 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
         emSize: config.atlas?.emSize ?? 40,
         maxPageSize: config.atlas?.maxPageSize ?? 1024,
         format: config.atlas?.format ?? 'png',
+        emSizeByScript: { ...DEFAULT_EM_BY_SCRIPT, ...config.atlas?.emSizeByScript },
     };
     const allStyles = { base: theme.base ?? {}, ...(theme.styles ?? {}) };
     const fromTheme = distanceRangeFor(
@@ -178,7 +185,8 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
                 out.push({ category, shaped: shapedVariant });
                 for (const seg of shapedVariant.segments) {
                     if (seg.kind === 'static')
-                        for (const g of seg.glyphs) if (g.gid > 0) requests.push({ face: g.face, gid: g.gid });
+                        for (const g of seg.glyphs)
+                            if (g.gid > 0) requests.push({ face: g.face, gid: g.gid, script: g.script });
                     if (seg.kind === 'slot') {
                         const decl = message.slots.find((s) => s.name === seg.name);
 
@@ -349,7 +357,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
         const kind = page.kind === 'sdf' ? PageKind.Sdf : page.kind === 'mtsdf' ? PageKind.Mtsdf : PageKind.Msdf;
 
         pages.set(
-            [p, ref(`atlas/${page.file}`), kind, page.width, page.height, atlas.distanceRange, atlas.emSize],
+            [p, ref(`atlas/${page.file}`), kind, page.width, page.height, page.distanceRange, page.emSize],
             i * 7,
         );
     });

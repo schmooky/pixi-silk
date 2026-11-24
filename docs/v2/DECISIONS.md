@@ -157,3 +157,9 @@ The app uses its own locale codes, and many are country codes or collide with IS
 - This supersedes "out of scope for v2" for Thai, Lao, Khmer, Burmese and CJK line breaking. The compiler adds break opportunities between words of Thai, Lao, Khmer and Burmese from ICU's dictionaries (`Intl.Segmenter`, which Node ships with full ICU). UAX #14 already breaks between CJK characters. The breaks are baked, so the runtime still carries no tables.
 - Fonts: full Noto fonts for 22 more scripts live in `packages/compiler/.cache/fonts` and are not committed. `scripts/build-world-fixture.ts` subsets them with HarfBuzz's subsetter (`subsetFont`, exported) to the characters `fixtures/world` needs, 348 kB in all, with their OFL licences. `tests/world.test.ts` compiles 31 locales, one per script group.
 - Not covered yet: Gurmukhi (Punjabi), because the font mirror refused the download. The `GurbaniWebThick` font offered instead has no Gurmukhi code points: it is a legacy font that draws Gurmukhi on ASCII letters, with no shaping tables and an all-rights-reserved licence. Use Noto Sans Gurmukhi (OFL) or another Unicode font with GSUB and GPOS for `gurm`.
+
+## D21. Atlas size per script
+
+Han characters pack many strokes into one em. Drawn large (64 px) from pages at the default 40 atlas pixels per em, the dense parts of characters such as 鬱 and 釁 merge. At 56 they stay apart. At 12 to 16 px on screen both look the same: the screen's pixels limit legibility there, not the atlas. `atlas.emSizeByScript` sets pixels per em by page group, and defaults to `{ han: 56, hangul: 48 }`. The distance range scales with it, so outlines and glows keep their reach in local pixels. Han pages take about twice the area of the same glyphs at 40.
+
+Recommended minimum text size for baked text is 12 px. Below it, SDF text has no hinting. Use `sdf` pages with a larger `emSize` for UI that must be smaller.

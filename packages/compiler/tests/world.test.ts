@@ -241,3 +241,24 @@ describe('every script of the app locales (fixtures/world)', () => {
         }
     });
 });
+
+describe('atlas size per script (D21)', () => {
+    it('gives Han and Hangul pages more pixels per em, with the range scaled to match', async () => {
+        const project = await loadProject({
+            config: `${fixtures}world/silk.config.json`,
+            strings: `${fixtures}world/strings.xlsx`,
+            theme: `${fixtures}theme.json`,
+        });
+        const r = compileProject(project);
+        const page = (name: string) => r.atlas.pages.find((p) => p.file.startsWith(name));
+
+        expect(page('han')?.emSize).toBe(56);
+        expect(page('hangul')?.emSize).toBe(48);
+        expect(page('latin')?.emSize).toBe(40);
+        expect(page('han')?.distanceRange).toBe(Math.ceil(((page('latin')?.distanceRange ?? 0) * 56) / 40));
+        const zh = readBundle(r.bundles.get('zh')?.slice().buffer as ArrayBuffer);
+
+        // the page record carries its own em size, so the shader scales Han glyphs right
+        expect([...zh.pages].filter((_, i) => i % 7 === 6)).toContain(56);
+    });
+});

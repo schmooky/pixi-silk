@@ -1,4 +1,4 @@
-import type { LoadedFace } from '../shape/fonts';
+import { type LoadedFace, pageName } from '../shape/fonts';
 import { type GlyphBitmap, generateGlyph, type PathCommand } from './msdf';
 import { encodePng } from './png';
 
@@ -8,6 +8,11 @@ export interface GlyphRequest {
     face: number;
     /** Glyph id. */
     gid: number;
+    /**
+     * ISO 15924 script of the character the glyph was shaped from. It picks the page group (with
+     * its em size). Common characters such as digits leave it out and go with their face's group.
+     */
+    script?: string;
 }
 
 /** Where a glyph landed. */
@@ -48,6 +53,20 @@ export interface AtlasPage {
     png: Uint8Array;
     /** Glyphs on the page. */
     glyphs: number;
+    /** Atlas pixels per em on this page. */
+    emSize: number;
+    /** Distance range in pixels on this page. */
+    distanceRange: number;
+}
+
+/** Atlas pixels per em of a page group. */
+export function emSizeOf(options: AtlasOptions, script: string): number {
+    return options.emSizeByScript?.[script] ?? options.emSize;
+}
+
+/** Distance range of a page group: the configured range, scaled with its em size. */
+export function rangeOf(options: AtlasOptions, script: string): number {
+    return Math.ceil((options.distanceRange * emSizeOf(options, script)) / options.emSize);
 }
 
 /** The atlas: pages and where every glyph is. Glyphs without ink are absent. */
@@ -72,6 +91,11 @@ export interface AtlasOptions {
     distanceRange: number;
     /** Largest page side. */
     maxPageSize: number;
+    /**
+     * Atlas pixels per em by page group (`han`, `hangul`, `thai`...), for scripts whose glyphs need
+     * more detail than `emSize` gives. The distance range grows with it, so effects keep their reach.
+     */
+    emSizeByScript?: Record<string, number>;
     /** File format the pages will be written in: sets the file extension. Default `png`. */
     format?: 'png' | 'webp';
 }
@@ -90,15 +114,24 @@ export function buildAtlas(
 ): Atlas {
     const unique = new Map<string, GlyphRequest>();
 
-    for (const r of requests) if (r.gid > 0) unique.set(`${r.face}:${r.gid}`, r);
+    // the first request of a glyph decides its group; a later one only fills in a missing script
+    for (const r of requests) {
+        if (r.gid <= 0) continue;
+        const key = `${r.face}:${r.gid}`;
+        const known = unique.get(key);
+
+        if (!known || (!known.script && r.script)) unique.set(key, r);
+    }
     const bitmaps: { key: string; script: string; bitmap: GlyphBitmap }[] = [];
 
     for (const [key, r] of [...unique].sort((a, b) => a[1].face - b[1].face || a[1].gid - b[1].gid)) {
         const face = faces[r.face];
         const commands = face.font.glyphToJson(r.gid) as PathCommand[];
-        const bitmap = generateGlyph(commands, options.emSize / face.upem, options.distanceRange, options.kind);
+        const group = r.script && r.script !== 'Zyyy' && r.script !== 'Zinh' ? pageName(r.script) : face.script;
+        const em = emSizeOf(options, group);
+        const bitmap = generateGlyph(commands, em / face.upem, rangeOf(options, group), options.kind);
 
-        if (bitmap) bitmaps.push({ key, script: face.script, bitmap });
+        if (bitmap) bitmaps.push({ key, script: group, bitmap });
     }
     const pages: AtlasPage[] = [];
     const glyphs = new Map<string, PlacedGlyph>();
@@ -141,6 +174,8 @@ export function buildAtlas(
                 file: `${script}-${index++}.${options.format ?? 'png'}`,
                 script,
                 kind: options.kind,
+                emSize: emSizeOf(options, script),
+                distanceRange: rangeOf(options, script),
                 width,
                 height,
                 png: encodePng(pixels, width, height, channels),

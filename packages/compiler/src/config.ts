@@ -32,6 +32,11 @@ export interface AtlasConfig {
     kind?: 'msdf' | 'sdf' | 'mtsdf';
     /** Atlas pixels per em the glyphs are generated at. Default 40. */
     emSize?: number;
+    /**
+     * Atlas pixels per em by page group (`han`, `hangul`, `thai`...). Default `{ han: 56, hangul: 48 }`:
+     * dense CJK glyphs need more detail to stay legible at small sizes.
+     */
+    emSizeByScript?: Record<string, number>;
     /** Distance range in atlas pixels. 0 derives it from the theme. Default 0. */
     distanceRange?: number;
     /** Largest page side in pixels. Default 1024. */
