@@ -41,12 +41,40 @@ export interface UpdateEvent {
     key?: string;
 }
 
+/** A text slot to draw, as {@link DynamicTextProvider.render} receives it. Sizes in local pixels. */
+export interface TextSlotRender {
+    /** The value. */
+    value: string;
+    /** Font size. */
+    size: number;
+    /** The slot's resolved style. */
+    style: ThemeStyle;
+    /** The slot's style row, for drawing with the message shader. */
+    row: number;
+    /** The theme the row belongs to. */
+    theme: SilkTheme;
+    /** Width the layout reserved. */
+    width: number;
+    /** Height of the line box. */
+    height: number;
+    /** Distance from the box top to the baseline. */
+    baseline: number;
+}
+
 /** Draws a text slot's value (the dynamic path, `pixi-silk/i18n/canvas`). */
 export interface DynamicTextProvider {
     /** Width of `value` in pixels at `size`, for layout. */
     measure(value: string, size: number, style: ThemeStyle): number;
-    /** A display object showing `value`, `width` by `height` pixels, with its top left at 0, 0. */
-    render(value: string, size: number, style: ThemeStyle, width: number, height: number): Container;
+    /** A display object showing the value, with the top left of its box at 0, 0. */
+    render(slot: TextSlotRender): Container;
+}
+
+/** The built-in dynamic text modes of {@link SilkOptions.dynamicText}. */
+export interface DynamicTextMode {
+    /** `canvas` loads `pixi-silk/i18n/canvas` on first use. `off` draws nothing in text slots. */
+    mode: 'canvas' | 'off';
+    /** Font of the canvas mode. Default `system`, nothing to download. */
+    font?: 'system' | { family: string; source: string; weight?: number };
 }
 
 /** Options of {@link Silk.create}. */
@@ -56,8 +84,11 @@ export interface SilkOptions {
      * WebGL2 or WebGPU, and on a WebGL1 context it logs one error instead of failing to compile.
      */
     renderer?: { name: string; context?: { webGLVersion?: number } } | null;
-    /** How text slots (player names) are drawn. Default none: they take room but draw nothing. */
-    dynamicText?: DynamicTextProvider | null;
+    /**
+     * How text slots (player names) are drawn: a provider, or `{ mode: 'canvas' }` to load the
+     * canvas path (`pixi-silk/i18n/canvas`) lazily. Default none: they take room but draw nothing.
+     */
+    dynamicText?: DynamicTextProvider | DynamicTextMode | null;
     /** Report every update through `on('update')`. Default true outside production builds. */
     devEvents?: boolean;
 }
@@ -234,12 +265,12 @@ export class Silk {
     private readonly _devEvents: boolean;
     private readonly _warned = new Set<string>();
 
-    private constructor(options: SilkOptions) {
-        this.dynamicText = options.dynamicText ?? null;
+    private constructor(options: SilkOptions, dynamicText: DynamicTextProvider | null) {
+        this.dynamicText = dynamicText;
         this._devEvents = options.devEvents ?? true;
     }
 
-    /** Creates a Silk. Async so later versions can start workers without an API change. */
+    /** Creates a Silk. With `dynamicText: { mode: 'canvas' }` it loads the canvas path first. */
     static async create(options: SilkOptions = {}): Promise<Silk> {
         const r = options.renderer;
 
@@ -248,7 +279,19 @@ export class Silk {
                 'pixi-silk: baked localized text needs WebGL2 or WebGPU. This renderer runs WebGL1, so SilkMessage draws nothing',
             );
         }
-        return new Silk(options);
+        const d = options.dynamicText;
+        let provider: DynamicTextProvider | null = null;
+
+        if (d && 'mode' in d) {
+            if (d.mode === 'canvas') {
+                // loaded on demand: apps without text slots never download it
+                const { createCanvasText } = await import('../canvas');
+
+                provider = await createCanvasText({ font: d.font });
+            }
+        } else provider = d ?? null;
+
+        return new Silk(options, provider);
     }
 
     /**
@@ -555,7 +598,8 @@ export const silkBundleLoader: {
 };
 
 /** @internal The geometry of a SilkMessage: one unit quad, one instance per glyph or line. */
-class MessageGeometry extends Geometry {
+export class MessageGeometry extends Geometry {
+    /** Instance data, `INSTANCE_FLOATS` floats per instance. */
     readonly instances: Buffer;
 
     constructor() {
@@ -807,13 +851,16 @@ export class SilkMessage extends Container {
             this._extras.addChild(sprite);
         }
         for (const s of layout.textSlots) {
-            const view = silk.dynamicText?.render(
-                s.value,
-                this._size,
-                styles.resolve(styles.stackOf(s.style)),
-                s.width,
-                s.height,
-            );
+            const view = silk.dynamicText?.render({
+                value: s.value,
+                size: this._size,
+                style: styles.resolve(styles.stackOf(s.style)),
+                row: s.style,
+                theme,
+                width: s.width,
+                height: s.height,
+                baseline: s.baseline,
+            });
 
             if (!view) continue;
             view.position.set(s.x, s.y);

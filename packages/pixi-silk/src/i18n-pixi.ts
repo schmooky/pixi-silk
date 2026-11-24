@@ -4,6 +4,7 @@
  * Register `silkBundleLoader` with `extensions.add` to load `.silk` files through `Assets`.
  */
 export {
+    type DynamicTextMode,
     type DynamicTextProvider,
     type InlineObject,
     loadAtlasPage,
@@ -17,6 +18,7 @@ export {
     SilkTheme,
     silkBundleLoader,
     type TagTapEvent,
+    type TextSlotRender,
     type UpdateEvent,
     type UpdateTier,
 } from './i18n/pixi/silk';

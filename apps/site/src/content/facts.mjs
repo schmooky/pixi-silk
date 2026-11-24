@@ -59,6 +59,11 @@ export const ENTRY_POINTS = {
         description:
             'Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU.',
     },
+    './i18n/canvas': {
+        area: 'text',
+        description:
+            'The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk.',
+    },
     './layout': { area: 'layout', description: 'LayoutNode: a headless flex layout engine with no Pixi in it.' },
     './ui/layout': {
         area: 'layout',

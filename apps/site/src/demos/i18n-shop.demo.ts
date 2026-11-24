@@ -25,7 +25,7 @@ export default defineDemo({
 
         (async () => {
             extensions.add(silkBundleLoader);
-            const silk = await Silk.create();
+            const silk = await Silk.create({ dynamicText: { mode: 'canvas' } });
             const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/i18n`;
             const [en, ar, themeData] = await Promise.all([
                 Assets.load(`${base}/en.silk`),
@@ -55,6 +55,11 @@ export default defineDemo({
                     defaults: { size: phone ? 22 : 24, maxWidth: phone ? 328 : 320, lineHeight: 1.35 },
                     messages: {
                         title: { key: 'shop.title', size: phone ? 34 : 40 },
+                        // a name typed by the player: drawn by the canvas path, mixed direction on purpose
+                        greeting: {
+                            key: 'player.greeting',
+                            values: { name: locale === 'ar' ? 'Alex' : '\u0644\u064a\u0644\u0649' },
+                        },
                         coins: { key: 'shop.coins', values: { count: params.count } },
                         terms: { key: 'shop.terms', size: 18 },
                     },
@@ -62,17 +67,19 @@ export default defineDemo({
                 const x = columns[i];
                 const y0 = phone ? 24 + i * 300 : 40;
                 const title = new SilkMessage(set.get('title'));
+                const greeting = new SilkMessage(set.get('greeting'));
                 const coins = new SilkMessage(set.get('coins'));
                 const terms = new SilkMessage(set.get('terms'));
 
                 title.position.set(x, y0);
-                coins.position.set(x, y0 + 90);
-                terms.position.set(x, y0 + 170);
+                greeting.position.set(x, y0 + 70);
+                coins.position.set(x, y0 + 120);
+                terms.position.set(x, y0 + 190);
                 terms.on('tagtap', (e) => {
                     terms.alpha = terms.alpha === 1 ? 0.6 : 1;
                     void e;
                 });
-                stage.addChild(title, coins, terms);
+                stage.addChild(title, greeting, coins, terms);
                 messages.push(coins);
             }
         })().catch((e) => console.error('i18n-shop:', e));

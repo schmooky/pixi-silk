@@ -122,6 +122,7 @@ writeFileSync(
                 'pixi-silk/text/bidi': [join(SRC, 'text/bidi.ts')],
                 'pixi-silk/i18n': [join(SRC, 'i18n.ts')],
                 'pixi-silk/i18n/pixi': [join(SRC, 'i18n-pixi.ts')],
+                'pixi-silk/i18n/canvas': [join(SRC, 'i18n-canvas.ts')],
                 'pixi-silk/layout': [join(SRC, 'layout.ts')],
             },
         },

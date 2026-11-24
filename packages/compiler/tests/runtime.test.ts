@@ -224,3 +224,42 @@ describe('number slots inside right-to-left text (brief sec. 9.2 item 13)', () =
         expect(share.layout.text).toContain('٢٥٪');
     });
 });
+
+describe('text slots (brief sec. 6.5, M5)', () => {
+    const measure = (_name: string, value: string, size: number) => [...value].length * size * 0.5;
+
+    it('puts an Arabic name in English text left to right, with the comma after it', () => {
+        const en = bundles.get('en') as SilkBundle;
+        const layout = layoutMessage(en, en.variant(en.message('player.greeting')), {
+            ...options({ name: 'ليلى' }),
+            measureText: measure,
+        });
+        const slot = layout.textSlots[0];
+        const xs = Array.from({ length: layout.count }, (_, i) => layout.instances[i * INSTANCE_FLOATS]);
+
+        expect(slot.value).toBe('ليلى');
+        expect(slot.width).toBeCloseTo(4 * 28 * 0.5);
+        // "Hello" before it, ", welcome back!" after it
+        expect(xs.filter((x) => x < slot.x).length).toBe(5);
+        expect(xs.filter((x) => x >= slot.x + slot.width - 0.01).length).toBeGreaterThan(10);
+        expect(layout.text).toBe('Hello ليلى, welcome back!');
+    });
+
+    it('puts a Latin name in Arabic text as one unit, the Arabic comma to its left', () => {
+        const ar = bundles.get('ar') as SilkBundle;
+        const layout = layoutMessage(ar, ar.variant(ar.message('player.greeting')), {
+            ...options({ name: 'Alex' }),
+            measureText: measure,
+        });
+        const slot = layout.textSlots[0];
+        const xs = Array.from({ length: layout.count }, (_, i) => layout.instances[i * INSTANCE_FLOATS]);
+        const right = xs.filter((x) => x > slot.x + slot.width - 0.01);
+        const left = xs.filter((x) => x < slot.x);
+
+        // the greeting word reads first, so it sits right of the name; the comma and the rest left
+        expect(right.length).toBeGreaterThanOrEqual(5);
+        expect(left.length).toBeGreaterThan(right.length);
+        expect(layout.text.startsWith('مرحب')).toBe(true);
+        expect(layout.text).toContain('Alex،');
+    });
+});

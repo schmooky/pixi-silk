@@ -153,3 +153,14 @@ describe('SilkMessage', () => {
         expect(silk.stats()).toMatchObject({ bundles: 2, pages: 2 });
     });
 });
+
+describe('canvas text slots', () => {
+    it('picks the direction of a name from its first strong letter', async () => {
+        const { slotDirection } = await import('../src/i18n-canvas');
+
+        expect(slotDirection('Alex')).toBe('ltr');
+        expect(slotDirection('ليلى')).toBe('rtl');
+        expect(slotDirection('42 שלום')).toBe('rtl');
+        expect(slotDirection('\u{1F600} Sam')).toBe('ltr');
+    });
+});

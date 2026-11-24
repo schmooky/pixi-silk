@@ -183,6 +183,10 @@
       "types": "./dist/i18n-pixi.d.ts",
       "default": "./dist/i18n-pixi.js"
     },
+    "./i18n/canvas": {
+      "types": "./dist/i18n-canvas.d.ts",
+      "default": "./dist/i18n-canvas.js"
+    },
     "./text/bidi": {
       "types": "./dist/text/bidi.d.ts",
       "default": "./dist/text/bidi.js"

@@ -95,8 +95,8 @@ export interface MessageLayout {
     slots: SlotPlacement[];
     /** Inline objects. */
     objects: (LayoutBox & { name: string })[];
-    /** Text slots, drawn by the dynamic path. */
-    textSlots: (LayoutBox & { name: string; value: string; style: number })[];
+    /** Text slots, drawn by the dynamic path. `baseline` is the distance from the box top to the baseline. */
+    textSlots: (LayoutBox & { name: string; value: string; style: number; baseline: number })[];
     /** Boxes of spans whose style is interactive, by tag, one per visual fragment. */
     hits: (LayoutBox & { tag: string })[];
     /** Plain text with values filled in, for accessibility. */
@@ -445,6 +445,7 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
                     y: baseline - ascender,
                     width: e.width,
                     height: ascender - descender,
+                    baseline: ascender,
                 });
             } else if (e.kind === 'object' && e.metrics) {
                 const height = e.metrics.height * size;
