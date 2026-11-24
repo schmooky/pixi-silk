@@ -77,6 +77,14 @@ export interface BundleData {
     digits: Uint32Array;
     /** Int32 records, `DIGIT_ENTRY_STRIDE` each. */
     digitEntries: Int32Array;
+    /** Baked layouts, `LAYOUT_STRIDE` floats each. Empty when the compile declared none. */
+    layouts?: Float32Array;
+    /** Their instances, with a stack index in the style field. */
+    layoutInstances?: Float32Array;
+    /** String refs of the tag stacks (tags joined with NUL), by stack index. */
+    layoutStacks?: Uint32Array;
+    /** Their lines: baseline, left, right. */
+    layoutLines?: Float32Array;
 }
 
 /** Thrown when a buffer is not a `.silk` bundle this runtime can read. */
@@ -167,6 +175,11 @@ export function readBundle(buffer: ArrayBuffer, warn: (message: string) => void 
 
         return new Uint16Array(buffer, o, l >> 1);
     };
+    const f32 = (id: number) => {
+        const [o, l] = bytes(id);
+
+        return new Float32Array(buffer, o, l >> 2);
+    };
     const u8 = (id: number) => {
         const [o, l] = bytes(id);
 
@@ -209,6 +222,10 @@ export function readBundle(buffer: ArrayBuffer, warn: (message: string) => void 
         slots: u32(Section.Slots),
         digits: u32(Section.Digits),
         digitEntries: i32(Section.DigitEntries),
+        layouts: f32(Section.Layouts),
+        layoutInstances: f32(Section.LayoutInstances),
+        layoutStacks: u32(Section.LayoutStacks),
+        layoutLines: f32(Section.LayoutLines),
     };
 }
 

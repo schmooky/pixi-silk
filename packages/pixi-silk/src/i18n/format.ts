@@ -48,6 +48,14 @@ export const Section = {
     Slots: 18,
     Digits: 19,
     DigitEntries: 20,
+    /** Optional: layouts baked for messages declared fixed. */
+    Layouts: 21,
+    /** Optional: the instances of the baked layouts. */
+    LayoutInstances: 22,
+    /** Optional: tag stacks the baked instances refer to (string refs, NUL-joined tags). */
+    LayoutStacks: 23,
+    /** Optional: lines of the baked layouts. */
+    LayoutLines: 24,
 } as const;
 
 /** Per-glyph flags in the RUNS flags column. */
@@ -136,6 +144,17 @@ export const PAGE_STRIDE = 7;
 export const DIGIT_STRIDE = 6;
 /** Int32 per digit table entry: code point, glyph index (-1 for a zero-width mark), advance (font units). */
 export const DIGIT_ENTRY_STRIDE = 3;
+
+/**
+ * Float32 per baked layout (LAYOUTS, brief sec. 5): variant, size, max width, align (0 start, 1 end,
+ * 2 left, 3 center, 4 right), line height, first instance, instance count, width, height, first
+ * line, line count, 0. Instances use `INSTANCE_FLOATS` floats with a stack index in place of the
+ * style row. Lines are 3 floats: baseline, left, right.
+ */
+export const LAYOUT_STRIDE = 12;
+
+/** Align codes of baked layouts. */
+export const LAYOUT_ALIGNS = ['start', 'end', 'left', 'center', 'right'] as const;
 
 /** "No value" in u32 fields. */
 export const NONE = 0xffffffff;

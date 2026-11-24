@@ -33,6 +33,8 @@ export {
     GLYPH_STRIDE,
     HEADER_BYTES,
     hashKey,
+    LAYOUT_ALIGNS,
+    LAYOUT_STRIDE,
     MESSAGE_STRIDE,
     NONE,
     PAGE_STRIDE,

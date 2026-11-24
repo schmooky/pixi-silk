@@ -283,3 +283,41 @@ describe('runtime shaper contract (M7)', () => {
         expect(en.face(0).hash).toBe(fontHash(latin));
     });
 });
+
+describe('baked layouts (LAYOUTS, brief sec. 5)', () => {
+    it('uses the compiled positions on an exact match, and the same ones layout computes', async () => {
+        const project = await loadProject({
+            config: `${fixtures}silk.config.json`,
+            strings: `${fixtures}strings.xlsx`,
+            theme: `${fixtures}theme.json`,
+        });
+
+        project.config.layouts = [
+            { key: 'shop.title', size: 44 },
+            { key: 'shop.coins', size: 24 },
+        ];
+        const r = compileProject(project);
+        const ar = new SilkBundle(r.bundles.get('ar')?.slice().buffer as ArrayBuffer);
+        const plain = bundles.get('ar') as SilkBundle;
+        const opts = { ...options(), size: 44 };
+        const variant = ar.variant(ar.message('shop.title'));
+        const baked = layoutMessage(ar, variant, { ...opts, styles: new StyleTable(theme) });
+        const computed = layoutMessage(plain, plain.variant(plain.message('shop.title')), {
+            ...opts,
+            styles: new StyleTable(theme),
+        });
+
+        expect(baked.baked).toBe(true);
+        expect(computed.baked).toBeUndefined();
+        expect([...baked.instances]).toEqual([...computed.instances]);
+        // lines are stored as float32
+        baked.lines.forEach((l, i) => {
+            expect(l.baseline).toBeCloseTo(computed.lines[i].baseline, 4);
+            expect(l.right).toBeCloseTo(computed.lines[i].right, 4);
+        });
+        // another size lays out at runtime
+        expect(layoutMessage(ar, variant, { ...opts, size: 40, styles: new StyleTable(theme) }).baked).toBeUndefined();
+        // a message with a slot is not baked, with a warning
+        expect(r.diagnostics.find((d) => d.code === 'layout-not-fixed')?.key).toBe('shop.coins');
+    });
+});

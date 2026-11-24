@@ -81,6 +81,14 @@ export function writeBundle(data: BundleData): Uint8Array {
         [Section.Slots, bytesOf(data.slots)],
         [Section.Digits, bytesOf(data.digits)],
         [Section.DigitEntries, bytesOf(data.digitEntries)],
+        ...(data.layouts?.length
+            ? ([
+                  [Section.Layouts, bytesOf(data.layouts)],
+                  [Section.LayoutInstances, bytesOf(data.layoutInstances ?? new Float32Array(0))],
+                  [Section.LayoutStacks, bytesOf(data.layoutStacks ?? new Uint32Array(0))],
+                  [Section.LayoutLines, bytesOf(data.layoutLines ?? new Float32Array(0))],
+              ] as [number, Uint8Array][])
+            : []),
     ];
     let at = align8(HEADER_BYTES + sections.length * SECTION_ENTRY_BYTES);
     const offsets = sections.map(([, b]) => {

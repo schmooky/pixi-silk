@@ -68,8 +68,28 @@ export interface SilkConfig {
     atlas?: AtlasConfig;
     /** Parser limits. */
     limits?: Partial<ParseLimits>;
+    /**
+     * Messages shown at a fixed size and width, laid out at compile time (LAYOUTS): the runtime uses
+     * the baked positions when a message is prepared with exactly these options. Only messages
+     * without slots, objects and tappable spans are baked.
+     */
+    layouts?: FixedLayout[];
     /** Keep message keys as strings in the bundles (dev builds). Default false. */
     devKeys?: boolean;
+}
+
+/** A message laid out at compile time, see {@link SilkConfig.layouts}. */
+export interface FixedLayout {
+    /** Message key. */
+    key: string;
+    /** Font size in pixels. */
+    size: number;
+    /** Widest line in pixels, 0 for none. Default 0. */
+    maxWidth?: number;
+    /** Alignment. Default `start`. */
+    align?: 'start' | 'end' | 'left' | 'center' | 'right';
+    /** Distance between baselines as a factor of the size. Default 1.35, as at runtime. */
+    lineHeight?: number;
 }
 
 /** A parsed slot declaration. */

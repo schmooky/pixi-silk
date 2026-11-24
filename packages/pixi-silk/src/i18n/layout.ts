@@ -1,4 +1,13 @@
-import { GLYPH_STRIDE, RunFlag, SEGMENT_STRIDE, SegmentKind, SPAN_STRIDE, VARIANT_STRIDE } from './format';
+import {
+    GLYPH_STRIDE,
+    LAYOUT_ALIGNS,
+    LAYOUT_STRIDE,
+    RunFlag,
+    SEGMENT_STRIDE,
+    SegmentKind,
+    SPAN_STRIDE,
+    VARIANT_STRIDE,
+} from './format';
 import type { FormattedNumber, SilkBundle } from './messages';
 import type { StyleTable } from './styles';
 import { STYLE_FLOATS, StyleFlag } from './theme';
@@ -101,6 +110,77 @@ export interface MessageLayout {
     hits: (LayoutBox & { tag: string })[];
     /** Plain text with values filled in, for accessibility. */
     text: string;
+    /** True when the layout came baked from the bundle (LAYOUTS) instead of being computed. */
+    baked?: boolean;
+}
+
+/**
+ * The layout the compiler baked for this variant and these exact options (LAYOUTS, brief sec. 5),
+ * or null. Only messages without slots, objects and tappable spans are baked, and a theme that has
+ * since changed a size or letter spacing of their styles makes the bake stale.
+ */
+function bakedLayout(bundle: SilkBundle, variant: number, options: MessageLayoutOptions): MessageLayout | null {
+    const d = bundle.data;
+    const records = d.layouts;
+
+    if (!records?.length) return null;
+    const f = Math.fround;
+
+    for (let r = 0; r < records.length; r += LAYOUT_STRIDE) {
+        if (
+            records[r] !== variant ||
+            records[r + 1] !== f(options.size) ||
+            records[r + 2] !== f(options.maxWidth) ||
+            LAYOUT_ALIGNS[records[r + 3]] !== options.align ||
+            records[r + 4] !== f(options.lineHeight)
+        ) {
+            continue;
+        }
+        const first = records[r + 5];
+        const count = records[r + 6];
+        const instances = (d.layoutInstances ?? new Float32Array(0)).slice(
+            first * INSTANCE_FLOATS,
+            (first + count) * INSTANCE_FLOATS,
+        );
+        const rows = new Map<number, number>();
+
+        for (let i = 4; i < instances.length; i += INSTANCE_FLOATS) {
+            const stack = instances[i];
+            let row = rows.get(stack);
+
+            if (row === undefined) {
+                const tags = (d.strings[d.layoutStacks?.[stack] ?? 0] ?? '').split('\u0000').filter(Boolean);
+
+                row = options.styles.rowFor(tags);
+                const moved = options.styles.layoutOf(row);
+
+                if (moved.size !== 1 || moved.spacing !== 0) return null;
+                rows.set(stack, row);
+            }
+            instances[i] = row;
+        }
+        const lines: MessageLayout['lines'] = [];
+        const ll = d.layoutLines ?? new Float32Array(0);
+
+        for (let l = records[r + 9]; l < records[r + 9] + records[r + 10]; l++) {
+            lines.push({ baseline: ll[l * 3], left: ll[l * 3 + 1], right: ll[l * 3 + 2] });
+        }
+        return {
+            instances,
+            count,
+            width: records[r + 7],
+            height: records[r + 8],
+            lines,
+            slots: [],
+            objects: [],
+            textSlots: [],
+            hits: [],
+            text: bundle.variantText(variant),
+            baked: true,
+        };
+    }
+
+    return null;
 }
 
 interface Element {
@@ -167,8 +247,12 @@ function stackAt(bundle: SilkBundle, firstSpan: number, spanCount: number, offse
  * baked advances, breaking only where the compiler marked a break opportunity, then visual
  * reordering of every line from the baked bidi levels. No shaping and no Unicode tables. Number
  * slots map their characters through the digit tables. Text slots and inline objects are boxes.
+ * A layout the compiler baked for exactly these options is returned as is (`baked: true`).
  */
 export function layoutMessage(bundle: SilkBundle, variant: number, options: MessageLayoutOptions): MessageLayout {
+    const baked = bakedLayout(bundle, variant, options);
+
+    if (baked) return baked;
     const d = bundle.data;
     const v = variant * VARIANT_STRIDE;
     const firstSeg = d.variants[v + 1];

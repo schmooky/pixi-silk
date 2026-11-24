@@ -3,21 +3,29 @@ import {
     BundleFlag,
     effectReach,
     hashKey,
+    INSTANCE_FLOATS,
+    LAYOUT_ALIGNS,
+    layoutMessage,
+    MESSAGE_STRIDE,
     mergeStyles,
     NONE,
     PageKind,
     PLURAL_CATEGORIES,
     type PluralCategory,
+    SEGMENT_STRIDE,
     SegmentKind,
     SILK_MAJOR,
     SILK_MINOR,
+    SilkBundle,
     SlotFlag,
     SlotType,
+    StyleTable,
     type ThemeStyle,
+    VARIANT_STRIDE,
 } from 'pixi-silk/i18n';
 import { type Atlas, buildAtlas, type GlyphRequest } from './atlas/pack';
 import { type CatalogMessage, type Diagnostic, pluralCategories } from './author/lint';
-import type { SlotDecl } from './config';
+import type { FixedLayout, SlotDecl } from './config';
 import { emitMessagesDts } from './emit/dts';
 import { writeBundle } from './emit/writer';
 import { resolveLocale } from './locales';
@@ -238,6 +246,8 @@ export function compileProject(project: Project, options: CompileOptions = {}): 
                 report: (d) => localeDiagnostics.push(d),
             });
 
+            if (config.layouts?.length)
+                bakeLayouts(data, config.layouts, allStyles, (d) => localeDiagnostics.push({ ...d, locale }));
             diagnostics.push(...localeDiagnostics);
             if (!failed && !localeDiagnostics.some((d) => d.severity === 'error')) bundles.set(name, writeBundle(data));
             debug.set(name, dump);
@@ -640,4 +650,101 @@ function dumpSegment(seg: ShapedVariant['segments'][number]): unknown {
         level: seg.level,
         glyphs: seg.glyphs.map((g) => [g.gid, g.advance, g.dx, g.dy, g.cluster, g.flags]),
     };
+}
+
+/**
+ * Lays out the fixed messages of a bundle with the runtime's own `layoutMessage` and stores the
+ * result in the LAYOUTS sections, with tag stacks in place of style rows (rows are numbered per
+ * theme at runtime).
+ */
+export function bakeLayouts(
+    data: BundleData,
+    layouts: readonly FixedLayout[],
+    styles: Record<string, ThemeStyle>,
+    report: (d: Diagnostic) => void,
+): void {
+    const bundle = new SilkBundle(writeBundle(data).slice().buffer as ArrayBuffer);
+    const table = new StyleTable({ $silk: 2, base: styles.base, styles });
+    const strings = [...data.strings];
+    const stackIds = new Map<string, number>();
+    const stackRefs: number[] = [];
+    const records: number[] = [];
+    const instances: number[] = [];
+    const lines: number[] = [];
+
+    for (const spec of layouts) {
+        const message = bundle.message(spec.key);
+
+        if (message < 0) continue;
+        const first = data.messages[message * MESSAGE_STRIDE + 3];
+        const count = data.messages[message * MESSAGE_STRIDE + 4];
+
+        for (let v = first; v < first + count; v++) {
+            const firstSeg = data.variants[v * VARIANT_STRIDE + 1];
+            const segCount = data.variants[v * VARIANT_STRIDE + 2];
+            let fixed = true;
+
+            for (let s = firstSeg; s < firstSeg + segCount; s++)
+                if (data.segments[s * SEGMENT_STRIDE] !== SegmentKind.Static) fixed = false;
+            const options = {
+                size: spec.size,
+                maxWidth: spec.maxWidth ?? 0,
+                align: spec.align ?? 'start',
+                lineHeight: spec.lineHeight ?? 1.35,
+                values: {},
+                styles: table,
+            } as const;
+            const layout = layoutMessage(bundle, v, options);
+
+            if (layout.hits.length) fixed = false;
+            if (!fixed) {
+                report({
+                    severity: 'warning',
+                    code: 'layout-not-fixed',
+                    message: `"${spec.key}" has slots, objects or tappable spans: it is laid out at runtime`,
+                    key: spec.key,
+                });
+                break;
+            }
+            records.push(
+                v,
+                spec.size,
+                options.maxWidth,
+                LAYOUT_ALIGNS.indexOf(options.align),
+                options.lineHeight,
+                instances.length / INSTANCE_FLOATS,
+                layout.count,
+                layout.width,
+                layout.height,
+                lines.length / 3,
+                layout.lines.length,
+                0,
+            );
+            for (let i = 0; i < layout.count * INSTANCE_FLOATS; i++) {
+                if (i % INSTANCE_FLOATS !== 4) {
+                    instances.push(layout.instances[i]);
+                    continue;
+                }
+                const key = table.stackOf(layout.instances[i]).join('\u0000');
+                let id = stackIds.get(key);
+
+                if (id === undefined) {
+                    id = stackIds.size;
+                    stackIds.set(key, id);
+                    let ref = strings.indexOf(key);
+
+                    if (ref < 0) ref = strings.push(key) - 1;
+                    stackRefs.push(ref);
+                }
+                instances.push(id);
+            }
+            for (const l of layout.lines) lines.push(l.baseline, l.left, l.right);
+        }
+    }
+    if (!records.length) return;
+    data.strings = strings;
+    data.layouts = new Float32Array(records);
+    data.layoutInstances = new Float32Array(instances);
+    data.layoutStacks = new Uint32Array(stackRefs);
+    data.layoutLines = new Float32Array(lines);
 }
