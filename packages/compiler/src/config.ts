@@ -42,8 +42,9 @@ export interface AtlasConfig {
     /** Largest page side in pixels. Default 1024. */
     maxPageSize?: number;
     /**
-     * File format of the pages. `png` needs nothing. `webp` (lossless) is about 28% smaller and needs
-     * the `sharp` package installed (see docs/v2/DECISIONS.md D11). Default `png`.
+     * File format of the pages. `webp` (lossless) is about 28% smaller than `png` with the same pixels
+     * and needs the optional `sharp` package (see docs/v2/DECISIONS.md D11). Default `webp` when
+     * sharp is installed, else `png` with a `png-pages` warning.
      */
     format?: 'png' | 'webp';
     /** Smallest text size the theme's effects must fit at, in pixels. Sets the derived distance range. Default 24. */

@@ -78,7 +78,13 @@ app.render();
 window.result = { renderer: app.renderer.name, drawn, png: app.canvas.toDataURL('image/png') };
 </script>`;
 
-const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png' };
+const types = {
+    '.js': 'text/javascript',
+    '.mjs': 'text/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+};
 const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
 

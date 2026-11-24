@@ -3,7 +3,7 @@
   "distanceRange": 15,
   "pages": [
     {
-      "file": "arabic-0.png",
+      "file": "arabic-0.webp",
       "script": "arabic",
       "kind": "msdf",
       "width": 512,
@@ -11,7 +11,7 @@
       "glyphs": 82
     },
     {
-      "file": "hebrew-0.png",
+      "file": "hebrew-0.webp",
       "script": "hebrew",
       "kind": "msdf",
       "width": 256,
@@ -19,7 +19,7 @@
       "glyphs": 27
     },
     {
-      "file": "latin-0.png",
+      "file": "latin-0.webp",
       "script": "latin",
       "kind": "msdf",
       "width": 512,

@@ -54,7 +54,14 @@ const page = /* html */ `<!doctype html>
 </script>
 <script type="module" src="/scripts/render-cases.js"></script>`;
 
-const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html', '.map': 'application/json' };
+const types = {
+    '.js': 'text/javascript',
+    '.mjs': 'text/javascript',
+    '.html': 'text/html',
+    '.map': 'application/json',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+};
 // the i18n glyph-kind cases read the shop example compiled as msdf, sdf and mtsdf pages
 const cli = join(root, 'packages/compiler/dist/cli.mjs');
 

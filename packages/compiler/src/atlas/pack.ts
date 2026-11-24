@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { type LoadedFace, pageName } from '../shape/fonts';
 import { type GlyphBitmap, generateGlyph, type PathCommand } from './msdf';
 import { encodePng } from './png';
@@ -39,7 +40,7 @@ export interface PlacedGlyph {
 
 /** One atlas page. */
 export interface AtlasPage {
-    /** File name, such as `latin-0.png`. */
+    /** File name, such as `latin-0.webp`. */
     file: string;
     /** Script group. */
     script: string;
@@ -96,7 +97,7 @@ export interface AtlasOptions {
      * more detail than `emSize` gives. The distance range grows with it, so effects keep their reach.
      */
     emSizeByScript?: Record<string, number>;
-    /** File format the pages will be written in: sets the file extension. Default `png`. */
+    /** File format the pages will be written in: sets the file extension. Default `webp`. */
     format?: 'png' | 'webp';
 }
 
@@ -240,6 +241,24 @@ function packPage(items: Item[], max: number) {
 }
 
 /**
+ * True when the optional `sharp` package can be loaded, so pages can be written as WebP. Resolved
+ * once, without loading it.
+ */
+export function canWriteWebp(): boolean {
+    if (webpCheck === undefined) {
+        try {
+            createRequire(import.meta.url).resolve('sharp');
+            webpCheck = true;
+        } catch {
+            webpCheck = false;
+        }
+    }
+    return webpCheck;
+}
+
+let webpCheck: boolean | undefined;
+
+/**
  * The bytes of every page in the format its file name says: the PNG as is, or lossless WebP made
  * from it with the optional `sharp` package. Pixels are identical either way.
  */
@@ -258,7 +277,11 @@ export async function encodeAtlasPages(atlas: Atlas): Promise<Map<string, Uint8A
         } catch {
             throw new Error('atlas.format "webp" needs the sharp package: npm install sharp, or use "png"');
         }
-        out.set(page.file, new Uint8Array(await sharp(page.png).webp({ lossless: true, effort: 6 }).toBuffer()));
+        // exact: libwebp would otherwise rewrite the colour of transparent pixels, which on mtsdf
+        // pages holds distances
+        const webp = sharp(page.png).webp({ lossless: true, exact: true, effort: 6 });
+
+        out.set(page.file, new Uint8Array(await webp.toBuffer()));
     }
 
     return out;
