@@ -1,4 +1,11 @@
-import { BufferImageSource, GlProgram, Shader, type TextureSource, UniformGroup } from 'pixi.js';
+import {
+    BufferImageSource,
+    GlProgram,
+    Shader,
+    type ShaderWithResources,
+    type TextureSource,
+    UniformGroup,
+} from 'pixi.js';
 import { GradientAtlas } from './atlas';
 import { silkGl1, silkGpu } from './shader-slot';
 
@@ -1072,6 +1079,17 @@ export function emptyBatchTable(): BufferImageSource {
 }
 
 /**
+ * Where the SilkGraphics resources sit: group 2, the bindings `shader-wgsl.ts` declares. Passed to
+ * every shader, with or without the WebGPU program. Pixi's WebGL shader system caches its uniform
+ * sync code per GL program. A shader made before `enableWebGPU()` has no WGSL to read the layout
+ * from. Without this map its layout would differ from one made after. The second shader would then
+ * read a group the first never had.
+ */
+const SILK_GROUPS: Record<number, Record<number, string>> = {
+    2: { 0: 'silkUniforms', 1: 'uGradients', 2: 'uPolys', 3: 'uBatch' },
+};
+
+/**
  * @internal The uber shader. `polys` holds the path and union texels. `batch` is the object table of a
  * batched draw: 3 texels per object (matrix a b c d, then tx ty and path texel base, then tint).
  */
@@ -1090,11 +1108,13 @@ export function createSilkShader(
         preferredFragmentPrecision: 'highp',
     });
 
-    return new Shader({
+    const options = {
         // GLSL ES 1.00 version from `pixi-silk/webgl1`, when installed
         glProgram: gl1 ? gl1.program('silk-sdf', vertex, fragment) : program,
         // WGSL twin from `pixi-silk/webgpu` (shader-wgsl.ts), when installed: Pixi picks the one its renderer runs
         gpuProgram: silkGpu.program ?? undefined,
+        // copied: Pixi adds its own entries to the map it is given
+        groupMap: { 2: { ...SILK_GROUPS[2] } },
         resources: {
             ...gl1?.resources('silk-sdf'),
             uGradients: GradientAtlas.shared.source,
@@ -1107,5 +1127,8 @@ export function createSilkShader(
                 },
             }),
         },
-    });
+    };
+
+    // Pixi's runtime takes resources with a group map, its option types do not list the pair
+    return new Shader(options as ShaderWithResources);
 }
