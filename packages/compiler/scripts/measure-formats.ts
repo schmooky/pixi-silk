@@ -11,7 +11,7 @@
  */
 import { createRequire } from 'node:module';
 import { brotliCompressSync, constants, zstdCompressSync } from 'node:zlib';
-import { compileProject, loadProject } from '../dist/index.mjs';
+import { compileProject, loadProject } from '@pixi-silk/compiler';
 
 const fixtures = new URL('../fixtures/', import.meta.url).pathname;
 // sharp is a dependency of the docs site, used here only to encode lossless WebP

@@ -6,9 +6,9 @@
  *   pnpm --filter @pixi-silk/compiler build && node scripts/build-world-fixture.ts
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import ExcelJS from 'exceljs';
 // the built compiler: run `pnpm --filter @pixi-silk/compiler build` first
-import { digitsOf, resolveLocale, subsetFont } from '../dist/index.mjs';
+import { digitsOf, resolveLocale, subsetFont } from '@pixi-silk/compiler';
+import ExcelJS from 'exceljs';
 
 /** "Welcome to the shop" in one locale per script, app codes. */
 export const WELCOME: Record<string, string> = {
