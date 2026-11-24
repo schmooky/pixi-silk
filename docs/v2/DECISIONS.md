@@ -68,9 +68,21 @@ A bundle with up to four pages binds them as four textures, and the shader picks
 
 Pixi 8.21 allocates array textures but has no uploader for array data. `pixi-silk/i18n/pixi` brings its own (`PageArraySource`, one `texSubImage3D` or `copyExternalImageToTexture` per layer). It adds the uploader to the renderer passed to `Silk.create({ renderer })`. Without a renderer, or on WebGL1, more than four pages still warn. Each glyph's metrics now carry its page's distance range and kind, so neither shader variant needs per-page uniforms for distances. The render case `i18n-page-array` draws the shop compiled on 128-pixel pages (7 pages) against the normal bundle: max difference 1 on WebGL2 and WebGPU.
 
-## D10. Runtime shaper (deferred)
+## D10. Runtime shaper
 
-kb_text_shape WASM against HarfBuzz HB_TINY (built with `-Oz`, LTO and `wasm-opt -Oz`, exporting only the shaping calls), compared on compressed size, Arabic results and speed. Not built: this machine has no emscripten, and the user chose to defer it rather than install a toolchain of about 1 GB. What ships is the contract the plugin implements: `RuntimeShaper`, `fontHash` (the compiler's 64-bit face hash, tested equal on real fonts) and `sameFont`. Text slots use the canvas path meanwhile (D18).
+kb_text_shape v2.32, in the new package `@pixi-silk/shaper-kb`. Measured with `packages/compiler/scripts/measure-shapers.ts` against HarfBuzz 11 from harfbuzzjs 1.6.4:
+
+| | kb_text_shape | HarfBuzz (harfbuzzjs) |
+|---|---|---|
+| WebAssembly, brotli | 62.0 kB | 143.9 kB |
+| WebAssembly, raw | 473 kB | 434 kB |
+| 18-character Arabic name | 14.0 us | 15.1 us |
+
+On the test corpus (Latin, Arabic with and without marks, lam-alef ligatures, Hebrew) both give the same glyphs, advances and offsets. The one difference is clusters: HarfBuzz merges a mark into its base's cluster, kb_text_shape keeps the mark's own offset. Slots do not use clusters, so it does not matter here.
+
+The build needs no Emscripten. `wasm/build.sh` compiles a freestanding wrapper (`wasm/kb_wasm.c`: memset, memcpy, a free-list allocator and three exports) with stock clang and lld for `wasm32`. The built `kb.wasm` is committed, so the package builds without LLVM. A HarfBuzz HB_TINY build would need Emscripten for its C++ runtime, and harfbuzzjs is already more than twice the size, so it was not built.
+
+The package fills TrueType outlines in JavaScript (an exact area rasterizer, 4.7 kB with the rest of the package) and runs the distance transform of `pixi-silk/text`. It needs no canvas, so it runs in Node and in workers. `ShapedTextProvider.checkBundle` compares `fontHash` with the bundle faces and warns on a mismatch. CFF fonts are not supported.
 
 ## D11. Atlas page format
 

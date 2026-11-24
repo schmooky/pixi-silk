@@ -51,3 +51,31 @@ theme.set('gold', { fill: '#FFF4B0' });
 `coins.set` with a number of the same length rewrites only that number's glyphs. A new plural
 form swaps the baked variant. `theme.set` with colours, outlines, glows, shadows or lines changes a
 few style rows and moves no glyph.
+
+## Text slots
+
+A text slot, declared as `text(maxLength=16)` in the config's `slots`, holds text typed by players,
+which the compiler cannot bake. Pick how it is drawn with `dynamicText`. Both paths draw the value as a distance field, so the slot's outline,
+glow and shadow apply.
+
+```ts
+import { createShapedText } from '@pixi-silk/shaper-kb';
+import { createCanvasText } from 'pixi-silk/i18n/canvas';
+import { Silk } from 'pixi-silk/i18n/pixi';
+
+// the browser's fonts and shaping: nothing to download
+const quick = await Silk.create({ dynamicText: { mode: 'canvas' } });
+
+// the baked font, shaped with kb_text_shape in WebAssembly
+const exact = await Silk.create({
+    dynamicText: await createShapedText({
+        font: '/fonts/NotoSansArabic-Regular.ttf',
+        fallback: await createCanvasText(),
+    }),
+});
+```
+
+The canvas path is small and draws emoji, but the system font may not match the baked text.
+`@pixi-silk/shaper-kb` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
+same font, shaping and metrics as the baked text on every platform. It reads TrueType outlines
+only. Values the font has no glyph for go to `fallback`.

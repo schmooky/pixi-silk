@@ -1262,6 +1262,31 @@ theme.set('gold', { fill: '#FFF4B0' });
 form swaps the baked variant. `theme.set` with colours, outlines, glows, shadows or lines changes a
 few style rows and moves no glyph.
 
+### Text slots
+
+A text slot, declared as `text(maxLength=16)` in the config's `slots`, holds text typed by players,
+which the compiler cannot bake. Pick how it is drawn with `dynamicText`. Both paths draw the value as a distance field, so the slot's outline,
+glow and shadow apply.
+
+```ts
+
+// the browser's fonts and shaping: nothing to download
+const quick = await Silk.create({ dynamicText: { mode: 'canvas' } });
+
+// the baked font, shaped with kb_text_shape in WebAssembly
+const exact = await Silk.create({
+    dynamicText: await createShapedText({
+        font: '/fonts/NotoSansArabic-Regular.ttf',
+        fallback: await createCanvasText(),
+    }),
+});
+```
+
+The canvas path is small and draws emoji, but the system font may not match the baked text.
+`@pixi-silk/shaper-kb` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
+same font, shaping and metrics as the baked text on every platform. It reads TrueType outlines
+only. Values the font has no glyph for go to `fallback`.
+
 ---
 
 # Editing text
@@ -6072,7 +6097,7 @@ URL: https://pixi-silk.schmooky.dev/api/i18n/pixi/
 Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU.
 
 ```ts
-import { MessageGeometry, PixiBackend, PixiStyleRows, PreparedSet } from 'pixi-silk/i18n/pixi';
+import { MessageGeometry, PageArraySource, PixiBackend, PixiStyleRows } from 'pixi-silk/i18n/pixi';
 ```
 
 #### Classes
@@ -6080,6 +6105,7 @@ import { MessageGeometry, PixiBackend, PixiStyleRows, PreparedSet } from 'pixi-s
 | Class | Description |
 | ------ | ------ |
 | [MessageGeometry](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/MessageGeometry.md) | The geometry of a SilkMessage's text buffer: one unit quad, and one instance (`INSTANCE_FLOATS` floats) per glyph or line. `PixiBackend` owns it. You rarely need it directly. |
+| [PageArraySource](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PageArraySource.md) | Every atlas page of a bundle in one 2D array texture, layer = page slot, so a bundle can draw from any number of pages in one draw call. Layers are as large as the largest page. Smaller pages sit at the top left of theirs, which the shader allows for (it samples in atlas pixels). Needs WebGL2 or WebGPU, and the uploaders `installPageArrays` adds to the renderer. |
 | [PixiBackend](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PixiBackend.md) | The PixiJS [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md) (brief sec. 2.3): atlas pages as textures, style rows as a data texture, text buffers as instanced geometries, run sprites as one-glyph meshes drawn by the message shader. `Silk` drives it. The core never touches Pixi. |
 | [PixiStyleRows](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PixiStyleRows.md) | Style rows on the GPU: an RGBA32F texture, 8 texels per row and 64 rows per texture row, as `packStyle` packs them. The `writeStyleRows` part of [SilkBackend](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SilkBackend.md), one per theme. |
 | [PreparedSet](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PreparedSet.md) | A set of prepared messages. |
@@ -6096,6 +6122,7 @@ import { MessageGeometry, PixiBackend, PixiStyleRows, PreparedSet } from 'pixi-s
 | [DynamicTextProvider](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/DynamicTextProvider.md) | Draws a text slot's value (the dynamic path, `pixi-silk/i18n/canvas`). |
 | [InlineObject](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/InlineObject.md) | An inline object, as [Silk.registerInline](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md) takes it. |
 | [MessageSpec](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/MessageSpec.md) | Per-message options of [Silk.prepare](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
+| [PageLayer](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PageLayer.md) | One layer of a [PageArraySource](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/PageArraySource.md): an atlas page as decoded pixels. |
 | [PreparedMessage](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PreparedMessage.md) | A message ready to show. Immutable and shared by every SilkMessage made from it. |
 | [PrepareOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/PrepareOptions.md) | Options of [Silk.prepare](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
 | [SilkOptions](https://pixi-silk.schmooky.dev/api/i18n/pixi/interfaces/SilkOptions.md) | Options of [Silk.create](https://pixi-silk.schmooky.dev/api/i18n/pixi/classes/Silk.md). |
@@ -6119,6 +6146,7 @@ import { MessageGeometry, PixiBackend, PixiStyleRows, PreparedSet } from 'pixi-s
 
 | Function | Description |
 | ------ | ------ |
+| [installPageArrays](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/installPageArrays.md) | Adds the page array uploaders to a renderer's texture system. Returns false when the renderer cannot draw array textures (WebGL1), so the caller keeps binding pages one by one. |
 | [loadAtlasPage](https://pixi-silk.schmooky.dev/api/i18n/pixi/functions/loadAtlasPage.md) | Fetches and decodes one atlas page, without premultiplied alpha or colour conversion. |
 
 ## `pixi-silk/layout`
