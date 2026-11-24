@@ -116,12 +116,23 @@ describe('update tiers (brief sec. 6.3)', () => {
         expect(theme.table.data).not.toEqual(rows);
     });
 
-    it('shape: a shape-relevant change warns and does not reshape', async () => {
+    it('shape: size and letter spacing lay out again, weight is approximated, family needs a compile', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const m = await coins('en', 1234);
+        const before = m.layout.lines[0].right;
 
         events.length = 0;
+        theme.set('gold', { size: 1.5 });
+        // every message of the theme lays out again (tier shape, with its key), then the rows upload (paint)
+        expect(events.some((e) => e.tier === 'shape' && e.key === 'shop.coins')).toBe(true);
+        expect(events.at(-1)?.tier).toBe('paint');
+        expect(m.layout.lines[0].right).toBeGreaterThan(before);
+        theme.set('gold', { size: 1 });
+        expect(m.layout.lines[0].right).toBeCloseTo(before, 3);
+
         theme.set('gold', { weight: 400 });
-        expect(events.map((e) => e.tier)).toEqual(['shape', 'paint']);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('approximated with the weight bias'));
+        theme.set('gold', { family: 'Serif' });
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('run silk compile again'));
         warn.mockRestore();
     });

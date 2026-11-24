@@ -59,7 +59,7 @@ const caret = note.caretRect(hit.index, hit.upstream);
 console.log(hit.index, caret.x, note.rangeRects(0, 5)); // selection boxes for characters 0 to 5
 ```
 
-For an editable field, use `TextEditor` from `pixi-silk/ui/textedit` (see the pixi-silk-editor skill).
+For an editable field, use `TextEditor` from `pixi-silk/ui/textedit` (see the pixi-silk-editor skill). For translated text from a spreadsheet, use the pixi-silk-i18n skill.
 
 ### Icons and sprites inside text
 

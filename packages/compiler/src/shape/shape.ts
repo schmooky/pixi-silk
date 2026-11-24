@@ -251,6 +251,17 @@ export function shapeVariant(message: ParsedMessage, ctx: ShapeContext): ShapedV
             continue;
         }
         prevFace = face;
+        const wanted = style.weight ?? 400;
+        const got = ctx.faces[face].weight;
+
+        // a bold style on a script whose family has no bold face draws regular: say so
+        if (Math.abs(wanted - got) >= 200) {
+            ctx.report({
+                severity: 'warning',
+                code: 'missing-weight',
+                message: `${ctx.faces[face].family} has no face near weight ${wanted}: "${String.fromCodePoint(u.cp)}" and the text after it draw at ${got}. Add a ${wanted} face to the config`,
+            });
+        }
         let end = unitIndex + 1;
 
         while (end < units.length) {

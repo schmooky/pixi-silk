@@ -4,9 +4,28 @@ import { mergeStyles, packStyle, propertyClass, STYLE_FLOATS, type ThemeData, ty
 export interface StyleChange {
     /** Style rows that were rewritten. */
     rows: number[];
-    /** Shape-relevant properties in the patch: baked text cannot follow them without a recompile. */
+    /** Shape-relevant properties in the patch. */
     shapeChanged: string[];
+    /**
+     * The shape-relevant properties layout can follow without shaping: `size` (baked advances do not
+     * depend on size), `letterSpacing` (added to the advances) and `weight` (approximated with the
+     * shader's weight bias). Messages that use the style lay out again.
+     */
+    approximated: string[];
+    /** The ones only a recompile (or a runtime shaper) can follow: `family` and `features`. */
+    needsCompile: string[];
 }
+
+/** How a style row changes layout compared with what was baked. */
+export interface RowLayout {
+    /** Factor on the message size. */
+    size: number;
+    /** Letter spacing to add to each glyph, in em. */
+    spacing: number;
+}
+
+/** Weight bias, in em, per unit of CSS weight a style moves away from its baked weight. */
+const BIAS_PER_WEIGHT = 0.0001;
 
 /**
  * The style rows of a theme: one row per unique stack of tags in use (the base style, then each tag
@@ -24,12 +43,38 @@ export class StyleTable {
     dirtyFrom = -1;
     /** Highest row changed since the last upload. */
     dirtyTo = -1;
+    /** Bumped when a change moves glyphs (size, spacing): layouts made before it are stale. */
+    layoutVersion = 0;
     private readonly _rows = new Map<string, number>();
     private readonly _stacks: string[][] = [];
     private _theme: ThemeData;
+    /** The theme the text was compiled with. */
+    private readonly _baked: ThemeData;
 
     constructor(theme: ThemeData) {
         this._theme = { $silk: 2, base: { ...theme.base }, styles: { ...theme.styles } };
+        this._baked = { $silk: 2, base: { ...theme.base }, styles: { ...theme.styles } };
+    }
+
+    /** Size factor and extra letter spacing of a row against the baked theme. */
+    layoutOf(row: number): RowLayout {
+        const stack = this.stackOf(row);
+        const now = this.resolve(stack);
+        const baked = mergeStyles(this._baked.base, ...stack.map((t) => this._baked.styles?.[t]));
+
+        return {
+            size: (now.size ?? 1) / (baked.size ?? 1),
+            spacing: (now.letterSpacing ?? 0) - (baked.letterSpacing ?? 0),
+        };
+    }
+
+    private _pack(row: number): void {
+        const stack = this._stacks[row];
+        const now = this.resolve(stack);
+        const baked = mergeStyles(this._baked.base, ...stack.map((t) => this._baked.styles?.[t]));
+        const weight = ((now.weight ?? 400) - (baked.weight ?? 400)) * BIAS_PER_WEIGHT;
+
+        packStyle(weight ? { ...now, weightBias: (now.weightBias ?? 0) + weight } : now, this.data, row * STYLE_FLOATS);
     }
 
     /** The theme as it is now, edits included. */
@@ -57,7 +102,7 @@ export class StyleTable {
         }
         this._rows.set(key, row);
         this._stacks[row] = [...tags];
-        packStyle(this.resolve(tags), this.data, row * STYLE_FLOATS);
+        this._pack(row);
         this._markDirty(row);
 
         return row;
@@ -75,6 +120,10 @@ export class StyleTable {
      */
     set(name: string, patch: ThemeStyle): StyleChange {
         const shapeChanged = Object.keys(patch).filter((k) => propertyClass(k) === 'shape');
+        const approximated: string[] = shapeChanged.filter(
+            (k) => k === 'size' || k === 'letterSpacing' || k === 'weight',
+        );
+        const needsCompile = shapeChanged.filter((k) => !approximated.includes(k));
 
         if (name === 'base') this._theme.base = { ...this._theme.base, ...patch };
         else this._theme.styles = { ...this._theme.styles, [name]: { ...this._theme.styles?.[name], ...patch } };
@@ -82,12 +131,13 @@ export class StyleTable {
 
         this._stacks.forEach((stack, row) => {
             if (name !== 'base' && !stack.includes(name)) return;
-            packStyle(this.resolve(stack), this.data, row * STYLE_FLOATS);
+            this._pack(row);
             this._markDirty(row);
             rows.push(row);
         });
+        if (approximated.some((k) => k !== 'weight')) this.layoutVersion++;
 
-        return { rows, shapeChanged };
+        return { rows, shapeChanged, approximated, needsCompile };
     }
 
     /** Forgets the dirty range after a renderer uploaded it. */

@@ -190,6 +190,17 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
         }
         return row;
     };
+    // size and letter spacing changed at runtime: scale and space the baked advances
+    const rowLayouts = new Map<number, { size: number; spacing: number }>();
+    const rowLayout = (row: number) => {
+        let l = rowLayouts.get(row);
+
+        if (!l) {
+            l = styles.layoutOf(row);
+            rowLayouts.set(row, l);
+        }
+        return l;
+    };
     let ascender = 0;
     let descender = 0;
     const blank = (): Element => ({
@@ -236,10 +247,14 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
                 e.flags = d.runs.flags[i];
                 e.offset = d.runs.cluster[i];
                 e.style = rowAt(e.offset);
+                const rl = rowLayout(e.style);
+                const s = gScale * rl.size;
+
+                e.width = d.runs.advance[i] * s + (e.width > 0 && rl.spacing ? rl.spacing * size * rl.size : 0);
                 e.glyph = glyph;
-                e.scale = gScale;
-                e.dx = d.runs.dx[i] * gScale;
-                e.dy = d.runs.dy[i] * gScale;
+                e.scale = s;
+                e.dx = d.runs.dx[i] * s;
+                e.dy = d.runs.dy[i] * s;
                 elements.push(e);
             }
             continue;
@@ -254,7 +269,7 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
             e.kind = 'object';
             e.name = bundle.tag(d.segments[o + 1]);
             e.metrics = options.inline?.(e.name) ?? { width: 1, height: 1 };
-            e.width = e.metrics.width * size;
+            e.width = e.metrics.width * size * rowLayout(e.style).size;
             holes.push('');
         } else {
             const slot = bundle.slot(d.segments[o + 1]);
@@ -264,7 +279,7 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
             e.slot = d.segments[o + 1];
             if (slot.type === 'number') {
                 const f = bundle.formatNumber(slot, typeof raw === 'number' ? raw : Number(raw ?? 0));
-                const scale = size / bundle.face(f.face).unitsPerEm;
+                const scale = (size * rowLayout(e.style).size) / bundle.face(f.face).unitsPerEm;
 
                 e.kind = 'number';
                 e.formatted = f;
@@ -448,7 +463,7 @@ export function layoutMessage(bundle: SilkBundle, variant: number, options: Mess
                     baseline: ascender,
                 });
             } else if (e.kind === 'object' && e.metrics) {
-                const height = e.metrics.height * size;
+                const height = e.metrics.height * size * rowLayout(e.style).size;
 
                 objects.push({
                     name: e.name,

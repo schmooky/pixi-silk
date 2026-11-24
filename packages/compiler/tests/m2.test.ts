@@ -176,3 +176,17 @@ describe('per-chunk bundles (--split-by, M6)', () => {
         expect((r.debug.get('en.player') as { pages: string[] }).pages).toEqual(['latin-0.png']);
     });
 });
+
+describe('missing weights', () => {
+    it('warns when a style asks for a weight the script family lacks', () => {
+        const p = project({ k: { 'he.other': '<strong>שלום</strong>' } });
+
+        p.config.fonts = p.config.fonts.filter((f) => !(f.family === 'Noto Sans Hebrew' && f.weight === 700));
+        const r = compileProject(p);
+        const d = r.diagnostics.find((x) => x.code === 'missing-weight');
+
+        expect(d).toMatchObject({ severity: 'warning', locale: 'he', key: 'k' });
+        expect(d?.message).toContain('Noto Sans Hebrew has no face near weight 700');
+        expect(r.bundles.size).toBe(1);
+    });
+});

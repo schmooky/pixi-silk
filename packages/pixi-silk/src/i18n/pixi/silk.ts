@@ -68,6 +68,8 @@ export interface DynamicTextProvider {
     measure(value: string, size: number, style: ThemeStyle): number;
     /** A display object showing the value, with the top left of its box at 0, 0. */
     render(slot: TextSlotRender): Container;
+    /** Gets fonts and canvases ready before the first slot draws. Called by `prepare`. Optional. */
+    prewarm?(values: readonly string[], size: number): void;
 }
 
 /** The built-in dynamic text modes of {@link SilkOptions.dynamicText}. */
@@ -201,15 +203,29 @@ export class SilkTheme {
         const t0 = performance.now();
         const change = this.table.set(name, patch);
 
-        if (change.shapeChanged.length) {
+        if (change.needsCompile.length) {
             this._silk.warn(
-                `theme.set('${name}'): ${change.shapeChanged.join(', ')} changes shaping, which baked text cannot follow. Edit the theme and run silk compile again`,
+                `theme.set('${name}'): ${change.needsCompile.join(', ')} changes shaping, which baked text cannot follow. Edit the theme and run silk compile again`,
             );
+        }
+        if (change.approximated.length) {
+            // size and letter spacing move glyphs: lay out the messages that use this theme again
+            if (change.approximated.some((k) => k !== 'weight')) for (const m of this.messages) m.refresh('shape');
+            this._silk.emit({ tier: 'shape', ms: performance.now() - t0 });
+            if (change.approximated.includes('weight')) {
+                this._silk.warn(
+                    `theme.set('${name}'): weight is approximated with the weight bias. Run silk compile again for the real face`,
+                );
+            }
+        } else if (change.needsCompile.length) {
             this._silk.emit({ tier: 'shape', ms: performance.now() - t0 });
         }
         this.sync();
         this._silk.emit({ tier: 'paint', ms: performance.now() - t0 });
     }
+
+    /** @internal Messages drawn with this theme, laid out again when a size or spacing changes. */
+    readonly messages: Set<SilkMessage> = new Set();
 
     /** The resolved style of a tag (or `base`). */
     get(name: string): ThemeStyle {
@@ -464,6 +480,13 @@ export class Silk {
                 },
             });
         }
+
+        // text slots draw on demand: get the dynamic path's font and canvas ready now
+        const text = [...out.values()].flatMap((m) =>
+            Object.values(m.spec.values).filter((v): v is string => typeof v === 'string'),
+        );
+
+        if (this.dynamicText?.prewarm) this.dynamicText.prewarm(text, d.size ?? 16);
 
         return new PreparedSet(out);
     }
@@ -725,6 +748,7 @@ export class SilkMessage extends Container {
             }),
         });
         this.addChild(this._mesh, this._extras);
+        theme.messages.add(this);
         this.eventMode = 'static';
         this.on('pointertap', (e) => {
             const p = this.toLocal(e.global);
@@ -860,7 +884,7 @@ export class SilkMessage extends Container {
         this._variant = this._resolveVariant();
         const baseStyle = spec.style;
         const styles = theme.table;
-        const key = `${silk.keyOf(bundle)}|${silk.keyOf(theme)}|${this._variant}|${this._size}|${this._maxWidth}|${this._align}|${this._lineHeight}|${baseStyle}|${JSON.stringify(this._values)}`;
+        const key = `${silk.keyOf(bundle)}|${silk.keyOf(theme)}.${theme.table.layoutVersion}|${this._variant}|${this._size}|${this._maxWidth}|${this._align}|${this._lineHeight}|${baseStyle}|${JSON.stringify(this._values)}`;
         const cached = silk.layouts.get(key);
         const layout =
             cached ??
@@ -945,7 +969,13 @@ export class SilkMessage extends Container {
         this._mesh.visible = !v && (this._layout?.count ?? 0) > 0;
     }
 
+    /** @internal Lays the message out again, for a theme change that moves glyphs. */
+    refresh(tier: UpdateTier): void {
+        this._relayout(tier);
+    }
+
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
+        this.prepared.theme.messages.delete(this);
         this._geometry.destroy();
         super.destroy(options);
     }

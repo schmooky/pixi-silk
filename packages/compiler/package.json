@@ -19,6 +19,7 @@
   },
   "files": [
     "dist",
+    "preview",
     "README.md",
     "LICENSE"
   ],
@@ -38,11 +39,20 @@
     "@types/node": "^26.6.6",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "pixi.js": "^8.21.0"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/schmooky/pixi-silk.git",
     "directory": "packages/compiler"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.21.0"
+  },
+  "peerDependenciesMeta": {
+    "pixi.js": {
+      "optional": true
+    }
   }
 }

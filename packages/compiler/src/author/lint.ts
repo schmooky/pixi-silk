@@ -301,7 +301,10 @@ export function lintRows(rows: SheetRow[], config: SilkConfig, styleNames: Itera
                 }
             }
             if (row.maxLen > 0) {
-                const length = [...plainText(parsed)].length;
+                // what a reader counts as characters: a letter with its marks, an emoji, is one
+                const length = [
+                    ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(plainText(parsed)),
+                ].length;
 
                 if (length > row.maxLen) {
                     diagnostics.push({

@@ -11,7 +11,12 @@ const server = (strings, port) =>
     spawn(
         'node',
         [
-            new URL('../apps/preview/server.mjs', import.meta.url).pathname,
+            new URL('../packages/compiler/dist/cli.mjs', import.meta.url).pathname,
+            'preview',
+            '--config',
+            `${fixtures}silk.config.json`,
+            '--theme',
+            `${fixtures}theme.json`,
             '--strings',
             `${fixtures}${strings}`,
             '--port',

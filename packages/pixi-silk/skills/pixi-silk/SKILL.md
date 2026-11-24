@@ -44,6 +44,7 @@ app.stage.addChild(g);
 | [pixi-silk-paint](../pixi-silk-paint/SKILL.md) | Gradients (`linear`, `radial`, `conic`, `along`, `mesh`), `blur`, glows, drop and inner shadows, `spread`, `blend: 'add'`, `Glass`, `Glow`, `Aurora`. |
 | [pixi-silk-app-rendering](../pixi-silk-app-rendering/SKILL.md) | `createSilkApp`, resolution and DPR, WebGPU and WebGL2, `enableWebGPU`, `enableSilkBatching`, performance, using SilkGraphics in your own `Application`. |
 | [pixi-silk-text](../pixi-silk-text/SKILL.md) | `SilkText`, `SdfAtlas`, `silkLabel`, outlines, text shadows, tabular numbers, caret and layout helpers. |
+| [pixi-silk-i18n](../pixi-silk-i18n/SKILL.md) | Translated text from `.silk` bundles: `silk compile`, `SilkMessage`, plurals, themes, right-to-left and complex scripts. |
 | [pixi-silk-layout](../pixi-silk-layout/SKILL.md) | `SmartContainer` (portrait and landscape records, reference resolution, safe area), `FlexContainer`, `LayoutNode`, `simulateViewport`, `layoutDebug`. |
 | [pixi-silk-widgets](../pixi-silk-widgets/SKILL.md) | `SilkButton`, `ButtonDock`, `RadialMenu`, `Odometer`, `JogDial`, `Scrubber`, `ValuePill`, `trackGesture`, signals. |
 | [pixi-silk-editor](../pixi-silk-editor/SKILL.md) | Editor canvases: `Camera`, `CanvasGrid`, `Ruler`, `Guides`, `Marquee`, `TransformGizmo`, `SelectionOutline`, `SnapEngine`, `Selection`, `History`, `PathGizmo`, `TextEditor`, panels, colour pickers. |

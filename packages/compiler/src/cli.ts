@@ -8,7 +8,7 @@
  *   silk size     --out dist/i18n                                 bundle and page sizes, raw and brotli
  *   silk export   --config ... --strings ... --locale ar --file ar.xlsx
  *   silk import   --config ... --strings ... --locale ar --file ar.xlsx [--write]
- *   silk preview  --out dist/i18n                                 how to open the preview app
+ *   silk preview  --config ... --strings ... --theme ... [--port 5179]   compiles on every save, serves a preview page
  */
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,6 +31,7 @@ const USAGE = `usage: silk <compile|bake|lint|size|export|import|preview> [optio
   --locale <locale>   export and import: the target locale
   --file <file>       export and import: the translator workbook
   --write             import: write the merged strings back
+  --port <port>       preview: the port (default 5179)
   --quiet             print errors only`;
 
 function report(diagnostics: Diagnostic[], quiet: boolean): number {
@@ -71,6 +72,7 @@ async function main(argv: string[]): Promise<number> {
                 file: { type: 'string' },
                 write: { type: 'boolean', default: false },
                 quiet: { type: 'boolean', default: false },
+                port: { type: 'string' },
                 help: { type: 'boolean', default: false },
             },
         });
@@ -190,11 +192,13 @@ async function main(argv: string[]): Promise<number> {
             }
             return 0;
         }
-        case 'preview':
-            console.log(
-                `Open the preview app with your bundles:\n  pnpm --filter @pixi-silk/preview dev -- --bundles ${o.out}`,
-            );
-            return 0;
+        case 'preview': {
+            const { startPreview } = await import('./preview');
+
+            await startPreview({ ...inputs, port: o.port ? Number(o.port) : undefined });
+            // keeps running until the process is stopped
+            return await new Promise<number>(() => undefined);
+        }
         default:
             console.error(`silk: unknown command "${command}"\n${USAGE}`);
             return 2;

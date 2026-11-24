@@ -30,7 +30,9 @@ overrides only the properties it sets.
 | Kind | Properties | At runtime |
 |---|---|---|
 | Paint | `fill`, `alpha`, `outline`, `glow`, `shadow`, `underline`, `strike`, `weightBias` | `theme.set` changes them with no relayout |
-| Shape | `weight`, `size`, `family`, `letterSpacing`, `features` | Need `silk compile` again. `theme.set` warns |
+| Layout | `size`, `letterSpacing` | `theme.set` lays the messages out again. Baked advances do not depend on size |
+| Approximated | `weight` | `theme.set` thickens or thins the glyphs with the weight bias, and warns. Compile again for the real face |
+| Shape | `family`, `features` | Need `silk compile` again. `theme.set` warns |
 | Behaviour | `interactive` | Taps on the span arrive as `tagtap` |
 
 ```ts

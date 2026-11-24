@@ -15,6 +15,7 @@ export * from './emit/writer';
 export * from './exchange';
 export * from './import/xlsx';
 export * from './locales';
+export * from './preview';
 export * from './project';
 export * from './shape/fonts';
 export * from './shape/linebreak';

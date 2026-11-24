@@ -103,6 +103,11 @@ export class CanvasTextProvider {
         return this._ctx;
     }
 
+    /** Readies the canvas and the font (measuring loads a system font's glyphs) before the first slot draws. */
+    prewarm(values: readonly string[], size: number): void {
+        for (const value of values.length ? values : ['Aa']) this.measure(value, size, {});
+    }
+
     /** Width of a value in local pixels. */
     measure(value: string, size: number, style: ThemeStyle): number {
         const ctx = this._context();

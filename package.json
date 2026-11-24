@@ -22,7 +22,7 @@
     "check:wgsl": "node scripts/check-wgsl.mjs",
     "check:render": "node scripts/check-render.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "i18n:preview": "node apps/preview/server.mjs",
+    "i18n:preview": "node packages/compiler/dist/cli.mjs preview --config packages/compiler/fixtures/silk.config.json --strings packages/compiler/fixtures/strings.xlsx --theme packages/compiler/fixtures/theme.json",
     "check:skills": "node scripts/check-skills.mjs",
     "site:dev": "pnpm --filter @pixi-silk/site dev",
     "site:build": "pnpm --filter @pixi-silk/site build",
