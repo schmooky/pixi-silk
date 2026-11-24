@@ -2,7 +2,7 @@
 /**
  * What an app pays for pixi-silk: bundles typical imports of the built package the way an app bundler
  * does (package `exports` and `sideEffects`, pixi.js external, minified) and reports the gzipped size of
- * each, compared with ci/size-baseline.json. Also checks that tree-shaking works: an import that has no
+ * each, plus its brotli size (quality 11, the size most CDNs serve), compared with ci/size-baseline.json. Also checks that tree-shaking works: an import that has no
  * business pulling in the shader or the gradient atlas must not contain them. Sizes count the code an
  * app loads up front: chunks behind a dynamic import() (the WGSL shader createSilkApp fetches on
  * WebGPU) load only when used, so they are listed on their own and not added.
@@ -13,7 +13,7 @@
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import { rolldown } from 'rolldown';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -74,6 +74,8 @@ const IMPORTS = {
     text: ['*', ['RadialMenu', 'silk-sdf', 'silk-paths'], '/text'],
     'text (SilkText)': ['SilkText', ['RadialMenu', 'silk-sdf', 'silk-paths'], '/text'],
     'text (layoutText, sdfFromAlpha)': ['layoutText, sdfFromAlpha', ['#version 300 es', 'silk-text-atlas'], '/text'],
+    // v1 runtime Unicode data: the bidi classes and the UBA. v2 baked text must ship none of it.
+    'text (bidi)': ['bidiClass, resolveLevels, visualOrder', ['#version 300 es', 'silk-text-atlas'], '/text'],
     'ui/textedit (TextEditor)': ['TextEditor', ['RadialMenu', 'TransformGizmo', 'ColorModel'], '/ui/textedit'],
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
     // editor panels: a panel frame never pulls in the layer tree, the inspector or the colour pickers
@@ -109,6 +111,7 @@ mkdirSync(join(work, 'node_modules'), { recursive: true });
 symlinkSync(pkgDir, join(work, 'node_modules/pixi-silk'), 'dir');
 
 const kb = (n) => `${(n / 1024).toFixed(2)} kB`;
+const brotli = (code) => brotliCompressSync(code, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }).length;
 const results = {};
 const failures = [];
 
@@ -143,7 +146,7 @@ for (const [name, [specifiers, forbidden, subpath = '']] of Object.entries(IMPOR
     }
 
     await bundle.close();
-    results[name] = { minified: code.length, gzip: gzipSync(code, { level: 9 }).length };
+    results[name] = { minified: code.length, gzip: gzipSync(code, { level: 9 }).length, brotli: brotli(code) };
     for (const marker of forbidden) {
         if (code.includes(marker)) failures.push(`${name}: bundle contains "${marker}" (tree-shaking broke)`);
     }
@@ -159,13 +162,17 @@ const baseline = (() => {
 })();
 const width = Math.max(...Object.keys(results).map((n) => n.length));
 
-console.log(`${'import'.padEnd(width)}  ${'minified'.padStart(10)}  ${'gzip'.padStart(9)}  baseline`);
-for (const [name, { minified, gzip }] of Object.entries(results)) {
+console.log(
+    `${'import'.padEnd(width)}  ${'minified'.padStart(10)}  ${'gzip'.padStart(9)}  ${'brotli'.padStart(9)}  baseline (gzip)`,
+);
+for (const [name, { minified, gzip, brotli: br }] of Object.entries(results)) {
     const base = baseline[name]?.gzip;
     const drift = base ? (gzip - base) / base : 0;
     const note = base ? `${kb(base)} (${drift >= 0 ? '+' : ''}${(drift * 100).toFixed(1)}%)` : 'none';
 
-    console.log(`${name.padEnd(width)}  ${kb(minified).padStart(10)}  ${kb(gzip).padStart(9)}  ${note}`);
+    console.log(
+        `${name.padEnd(width)}  ${kb(minified).padStart(10)}  ${kb(gzip).padStart(9)}  ${kb(br).padStart(9)}  ${note}`,
+    );
     if (base && drift > TOLERANCE)
         failures.push(`${name}: ${kb(gzip)} gzip is more than 10% over the baseline ${kb(base)}`);
 }
@@ -173,7 +180,7 @@ for (const [name, { minified, gzip }] of Object.entries(results)) {
 if (process.argv.includes('--update')) {
     writeFileSync(
         baselinePath,
-        `${JSON.stringify(Object.fromEntries(Object.entries(results).map(([n, r]) => [n, { gzip: r.gzip }])), null, 2)}\n`,
+        `${JSON.stringify(Object.fromEntries(Object.entries(results).map(([n, r]) => [n, { gzip: r.gzip, brotli: r.brotli }])), null, 2)}\n`,
     );
     console.log('size-check: baseline updated');
 } else if (failures.length) {
