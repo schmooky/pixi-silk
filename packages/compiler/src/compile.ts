@@ -453,7 +453,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
     };
 
     for (const { message, variants: vs } of input.shaped) {
-        const firstVariant = variants.length / 6;
+        const firstVariant = variants.length / 7;
         const selector = message.slots.find((s) => s.plural);
         let selectorSlot = NONE;
         const dumpVariants: unknown[] = [];
@@ -525,6 +525,7 @@ export function assembleBundle(input: AssembleInput): { data: BundleData; dump: 
                 firstSpan,
                 spans.length / 5 - firstSpan,
                 shaped.baseLevel,
+                ref(shaped.text),
             );
             dumpVariants.push({
                 category,

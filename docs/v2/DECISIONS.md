@@ -62,9 +62,9 @@ Each one is a dependency of `@pixi-silk/compiler` only. None is a runtime depend
 
 Production bundles store a 32-bit FNV-1a hash of each key. The compiler fails on a collision within a bundle and reports both keys. Dev bundles also store the key strings.
 
-## D9. Atlas binding (to measure in M3)
+## D9. Atlas binding
 
-Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on WebGL2 and WebGPU. A spike decides between texture arrays and multi-texture binding. Multi-texture binding is the default until then.
+Pixi 8.21 has `TextureSource.arrayLayerCount` and `viewDimension: '2d-array'` on WebGL2 and WebGPU. SilkMessage binds up to four atlas pages as separate textures and picks one per glyph with the page slot in the glyph metrics. A bundle with more than four pages warns and should be split with `--split-by`. The shop example uses two pages per locale. Texture arrays have not been spiked yet. They would lift the four-page limit and are an optimization, not a format change.
 
 ## D10. Runtime shaper (to measure in M7)
 
@@ -85,3 +85,14 @@ The compiler uses the `linebreak` package (UAX #14 for Unicode 13). It passes 75
 ## D14. Unicode data for tests
 
 `scripts/fetch-ucd.ts` downloads `BidiCharacterTest.txt`, `DerivedBidiClass.txt` and `LineBreakTest.txt` into `packages/compiler/.cache/ucd` (not committed, about 8 MB). The conformance tests are skipped when the files are missing, and CI fetches them first.
+
+## D15. Runtime budgets (first measurement, M3)
+
+Measured with `pnpm size` (minified, brotli quality 11), and kept by the size check's 10% regression gate:
+
+| Entry | Brotli | Brief target |
+|---|---|---|
+| `pixi-silk/i18n` (core, everything) | 5.79 kB | 20 kB |
+| `pixi-silk/i18n/pixi` (`Silk`, `SilkMessage`, loader; core included) | 10.66 kB | 12 kB for the Pixi part alone |
+
+Both entries are checked for bidi class names, HarfBuzz, exceljs and Node built-ins. The shop example compiles to `en.silk` 1.19 kB, `ar.silk` 2.09 kB and `he.silk` 1.25 kB brotli, plus three PNG pages of 54, 96 and 29 kB.

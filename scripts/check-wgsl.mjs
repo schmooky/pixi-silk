@@ -13,6 +13,7 @@
 import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 import { glassWgsl } from '../packages/pixi-silk/dist/glass/glass-wgsl.js';
+import { messageWgsl } from '../packages/pixi-silk/dist/i18n/pixi/shader-wgsl.js';
 import { createSilkGpuProgram } from '../packages/pixi-silk/dist/shader-wgsl.js';
 import { textWgsl } from '../packages/pixi-silk/dist/text/shader.js';
 // the library's own pixi.js (the workspace root has none)
@@ -40,6 +41,16 @@ const text = GpuProgram.from({
     vertex: { source: textWgsl, entryPoint: 'mainVertex' },
     fragment: { source: textWgsl, entryPoint: 'mainFragment' },
 });
+// SilkMessage: a corner quad per vertex, two vec4 per glyph instance; its data textures are unfilterable
+const message = GpuProgram.from({
+    name: 'silk-message',
+    vertex: { source: messageWgsl, entryPoint: 'mainVertex' },
+    fragment: { source: messageWgsl, entryPoint: 'mainFragment' },
+});
+
+for (const entry of message.gpuLayout[2] ?? []) {
+    if (entry.texture && entry.binding <= 2) entry.texture.sampleType = 'unfilterable-float';
+}
 const programs = [
     // corner quad per vertex, everything else per instance (one interleaved buffer)
     describe('silk-sdf', silk, (attrs) => {
@@ -81,6 +92,22 @@ const programs = [
             arrayStride: 48,
             stepMode: 'instance',
             attributes: ['aRect', 'aUv', 'aMeta'].map((n, i) => ({
+                shaderLocation: attrs[n].location,
+                offset: i * 16,
+                format: attrs[n].format,
+            })),
+        },
+    ]),
+    describe('silk-message', message, (attrs) => [
+        {
+            arrayStride: 8,
+            stepMode: 'vertex',
+            attributes: [{ shaderLocation: attrs.aCorner.location, offset: 0, format: attrs.aCorner.format }],
+        },
+        {
+            arrayStride: 32,
+            stepMode: 'instance',
+            attributes: ['aInst0', 'aInst1'].map((n, i) => ({
                 shaderLocation: attrs[n].location,
                 offset: i * 16,
                 format: attrs[n].format,

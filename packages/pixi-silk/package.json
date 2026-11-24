@@ -179,6 +179,10 @@
       "types": "./dist/i18n.d.ts",
       "default": "./dist/i18n.js"
     },
+    "./i18n/pixi": {
+      "types": "./dist/i18n-pixi.d.ts",
+      "default": "./dist/i18n-pixi.js"
+    },
     "./text/bidi": {
       "types": "./dist/text/bidi.d.ts",
       "default": "./dist/text/bidi.js"

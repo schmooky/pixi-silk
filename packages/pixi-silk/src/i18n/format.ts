@@ -112,9 +112,15 @@ export type PluralCategory = (typeof PLURAL_CATEGORIES)[number];
 export const GLYPH_STRIDE = 10;
 /** Uint32 per message: key hash, key string ref (or `NONE`), selector slot (or `NONE`), first variant, variant count, flags. */
 export const MESSAGE_STRIDE = 6;
-/** Uint32 per variant: plural category index, first segment, segment count, first span, span count, base level. */
-export const VARIANT_STRIDE = 6;
-/** Uint32 per segment: kind, a, b, c, bidi level. */
+/**
+ * Uint32 per variant: plural category index, first segment, segment count, first span, span count,
+ * base level, text string ref (the variant's characters with U+FFFC for holes, for accessibility).
+ */
+export const VARIANT_STRIDE = 7;
+/**
+ * Uint32 per segment: kind, a, b, c, bidi level. Static: run start, run length, face. Slot: slot id,
+ * text offset, {@link RunFlag} bits. Object: tag id, text offset, {@link RunFlag} bits.
+ */
 export const SEGMENT_STRIDE = 5;
 /** Uint16 per span: tag id, start segment, start cluster, end segment, end cluster (end exclusive). */
 export const SPAN_STRIDE = 5;

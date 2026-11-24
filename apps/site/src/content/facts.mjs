@@ -54,6 +54,11 @@ export const ENTRY_POINTS = {
         description:
             'Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables.',
     },
+    './i18n/pixi': {
+        area: 'text',
+        description:
+            'Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU.',
+    },
     './layout': { area: 'layout', description: 'LayoutNode: a headless flex layout engine with no Pixi in it.' },
     './ui/layout': {
         area: 'layout',

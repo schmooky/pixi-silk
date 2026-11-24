@@ -4,6 +4,8 @@
  */
 
 import { Glass } from '/packages/pixi-silk/dist/glass.js';
+import { SilkBundle } from '/packages/pixi-silk/dist/i18n.js';
+import { Silk, SilkMessage } from '/packages/pixi-silk/dist/i18n-pixi.js';
 import { enableSilkBatching, linear, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { silkGl1 } from '/packages/pixi-silk/dist/shader-slot.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
@@ -563,6 +565,52 @@ const cases = {
         return { scene: root, kind: 'none' };
     },
 };
+
+// baked localized text (pixi-silk/i18n): the shop example the site compiles, in three locales.
+// WebGL1 has no SilkMessage program, so these cases run on WebGL2 and WebGPU only.
+const i18n = gl1
+    ? null
+    : await (async () => {
+          const base = '/apps/site/public/i18n';
+          const silk = await Silk.create({ devEvents: false });
+          const load = async (l) =>
+              new SilkBundle(await (await fetch(`${base}/${l}.silk`)).arrayBuffer(), `${base}/${l}.silk`);
+          const theme = silk.createTheme(await (await fetch(`${base}/theme.json`)).json());
+
+          // biome-ignore lint/correctness/useHookAtTopLevel: Silk.useBundle is not a React hook
+          for (const l of ['en', 'ar', 'he']) await silk.useBundle(await load(l));
+          return { silk, theme };
+      })();
+
+if (i18n) {
+    for (const locale of ['en', 'ar', 'he']) {
+        cases[`i18n-${locale}`] = () => {
+            const root = new Container();
+            const messages = [
+                ['shop.title', 30, {}],
+                ['shop.coins', 18, { count: 1250 }],
+                ['shop.terms', 14, {}],
+            ];
+
+            messages.forEach(([key, size, values], i) => {
+                // prepare is async only by signature: the bundles are in use already
+                const prepared = {
+                    silk: i18n.silk,
+                    bundle: i18n.silk.bundles.get(locale),
+                    index: i18n.silk.bundles.get(locale).message(key),
+                    theme: i18n.theme,
+                    spec: { key, size, maxWidth: 240, align: 'start', lineHeight: 1.35, style: '', values },
+                };
+                const m = new SilkMessage(prepared);
+
+                m.position.set(8, 16 + i * 70);
+                root.addChild(m);
+            });
+
+            return { scene: root, kind: 'none' };
+        };
+    }
+}
 
 export const extraCases = cases;
 

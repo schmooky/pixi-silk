@@ -49,6 +49,8 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
 | [`pixi-silk/webgl1`](https://pixi-silk.schmooky.dev/api/webgl1.md) | Rendering | enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`. |
 | [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
+| [`pixi-silk/i18n`](https://pixi-silk.schmooky.dev/api/i18n.md) | Text | Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables. |
+| [`pixi-silk/text/bidi`](https://pixi-silk.schmooky.dev/api/text/bidi.md) | Text | The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
 | [`pixi-silk/signal`](https://pixi-silk.schmooky.dev/api/signal.md) | UI widgets | signal, computed, watch, batch: the small reactive store every widget state uses. |
@@ -134,6 +136,7 @@ The docs are grouped into areas. Each area overview tours its pages.
 
 - [Text overview](https://pixi-silk.schmooky.dev/docs/typography/): Labels and readouts drawn from distance fields, and text the reader can click and type into.
 - [Text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas, with outlines, glows, gradients and tabular numbers. It lives in pixi-silk/text. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
+- [Localized text](https://pixi-silk.schmooky.dev/docs/localized-text/): pixi-silk/i18n draws translated rich text, Arabic and Hebrew included, from bundles that @pixi-silk/compiler shapes with HarfBuzz at build time. No font file and no shaper at runtime. (Markdown: https://pixi-silk.schmooky.dev/docs/localized-text.md)
 - [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/): TextEditor turns a SilkText into a text layer people click and type into: caret, selection, undo, clipboard, forms and input methods, on the canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/editing-text.md)
 
 ### Interface

@@ -31,7 +31,7 @@ function sample(): BundleData {
             flags: new Uint8Array([0, 8, 1]),
         },
         messages: new Uint32Array([hashKey('shop.title'), 2, 0xffffffff, 0, 1, 0]),
-        variants: new Uint32Array([5, 0, 1, 0, 0, 1]),
+        variants: new Uint32Array([5, 0, 1, 0, 0, 1, 2]),
         segments: new Uint32Array([0, 0, 3, 0, 1]),
         spans: new Uint16Array([0, 0, 0, 0, 3]),
         slots: new Uint32Array(0),

@@ -39,6 +39,8 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
 | [`pixi-silk/webgl1`](https://pixi-silk.schmooky.dev/api/webgl1.md) | Rendering | enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`. |
 | [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
+| [`pixi-silk/i18n`](https://pixi-silk.schmooky.dev/api/i18n.md) | Text | Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables. |
+| [`pixi-silk/text/bidi`](https://pixi-silk.schmooky.dev/api/text/bidi.md) | Text | The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
 | [`pixi-silk/signal`](https://pixi-silk.schmooky.dev/api/signal.md) | UI widgets | signal, computed, watch, batch: the small reactive store every widget state uses. |
@@ -5740,6 +5742,113 @@ import { History, bindHistoryKeys, recordGizmo, recordSignals } from 'pixi-silk/
 | [recordGizmo](https://pixi-silk.schmooky.dev/api/history/functions/recordGizmo.md) | Records every drag of a transform gizmo as one undoable step. The gizmo knows nothing about history: this watches its `dragging` signal. Returns the function that stops recording. |
 | [recordSignals](https://pixi-silk.schmooky.dev/api/history/functions/recordSignals.md) | Records every change of `signals` into `history`, so undo works without writing commands. Changes made in the same synchronous run (one handler, one `batch`) become one step. Inside a transaction everything merges into the transaction's step. |
 
+## `pixi-silk/i18n`
+
+URL: https://pixi-silk.schmooky.dev/api/i18n/
+
+Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables.
+
+```ts
+import { SilkBundle, SilkBundleError, StyleTable, BundleFlag } from 'pixi-silk/i18n';
+```
+
+#### Classes
+
+| Class | Description |
+| ------ | ------ |
+| [SilkBundle](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundle.md) | A loaded `.silk` bundle (brief sec. 5) with lookups: messages by key, faces by id, slots, tags, variants by plural category, and number formatting through the baked digit tables. Holds typed arrays over the fetched buffer and decodes nothing up front. |
+| [SilkBundleError](https://pixi-silk.schmooky.dev/api/i18n/classes/SilkBundleError.md) | Thrown when a buffer is not a `.silk` bundle this runtime can read. |
+| [StyleTable](https://pixi-silk.schmooky.dev/api/i18n/classes/StyleTable.md) | The style rows of a theme: one row per unique stack of tags in use (the base style, then each tag from the outermost in). Rows are packed by [packStyle](https://pixi-silk.schmooky.dev/api/i18n/functions/packStyle.md) into one Float32Array, ready to upload as a data texture. Changing a paint property rewrites only the rows that include that tag. |
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [BundleData](https://pixi-silk.schmooky.dev/api/i18n/interfaces/BundleData.md) | Everything a `.silk` bundle holds, as typed arrays. The reader returns views over the fetched buffer, and the compiler builds one of these and writes it. Record layouts are in `format.ts`. |
+| [BundleFace](https://pixi-silk.schmooky.dev/api/i18n/interfaces/BundleFace.md) | A face of a bundle. |
+| [BundlePage](https://pixi-silk.schmooky.dev/api/i18n/interfaces/BundlePage.md) | An atlas page a bundle draws from. |
+| [BundleRuns](https://pixi-silk.schmooky.dev/api/i18n/interfaces/BundleRuns.md) | The columns of the RUNS section: one entry per shaped glyph. |
+| [BundleSlot](https://pixi-silk.schmooky.dev/api/i18n/interfaces/BundleSlot.md) | A slot of a bundle. |
+| [FormattedNumber](https://pixi-silk.schmooky.dev/api/i18n/interfaces/FormattedNumber.md) | A formatted number slot: one glyph per output character. |
+| [InlineMetrics](https://pixi-silk.schmooky.dev/api/i18n/interfaces/InlineMetrics.md) | Size of an inline object such as `<coin/>`, in em of the message size. |
+| [LayoutBox](https://pixi-silk.schmooky.dev/api/i18n/interfaces/LayoutBox.md) | A box in local pixels. |
+| [MessageLayout](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayout.md) | A laid out message: instances ready to upload, plus boxes for objects, text slots and taps. |
+| [MessageLayoutOptions](https://pixi-silk.schmooky.dev/api/i18n/interfaces/MessageLayoutOptions.md) | Options of [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md). |
+| [SlotPlacement](https://pixi-silk.schmooky.dev/api/i18n/interfaces/SlotPlacement.md) | A number slot as laid out, for `value-fast` updates. |
+| [StyleChange](https://pixi-silk.schmooky.dev/api/i18n/interfaces/StyleChange.md) | What a [StyleTable.set](https://pixi-silk.schmooky.dev/api/i18n/classes/StyleTable.md) changed. |
+| [ThemeData](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeData.md) | A theme file, `$silk: 2`. |
+| [ThemeGlow](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeGlow.md) | A soft halo around the glyphs. |
+| [ThemeLine](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeLine.md) | A line under or through the glyphs. |
+| [ThemeOutline](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeOutline.md) | A line around the glyphs. |
+| [ThemeShadow](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeShadow.md) | A blurred copy under the glyphs, moved by an offset. |
+| [ThemeStyle](https://pixi-silk.schmooky.dev/api/i18n/interfaces/ThemeStyle.md) | One style. Every field is optional: a tag's style overrides only what it sets. |
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [MessageAlign](https://pixi-silk.schmooky.dev/api/i18n/types/MessageAlign.md) | Horizontal alignment. `start` and `end` follow the locale's direction. |
+| [PluralCategory](https://pixi-silk.schmooky.dev/api/i18n/types/PluralCategory.md) | A CLDR plural category. |
+
+#### Variables
+
+| Variable | Description |
+| ------ | ------ |
+| [BundleFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/BundleFlag.md) | Header flags. |
+| [DIGIT\_ENTRY\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/DIGIT_ENTRY_STRIDE.md) | Int32 per digit table entry: code point, glyph index (-1 for a zero-width mark), advance (font units). |
+| [DIGIT\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/DIGIT_STRIDE.md) | Uint32 per digit table: face, numbering system ref, first entry, entry count, tabular advance, flags. |
+| [FACE\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/FACE_STRIDE.md) | Int32 per face: face id, units per em, hash low, hash high, ascender, descender, line gap, family ref, weight. |
+| [GLYPH\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/GLYPH_STRIDE.md) | Int16 per atlas glyph: page, x, y, w, h (atlas pixels), planeL, planeB, planeR, planeT (font units), face. |
+| [HEADER\_BYTES](https://pixi-silk.schmooky.dev/api/i18n/variables/HEADER_BYTES.md) | Bytes before the section table. |
+| [INSTANCE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/INSTANCE_FLOATS.md) | Floats per glyph instance: x, y, scale, glyph, style row, kind, size, width. |
+| [InstanceKind](https://pixi-silk.schmooky.dev/api/i18n/variables/InstanceKind.md) | What an instance draws. |
+| [MESSAGE\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/MESSAGE_STRIDE.md) | Uint32 per message: key hash, key string ref (or `NONE`), selector slot (or `NONE`), first variant, variant count, flags. |
+| [NONE](https://pixi-silk.schmooky.dev/api/i18n/variables/NONE.md) | "No value" in u32 fields. |
+| [PAGE\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/PAGE_STRIDE.md) | Float32 per page: page id, file ref, kind, width, height, distance range (atlas px), em size (atlas px per em). |
+| [PageKind](https://pixi-silk.schmooky.dev/api/i18n/variables/PageKind.md) | Glyph kinds of atlas pages. |
+| [PAINT\_PROPERTIES](https://pixi-silk.schmooky.dev/api/i18n/variables/PAINT_PROPERTIES.md) | Properties that change only paint: live-editable at runtime. |
+| [PLURAL\_CATEGORIES](https://pixi-silk.schmooky.dev/api/i18n/variables/PLURAL_CATEGORIES.md) | Plural categories in the order the VARIANTS section stores them. |
+| [RunFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/RunFlag.md) | Per-glyph flags in the RUNS flags column. |
+| [Section](https://pixi-silk.schmooky.dev/api/i18n/variables/Section.md) | Section ids. |
+| [SECTION\_ENTRY\_BYTES](https://pixi-silk.schmooky.dev/api/i18n/variables/SECTION_ENTRY_BYTES.md) | Bytes per section table entry. |
+| [SEGMENT\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/SEGMENT_STRIDE.md) | Uint32 per segment: kind, a, b, c, bidi level. Static: run start, run length, face. Slot: slot id, text offset, [RunFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/RunFlag.md) bits. Object: tag id, text offset, [RunFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/RunFlag.md) bits. |
+| [SegmentKind](https://pixi-silk.schmooky.dev/api/i18n/variables/SegmentKind.md) | Kinds of message segments. |
+| [SHADOW\_MAX\_BLUR](https://pixi-silk.schmooky.dev/api/i18n/variables/SHADOW_MAX_BLUR.md) | Shadow blur at `softness: 1`, in pixels at scale 1. |
+| [SHAPE\_PROPERTIES](https://pixi-silk.schmooky.dev/api/i18n/variables/SHAPE_PROPERTIES.md) | Properties that change shaping or advances: they need a recompile or a runtime shaper. |
+| [SILK\_MAGIC](https://pixi-silk.schmooky.dev/api/i18n/variables/SILK_MAGIC.md) | `SILK` read as a little-endian u32. |
+| [SILK\_MAJOR](https://pixi-silk.schmooky.dev/api/i18n/variables/SILK_MAJOR.md) | Major version this runtime reads. A bundle with another major is refused. |
+| [SILK\_MINOR](https://pixi-silk.schmooky.dev/api/i18n/variables/SILK_MINOR.md) | Minor version this runtime was written for. A newer minor loads with a warning. |
+| [SLOT\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/SLOT_STRIDE.md) | Uint32 per slot: name ref, type, max digits or chars, digit table (or `NONE`), flags, face. |
+| [SlotFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/SlotFlag.md) | Slot flags. |
+| [SlotType](https://pixi-silk.schmooky.dev/api/i18n/variables/SlotType.md) | Types of slots. |
+| [SPAN\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/SPAN_STRIDE.md) | Uint16 per span: tag id, start segment, start cluster, end segment, end cluster (end exclusive). |
+| [STYLE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/STYLE_FLOATS.md) | Floats per style row. |
+| [STYLE\_TEXELS](https://pixi-silk.schmooky.dev/api/i18n/variables/STYLE_TEXELS.md) | RGBA32F texels per style row. |
+| [StyleFlag](https://pixi-silk.schmooky.dev/api/i18n/variables/StyleFlag.md) | Style row flags (texel 7, z). |
+| [VARIANT\_STRIDE](https://pixi-silk.schmooky.dev/api/i18n/variables/VARIANT_STRIDE.md) | Uint32 per variant: plural category index, first segment, segment count, first span, span count, base level, text string ref (the variant's characters with U+FFFC for holes, for accessibility). |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [align8](https://pixi-silk.schmooky.dev/api/i18n/functions/align8.md) | Rounds `n` up to the next multiple of 8. |
+| [bundleCounts](https://pixi-silk.schmooky.dev/api/i18n/functions/bundleCounts.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [digitGlyph](https://pixi-silk.schmooky.dev/api/i18n/functions/digitGlyph.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [effectReach](https://pixi-silk.schmooky.dev/api/i18n/functions/effectReach.md) | How far the paint effects of a style reach past the glyph edge, in pixels at scale 1: the largest of the outline width, the glow width and the shadow blur. The compiler sizes the atlas distance range from it. |
+| [findMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/findMessage.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [hashKey](https://pixi-silk.schmooky.dev/api/i18n/functions/hashKey.md) | 32-bit FNV-1a hash of a message key, over its UTF-16 code units. Production bundles store only this. The compiler fails when two keys of one bundle collide. |
+| [isLittleEndian](https://pixi-silk.schmooky.dev/api/i18n/functions/isLittleEndian.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [layoutMessage](https://pixi-silk.schmooky.dev/api/i18n/functions/layoutMessage.md) | Lays out one variant of a message from baked data (brief sec. 6.2): greedy line filling over the baked advances, breaking only where the compiler marked a break opportunity, then visual reordering of every line from the baked bidi levels. No shaping and no Unicode tables. Number slots map their characters through the digit tables. Text slots and inline objects are boxes. |
+| [mergeStyles](https://pixi-silk.schmooky.dev/api/i18n/functions/mergeStyles.md) | Merges styles left to right: later ones override the fields they set. `null` removes an effect. |
+| [packStyle](https://pixi-silk.schmooky.dev/api/i18n/functions/packStyle.md) | Packs a resolved style into one style row of [STYLE\_FLOATS](https://pixi-silk.schmooky.dev/api/i18n/variables/STYLE_FLOATS.md) floats at `offset`: |
+| [parseHex](https://pixi-silk.schmooky.dev/api/i18n/functions/parseHex.md) | `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` as linear-free 0 to 1 RGBA, or null. |
+| [propertyClass](https://pixi-silk.schmooky.dev/api/i18n/functions/propertyClass.md) | `paint`, `shape` or `behaviour` for a style property. The compiler and the runtime both use this table. |
+| [readBundle](https://pixi-silk.schmooky.dev/api/i18n/functions/readBundle.md) | pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked digit tables, lays out lines from baked advances and break flags, and writes glyph instances. It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it. |
+| [reorder](https://pixi-silk.schmooky.dev/api/i18n/functions/reorder.md) | Visual order of a line from its levels (UAX #9 rule L2). |
+| [shapeKey](https://pixi-silk.schmooky.dev/api/i18n/functions/shapeKey.md) | Shape-relevant fields of a style, the part that decides how text is shaped. |
+| [updateNumberSlot](https://pixi-silk.schmooky.dev/api/i18n/functions/updateNumberSlot.md) | Rewrites the glyphs of a number slot in place when the new value has as many characters, each with the advance of the one it replaces (brief sec. 6.3, `value-fast`): no layout, no allocation beyond the formatting. Returns false when the caller must lay out again. |
+| [validateTheme](https://pixi-silk.schmooky.dev/api/i18n/functions/validateTheme.md) | Checks a parsed theme file. Returns problems as sentences. An empty list means the theme is valid. |
+
 ## `pixi-silk/layout`
 
 URL: https://pixi-silk.schmooky.dev/api/layout/
@@ -5908,6 +6017,35 @@ import { batch, computed, signal, watch } from 'pixi-silk/signal';
 | [signal](https://pixi-silk.schmooky.dev/api/signal/functions/signal.md) | Creates a signal. `equals` decides when a write is a change (default `Object.is`), so mutating an object in place and setting it again notifies nobody. Set a new object instead. |
 | [watch](https://pixi-silk.schmooky.dev/api/signal/functions/watch.md) | Calls `fn` now and on every change of `source`. Returns the unsubscribe function. |
 
+## `pixi-silk/text/bidi`
+
+URL: https://pixi-silk.schmooky.dev/api/text/bidi/
+
+The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order.
+
+```ts
+import { bidiClass, hasRtl, mirror, paragraphLevel } from 'pixi-silk/text/bidi';
+```
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [BidiClass](https://pixi-silk.schmooky.dev/api/text/bidi/types/BidiClass.md) | Bidi character types used here (UAX #9 table 4, minus the explicit formatting types). |
+| [TextDirection](https://pixi-silk.schmooky.dev/api/text/bidi/types/TextDirection.md) | Base direction of a paragraph. `auto` takes it from the first strong character, left to right when there is none. |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [bidiClass](https://pixi-silk.schmooky.dev/api/text/bidi/functions/bidiClass.md) | The bidi type of one code point. Covers the common scripts. Anything unlisted is `L`, or `ON` for punctuation and symbols. |
+| [hasRtl](https://pixi-silk.schmooky.dev/api/text/bidi/functions/hasRtl.md) | True when the text holds a right-to-left character or a bidi control, so it needs the bidi pass. |
+| [mirror](https://pixi-silk.schmooky.dev/api/text/bidi/functions/mirror.md) | L4: the mirrored form of a character drawn right to left, such as `)` for `(`, or the character itself. |
+| [paragraphLevel](https://pixi-silk.schmooky.dev/api/text/bidi/functions/paragraphLevel.md) | Paragraph level from the first strong type (P2, P3): 1 for `R` or `AL`, 0 for `L` or none. Text inside isolates is skipped. |
+| [resetWhitespace](https://pixi-silk.schmooky.dev/api/text/bidi/functions/resetWhitespace.md) | L1 for one line: whitespace and isolate controls at the end of the line, and before tabs, fall back to the paragraph level. `types` are the original types of the line's units. Changes `levels` in place. |
+| [resolveLevels](https://pixi-silk.schmooky.dev/api/text/bidi/functions/resolveLevels.md) | Embedding levels of one paragraph, one per unit, in logical order (UAX #9 rules X1 to X10, W1 to W7, N0 to N2, I1 and I2). `types` are the original types. `chars` are the units' text, used to pair brackets (N0). Even levels run left to right, odd ones right to left. Embedding controls and boundary neutrals take the level of the unit before them. |
+| [visualOrder](https://pixi-silk.schmooky.dev/api/text/bidi/functions/visualOrder.md) | L2: the visual order of a line as indices into `levels`, left to right. |
+
 ## `pixi-silk/text`
 
 URL: https://pixi-silk.schmooky.dev/api/text/
@@ -5963,19 +6101,16 @@ import { SdfAtlas, SilkRichText, SilkText, SilkTextGeometry } from 'pixi-silk/te
 
 | Type Alias | Description |
 | ------ | ------ |
-| [BidiClass](https://pixi-silk.schmooky.dev/api/text/types/BidiClass.md) | Bidi character types used here (UAX #9 table 4, minus the explicit formatting types). |
 | [InlineAlign](https://pixi-silk.schmooky.dev/api/text/types/InlineAlign.md) | How an inline box sits on the line. |
 | [InlineSize](https://pixi-silk.schmooky.dev/api/text/types/InlineSize.md) | A size for an inline object: local units, or a size that follows the font. `em` is the font size, `cap` the height of capital letters and digits, `line` the line height. |
 | [ResolvedTextStyle](https://pixi-silk.schmooky.dev/api/text/types/ResolvedTextStyle.md) | A [SilkTextStyle](https://pixi-silk.schmooky.dev/api/text/interfaces/SilkTextStyle.md) with every field set, as [SilkText.defaults](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) holds it. |
 | [TextAlign](https://pixi-silk.schmooky.dev/api/text/types/TextAlign.md) | Horizontal alignment of the lines of a text block. `start` and `end` follow the direction of each line's paragraph: `start` is left for left-to-right text and right for right-to-left text. `justify` stretches every wrapped line to the full width and aligns the last line of each paragraph to its start. |
-| [TextDirection](https://pixi-silk.schmooky.dev/api/text/types/TextDirection.md) | Base direction of a paragraph. `auto` takes it from the first strong character, left to right when there is none. |
 | [WordBreak](https://pixi-silk.schmooky.dev/api/text/types/WordBreak.md) | How lines may break inside text without spaces, as in CSS `word-break`. |
 
 #### Functions
 
 | Function | Description |
 | ------ | ------ |
-| [bidiClass](https://pixi-silk.schmooky.dev/api/text/functions/bidiClass.md) | The bidi type of one code point. Covers the common scripts. Anything unlisted is `L`, or `ON` for punctuation and symbols. |
 | [caretAtPoint](https://pixi-silk.schmooky.dev/api/text/functions/caretAtPoint.md) | The caret position nearest to a point, in the layout's own units (the top left of the text box is 0, 0). Points above the first line or below the last snap to them. `isStop` filters the offsets a caret may take, for example grapheme cluster boundaries. |
 | [caretRect](https://pixi-silk.schmooky.dev/api/text/functions/caretRect.md) | Where to draw a caret at `index`, in the layout's units. `leading` puts it before the character after it where the direction changes. |
 | [caretVisual](https://pixi-silk.schmooky.dev/api/text/functions/caretVisual.md) | The caret stop one step left (`dir` -1) or right (1) on screen from `index`, on the same line. In a line that mixes directions this follows what the eye sees, not the order of the text. The arrow keys then move the way they point, and a caret can reach both places an offset has where the direction changes. Returns null on a line that runs left to right only, or at the line's edge: step through the text instead there. `isStop` filters the stops, for example to grapheme or word boundaries. |
@@ -5983,25 +6118,73 @@ import { SdfAtlas, SilkRichText, SilkText, SilkTextGeometry } from 'pixi-silk/te
 | [clusters](https://pixi-silk.schmooky.dev/api/text/functions/clusters.md) | Splits a paragraph into the clusters [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) measures and draws, in reading order. |
 | [fontString](https://pixi-silk.schmooky.dev/api/text/functions/fontString.md) | pixi-silk/text: [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md), text drawn from a shared signed distance field atlas, plus the layout and caret helpers it uses. Not part of the root `pixi-silk` import. |
 | [graphemeStops](https://pixi-silk.schmooky.dev/api/text/functions/graphemeStops.md) | Offsets where a caret can sit: 0, every grapheme cluster boundary, and the text's length. |
-| [hasRtl](https://pixi-silk.schmooky.dev/api/text/functions/hasRtl.md) | True when the text holds a right-to-left character or a bidi control, so it needs the bidi pass. |
 | [inlineTokens](https://pixi-silk.schmooky.dev/api/text/functions/inlineTokens.md) | The `{name}` tokens of a text whose names `known` accepts, in order. Other braces stay text. |
 | [isMac](https://pixi-silk.schmooky.dev/api/text/functions/isMac.md) | True on macOS, iOS and iPadOS, where Option moves by word and Command by line. |
 | [layoutText](https://pixi-silk.schmooky.dev/api/text/functions/layoutText.md) | Lays out a block of text. Lines break at `\n` and, with `wordWrap`, at spaces. Each character gets its advance, kerning and letter spacing, then the lines are aligned. Widths come from `measure`, so the same layout works for any renderer. |
 | [lineOfIndex](https://pixi-silk.schmooky.dev/api/text/functions/lineOfIndex.md) | The line a caret at `index` is on. At a wrap, `upstream` picks the end of the first line over the start of the next. |
-| [mirror](https://pixi-silk.schmooky.dev/api/text/functions/mirror.md) | L4: the mirrored form of a character drawn right to left, such as `)` for `(`, or the character itself. |
 | [nextWordStop](https://pixi-silk.schmooky.dev/api/text/functions/nextWordStop.md) | Where a word jump to the right lands. `mac` (the default on Apple platforms) stops at the end of the next word, like Option + Right. Otherwise it stops at the start of the word after, like Ctrl + Right. |
 | [paragraphAt](https://pixi-silk.schmooky.dev/api/text/functions/paragraphAt.md) | The paragraph around `index`: from the newline before it to the newline after, newlines left out. |
-| [paragraphLevel](https://pixi-silk.schmooky.dev/api/text/functions/paragraphLevel.md) | Paragraph level from the first strong type (P2, P3): 1 for `R` or `AL`, 0 for `L` or none. Text inside isolates is skipped. |
 | [previousWordStop](https://pixi-silk.schmooky.dev/api/text/functions/previousWordStop.md) | Where a word jump to the left lands: the start of the word before `index`. |
 | [rangeRects](https://pixi-silk.schmooky.dev/api/text/functions/rangeRects.md) | Highlight boxes of the range `from` to `to`, one per line, the full height of each line box. A range that runs on past a newline gets a sliver of `newline` width at that line's end, so selected empty lines still show. Default newline width a quarter of the font height. |
-| [resetWhitespace](https://pixi-silk.schmooky.dev/api/text/functions/resetWhitespace.md) | L1 for one line: whitespace and isolate controls at the end of the line, and before tabs, fall back to the paragraph level. `types` are the original types of the line's units. Changes `levels` in place. |
-| [resolveLevels](https://pixi-silk.schmooky.dev/api/text/functions/resolveLevels.md) | Embedding levels of one paragraph, one per unit, in logical order (UAX #9 rules X1 to X10, W1 to W7, N0 to N2, I1 and I2). `types` are the original types. `chars` are the units' text, used to pair brackets (N0). Even levels run left to right, odd ones right to left. Embedding controls and boundary neutrals take the level of the unit before them. |
 | [sdfFromAlpha](https://pixi-silk.schmooky.dev/api/text/functions/sdfFromAlpha.md) | Turns an anti-aliased coverage bitmap into an 8-bit signed distance field. |
 | [silkLabel](https://pixi-silk.schmooky.dev/api/text/functions/silkLabel.md) | A label factory that makes [SilkText](https://pixi-silk.schmooky.dev/api/text/classes/SilkText.md) labels, for widgets such as `ValuePill`. The widget's style comes first, then `overrides` (any SilkText option but the text). From the Pixi style it keeps the font, letter spacing, line height, left, center or right alignment, and a plain colour fill. Gradients, strokes and drop shadows of the Pixi style are dropped. |
 | [silkRichLabel](https://pixi-silk.schmooky.dev/api/text/functions/silkRichLabel.md) | A label factory like [silkLabel](https://pixi-silk.schmooky.dev/api/text/functions/silkLabel.md) that makes [SilkRichText](https://pixi-silk.schmooky.dev/api/text/classes/SilkRichText.md) labels, so a widget's text can hold icons: `pill.show('{up} 12%')`. `inlines` lists the objects by name. Pass functions that build them when a label may show one more than once, or when the widget makes several labels. |
-| [visualOrder](https://pixi-silk.schmooky.dev/api/text/functions/visualOrder.md) | L2: the visual order of a line as indices into `levels`, left to right. |
 | [wordAt](https://pixi-silk.schmooky.dev/api/text/functions/wordAt.md) | The segment (word, run of spaces or punctuation) that holds the character at `index`. |
 | [wordSegments](https://pixi-silk.schmooky.dev/api/text/functions/wordSegments.md) | Splits text into words and the runs between them. |
+
+#### References
+
+##### bidiClass
+
+Re-exports [bidiClass](https://pixi-silk.schmooky.dev/api/text/bidi/functions/bidiClass.md)
+
+***
+
+##### BidiClass
+
+Re-exports [BidiClass](https://pixi-silk.schmooky.dev/api/text/bidi/types/BidiClass.md)
+
+***
+
+##### hasRtl
+
+Re-exports [hasRtl](https://pixi-silk.schmooky.dev/api/text/bidi/functions/hasRtl.md)
+
+***
+
+##### mirror
+
+Re-exports [mirror](https://pixi-silk.schmooky.dev/api/text/bidi/functions/mirror.md)
+
+***
+
+##### paragraphLevel
+
+Re-exports [paragraphLevel](https://pixi-silk.schmooky.dev/api/text/bidi/functions/paragraphLevel.md)
+
+***
+
+##### resetWhitespace
+
+Re-exports [resetWhitespace](https://pixi-silk.schmooky.dev/api/text/bidi/functions/resetWhitespace.md)
+
+***
+
+##### resolveLevels
+
+Re-exports [resolveLevels](https://pixi-silk.schmooky.dev/api/text/bidi/functions/resolveLevels.md)
+
+***
+
+##### TextDirection
+
+Re-exports [TextDirection](https://pixi-silk.schmooky.dev/api/text/bidi/types/TextDirection.md)
+
+***
+
+##### visualOrder
+
+Re-exports [visualOrder](https://pixi-silk.schmooky.dev/api/text/bidi/functions/visualOrder.md)
 
 ## `pixi-silk/ui/arc`
 

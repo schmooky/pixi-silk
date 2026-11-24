@@ -78,6 +78,11 @@ const IMPORTS = {
     'text (bidi)': ['bidiClass, resolveLevels, visualOrder', ['#version 300 es', 'silk-text-atlas'], '/text'],
     // baked text: no Pixi in the core, no Unicode tables ('FSI' is a bidi class name), nothing from the compiler
     'i18n (core)': ['*', ['FSI', 'harfbuzz', 'exceljs', 'node:', 'pixi.js', '#version 300 es'], '/i18n'],
+    'i18n/pixi (Silk, SilkMessage)': [
+        'Silk, SilkMessage, silkBundleLoader',
+        ['FSI', 'harfbuzz', 'exceljs', 'node:', 'silk-text-atlas'],
+        '/i18n/pixi',
+    ],
     'ui/textedit (TextEditor)': ['TextEditor', ['RadialMenu', 'TransformGizmo', 'ColorModel'], '/ui/textedit'],
     'ui/pill (ValuePill)': ['ValuePill', ['silk-text', 'RadialMenu'], '/ui/pill'],
     // editor panels: a panel frame never pulls in the layer tree, the inspector or the colour pickers

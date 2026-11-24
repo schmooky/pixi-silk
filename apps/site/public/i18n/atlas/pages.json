@@ -1,0 +1,30 @@
+{
+  "emSize": 40,
+  "distanceRange": 15,
+  "pages": [
+    {
+      "file": "arabic-0.png",
+      "script": "arabic",
+      "kind": "msdf",
+      "width": 512,
+      "height": 512,
+      "glyphs": 82
+    },
+    {
+      "file": "hebrew-0.png",
+      "script": "hebrew",
+      "kind": "msdf",
+      "width": 256,
+      "height": 256,
+      "glyphs": 27
+    },
+    {
+      "file": "latin-0.png",
+      "script": "latin",
+      "kind": "msdf",
+      "width": 512,
+      "height": 256,
+      "glyphs": 50
+    }
+  ]
+}

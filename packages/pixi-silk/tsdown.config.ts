@@ -15,6 +15,7 @@ export default defineConfig({
         'src/text.ts',
         'src/text/bidi.ts',
         'src/i18n.ts',
+        'src/i18n-pixi.ts',
         'src/layout.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',

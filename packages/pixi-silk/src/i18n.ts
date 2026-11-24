@@ -44,6 +44,27 @@ export {
     VARIANT_STRIDE,
 } from './i18n/format';
 export {
+    INSTANCE_FLOATS,
+    type InlineMetrics,
+    InstanceKind,
+    type LayoutBox,
+    layoutMessage,
+    type MessageAlign,
+    type MessageLayout,
+    type MessageLayoutOptions,
+    reorder,
+    type SlotPlacement,
+    updateNumberSlot,
+} from './i18n/layout';
+export {
+    type BundleFace,
+    type BundlePage,
+    type BundleSlot,
+    type FormattedNumber,
+    SilkBundle,
+} from './i18n/messages';
+export { type StyleChange, StyleTable } from './i18n/styles';
+export {
     effectReach,
     mergeStyles,
     PAINT_PROPERTIES,

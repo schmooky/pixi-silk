@@ -88,7 +88,7 @@ export const DOCS_AREAS = [
         section: 'features',
         summary: 'Labels and readouts drawn from distance fields, and text the reader can click and type into.',
         intro: ['Text draws labels with SilkText. Editing text turns a label into a field the reader types into.'],
-        items: ['text', 'editing-text'],
+        items: ['text', 'localized-text', 'editing-text'],
     },
     {
         id: 'ui',

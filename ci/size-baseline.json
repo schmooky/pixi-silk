@@ -179,6 +179,14 @@
     "gzip": 3195,
     "brotli": 2685
   },
+  "i18n (core)": {
+    "gzip": 6510,
+    "brotli": 5931
+  },
+  "i18n/pixi (Silk, SilkMessage)": {
+    "gzip": 12075,
+    "brotli": 10969
+  },
   "ui/textedit (TextEditor)": {
     "gzip": 54731,
     "brotli": 47082
