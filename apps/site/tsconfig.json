@@ -13,6 +13,8 @@
       "pixi-silk/webgpu": ["../../packages/pixi-silk/src/webgpu.ts"],
       "pixi-silk/webgl1": ["../../packages/pixi-silk/src/webgl1.ts"],
       "pixi-silk/text": ["../../packages/pixi-silk/src/text.ts"],
+      "pixi-silk/text/bidi": ["../../packages/pixi-silk/src/text/bidi.ts"],
+      "pixi-silk/i18n": ["../../packages/pixi-silk/src/i18n.ts"],
       "pixi-silk/selection": ["../../packages/pixi-silk/src/selection.ts"],
       "pixi-silk/history": ["../../packages/pixi-silk/src/history.ts"],
       "pixi-silk/path": ["../../packages/pixi-silk/src/path.ts"],

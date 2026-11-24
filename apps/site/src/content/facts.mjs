@@ -44,6 +44,16 @@ export const ENTRY_POINTS = {
         description:
             'SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers.',
     },
+    './text/bidi': {
+        area: 'text',
+        description:
+            'The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order.',
+    },
+    './i18n': {
+        area: 'text',
+        description:
+            'Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables.',
+    },
     './layout': { area: 'layout', description: 'LayoutNode: a headless flex layout engine with no Pixi in it.' },
     './ui/layout': {
         area: 'layout',

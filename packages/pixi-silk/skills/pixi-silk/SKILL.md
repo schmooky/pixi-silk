@@ -61,6 +61,8 @@ Import each from its own path. The root import does not re-export the others.
 | `pixi-silk/glass` | `Glass`, a frosted pane. |
 | `pixi-silk/glow` | `Glow`, `Aurora`, `neon`, `halo`, rays. |
 | `pixi-silk/text` | `SilkText`, `SdfAtlas`, `silkLabel`, `layoutText`, caret helpers. |
+| `pixi-silk/text/bidi` | The Unicode bidi algorithm: `bidiClass`, `resolveLevels`, `visualOrder`. |
+| `pixi-silk/i18n` | Baked localized text core: `readBundle`, themes, layout from `.silk` bundles. |
 | `pixi-silk/layout` | `LayoutNode`, a headless flex engine. |
 | `pixi-silk/ui/layout` | `SmartContainer`, `FlexContainer`, `simulateViewport`, `layoutDebug`. |
 | `pixi-silk/signal` | `signal`, `computed`, `watch`, `batch`. |

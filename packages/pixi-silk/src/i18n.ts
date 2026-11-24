@@ -1,0 +1,66 @@
+/**
+ * pixi-silk/i18n: the renderer-agnostic core of baked localized text. Reads `.silk` bundles made by
+ * `@pixi-silk/compiler`, resolves messages and plural variants, formats number slots from baked
+ * digit tables, lays out lines from baked advances and break flags, and writes glyph instances.
+ * It imports no Pixi code and carries no Unicode data tables. `pixi-silk/i18n/pixi` draws it.
+ */
+export {
+    type BundleData,
+    type BundleRuns,
+    bundleCounts,
+    digitGlyph,
+    findMessage,
+    isLittleEndian,
+    readBundle,
+    SilkBundleError,
+} from './i18n/bundle';
+export {
+    align8,
+    BundleFlag,
+    DIGIT_ENTRY_STRIDE,
+    DIGIT_STRIDE,
+    FACE_STRIDE,
+    GLYPH_STRIDE,
+    HEADER_BYTES,
+    hashKey,
+    MESSAGE_STRIDE,
+    NONE,
+    PAGE_STRIDE,
+    PageKind,
+    PLURAL_CATEGORIES,
+    type PluralCategory,
+    RunFlag,
+    SECTION_ENTRY_BYTES,
+    SEGMENT_STRIDE,
+    Section,
+    SegmentKind,
+    SILK_MAGIC,
+    SILK_MAJOR,
+    SILK_MINOR,
+    SLOT_STRIDE,
+    SlotFlag,
+    SlotType,
+    SPAN_STRIDE,
+    VARIANT_STRIDE,
+} from './i18n/format';
+export {
+    effectReach,
+    mergeStyles,
+    PAINT_PROPERTIES,
+    packStyle,
+    parseHex,
+    propertyClass,
+    SHADOW_MAX_BLUR,
+    SHAPE_PROPERTIES,
+    STYLE_FLOATS,
+    STYLE_TEXELS,
+    StyleFlag,
+    shapeKey,
+    type ThemeData,
+    type ThemeGlow,
+    type ThemeLine,
+    type ThemeOutline,
+    type ThemeShadow,
+    type ThemeStyle,
+    validateTheme,
+} from './i18n/theme';

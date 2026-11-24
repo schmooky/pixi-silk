@@ -13,6 +13,8 @@ export default defineConfig({
         'src/webgpu.ts',
         'src/webgl1.ts',
         'src/text.ts',
+        'src/text/bidi.ts',
+        'src/i18n.ts',
         'src/layout.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',

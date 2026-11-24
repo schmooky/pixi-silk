@@ -119,6 +119,8 @@ writeFileSync(
                 'pixi-silk/webgpu': [join(SRC, 'webgpu.ts')],
                 'pixi-silk/webgl1': [join(SRC, 'webgl1.ts')],
                 'pixi-silk/text': [join(SRC, 'text.ts')],
+                'pixi-silk/text/bidi': [join(SRC, 'text/bidi.ts')],
+                'pixi-silk/i18n': [join(SRC, 'i18n.ts')],
                 'pixi-silk/layout': [join(SRC, 'layout.ts')],
             },
         },
