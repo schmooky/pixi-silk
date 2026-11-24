@@ -1,0 +1,226 @@
+/**
+ * @internal WGSL twin of the SilkMessage shader in `shader.ts`: the same instance layout, data
+ * textures and effect math. Data textures are read with textureLoad (they are RGBA32F).
+ */
+export const messageWgsl = /* wgsl */ `
+struct GlobalUniforms {
+    uProjectionMatrix: mat3x3<f32>,
+    uWorldTransformMatrix: mat3x3<f32>,
+    uWorldColorAlpha: vec4<f32>,
+    uResolution: vec2<f32>,
+}
+
+struct LocalUniforms {
+    uTransformMatrix: mat3x3<f32>,
+    uColor: vec4<f32>,
+    uRound: f32,
+}
+
+struct MessageUniforms {
+    uPage0: vec4<f32>,
+    uPage1: vec4<f32>,
+    uPage2: vec4<f32>,
+    uPage3: vec4<f32>,
+}
+
+@group(0) @binding(0) var<uniform> globalUniforms: GlobalUniforms;
+@group(1) @binding(0) var<uniform> localUniforms: LocalUniforms;
+@group(2) @binding(0) var<uniform> messageUniforms: MessageUniforms;
+@group(2) @binding(1) var uMetrics: texture_2d<f32>;
+@group(2) @binding(2) var uStyles: texture_2d<f32>;
+@group(2) @binding(3) var uAtlas0: texture_2d<f32>;
+@group(2) @binding(4) var uAtlas1: texture_2d<f32>;
+@group(2) @binding(5) var uAtlas2: texture_2d<f32>;
+@group(2) @binding(6) var uAtlas3: texture_2d<f32>;
+@group(2) @binding(7) var uAtlasSampler: sampler;
+@group(2) @binding(8) var uTransforms: texture_2d<f32>;
+
+struct VSOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) vPos: vec2<f32>,
+    @location(1) vUv: vec2<f32>,
+    @location(2) @interpolate(flat) vCell: vec4<f32>,
+    @location(3) @interpolate(flat) vInfo: vec4<f32>,
+    @location(4) @interpolate(flat) vRect: vec4<f32>,
+    @location(5) @interpolate(flat) vTint: vec4<f32>,
+}
+
+fn metric(glyph: f32, t: i32) -> vec4<f32> {
+    let g = i32(glyph);
+    return textureLoad(uMetrics, vec2<i32>((g % 512) * 3 + t, g / 512), 0);
+}
+
+fn styleTexel(row: f32, t: i32) -> vec4<f32> {
+    let r = i32(row);
+    return textureLoad(uStyles, vec2<i32>((r % 64) * 8 + t, r / 64), 0);
+}
+
+@vertex
+fn mainVertex(
+    @location(0) aCorner: vec2<f32>,
+    @location(1) aInst0: vec4<f32>,
+    @location(2) aInst1: vec4<f32>,
+) -> VSOutput {
+    let m = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
+    // kind holds the instance kind (0 to 2) plus 4 times its message index in a batch
+    let message = i32(aInst1.y / 4.0);
+    let kind = aInst1.y - f32(message) * 4.0;
+    let xf0 = textureLoad(uTransforms, vec2<i32>((message % 512) * 2, message / 512), 0);
+    let xf1 = textureLoad(uTransforms, vec2<i32>((message % 512) * 2 + 1, message / 512), 0);
+    let size = aInst1.z;
+    var out: VSOutput;
+    var pos: vec2<f32>;
+
+    // uColor is premultiplied: the batch alpha scales all four channels
+    out.vTint = localUniforms.uColor * globalUniforms.uWorldColorAlpha * xf1.z;
+    if (kind < 0.5) {
+        let t0 = metric(aInst0.w, 0);
+        let t1 = metric(aInst0.w, 1);
+        let t2 = metric(aInst0.w, 2);
+        let scale = aInst0.z;
+        let lo = vec2<f32>(aInst0.x + t1.y * scale, aInst0.y - t2.x * scale);
+        let hi = vec2<f32>(aInst0.x + t1.w * scale, aInst0.y - t1.z * scale);
+        let off = styleTexel(aInst1.x, 5).xy;
+
+        pos = mix(lo + min(vec2<f32>(0.0), off), hi + max(vec2<f32>(0.0), off), aCorner);
+        let k = t2.y / scale;
+
+        out.vUv = t0.yz + (pos - lo) * k;
+        out.vCell = vec4<f32>(t0.yz, t0.yz + vec2<f32>(t0.w, t1.x));
+        out.vInfo = vec4<f32>(t0.x, k, kind, aInst1.x);
+        // the page's distance range and glyph kind, from the glyph's metrics
+        out.vRect = vec4<f32>(0.0, size, t2.z, t2.w);
+    } else {
+        let s5 = styleTexel(aInst1.x, 5);
+        let s7 = styleTexel(aInst1.x, 7);
+        let thickness = select(s7.x, s5.z, kind < 1.5) * size;
+        let centre = select(aInst0.y - s7.y * size, aInst0.y + s5.w * size, kind < 1.5);
+        let lo = vec2<f32>(aInst0.x, centre - thickness * 0.5 - 1.0);
+        let hi = vec2<f32>(aInst0.x + aInst1.w, centre + thickness * 0.5 + 1.0);
+
+        pos = mix(lo, hi, aCorner);
+        out.vUv = vec2<f32>(0.0);
+        out.vCell = vec4<f32>(0.0);
+        out.vInfo = vec4<f32>(0.0, 0.0, kind, aInst1.x);
+        out.vRect = vec4<f32>(centre, size, thickness, 0.0);
+    }
+    out.vPos = pos;
+    let placed = vec2<f32>(xf0.x * pos.x + xf0.z * pos.y + xf1.x, xf0.y * pos.x + xf0.w * pos.y + xf1.y);
+
+    out.position = vec4<f32>((m * vec3<f32>(placed, 1.0)).xy, 0.0, 1.0);
+
+    return out;
+}
+
+fn page(slot: f32) -> vec4<f32> {
+    if (slot < 0.5) { return messageUniforms.uPage0; }
+    if (slot < 1.5) { return messageUniforms.uPage1; }
+    if (slot < 2.5) { return messageUniforms.uPage2; }
+    return messageUniforms.uPage3;
+}
+
+fn sampleAtlas(slot: f32, uv: vec2<f32>, cell: vec4<f32>) -> vec4<f32> {
+    let c = clamp(uv, cell.xy + 0.5, cell.zw - 0.5) / page(slot).xy;
+    // sample every page in uniform control flow, then pick one
+    let a0 = textureSampleLevel(uAtlas0, uAtlasSampler, c, 0.0);
+    let a1 = textureSampleLevel(uAtlas1, uAtlasSampler, c, 0.0);
+    let a2 = textureSampleLevel(uAtlas2, uAtlasSampler, c, 0.0);
+    let a3 = textureSampleLevel(uAtlas3, uAtlasSampler, c, 0.0);
+
+    return select(select(select(a3, a2, slot < 2.5), a1, slot < 1.5), a0, slot < 0.5);
+}
+
+fn median3(v: vec3<f32>) -> f32 {
+    return max(min(v.r, v.g), min(max(v.r, v.g), v.b));
+}
+
+// rect.z is the page's distance range, rect.w its glyph kind (0 msdf, 1 sdf, 2 mtsdf)
+fn distanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>, rect: vec4<f32>) -> f32 {
+    let s = sampleAtlas(info.x, uv, cell);
+    let v = select(median3(s.rgb), s.r, rect.w > 0.5 && rect.w < 1.5);
+
+    return (v - 0.5) * rect.z / info.y;
+}
+
+// the true distance, for soft effects: alpha of mtsdf pages, the median elsewhere
+fn softDistanceAt(uv: vec2<f32>, info: vec4<f32>, cell: vec4<f32>, rect: vec4<f32>) -> f32 {
+    let s = sampleAtlas(info.x, uv, cell);
+    let v = select(select(median3(s.rgb), s.r, rect.w > 0.5 && rect.w < 1.5), s.a, rect.w > 1.5);
+
+    return (v - 0.5) * rect.z / info.y;
+}
+
+fn over(top: vec4<f32>, bottom: vec4<f32>) -> vec4<f32> {
+    return top + bottom * (1.0 - top.a);
+}
+
+fn premul(c: vec4<f32>, cov: f32) -> vec4<f32> {
+    return vec4<f32>(c.rgb * c.a, c.a) * cov;
+}
+
+@fragment
+fn mainFragment(input: VSOutput) -> @location(0) vec4<f32> {
+    let aa = max(0.5 * (length(dpdx(input.vPos)) + length(dpdy(input.vPos))), 1e-4);
+    let row = input.vInfo.w;
+    let fill = styleTexel(row, 0);
+    var color = vec4<f32>(0.0);
+
+    if (input.vInfo.z > 0.5) {
+        let line = styleTexel(row, 6);
+        let d = input.vRect.z * 0.5 - abs(input.vPos.y - input.vRect.x);
+        let cov = clamp(d / aa + 0.5, 0.0, 1.0);
+
+        color = premul(select(fill, line, line.a > 0.0), cov);
+    } else {
+        let outline = styleTexel(row, 1);
+        let glow = styleTexel(row, 2);
+        let shadow = styleTexel(row, 3);
+        let fx = styleTexel(row, 4);
+        let s5 = styleTexel(row, 5);
+        let bias = fx.w * input.vRect.y;
+        let sd = distanceAt(input.vUv, input.vInfo, input.vCell, input.vRect) + bias;
+        // effects end where the distance field ends (half the range, in local pixels)
+        let reach = max(0.5 * input.vRect.z / input.vInfo.y - aa, 0.0);
+        let ow = min(fx.x, reach);
+        let room = max(reach - ow, 0.0);
+        let ss = softDistanceAt(input.vUv - s5.xy * input.vInfo.y, input.vInfo, input.vCell, input.vRect) + bias + ow;
+        let soft = softDistanceAt(input.vUv, input.vInfo, input.vCell, input.vRect) + bias;
+
+        if (shadow.a > 0.0) {
+            let blur = min(fx.z * 4.0, 2.0 * room);
+            color = premul(shadow, smoothstep(-0.5 * blur - aa * 0.5, 0.5 * blur + aa * 0.5, ss));
+        }
+        if (glow.a > 0.0 && fx.y > 0.0) {
+            let g = clamp(1.0 + (soft + ow) / max(min(fx.y, room), 1e-4), 0.0, 1.0);
+            color = over(premul(glow, g * g), color);
+        }
+        if (outline.a > 0.0 && ow > 0.0) {
+            color = over(premul(outline, clamp((sd + ow) / aa + 0.5, 0.0, 1.0)), color);
+        }
+        color = over(premul(fill, clamp(sd / aa + 0.5, 0.0, 1.0)), color);
+    }
+
+    return color * input.vTint;
+}
+`;
+
+/**
+ * @internal The array variant: every page of a bundle in one `texture_2d_array`, the page slot as
+ * the layer. For bundles with more than four pages.
+ */
+export const messageWgslArray: string = messageWgsl
+    // anchored on code, not comments: the build strips comments from shader sources
+    .replace(
+        /@group\(2\)\s*@binding\(3\)\s*var\s+uAtlas0[\s\S]*?uAtlas3:\s*texture_2d<f32>;/,
+        '@group(2) @binding(3) var uAtlasArray: texture_2d_array<f32>;',
+    )
+    .replace(
+        /fn page\([\s\S]*?(?=fn median3)/,
+        `fn sampleAtlas(slot: f32, uv: vec2<f32>, cell: vec4<f32>) -> vec4<f32> {
+    let size = vec2<f32>(textureDimensions(uAtlasArray, 0));
+    let c = clamp(uv, cell.xy + 0.5, cell.zw - 0.5) / size;
+
+    return textureSampleLevel(uAtlasArray, uAtlasSampler, c, i32(slot + 0.5), 0.0);
+}
+`,
+    );

@@ -49,6 +49,10 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
 | [`pixi-silk/webgl1`](https://pixi-silk.schmooky.dev/api/webgl1.md) | Rendering | enableWebGL1: opt-in GLSL ES 1.00 shaders for Pixi's WebGL1 fallback. Pass it to createSilkApp as `webgl1`. |
 | [`pixi-silk/text`](https://pixi-silk.schmooky.dev/api/text.md) | Text | SilkText: distance-field text with outline, shadow and gradient fill, for any script including right-to-left. SilkRichText puts sprites and icons inside text. SdfAtlas, layoutText, caret helpers. |
+| [`pixi-silk/i18n`](https://pixi-silk.schmooky.dev/api/i18n.md) | Text | Baked localized text, renderer-agnostic core: reads .silk bundles from @pixi-silk/compiler, picks plural variants, formats number slots and lays out lines from baked data. No Pixi, no Unicode tables. |
+| [`pixi-silk/i18n/pixi`](https://pixi-silk.schmooky.dev/api/i18n/pixi.md) | Text | Draws baked localized text with PixiJS: Silk (bundles, atlas pages, themes), SilkMessage, and the silkBundleLoader for Assets. WebGL2 and WebGPU. |
+| [`pixi-silk/i18n/canvas`](https://pixi-silk.schmooky.dev/api/i18n/canvas.md) | Text | The canvas path for text slots of baked messages (player names): Canvas2D shaping turned into a distance-field run sprite that keeps the slot style. Loaded lazily by Silk. |
+| [`pixi-silk/text/bidi`](https://pixi-silk.schmooky.dev/api/text/bidi.md) | Text | The Unicode Bidirectional Algorithm (UAX #9) without Pixi: bidi classes, embedding levels and visual order. |
 | [`pixi-silk/layout`](https://pixi-silk.schmooky.dev/api/layout.md) | Layout | LayoutNode: a headless flex layout engine with no Pixi in it. |
 | [`pixi-silk/ui/layout`](https://pixi-silk.schmooky.dev/api/ui/layout.md) | Layout | SmartContainer and FlexContainer: place and scale a design box in the window, flex children inside it. |
 | [`pixi-silk/signal`](https://pixi-silk.schmooky.dev/api/signal.md) | UI widgets | signal, computed, watch, batch: the small reactive store every widget state uses. |
@@ -134,6 +138,10 @@ The docs are grouped into areas. Each area overview tours its pages.
 
 - [Text overview](https://pixi-silk.schmooky.dev/docs/typography/): Labels and readouts drawn from distance fields, and text the reader can click and type into.
 - [Text](https://pixi-silk.schmooky.dev/docs/text/): SilkText draws labels and readouts from a runtime SDF glyph atlas, with outlines, glows, gradients and tabular numbers. It lives in pixi-silk/text. (Markdown: https://pixi-silk.schmooky.dev/docs/text.md)
+- [Localized text](https://pixi-silk.schmooky.dev/docs/localized-text/): pixi-silk/i18n draws translated rich text in any script from bundles shaped with HarfBuzz at build time. No font file and no shaper at runtime. (Markdown: https://pixi-silk.schmooky.dev/docs/localized-text.md)
+- [Translating text](https://pixi-silk.schmooky.dev/docs/translating-text/): How translators fill the pixi-silk/i18n strings sheet: columns, placeholders, tags, plural forms and the Excel habits that break text. (Markdown: https://pixi-silk.schmooky.dev/docs/translating-text.md)
+- [Text themes](https://pixi-silk.schmooky.dev/docs/text-themes/): The theme.json of pixi-silk/i18n: the base style, styles that tags select, which properties change live and which need a new compile, and the units of each effect. (Markdown: https://pixi-silk.schmooky.dev/docs/text-themes.md)
+- [SilkText to baked text](https://pixi-silk.schmooky.dev/docs/localized-text-migration/): When to keep pixi-silk/text SilkText and when to move a screen to pixi-silk/i18n baked messages, and how the APIs map from one to the other. (Markdown: https://pixi-silk.schmooky.dev/docs/localized-text-migration.md)
 - [Editing text](https://pixi-silk.schmooky.dev/docs/editing-text/): TextEditor turns a SilkText into a text layer people click and type into: caret, selection, undo, clipboard, forms and input methods, on the canvas. (Markdown: https://pixi-silk.schmooky.dev/docs/editing-text.md)
 
 ### Interface

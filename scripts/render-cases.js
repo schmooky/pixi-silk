@@ -4,6 +4,8 @@
  */
 
 import { Glass } from '/packages/pixi-silk/dist/glass.js';
+import { SilkBundle } from '/packages/pixi-silk/dist/i18n.js';
+import { Silk, SilkMessage, SilkMessageLayer } from '/packages/pixi-silk/dist/i18n-pixi.js';
 import { enableSilkBatching, linear, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { silkGl1 } from '/packages/pixi-silk/dist/shader-slot.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
@@ -20,6 +22,8 @@ const gl1 = mode === 'webgl1' || mode === 'webgl1-nearest';
 const preferWebGLVersion = gl1 ? 1 : 2;
 const W = 256;
 const H = 256;
+/** The application the cases render with, made on first use by renderer(). */
+let app;
 
 if (preference === 'webgpu') enableWebGPU();
 // every case renders through the batching pipe; the batch cases compare it with `batch: false`
@@ -564,9 +568,155 @@ const cases = {
     },
 };
 
-export const extraCases = cases;
+// baked localized text (pixi-silk/i18n): the shop example the site compiles, in three locales.
+// WebGL1 has no SilkMessage program, so these cases run on WebGL2 and WebGPU only.
+const i18n = gl1
+    ? null
+    : await (async () => {
+          const base = '/apps/site/public/i18n';
+          const silk = await Silk.create({ devEvents: false });
+          const load = async (l) =>
+              new SilkBundle(await (await fetch(`${base}/${l}.silk`)).arrayBuffer(), `${base}/${l}.silk`);
+          const theme = silk.createTheme(await (await fetch(`${base}/theme.json`)).json());
 
-let app;
+          for (const l of ['en', 'ar', 'he']) await silk.addBundle(await load(l));
+          return { silk, theme };
+      })();
+
+if (i18n) {
+    for (const locale of ['en', 'ar', 'he']) {
+        cases[`i18n-${locale}`] = () => {
+            const root = new Container();
+            const messages = [
+                ['shop.title', 30, {}],
+                ['shop.coins', 18, { count: 1250 }],
+                ['shop.terms', 14, {}],
+            ];
+
+            messages.forEach(([key, size, values], i) => {
+                // prepare is async only by signature: the bundles are in use already
+                const prepared = {
+                    silk: i18n.silk,
+                    bundle: i18n.silk.bundles.get(locale),
+                    index: i18n.silk.bundles.get(locale).message(key),
+                    theme: i18n.theme,
+                    spec: { key, size, maxWidth: 240, align: 'start', lineHeight: 1.35, style: '', values },
+                };
+                const m = new SilkMessage(prepared);
+
+                m.position.set(8, 16 + i * 70);
+                root.addChild(m);
+            });
+
+            return { scene: root, kind: 'none' };
+        };
+    }
+    // 50 messages in a SilkMessageLayer: one draw for the glyphs, the same pixels as 50 draws
+    const fifty = (layered) => {
+        const root = layered ? new SilkMessageLayer() : new Container();
+        const bundle = i18n.silk.bundles.get('en');
+
+        for (let i = 0; i < 50; i++) {
+            const m = new SilkMessage({
+                silk: i18n.silk,
+                bundle,
+                index: bundle.message(i % 2 ? 'shop.terms' : 'shop.coins'),
+                theme: i18n.theme,
+                spec: {
+                    key: 'x',
+                    size: 10,
+                    maxWidth: 0,
+                    align: 'start',
+                    lineHeight: 1.2,
+                    style: '',
+                    values: { count: i * 37 },
+                },
+            });
+
+            m.position.set(4 + (i % 2) * 124, 4 + Math.floor(i / 2) * 10);
+            if (i % 5 === 0) m.alpha = 0.5;
+            root.addChild(m);
+        }
+        return root;
+    };
+
+    // glyph kinds: the same Arabic and English lines from sdf and mtsdf pages, against msdf
+    const kinds = {};
+
+    for (const kind of ['msdf', 'sdf', 'mtsdf', 'many']) {
+        const base = `/packages/compiler/.cache/render/${kind}`;
+        const response = await fetch(`${base}/ar.silk`);
+
+        if (!response.ok) continue;
+        // the renderer lets Silk bind more than four pages as one array texture
+        const silk = await Silk.create({ devEvents: false, renderer: await renderer() });
+
+        for (const l of ['en', 'ar']) {
+            await silk.addBundle(
+                new SilkBundle(await (await fetch(`${base}/${l}.silk`)).arrayBuffer(), `${base}/${l}.silk`),
+            );
+        }
+        kinds[kind] = { silk, theme: silk.createTheme(await (await fetch(`${base}/theme.json`)).json()) };
+    }
+    const kindScene = ({ silk, theme }) => {
+        const root = new Container();
+
+        [
+            ['ar', 'shop.title', 34, {}],
+            ['ar', 'shop.coins', 20, { count: 1250 }],
+            ['en', 'shop.title', 34, {}],
+            ['en', 'shop.terms', 16, {}],
+        ].forEach(([locale, key, size, values], i) => {
+            const bundle = silk.bundles.get(locale);
+            const m = new SilkMessage({
+                silk,
+                bundle,
+                index: bundle.message(key),
+                theme,
+                spec: { key, size, maxWidth: 240, align: 'start', lineHeight: 1.35, style: '', values },
+            });
+
+            m.position.set(8, 12 + i * 60);
+            root.addChild(m);
+        });
+        return root;
+    };
+
+    for (const kind of ['sdf', 'mtsdf']) {
+        if (!kinds[kind] || !kinds.msdf) continue;
+        // a single-channel field rounds sharp corners: allow 2% of the covered pixels to differ for
+        // sdf (about 0.9% do), the usual 40 for mtsdf, whose colour channels keep the corners
+        cases[`i18n-kind-${kind}`] = () => ({
+            scene: kindScene(kinds[kind]),
+            ref: kindScene(kinds.msdf),
+            kind: 'coverage',
+            limit: kind === 'sdf' ? 190 : 40,
+            warm: true,
+        });
+    }
+
+    // more than four pages: one texture array instead of four bound pages, the same pixels
+    if (kinds.many && kinds.msdf) {
+        cases['i18n-page-array'] = () => ({
+            scene: kindScene(kinds.many),
+            ref: kindScene(kinds.msdf),
+            kind: 'same',
+            tolerance: 2,
+            warm: true,
+        });
+    }
+
+    cases['i18n-batch-50'] = () => ({
+        scene: fifty(true),
+        ref: fifty(false),
+        kind: 'same',
+        tolerance: 2,
+        counts: true,
+        warm: true,
+    });
+}
+
+export const extraCases = cases;
 
 async function renderer() {
     if (!app) {
@@ -851,7 +1001,7 @@ function checkExact(px, g, scale) {
 }
 
 /** Compares where two scenes are more than half covered, by alpha. A few edge pixels may differ. */
-function checkCoverage(a, b) {
+function checkCoverage(a, b, limit = 40) {
     let differ = 0;
     let inside = 0;
     let at = '';
@@ -866,7 +1016,7 @@ function checkCoverage(a, b) {
     return {
         note: `${differ} of ${inside} covered pixels differ`,
         at,
-        failures: differ > 40 ? [`${differ} pixels differ in coverage (first at ${at})`] : [],
+        failures: differ > limit ? [`${differ} pixels differ in coverage (first at ${at})`] : [],
     };
 }
 
@@ -911,7 +1061,7 @@ window.renderCases = async ({ only, png }) => {
         else if (c.kind === 'exact') res = checkExact(px, c.hit, c.scale);
         else if (c.kind === 'none') res = { note: 'compared between renderers', failures: [] };
         else if (c.kind === 'coverage') {
-            res = checkCoverage(px, await draw(c.ref));
+            res = checkCoverage(px, await draw(c.ref), c.limit);
             if (png && res.at) out.push({ name: `${name}-ref`, failures: [], raw: '', png: toPng(await draw(c.ref)) });
         } else {
             draws.count = 0;

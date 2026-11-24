@@ -1,0 +1,41 @@
+---
+title: SilkText to baked text
+seoTitle: 'Moving from SilkText to baked localized text in pixi-silk'
+description: 'When to keep pixi-silk/text SilkText and when to move a screen to pixi-silk/i18n baked messages, and how the APIs map from one to the other.'
+keywords: ['SilkText migration', 'localized text PixiJS', 'baked text', 'pixi-silk i18n']
+updated: 2026-11-24
+api: [SilkMessage, SilkText]
+---
+
+`pixi-silk/text` and `pixi-silk/i18n` live side by side. Nothing in `SilkText` changed, and nothing
+needs migrating unless a screen gains translations.
+
+| Keep `SilkText` for | Use `SilkMessage` for |
+|---|---|
+| Text typed or edited at runtime (`TextEditor`) | Translated UI text from a sheet |
+| Debug labels and readouts | Arabic, Hebrew, Thai, Hindi, CJK, without fonts at runtime |
+| Justified paragraphs | Styles per word from a theme |
+
+## How the APIs map
+
+| `pixi-silk/text` | `pixi-silk/i18n/pixi` |
+|---|---|
+| `new SilkText({ text, fontSize })` | `new SilkMessage(set.get('name'))`, size from `prepare` |
+| `label.text = 'Score 12'` | `message.set({ score: 12 })` |
+| `fill`, `outline`, `shadow` per object | Styles in `theme.json`, `theme.set` at runtime |
+| `{icon}` inline boxes | `<coin/>` objects from `silk.registerInline` |
+| `wordWrap`, `wordWrapWidth` | `maxWidth` |
+| Fonts loaded by the browser | Glyphs baked by `silk compile`: no font file |
+
+A placeholder means different things in the two: `{icon}` in `SilkText` is an inline object, and
+`{name}` in a message is a value. Objects in messages are written `<coin/>`.
+
+## Move one screen
+
+1. Put the screen's strings in the sheet, with `{placeholders}` and `<tags>`.
+2. Move the look of each `SilkText` into a theme style.
+3. Compile with `silk compile` and load the bundles with `Silk.addBundle`.
+4. Replace each `SilkText` with a `SilkMessage`, and `text =` with `set`.
+
+Names and other text typed by players can stay in messages as text slots. The canvas path draws
+them with the message's style.

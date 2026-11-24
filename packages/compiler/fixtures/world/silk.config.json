@@ -1,0 +1,180 @@
+{
+  "sourceLocale": "en",
+  "locales": {
+    "en": {},
+    "ru": {},
+    "el": {},
+    "ka": {},
+    "hy": {},
+    "iq": {},
+    "fa": {},
+    "ur": {},
+    "ku": {},
+    "he": {},
+    "hi": {},
+    "sd": {},
+    "bn": {},
+    "ta": {},
+    "si": {},
+    "th": {},
+    "lo": {},
+    "km": {},
+    "my": {},
+    "aa": {},
+    "zh": {},
+    "tw": {},
+    "hk": {},
+    "ja": {},
+    "ko": {},
+    "vi": {},
+    "pa": {},
+    "gu": {},
+    "kn": {},
+    "ml": {},
+    "or": {},
+    "te": {}
+  },
+  "fonts": [
+    {
+      "family": "Noto Sans",
+      "weight": 400,
+      "file": "../fonts/NotoSans-Regular.ttf"
+    },
+    {
+      "family": "Noto Sans",
+      "weight": 700,
+      "file": "../fonts/NotoSans-Bold.ttf"
+    },
+    {
+      "family": "Noto Sans Arabic",
+      "weight": 400,
+      "file": "../fonts/NotoSansArabic-Regular.ttf"
+    },
+    {
+      "family": "Noto Sans Hebrew",
+      "weight": 400,
+      "file": "../fonts/NotoSansHebrew-Regular.ttf"
+    },
+    {
+      "family": "Noto Sans Georgian",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansGeorgian-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Armenian",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansArmenian-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Devanagari",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansDevanagari-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Bengali",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansBengali-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Tamil",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansTamil-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Sinhala",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansSinhala-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Thai",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansThai-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Lao",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansLao-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Khmer",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansKhmer-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Myanmar",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansMyanmar-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Ethiopic",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansEthiopic-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Nastaliq Urdu",
+      "weight": 400,
+      "file": "../fonts/world/NotoNastaliqUrdu-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Gujarati",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansGujarati-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Gurmukhi",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansGurmukhi-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Kannada",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansKannada-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Malayalam",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansMalayalam-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Oriya",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansOriya-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans Telugu",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansTelugu-Regular.subset.ttf"
+    },
+    {
+      "family": "Noto Sans SC",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansSC-Regular.subset.otf"
+    },
+    {
+      "family": "Noto Sans TC",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansTC-Regular.subset.otf"
+    },
+    {
+      "family": "Noto Sans HK",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansHK-Regular.subset.otf"
+    },
+    {
+      "family": "Noto Sans JP",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansJP-Regular.subset.otf"
+    },
+    {
+      "family": "Noto Sans KR",
+      "weight": 400,
+      "file": "../fonts/world/NotoSansKR-Regular.subset.otf"
+    }
+  ],
+  "atlas": {
+    "kind": "msdf",
+    "emSize": 40,
+    "maxPageSize": 1024
+  },
+  "devKeys": true
+}

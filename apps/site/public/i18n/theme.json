@@ -1,0 +1,14 @@
+{
+  "$silk": 2,
+  "base": { "fill": "#F3EBD8", "shadow": { "color": "#000", "alpha": 0.45, "offset": [0, 2], "softness": 0.6 } },
+  "styles": {
+    "title": { "weight": 700, "fill": "#FFE7A8", "outline": { "width": 2, "color": "#3B2507" } },
+    "b": { "weight": 700 },
+    "gold": {
+      "fill": "#FFC53D",
+      "outline": { "width": 1.5, "color": "#5A3A00" },
+      "glow": { "color": "#FFB000", "strength": 0.35 }
+    },
+    "terms": { "fill": "#79C8FF", "underline": { "thickness": 0.06, "offset": 0.12 }, "interactive": true }
+  }
+}

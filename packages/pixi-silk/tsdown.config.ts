@@ -13,6 +13,12 @@ export default defineConfig({
         'src/webgpu.ts',
         'src/webgl1.ts',
         'src/text.ts',
+        'src/text/bidi.ts',
+        'src/i18n.ts',
+        'src/i18n-pixi.ts',
+        'src/i18n-canvas.ts',
+        // loaded with new Worker(new URL('./canvas-worker.js', import.meta.url))
+        'src/i18n/canvas-worker.ts',
         'src/layout.ts',
         'src/ui/index.ts',
         'src/ui/RadialMenu.ts',

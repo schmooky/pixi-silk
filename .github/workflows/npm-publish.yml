@@ -41,6 +41,9 @@ jobs:
       - run: pnpm lint:prose
       - run: pnpm --filter pixi-silk typecheck
       - run: pnpm --filter pixi-silk test
+      - run: node packages/compiler/scripts/fetch-ucd.ts
+      - run: pnpm --filter @pixi-silk/compiler test
+      - run: pnpm --filter @pixi-silk/shaper-kb test
       - name: Create release PR or publish
         uses: changesets/action@v2
         with:

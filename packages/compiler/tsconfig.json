@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "paths": {
+      "@pixi-silk/compiler": ["./src/index.ts"],
+      "pixi-silk/i18n": ["../pixi-silk/src/i18n.ts"],
+      "pixi-silk/text/bidi": ["../pixi-silk/src/text/bidi.ts"]
+    }
+  },
+  "include": ["src", "tests", "scripts", "bench", "*.config.ts"]
+}

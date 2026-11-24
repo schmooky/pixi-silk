@@ -1,0 +1,96 @@
+:root {
+    color-scheme: dark;
+    --bg: #111113;
+    --panel: #1b1b1f;
+    --line: #2c2c33;
+    --text: #e9e7e2;
+    --dim: #9a98a0;
+    --err: #ff6b6b;
+    --warn: #f5c451;
+}
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    font:
+        13px / 1.4 system-ui,
+        sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+}
+main {
+    display: grid;
+    grid-template-columns: 1fr 440px;
+    min-height: calc(100vh - 46px);
+}
+#stage {
+    overflow: auto;
+}
+aside {
+    border-left: 1px solid var(--line);
+    background: var(--panel);
+    padding: 0 16px 16px;
+    overflow: auto;
+}
+h2 {
+    font-size: 13px;
+    margin: 16px 0 8px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+td,
+th {
+    text-align: left;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+td.error {
+    color: var(--err);
+}
+td.warning {
+    color: var(--warn);
+}
+.hint {
+    color: var(--dim);
+    margin: 0 0 8px;
+}
+fieldset {
+    border: 1px solid var(--line);
+    margin: 0 0 8px;
+    padding: 6px 8px;
+}
+legend {
+    color: var(--dim);
+}
+fieldset label {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    margin: 2px 10px 2px 0;
+}
+input[type="number"] {
+    width: 56px;
+}
+button {
+    margin-top: 8px;
+}
+@media (max-width: 900px) {
+    main {
+        grid-template-columns: 1fr;
+    }
+    aside {
+        border-left: 0;
+    }
+}

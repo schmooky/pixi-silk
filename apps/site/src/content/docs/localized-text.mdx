@@ -1,0 +1,81 @@
+---
+title: Localized text
+seoTitle: 'Localized rich text for PixiJS, shaped at build time'
+description: 'pixi-silk/i18n draws translated rich text in any script from bundles shaped with HarfBuzz at build time. No font file and no shaper at runtime.'
+keywords: ['PixiJS localization', 'PixiJS Arabic text', 'RTL text WebGL', 'MSDF text', 'HarfBuzz build time', 'i18n game text']
+updated: 2026-11-24
+api: [Silk, SilkMessage, SilkBundle]
+---
+
+`pixi-silk/i18n` shows translated, styled text from `.silk` bundles. The `silk` command of
+`@pixi-silk/compiler` builds them from a spreadsheet, your fonts and a theme. It shapes every
+message with HarfBuzz, bakes the line break opportunities and bidi levels, and writes MSDF atlas
+pages. The browser only lays out lines and draws, so it downloads no font and no shaper.
+
+<Demo name="i18n-shop" height={380} caption="English and Arabic from the same sheet, on WebGL2 and WebGPU. Drag coins: same-length numbers only rewrite their digits." />
+
+## Compile the strings
+
+```bash
+npx silk compile --config silk.config.json --strings strings.xlsx --theme theme.json --out public/i18n
+```
+
+The sheet has a `key` column, then one column per locale and plural form, such as `en.other` or
+`ar.few`. Messages use `{name}` for values, `<tag>...</tag>` for styles from the theme, and
+`<coin/>` for inline objects.
+
+## Show a message
+
+```ts
+import { Assets, extensions } from 'pixi.js';
+import { Silk, SilkMessage, silkBundleLoader } from 'pixi-silk/i18n/pixi';
+
+extensions.add(silkBundleLoader);
+const silk = await Silk.create();
+
+await silk.addBundle(await Assets.load('/i18n/ar.silk'));
+const theme = silk.createTheme(await (await fetch('/i18n/theme.json')).json());
+const set = await silk.prepare({
+    locale: 'ar',
+    theme,
+    defaults: { size: 24, maxWidth: 320 },
+    messages: { coins: { key: 'shop.coins', values: { count: 0 } } },
+});
+const coins = new SilkMessage(set.get('coins'));
+
+app.stage.addChild(coins);
+coins.set({ count: 1250 });
+theme.set('gold', { fill: '#FFF4B0' });
+```
+
+`coins.set` with a number of the same length rewrites only that number's glyphs. A new plural
+form swaps the baked variant. `theme.set` with colours, outlines, glows, shadows or lines changes a
+few style rows and moves no glyph.
+
+## Text slots
+
+A text slot, declared as `text(maxLength=16)` in the config's `slots`, holds text typed by players,
+which the compiler cannot bake. Pick how it is drawn with `dynamicText`. Both paths draw the value as a distance field, so the slot's outline,
+glow and shadow apply.
+
+```ts
+import { createShapedText } from '@pixi-silk/shaper-kb';
+import { createCanvasText } from 'pixi-silk/i18n/canvas';
+import { Silk } from 'pixi-silk/i18n/pixi';
+
+// the browser's fonts and shaping: nothing to download
+const quick = await Silk.create({ dynamicText: { mode: 'canvas' } });
+
+// the baked font, shaped with kb_text_shape in WebAssembly
+const exact = await Silk.create({
+    dynamicText: await createShapedText({
+        font: '/fonts/NotoSansArabic-Regular.ttf',
+        fallback: await createCanvasText(),
+    }),
+});
+```
+
+The canvas path is small and draws emoji, but the system font may not match the baked text.
+`@pixi-silk/shaper-kb` loads 62 kB of WebAssembly (brotli) plus the font file. Slots then use the
+same font, shaping and metrics as the baked text on every platform. It reads TrueType outlines
+only. Values the font has no glyph for go to `fallback`.

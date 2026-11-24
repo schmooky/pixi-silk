@@ -10,6 +10,7 @@ pixi-silk draws smooth vector graphics in PixiJS v8. `SilkGraphics` has a Graphi
 
 ```
 packages/pixi-silk/   the library, published to npm as pixi-silk
+packages/compiler/    @pixi-silk/compiler: the Node-only compiler for pixi-silk/i18n bundles (silk command)
 apps/site/            the docs site (Astro), https://pixi-silk.schmooky.dev, not published
 scripts/              repo checks: prose, render, WGSL, pages, size, skills, publish contents
 ```
@@ -21,7 +22,7 @@ The package has one entry point per area. The root import is the core and does n
 | Core | `pixi-silk`: SilkGraphics, createSilkApp, gradients, colour, curves, motion, enableSilkBatching |
 | Rendering | `pixi-silk/webgpu`, `pixi-silk/webgl1` |
 | Paint | `pixi-silk/glass`, `pixi-silk/glow` |
-| Text | `pixi-silk/text` |
+| Text | `pixi-silk/text`, `pixi-silk/text/bidi`, `pixi-silk/i18n`, `pixi-silk/i18n/pixi`, `pixi-silk/i18n/canvas` |
 | Layout | `pixi-silk/layout` (headless), `pixi-silk/ui/layout` (SmartContainer, FlexContainer) |
 | UI widgets | `pixi-silk/signal`, `pixi-silk/ui/button`, `pixi-silk/ui/radial`, `pixi-silk/ui/dock`, `pixi-silk/ui/pill`, `pixi-silk/ui/odometer`, `pixi-silk/ui/dial`, `pixi-silk/ui/modes`, `pixi-silk/ui/gesture`, `pixi-silk/ui/arc`, `pixi-silk/ui/keys`, `pixi-silk/ui/halo` |
 | Editor kit (experimental) | `pixi-silk/selection`, `pixi-silk/history`, `pixi-silk/path`, `pixi-silk/ui/camera`, `pixi-silk/ui/grid`, `pixi-silk/ui/ruler`, `pixi-silk/ui/guides`, `pixi-silk/ui/measure`, `pixi-silk/ui/marquee`, `pixi-silk/ui/outline`, `pixi-silk/ui/gizmo`, `pixi-silk/ui/group`, `pixi-silk/ui/snap`, `pixi-silk/ui/spacing`, `pixi-silk/ui/pathgizmo`, `pixi-silk/ui/color`, `pixi-silk/ui/brush`, `pixi-silk/ui/timeline`, `pixi-silk/ui/textedit`, `pixi-silk/ui/panel`, `pixi-silk/ui/layers`, `pixi-silk/ui/inspector`, `pixi-silk/ui/minimap` |
@@ -59,6 +60,8 @@ packages/pixi-silk/
     webgl1.ts webgl1/   enableWebGL1 (pixi-silk/webgl1): GLSL ES 1.00 built from the 3.00 sources
     glass/ glow/        pixi-silk/glass (GlassFilter has its WGSL twin in glass-wgsl.ts), pixi-silk/glow
     text/               pixi-silk/text: SDF atlas, layout, SilkText and its shader (GLSL and WGSL)
+    i18n/               pixi-silk/i18n: baked localized text (bundle reader, layout, themes)
+    i18n/pixi/          pixi-silk/i18n/pixi: Silk, SilkMessage and its shader (GLSL and WGSL)
     layout/             pixi-silk/layout: the headless flex engine
     signal.ts selection.ts history.ts path.ts
     ui/                 one file per widget entry point, ui/index.ts is the pixi-silk/ui barrel

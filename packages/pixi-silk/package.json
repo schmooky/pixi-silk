@@ -175,6 +175,22 @@
       "types": "./dist/text.d.ts",
       "default": "./dist/text.js"
     },
+    "./i18n": {
+      "types": "./dist/i18n.d.ts",
+      "default": "./dist/i18n.js"
+    },
+    "./i18n/pixi": {
+      "types": "./dist/i18n-pixi.d.ts",
+      "default": "./dist/i18n-pixi.js"
+    },
+    "./i18n/canvas": {
+      "types": "./dist/i18n-canvas.d.ts",
+      "default": "./dist/i18n-canvas.js"
+    },
+    "./text/bidi": {
+      "types": "./dist/text/bidi.d.ts",
+      "default": "./dist/text/bidi.js"
+    },
     "./layout": {
       "types": "./dist/layout.d.ts",
       "default": "./dist/layout.js"

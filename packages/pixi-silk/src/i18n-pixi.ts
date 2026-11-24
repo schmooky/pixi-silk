@@ -1,0 +1,28 @@
+/**
+ * pixi-silk/i18n/pixi: draws baked localized text from `pixi-silk/i18n` with PixiJS v8, on WebGL2
+ * and WebGPU. `Silk` holds bundles, atlas pages and themes. `SilkMessage` shows one message.
+ * Register `silkBundleLoader` with `extensions.add` to load `.silk` files through `Assets`.
+ */
+export { PixiBackend, PixiStyleRows } from './i18n/pixi/backend';
+export { MessageGeometry } from './i18n/pixi/geometry';
+export { installPageArrays, PageArraySource, type PageLayer } from './i18n/pixi/page-array';
+export {
+    type DynamicTextMode,
+    type DynamicTextProvider,
+    type InlineObject,
+    loadAtlasPage,
+    type MessageSpec,
+    type PreparedMessage,
+    PreparedSet,
+    type PrepareOptions,
+    Silk,
+    SilkMessage,
+    SilkMessageLayer,
+    type SilkOptions,
+    SilkTheme,
+    silkBundleLoader,
+    type TagTapEvent,
+    type TextSlotRender,
+    type UpdateEvent,
+    type UpdateTier,
+} from './i18n/pixi/silk';

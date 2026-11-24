@@ -1,170 +1,246 @@
 {
   "everything": {
-    "gzip": 30765
+    "gzip": 30765,
+    "brotli": 27120
   },
   "SilkGraphics": {
-    "gzip": 26554
+    "gzip": 26554,
+    "brotli": 23354
   },
   "SilkGraphics + gradients": {
-    "gzip": 26998
+    "gzip": 26998,
+    "brotli": 23769
   },
   "createSilkApp": {
-    "gzip": 1247
+    "gzip": 1247,
+    "brotli": 1080
   },
   "webgpu (enableWebGPU)": {
-    "gzip": 8566
+    "gzip": 8566,
+    "brotli": 7737
   },
   "webgl1 (enableWebGL1)": {
-    "gzip": 5134
+    "gzip": 5134,
+    "brotli": 4684
   },
   "gradients": {
-    "gzip": 2224
+    "gzip": 2224,
+    "brotli": 1989
   },
   "motion (damp, Spring, ease)": {
-    "gzip": 441
+    "gzip": 441,
+    "brotli": 399
   },
   "parseColor": {
-    "gzip": 290
+    "gzip": 290,
+    "brotli": 256
   },
   "signal (signal, computed, batch)": {
-    "gzip": 371
+    "gzip": 371,
+    "brotli": 333
   },
   "selection": {
-    "gzip": 1115
+    "gzip": 1115,
+    "brotli": 1015
   },
   "history": {
-    "gzip": 1989
+    "gzip": 1989,
+    "brotli": 1821
   },
   "path": {
-    "gzip": 3670
+    "gzip": 3670,
+    "brotli": 3376
   },
   "ui/radial (RadialMenu)": {
-    "gzip": 31872
+    "gzip": 31872,
+    "brotli": 28172
   },
   "ui/button (SilkButton)": {
-    "gzip": 29596
+    "gzip": 29596,
+    "brotli": 26172
   },
   "ui/dock (ButtonDock)": {
-    "gzip": 1044
+    "gzip": 1044,
+    "brotli": 942
   },
   "ui/gizmo": {
-    "gzip": 33980
+    "gzip": 33980,
+    "brotli": 30032
   },
   "ui/outline": {
-    "gzip": 28718
+    "gzip": 28718,
+    "brotli": 25327
   },
   "ui/pathgizmo": {
-    "gzip": 33669
+    "gzip": 33669,
+    "brotli": 29741
   },
   "ui/snap": {
-    "gzip": 29287
+    "gzip": 29287,
+    "brotli": 25855
   },
   "ui/camera": {
-    "gzip": 30509
+    "gzip": 30509,
+    "brotli": 26890
   },
   "ui/camera (Camera only)": {
-    "gzip": 3404
+    "gzip": 3404,
+    "brotli": 3057
   },
   "ui/measure": {
-    "gzip": 28941
+    "gzip": 28941,
+    "brotli": 25458
   },
   "ui/grid": {
-    "gzip": 28067
+    "gzip": 28067,
+    "brotli": 24726
   },
   "ui/ruler": {
-    "gzip": 29315
+    "gzip": 29315,
+    "brotli": 25824
   },
   "ui/guides": {
-    "gzip": 29834
+    "gzip": 29834,
+    "brotli": 26337
   },
   "ui/marquee": {
-    "gzip": 29049
+    "gzip": 29049,
+    "brotli": 25603
   },
   "ui/group": {
-    "gzip": 1117
+    "gzip": 1117,
+    "brotli": 1018
   },
   "ui/spacing": {
-    "gzip": 29177
+    "gzip": 29177,
+    "brotli": 25708
   },
   "ui/spacing (findSpacing)": {
-    "gzip": 899
+    "gzip": 899,
+    "brotli": 826
   },
   "ui/snap (SnapEngine only)": {
-    "gzip": 1303
+    "gzip": 1303,
+    "brotli": 1230
   },
   "ui/color": {
-    "gzip": 36451
+    "gzip": 36451,
+    "brotli": 32099
   },
   "ui/halo": {
-    "gzip": 30540
+    "gzip": 30540,
+    "brotli": 26959
   },
   "ui/brush": {
-    "gzip": 29388
+    "gzip": 29388,
+    "brotli": 25949
   },
   "ui/modes": {
-    "gzip": 34119
+    "gzip": 34119,
+    "brotli": 30202
   },
   "ui/dial": {
-    "gzip": 31121
+    "gzip": 31121,
+    "brotli": 27541
   },
   "ui/timeline": {
-    "gzip": 30493
+    "gzip": 30493,
+    "brotli": 26949
   },
   "ui/odometer": {
-    "gzip": 2159
+    "gzip": 2159,
+    "brotli": 1980
   },
   "ui/gesture": {
-    "gzip": 940
+    "gzip": 940,
+    "brotli": 859
   },
   "glass": {
-    "gzip": 30155
+    "gzip": 30155,
+    "brotli": 26397
   },
   "glow": {
-    "gzip": 28974
+    "gzip": 28974,
+    "brotli": 25508
   },
   "text": {
-    "gzip": 23371
+    "gzip": 23371,
+    "brotli": 20643
   },
   "text (SilkText)": {
-    "gzip": 21276
+    "gzip": 21276,
+    "brotli": 18803
   },
   "text (layoutText, sdfFromAlpha)": {
-    "gzip": 9162
+    "gzip": 9162,
+    "brotli": 8026
+  },
+  "text (bidi)": {
+    "gzip": 3195,
+    "brotli": 2685
+  },
+  "i18n (core)": {
+    "gzip": 8925,
+    "brotli": 8110
+  },
+  "i18n (runtime path)": {
+    "gzip": 6431,
+    "brotli": 5879
+  },
+  "i18n/pixi (Silk, SilkMessage)": {
+    "gzip": 16033,
+    "brotli": 14552
+  },
+  "i18n/canvas (createCanvasText)": {
+    "gzip": 2069,
+    "brotli": 1902
   },
   "ui/textedit (TextEditor)": {
-    "gzip": 54731
+    "gzip": 54731,
+    "brotli": 47082
   },
   "ui/pill (ValuePill)": {
-    "gzip": 27199
+    "gzip": 27199,
+    "brotli": 23973
   },
   "ui/panel (Panel)": {
-    "gzip": 56511
+    "gzip": 56511,
+    "brotli": 48923
   },
   "ui/layers (LayerTree)": {
-    "gzip": 69412
+    "gzip": 69412,
+    "brotli": 59906
   },
   "ui/layers (tree math)": {
-    "gzip": 890
+    "gzip": 890,
+    "brotli": 817
   },
   "ui/inspector (Inspector)": {
-    "gzip": 70188
+    "gzip": 70188,
+    "brotli": 60393
   },
   "ui/minimap (Minimap)": {
-    "gzip": 29494
+    "gzip": 29494,
+    "brotli": 25975
   },
   "layout": {
-    "gzip": 3643
+    "gzip": 3643,
+    "brotli": 3330
   },
   "ui/layout (SmartContainer)": {
-    "gzip": 7378
+    "gzip": 7378,
+    "brotli": 6736
   },
   "ui/layout (FlexContainer)": {
-    "gzip": 6017
+    "gzip": 6017,
+    "brotli": 5504
   },
   "ui/layout (layoutDebug)": {
-    "gzip": 10080
+    "gzip": 10080,
+    "brotli": 9187
   },
   "ui (everything)": {
-    "gzip": 143426
+    "gzip": 143426,
+    "brotli": 120325
   }
 }

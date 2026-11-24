@@ -1,0 +1,55 @@
+---
+title: Text themes
+seoTitle: 'Designing text styles for pixi-silk localized text'
+description: 'The theme.json of pixi-silk/i18n: the base style, styles that tags select, which properties change live and which need a new compile, and the units of each effect.'
+keywords: ['text theme', 'game text style', 'SDF outline glow shadow', 'localized text styling']
+updated: 2026-11-24
+api: [SilkTheme]
+---
+
+Designers own `theme.json`. Strings never carry styling: a translator writes `<gold>1,250</gold>`,
+and the theme says what gold looks like in every language.
+
+```json
+{
+  "$silk": 2,
+  "base": { "fill": "#F3EBD8", "shadow": { "color": "#000", "alpha": 0.45, "offset": [0, 2], "softness": 0.6 } },
+  "styles": {
+    "title": { "weight": 700, "fill": "#FFE7A8", "outline": { "width": 2, "color": "#3B2507" } },
+    "gold": { "fill": "#FFC53D", "outline": { "width": 1.5, "color": "#5A3A00" }, "glow": { "color": "#FFB000", "strength": 0.35 } },
+    "terms": { "fill": "#79C8FF", "underline": { "thickness": 0.06, "offset": 0.12 }, "interactive": true }
+  }
+}
+```
+
+`base` styles untagged text. Every style in `styles` is a tag. Nested tags combine: the inner tag
+overrides only the properties it sets.
+
+## What changes live
+
+| Kind | Properties | At runtime |
+|---|---|---|
+| Paint | `fill`, `alpha`, `outline`, `glow`, `shadow`, `underline`, `strike`, `weightBias` | `theme.set` changes them with no relayout |
+| Layout | `size`, `letterSpacing` | `theme.set` lays the messages out again. Baked advances do not depend on size |
+| Approximated | `weight` | `theme.set` thickens or thins the glyphs with the weight bias, and warns. Compile again for the real face |
+| Shape | `family`, `features` | Need `silk compile` again. `theme.set` warns |
+| Behaviour | `interactive` | Taps on the span arrive as `tagtap` |
+
+```ts
+import type { SilkTheme } from 'pixi-silk/i18n/pixi';
+
+declare const theme: SilkTheme;
+
+theme.set('gold', { fill: '#FFF4B0', glow: { color: '#FFE066', strength: 0.5 } });
+```
+
+## Units
+
+- `outline.width`, `glow.width` and `shadow.offset` are pixels at scale 1.
+- `shadow.softness` runs from 0 (hard) to 1 (4 pixels of blur).
+- `underline` and `strike` thickness and offset are in em of the text size.
+- `weightBias` is in em, from -0.05 to 0.05.
+
+Effects reach only as far as the distance field around each glyph. The compiler sizes the field
+from the theme and the smallest text size (`atlas.minSize`, default 24), and warns when an effect
+would be cut. Prefer a short glow at small sizes.
