@@ -170,7 +170,7 @@ Mesh<SilkGeometry, Shader>.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [packages/pixi-silk/src/SilkGraphics.ts:637](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L637) |
+|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [packages/pixi-silk/src/SilkGraphics.ts:638](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L638) |
 
 ### Accessors
 
@@ -1316,15 +1316,15 @@ How a fill is painted: colour or gradient, opacity, blur with spread, blend mode
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:85](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L85) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. Default `normal`. | [packages/pixi-silk/src/SilkGraphics.ts:99](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L99) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [packages/pixi-silk/src/SilkGraphics.ts:92](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L92) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [packages/pixi-silk/src/SilkGraphics.ts:83](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L83) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [packages/pixi-silk/src/SilkGraphics.ts:87](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L87) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [packages/pixi-silk/src/SilkGraphics.ts:101](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L101) |
-|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [packages/pixi-silk/src/SilkGraphics.ts:118](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L118) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [packages/pixi-silk/src/SilkGraphics.ts:94](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L94) |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:109](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L109) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. Default `normal`. | [packages/pixi-silk/src/SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [packages/pixi-silk/src/SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [packages/pixi-silk/src/SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [packages/pixi-silk/src/SilkGraphics.ts:88](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L88) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [packages/pixi-silk/src/SilkGraphics.ts:102](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L102) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [packages/pixi-silk/src/SilkGraphics.ts:119](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L119) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [packages/pixi-silk/src/SilkGraphics.ts:95](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L95) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:110](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L110) |
 
 ## StrokeStyle (Interface, `pixi-silk`)
 
@@ -1344,23 +1344,23 @@ How a stroke is painted: width (or tapered widths), alignment, caps, dashes, plu
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [packages/pixi-silk/src/SilkGraphics.ts:141](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L141) |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [packages/pixi-silk/src/SilkGraphics.ts:85](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L85) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [packages/pixi-silk/src/SilkGraphics.ts:99](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L99) |
-|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [packages/pixi-silk/src/SilkGraphics.ts:92](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L92) |
-|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [packages/pixi-silk/src/SilkGraphics.ts:143](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L143) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [packages/pixi-silk/src/SilkGraphics.ts:83](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L83) |
-|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [packages/pixi-silk/src/SilkGraphics.ts:145](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L145) |
-|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [packages/pixi-silk/src/SilkGraphics.ts:149](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L149) |
-|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [packages/pixi-silk/src/SilkGraphics.ts:147](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L147) |
-|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [packages/pixi-silk/src/SilkGraphics.ts:87](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L87) |
-|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [packages/pixi-silk/src/SilkGraphics.ts:101](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L101) |
-|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | [packages/pixi-silk/src/SilkGraphics.ts:155](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L155) |
-|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | [packages/pixi-silk/src/SilkGraphics.ts:160](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L160) |
-|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`op`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#op) | [packages/pixi-silk/src/SilkGraphics.ts:118](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L118) |
-|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [packages/pixi-silk/src/SilkGraphics.ts:94](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L94) |
-|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | [packages/pixi-silk/src/SilkGraphics.ts:109](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L109) |
-|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [packages/pixi-silk/src/SilkGraphics.ts:139](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L139) |
+|  `alignment?` | `number` \| `"center"` \| `"inside"` \| `"outside"` | `inside` | `center` | `outside`, or Pixi's numeric alignment (1 inside, 0.5 center, 0 outside). | - | [packages/pixi-silk/src/SilkGraphics.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L142) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`alpha`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#alpha) | [packages/pixi-silk/src/SilkGraphics.ts:86](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L86) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints plus-lighter: colours add to what is underneath, so overlapping glows bloom towards white. Default `normal`. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blend`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blend) | [packages/pixi-silk/src/SilkGraphics.ts:100](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L100) |
+|  `blur?` | `number` \| [`ProgressiveBlur`](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) | Gaussian blur (standard deviation, local units) for glows and soft shadows. A [ProgressiveBlur](https://pixi-silk.schmooky.dev/api/interfaces/ProgressiveBlur/) changes the radius across the shape. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`blur`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#blur) | [packages/pixi-silk/src/SilkGraphics.ts:93](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L93) |
+|  `cap?` | [`LineCap`](https://pixi-silk.schmooky.dev/api/types/LineCap/) | Ends of open paths and of dashes. Default `butt` (Pixi default). | - | [packages/pixi-silk/src/SilkGraphics.ts:144](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L144) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. With a gradient, it tints the gradient. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`color`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#color) | [packages/pixi-silk/src/SilkGraphics.ts:84](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L84) |
+|  `dash?` | `number` \| \[`number`, `number`\] | `[dash, gap]` or a single number for equal dash and gap. A 0 dash with round caps gives dots. | - | [packages/pixi-silk/src/SilkGraphics.ts:146](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L146) |
+|  `dashFit?` | `boolean` | On closed outlines stretch the pattern so it tiles without a seam. Default true. | - | [packages/pixi-silk/src/SilkGraphics.ts:150](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L150) |
+|  `dashOffset?` | `number` | Shifts the dash pattern along the path, in local units. Default 0. | - | [packages/pixi-silk/src/SilkGraphics.ts:148](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L148) |
+|  `gradient?` | [`Gradient`](https://pixi-silk.schmooky.dev/api/classes/Gradient/) | Gradient paint. `color` (if given) tints it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`gradient`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#gradient) | [packages/pixi-silk/src/SilkGraphics.ts:88](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L88) |
+|  `innerShadow?` | [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/) \| [`InnerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/InnerShadow/)[] | One or more shadows inside closed shapes, drawn in order on top of the fill. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`innerShadow`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#innershadow) | [packages/pixi-silk/src/SilkGraphics.ts:102](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L102) |
+|  `join?` | [`LineJoin`](https://pixi-silk.schmooky.dev/api/types/LineJoin/) | How segments meet at the corners of paths, polygons and sharp rects, triangles and stars. `miter` extends the outer edges to a point, `bevel` cuts the corner flat, `round` rounds it. Default `miter`, as in Canvas 2D, SVG and Pixi. | - | [packages/pixi-silk/src/SilkGraphics.ts:156](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L156) |
+|  `miterLimit?` | `number` | A miter longer than this many half line widths becomes a bevel, as in Canvas 2D and SVG. Default 10. | - | [packages/pixi-silk/src/SilkGraphics.ts:161](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L161) |
+|  `op?` | [`ShapeOp`](https://pixi-silk.schmooky.dev/api/types/ShapeOp/) | Combines the closed shapes of the active path into one shape. `subtract` takes every later shape out of the first one, `intersect` keeps what they all cover, and `exclude` keeps what an odd number of them cover. `union` is the same as `union: true`. A path from `moveTo()` or `svgPath()` takes part as one shape, even-odd. With `stroke()`, the stroke follows the outline of the result. See [SilkGraphics.boolean](https://pixi-silk.schmooky.dev/api/classes/SilkGraphics/#boolean) for nested operations. Default none: every shape is painted on its own. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`op`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#op) | [packages/pixi-silk/src/SilkGraphics.ts:119](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L119) |
+|  `spread?` | `number` | Grows the shape by this many local units before it is blurred, like a Figma shadow spread. Negative shrinks it. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`spread`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#spread) | [packages/pixi-silk/src/SilkGraphics.ts:95](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L95) |
+|  `union?` | `boolean` | Paints every closed shape of the active path as one shape: their distance fields merge, so overlaps are painted once and blur, anti-aliasing and opacity show no seam where they meet. Polygons from `poly()` and `moveTo()` join in too, each subpath on its own. With `stroke()`, the stroke follows the outline of the union, and open paths merge into one stroke. Default false. | [`FillStyle`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/).[`union`](https://pixi-silk.schmooky.dev/api/interfaces/FillStyle/#union) | [packages/pixi-silk/src/SilkGraphics.ts:110](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L110) |
+|  `width?` | `number` \| `number`[] | Default 1. On polylines an array tapers the stroke: `[start, end]` interpolates along the path length, one value per point sets each vertex. | - | [packages/pixi-silk/src/SilkGraphics.ts:140](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L140) |
 
 ---
 
@@ -4012,15 +4012,19 @@ of its own, while glyphs drawn with `drawText` share the call of the shapes arou
 
 For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It keeps what does not
 change in a cached layer and repaints only the blocks that move, so an idle interface runs no
-distance field at all. See [UI in one draw call with blocks](https://pixi-silk.schmooky.dev/docs/layout/#ui-in-one-draw-call-with-blocks).
+distance field at all. See [Cheap UI with blocks](https://pixi-silk.schmooky.dev/docs/layout/#cheap-ui-with-blocks).
 
 ### Render only frames that change
 
 Pixi renders every frame, even when nothing changed. `renderOnDemand(app)` keeps the ticker
-running but renders only when something asks. The canvas keeps the last frame in between. A
-`BlockSurface` asks whenever it paints, so an idle HUD costs no GPU time at all. Anything else
-asks with `gate.invalidate()` after a change, or holds frames with `gate.hold()` while it
-animates on its own, such as reels or a Spine skeleton.
+running but renders only when something asks. The canvas keeps the last frame in between, so an
+idle screen costs no GPU time at all.
+
+pixi-silk asks on its own: a `SilkGraphics` when it is redrawn, the `pixi-silk/ui` widgets while
+they animate, and a `BlockSurface` when it paints. The gate also draws after a resize or input on
+the canvas. Anything else asks with `gate.invalidate()` after a change: moving or fading a display
+object, a Pixi `Text` or `Graphics`. Content that animates on its own, such as reels, a Spine
+skeleton or a video, holds frames with `gate.hold()` while it plays.
 
 ```ts
 
@@ -4035,8 +4039,8 @@ release();
 
 `enableLowEnd(app)` is one switch for phones with a weak GPU. It caps the resolution at 1.5,
 renders only frames that change, and gives blocks their cheap look (flat buttons, no corner
-smoothing, 30 repaints a second). `when: 'auto'` asks `isLowEndDevice()` first, which guesses from
-the core count, the memory and the screen. Pass the `SilkApp` from `createSilkApp` rather than
+smoothing, 30 repaints a second). It is turned on by hand and does not guess the device: call it
+from a quality setting or a device list you trust. Pass the `SilkApp` from `createSilkApp` rather than
 its `app`, so the cap holds when the window resizes.
 
 ---
@@ -5003,8 +5007,9 @@ import { enableLowEnd } from 'pixi-silk';
 function enableLowEnd(target: SilkApp | Application<Renderer>, options?: LowEndOptions): LowEnd;
 ```
 
-One switch for weak devices. It caps the renderer resolution and renders only frames that
-change. Pass the [SilkApp](https://pixi-silk.schmooky.dev/api/interfaces/SilkApp/) when you made the application with `createSilkApp`, so the
+One switch for weak devices, turned on by hand: it does not guess the device. Call it when
+your game decides it runs on a weak device, from a setting or a list of devices you trust. It
+caps the renderer resolution and renders only frames that change. Pass the [SilkApp](https://pixi-silk.schmooky.dev/api/interfaces/SilkApp/) when you made the application with `createSilkApp`, so the
 cap holds when the window resizes. With a plain Application the cap holds until something else
 sets the resolution. Blocks made after it, in `pixi-silk/ui/blocks`, use their cheap look: flat buttons
 (one shape and no blur), panels without corner smoothing, and repaints at 30 frames per second.
@@ -5026,7 +5031,8 @@ Call it once, after the application starts and before you build the UI.
 ```ts
 import { enableLowEnd } from 'pixi-silk';
 
-const lowEnd = enableLowEnd(app, { when: 'auto' });
+// from a quality setting the player or your device list chose
+const lowEnd = enableLowEnd(app);
 ```
 
 ## enableSilkBatching (Function, `pixi-silk`)
@@ -5088,25 +5094,6 @@ Left-to-right linear gradient across each painted shape's box.
 ### Returns
 
 [`LinearGradient`](https://pixi-silk.schmooky.dev/api/classes/LinearGradient/)
-
-## isLowEndDevice (Function, `pixi-silk`)
-
-URL: https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/
-
-```ts
-import { isLowEndDevice } from 'pixi-silk';
-```
-
-```ts
-function isLowEndDevice(): boolean;
-```
-
-A guess at a weak device from what the browser tells: 4 or fewer cores, 4 GB or less of
-memory, or a small screen with a high pixel ratio. Returns false where it cannot tell.
-
-### Returns
-
-`boolean`
 
 ## linear (Function, `pixi-silk`)
 
@@ -5338,12 +5325,18 @@ function renderOnDemand(app: Application, options?: RenderOnDemandOptions): Fram
 
 Renders a frame only when something asks for it. The ticker keeps running, so layout,
 springs and game logic go on, but Pixi draws nothing on frames where nothing changed, and the
-canvas keeps showing the last frame. A frame is drawn after `invalidate()`, after
-`requestFrame()` (BlockSurface calls it), while a `hold()` is open, and after a resize.
+canvas keeps showing the last frame.
 
-Content that changes on its own, such as reels, a Spine skeleton or a video, needs a `hold()`
-while it plays. A gate per application: a second call returns a new gate and the first one
-stops answering `requestFrame`.
+A frame is drawn after `invalidate()` or `requestFrame()`, and while a `hold()` is open. A
+resize and input on the canvas draw one too.
+
+pixi-silk asks on its own: a SilkGraphics when it is redrawn, the `pixi-silk/ui` widgets while
+they animate, and a BlockSurface when it paints.
+
+Anything else that changes needs a call. Moving or fading a display object (`x`, `alpha`), a
+Pixi `Text` or `Graphics`, reels, a Spine skeleton or a video: call `invalidate()` after the
+change, or `hold()` while it plays. One gate per page: a second call makes a new gate, and the
+first one stops answering `requestFrame`.
 
 ### Parameters
 
@@ -5381,7 +5374,8 @@ function requestFrame(): void;
 ```
 
 Asks for one render on the next frame when [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/) is on. Does nothing
-otherwise. BlockSurface calls it whenever it paints or bakes, so blocks need no extra code.
+otherwise. A SilkGraphics calls it when it is redrawn, a widget while it animates, and a
+BlockSurface when it paints, so they need no extra code.
 
 ### Returns
 
@@ -6469,8 +6463,8 @@ Options of `area()`: monotone smoothing of the series and its sample spacing.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:182](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L182) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [packages/pixi-silk/src/SilkGraphics.ts:184](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L184) |
+|  `smooth?` | `false` \| `"monotone"` | `monotone` draws a smooth curve through the points that never overshoots. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:183](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L183) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [packages/pixi-silk/src/SilkGraphics.ts:185](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L185) |
 
 ## ConicGradientOptions (Interface, `pixi-silk`)
 
@@ -6513,9 +6507,9 @@ What [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDeman
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `stats` | `readonly` | \{ `rendered`: `number`; `skipped`: `number`; \} | Frames rendered and frames skipped since the gate was made. | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
-| `stats.rendered` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
-| `stats.skipped` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
+|  `stats` | `readonly` | \{ `rendered`: `number`; `skipped`: `number`; \} | Frames rendered and frames skipped since the gate was made. | [packages/pixi-silk/src/frames.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L42) |
+| `stats.rendered` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L42) |
+| `stats.skipped` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:42](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L42) |
 
 ### Methods
 
@@ -6601,13 +6595,13 @@ moved by `x` and `y`, shrunk by `spread` and blurred. What it no longer covers i
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:67](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L67) |
-|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [packages/pixi-silk/src/SilkGraphics.ts:77](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L77) |
-|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:73](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L73) |
-|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [packages/pixi-silk/src/SilkGraphics.ts:65](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L65) |
-|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:75](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L75) |
-|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:69](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L69) |
-|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:71](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L71) |
+|  `alpha?` | `number` | Opacity from 0 to 1. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:68](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L68) |
+|  `blend?` | `"normal"` \| `"add"` | `add` paints it plus-lighter: it brightens what is underneath. Default `normal`. | [packages/pixi-silk/src/SilkGraphics.ts:78](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L78) |
+|  `blur?` | `number` | Blur (standard deviation, local units). Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:74](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L74) |
+|  `color?` | `ColorSource` | Colour, any Pixi `ColorSource`. Default black. | [packages/pixi-silk/src/SilkGraphics.ts:66](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L66) |
+|  `spread?` | `number` | Grows the shadow inwards. Negative values make it thinner. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:76](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L76) |
+|  `x?` | `number` | Horizontal offset, local units. Positive moves the shadow right. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:70](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L70) |
+|  `y?` | `number` | Vertical offset, local units. Positive moves the shadow down. Default 0. | [packages/pixi-silk/src/SilkGraphics.ts:72](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L72) |
 
 ## LinearGradientOptions (Interface, `pixi-silk`)
 
@@ -6649,8 +6643,7 @@ What [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLowEnd/) 
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `gate` | `readonly` | [`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/) \| `null` | The frame gate, when `renderOnDemand` is on. Hold it while reels spin. | [packages/pixi-silk/src/frames.ts:144](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L144) |
-|  `on` | `readonly` | `boolean` | Whether the preset is on (false when `when: 'auto'` found a strong device). | [packages/pixi-silk/src/frames.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L142) |
+|  `gate` | `readonly` | [`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/) \| `null` | The frame gate, when `renderOnDemand` is on. Hold it while reels spin. | [packages/pixi-silk/src/frames.ts:147](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L147) |
 
 ### Methods
 
@@ -6680,9 +6673,8 @@ Options of [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLow
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `maxResolution?` | `number` | Highest renderer resolution. Distance fields stay sharp at a lower one. Default 1.5. | [packages/pixi-silk/src/frames.ts:134](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L134) |
-|  `renderOnDemand?` | `boolean` | Render only frames that change, with [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/). Default true. | [packages/pixi-silk/src/frames.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L136) |
-|  `when?` | `boolean` \| `"auto"` | `'auto'` turns the preset on only when [isLowEndDevice](https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/) says so. Default `true`: always. | [packages/pixi-silk/src/frames.ts:132](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L132) |
+|  `maxResolution?` | `number` | Highest renderer resolution. Distance fields stay sharp at a lower one. Default 1.5. | [packages/pixi-silk/src/frames.ts:139](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L139) |
+|  `renderOnDemand?` | `boolean` | Render only frames that change, with [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/). Default true. | [packages/pixi-silk/src/frames.ts:141](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L141) |
 
 ## MeshGradientOptions (Interface, `pixi-silk`)
 
@@ -6717,9 +6709,9 @@ Options of `polyline()`: closed loops and monotone or Catmull-Rom smoothing of t
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:172](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L172) |
-|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [packages/pixi-silk/src/SilkGraphics.ts:174](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L174) |
-|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [packages/pixi-silk/src/SilkGraphics.ts:176](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L176) |
+|  `closed?` | `boolean` | Connect the last point back to the first. Default false. | [packages/pixi-silk/src/SilkGraphics.ts:173](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L173) |
+|  `smooth?` | `false` \| `"monotone"` \| `"catmull"` | Resample through a smooth curve. `monotone` never overshoots (charts), `catmull` for free paths. | [packages/pixi-silk/src/SilkGraphics.ts:175](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L175) |
+|  `step?` | `number` | Sample spacing for smoothing, local units. Default 2. | [packages/pixi-silk/src/SilkGraphics.ts:177](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L177) |
 
 ## ProgressiveBlur (Interface, `pixi-silk`)
 
@@ -6736,9 +6728,9 @@ A blur that changes across the shape, like Figma's progressive layer blur. The r
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [packages/pixi-silk/src/SilkGraphics.ts:56](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L56) |
-|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [packages/pixi-silk/src/SilkGraphics.ts:52](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L52) |
-|  `to` | `number` | Blur at the end edge. | [packages/pixi-silk/src/SilkGraphics.ts:54](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L54) |
+|  `angle?` | `number` | Direction from the start edge to the end edge, in radians. Default `Math.PI / 2` (top to bottom). | [packages/pixi-silk/src/SilkGraphics.ts:57](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L57) |
+|  `from` | `number` | Blur at the start edge (standard deviation, local units). | [packages/pixi-silk/src/SilkGraphics.ts:53](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L53) |
+|  `to` | `number` | Blur at the end edge. | [packages/pixi-silk/src/SilkGraphics.ts:55](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L55) |
 
 ## RadialGradientOptions (Interface, `pixi-silk`)
 
@@ -6781,7 +6773,8 @@ Options of [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderO
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `idleFps?` | `number` | Renders at least this many frames per second while nothing asks, for content that changes without telling the gate. Default 0: no frame without a request. | [packages/pixi-silk/src/frames.ts:26](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L26) |
+|  `idleFps?` | `number` | Renders at least this many frames per second while nothing asks, for content that changes without telling the gate. Default 0: no frame without a request. | [packages/pixi-silk/src/frames.ts:27](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L27) |
+|  `input?` | `boolean` | Renders after pointer and wheel events on the canvas and key presses, so hover and focus show. Default true. | [packages/pixi-silk/src/frames.ts:29](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L29) |
 
 ## SilkApp (Interface, `pixi-silk`)
 
@@ -6877,11 +6870,11 @@ Per-object rendering settings of a [SilkGraphics](https://pixi-silk.schmooky.dev
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:192](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L192) |
-|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | [packages/pixi-silk/src/SilkGraphics.ts:201](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L201) |
-|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:190](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L190) |
-|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [packages/pixi-silk/src/SilkGraphics.ts:196](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L196) |
-|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:194](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L194) |
+|  `aaWidth?` | `number` | AA ramp width in device pixels. 1 = crisp box filter. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:193](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L193) |
+|  `batch?` | `boolean` | Set false to keep this object out of batches: it gets a draw call of its own. Only matters after `enableSilkBatching()`. Default true. | [packages/pixi-silk/src/SilkGraphics.ts:202](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L202) |
+|  `dither?` | `number` | Dither amplitude in 8-bit steps (0 disables). Applied to gradients and blurs only. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:191](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L191) |
+|  `label?` | `string` | Pixi label of the object, for debugging. Default `SilkGraphics`. | [packages/pixi-silk/src/SilkGraphics.ts:197](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L197) |
+|  `minStrokePx?` | `number` | Strokes thinner than this (device px) keep this width and fade instead. Default 1. | [packages/pixi-silk/src/SilkGraphics.ts:195](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L195) |
 
 ## ColorSpace (Type, `pixi-silk`)
 

@@ -6,7 +6,6 @@ export { catmullRom, monotoneX, type PointsInput, toFlat } from './curves';
 export {
     enableLowEnd,
     type FrameGate,
-    isLowEndDevice,
     type LowEnd,
     type LowEndOptions,
     type RenderOnDemandOptions,

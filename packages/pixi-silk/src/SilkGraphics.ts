@@ -32,6 +32,7 @@ import {
     TAU,
 } from './constants';
 import { catmullRom, flattenCubic, flattenQuadratic, monotoneX, type PointsInput, toFlat } from './curves';
+import { requestFrame } from './frames';
 import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { drawPath, parseSvgPath } from './path';
@@ -1568,6 +1569,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const geometry = this.geometry;
 
         this._version++;
+        // a redraw shows on the next frame under renderOnDemand
+        requestFrame();
 
         geometry.instanceCount = this._count;
         geometry.instanceBuffer.update(Math.max(this._count, 1) * STRIDE * 4);

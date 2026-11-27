@@ -8,4 +8,5 @@ Cheaper GPU frames for UI.
 - `ButtonBlock` takes `flat: true`: one face with its border, colours mixed on the CPU, no blurred shadow.
 - The shader returns the fill at once inside solid rectangles, rounded rectangles and ellipses, away from the edge and the stroke. Big panels cost 20 to 45 percent less.
 - `renderOnDemand(app)` renders only frames that something asked for. `requestFrame()` asks, and `BlockSurface` calls it when it paints.
-- `enableLowEnd(app)` caps the resolution at 1.5, renders on demand, and gives blocks their cheap look: flat buttons, no corner smoothing, 30 repaints a second. `when: 'auto'` asks `isLowEndDevice()` first.
+- `enableLowEnd(app)` caps the resolution at 1.5, renders on demand, and gives blocks their cheap look: flat buttons, no corner smoothing, 30 repaints a second. It is turned on by hand and does not guess the device.
+- A SilkGraphics redraw, a `pixi-silk/ui` widget step and input on the canvas ask for a frame on their own, so they keep showing under `renderOnDemand`.

@@ -6,9 +6,9 @@ import { type Hud, SKINS } from './_hud/skins';
 import { boot } from './_shared/kit';
 
 const proto = await boot({
-    title: 'Slot HUD in one draw call',
+    title: 'Slot HUD on blocks',
     subtitle:
-        'Built with pixi-silk/ui/blocks. Flex slots place the controls and one SilkGraphics paints shapes and text. It is one draw call while it moves and one cached texture at rest.',
+        'Built with pixi-silk/ui/blocks. Flex slots place the controls. What does not change is painted once and cached, and only the blocks that move redraw.',
     background: 0x04050a,
 });
 const { app, silk } = proto;

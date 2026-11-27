@@ -18,6 +18,7 @@ import {
     stack,
     TextBlock,
 } from '../src/ui/blocks';
+import { Driver } from '../src/ui/driver';
 import { paintContext } from './ink-context';
 
 // drawText uses the shared atlas: give it a context that paints in node
@@ -392,6 +393,7 @@ describe('frames', () => {
         const app = {
             ticker,
             renderer,
+            canvas: new EventTarget(),
             renders: 0,
             render() {
                 app.renders++;
@@ -433,12 +435,36 @@ describe('frames', () => {
         expect(app.renders).toBe(19);
     });
 
+    it('renders after a SilkGraphics redraw, a widget step and input on the canvas', () => {
+        const app = fakeApp();
+        const gate = renderOnDemand(app as never);
+
+        run(app.ticker, 3);
+        const n = app.renders;
+
+        new SilkGraphics().circle(0, 0, 10).fill(0xffffff);
+        run(app.ticker, 3);
+        expect(app.renders).toBe(n + 1);
+        let left = 3;
+        const driver = new Driver(() => --left > 0, null);
+
+        for (let i = 0; i < 3; i++) {
+            driver.tick(1 / 60);
+            run(app.ticker, 1);
+        }
+        expect(app.renders).toBe(n + 4);
+        app.canvas.dispatchEvent(new Event('pointermove'));
+        run(app.ticker, 3);
+        expect(app.renders).toBe(n + 5);
+        gate.destroy();
+    });
+
     it('turns the low-end preset on and off', () => {
         const app = fakeApp();
         const low = enableLowEnd(app as never);
 
-        expect(low.on).toBe(true);
         expect(app.renderer.resolution).toBe(1.5);
+        expect(low.gate).not.toBeNull();
         const bar = surface(manual());
 
         expect(bar.lowEnd).toBe(true);

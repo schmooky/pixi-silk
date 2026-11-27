@@ -85,7 +85,7 @@ total.skip(); // straight to the end
 app.stage.addChild(dock, total, zoom);
 ```
 
-### One-draw-call UI with blocks
+### Cheap UI with blocks
 
 `pixi-silk/ui/blocks` paints the blocks of a `BlockSurface` (shapes and text) into two SilkGraphics layers. Blocks that never change stay in a still layer, painted once and cached. A block moves to the live layer the first time it animates or changes, and only that layer draws while something moves. Blocks read signals and repaint when they change. For weak devices call `enableLowEnd(silk)` from `pixi-silk` before building the UI: flat buttons, 30 repaints a second, resolution 1.5, and frames only when something changes.
 

@@ -2686,7 +2686,7 @@ blue, padding in green, gaps in pink and real bounds in white, or red when a chi
 Pass it as the `viewport` of your SmartContainers and add them to its `content`. `DEVICES` lists
 the preset sizes, and a `[width, height]` pair works too.
 
-### UI in one draw call with blocks
+### Cheap UI with blocks
 
 `pixi-silk/ui/blocks` builds interfaces such as a game HUD that cost one or two draw calls and
 little GPU time. A `BlockSurface` is a SmartContainer with two `SilkGraphics` layers. Blocks are
@@ -2778,12 +2778,14 @@ mixed on the CPU, and no blurred shadow. Gradient faces switch half way instead 
 `enableLowEnd()` from `pixi-silk` turns the cheap look on for every surface made after it: flat
 buttons, panels without corner smoothing, and repaints at most 30 times a second. It also caps the
 renderer resolution at 1.5 and renders only the frames that change. Call it before you build the
-HUD. With `when: 'auto'` it turns on only for a device that looks weak.
+HUD. It does not guess the device: turn it on from a quality setting or a device list you
+trust.
 
 ```ts
 
 const silk = await createSilkApp({ parent: document.body });
-const lowEnd = enableLowEnd(silk, { when: 'auto' });
+// from a quality setting the player chose
+const lowEnd = enableLowEnd(silk);
 
 // reels and other content the HUD does not know about: hold a frame while they move
 const release = lowEnd.gate?.hold();

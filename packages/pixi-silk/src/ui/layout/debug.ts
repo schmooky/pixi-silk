@@ -1,4 +1,5 @@
 import { type Application, Container, Graphics, type Matrix, Text, UPDATE_PRIORITY } from 'pixi.js';
+import { requestFrame } from '../../frames';
 import { onKey } from '../keys';
 import { type GapMarker, gapsBetween } from '../spacing';
 import { FlexContainer, paddingOf } from './flex-container';
@@ -275,6 +276,9 @@ export function layoutDebug(app: Application, options: LayoutDebugOptions = {}):
     };
 
     const draw = () => {
+        // the overlay changes every frame: keep frames coming under renderOnDemand
+
+        requestFrame();
         g.clear();
         readoutBg.clear();
         readout.visible = false;
