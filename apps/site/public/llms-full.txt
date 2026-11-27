@@ -6513,9 +6513,9 @@ What [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDeman
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `stats` | `readonly` | \{ `rendered`: `number`; `skipped`: `number`; \} | Frames rendered and frames skipped since the gate was made. | packages/pixi-silk/src/frames.ts:39 |
-| `stats.rendered` | `public` | `number` | - | packages/pixi-silk/src/frames.ts:39 |
-| `stats.skipped` | `public` | `number` | - | packages/pixi-silk/src/frames.ts:39 |
+|  `stats` | `readonly` | \{ `rendered`: `number`; `skipped`: `number`; \} | Frames rendered and frames skipped since the gate was made. | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
+| `stats.rendered` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
+| `stats.skipped` | `public` | `number` | - | [packages/pixi-silk/src/frames.ts:39](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L39) |
 
 ### Methods
 
@@ -6649,8 +6649,8 @@ What [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLowEnd/) 
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `gate` | `readonly` | [`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/) \| `null` | The frame gate, when `renderOnDemand` is on. Hold it while reels spin. | packages/pixi-silk/src/frames.ts:144 |
-|  `on` | `readonly` | `boolean` | Whether the preset is on (false when `when: 'auto'` found a strong device). | packages/pixi-silk/src/frames.ts:142 |
+|  `gate` | `readonly` | [`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/) \| `null` | The frame gate, when `renderOnDemand` is on. Hold it while reels spin. | [packages/pixi-silk/src/frames.ts:144](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L144) |
+|  `on` | `readonly` | `boolean` | Whether the preset is on (false when `when: 'auto'` found a strong device). | [packages/pixi-silk/src/frames.ts:142](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L142) |
 
 ### Methods
 
@@ -6680,9 +6680,9 @@ Options of [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLow
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `maxResolution?` | `number` | Highest renderer resolution. Distance fields stay sharp at a lower one. Default 1.5. | packages/pixi-silk/src/frames.ts:134 |
-|  `renderOnDemand?` | `boolean` | Render only frames that change, with [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/). Default true. | packages/pixi-silk/src/frames.ts:136 |
-|  `when?` | `boolean` \| `"auto"` | `'auto'` turns the preset on only when [isLowEndDevice](https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/) says so. Default `true`: always. | packages/pixi-silk/src/frames.ts:132 |
+|  `maxResolution?` | `number` | Highest renderer resolution. Distance fields stay sharp at a lower one. Default 1.5. | [packages/pixi-silk/src/frames.ts:134](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L134) |
+|  `renderOnDemand?` | `boolean` | Render only frames that change, with [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/). Default true. | [packages/pixi-silk/src/frames.ts:136](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L136) |
+|  `when?` | `boolean` \| `"auto"` | `'auto'` turns the preset on only when [isLowEndDevice](https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/) says so. Default `true`: always. | [packages/pixi-silk/src/frames.ts:132](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L132) |
 
 ## MeshGradientOptions (Interface, `pixi-silk`)
 
@@ -6781,7 +6781,7 @@ Options of [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderO
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-|  `idleFps?` | `number` | Renders at least this many frames per second while nothing asks, for content that changes without telling the gate. Default 0: no frame without a request. | packages/pixi-silk/src/frames.ts:26 |
+|  `idleFps?` | `number` | Renders at least this many frames per second while nothing asks, for content that changes without telling the gate. Default 0: no frame without a request. | [packages/pixi-silk/src/frames.ts:26](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/frames.ts#L26) |
 
 ## SilkApp (Interface, `pixi-silk`)
 
