@@ -26,7 +26,7 @@ import {
 import { type HudModel, money, type Readout } from './core';
 
 const TAU = Math.PI * 2;
-const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif';
+export const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif';
 const C = { plate: 0x0b0d14, chip: 0x1b1f2c, muted: 0x8e93a6, gold: 0xffc94d, accent: 0x5ac8fa, red: 0xff5a5f };
 
 // Gradients take rows in a shared atlas: make them once, never per repaint.
@@ -49,13 +49,13 @@ const SPIN_BUSY = radial(
 
 // ---------------------------------------------------------------------------------- icons
 
-const iconMenu: IconPainter = (g, cx, cy, s, _t, color) => {
+export const iconMenu: IconPainter = (g, cx, cy, s, _t, color) => {
     const w = s * 0.9;
 
     for (const dy of [-0.32, 0, 0.32]) g.roundRect(cx - w / 2, cy + dy * s - 2, w, 4, 2).fill(color);
 };
 
-const iconSound: IconPainter = (g, cx, cy, s, t, color) => {
+export const iconSound: IconPainter = (g, cx, cy, s, t, color) => {
     const k = s / 32;
 
     g.poly([
@@ -85,7 +85,7 @@ const iconSound: IconPainter = (g, cx, cy, s, t, color) => {
     }
 };
 
-const iconTurbo: IconPainter = (g, cx, cy, s, _t, color) => {
+export const iconTurbo: IconPainter = (g, cx, cy, s, _t, color) => {
     const k = s / 34;
 
     g.poly([
@@ -105,7 +105,7 @@ const iconTurbo: IconPainter = (g, cx, cy, s, _t, color) => {
 };
 
 /** The autoplay loop, faded out while the rounds-left count shows. */
-const iconAuto: IconPainter = (g, cx, cy, s, t, color) => {
+export const iconAuto: IconPainter = (g, cx, cy, s, t, color) => {
     if (t > 0.99) return;
     const k = s / 34;
 
@@ -114,7 +114,7 @@ const iconAuto: IconPainter = (g, cx, cy, s, t, color) => {
 };
 
 /** Two arrows that fold into a stop square as the button turns busy (`t` 0 to 1). */
-const iconSpin: IconPainter = (g, cx, cy, s, t) => {
+export const iconSpin: IconPainter = (g, cx, cy, s, t) => {
     const a = 1 - t;
 
     if (a > 0.01) {
@@ -227,7 +227,10 @@ function readout(r: Readout, decimals: number, seconds: number, glow: boolean) {
 // ---------------------------------------------------------------------------------- the HUD
 
 /** Builds the HUD for `model`: a BlockSurface docked to the bottom, connected to the model's signals. */
-export function createHud(app: Application, model: HudModel): { bar: BlockSurface; destroy(): void } {
+export function createHud(
+    app: Application,
+    model: HudModel,
+): { bar: BlockSurface; surfaces: BlockSurface[]; destroy(): void } {
     const bar = new BlockSurface({
         viewport: app,
         ticker: app.ticker,
@@ -411,6 +414,7 @@ export function createHud(app: Application, model: HudModel): { bar: BlockSurfac
 
     return {
         bar,
+        surfaces: [bar],
         destroy() {
             bar.destroy({ children: true });
         },

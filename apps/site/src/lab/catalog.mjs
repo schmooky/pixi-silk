@@ -160,7 +160,7 @@ export const LAB_SECTIONS = [
             [
                 '36-slot-hud',
                 'Slot HUD in one draw call',
-                'A slot machine bar laid out with SmartContainer and FlexContainer, painted by one SilkGraphics and cached as one texture.',
+                'Four slot HUD layouts on one model, docked with SmartContainer and laid out with flex. Each dock is painted by one SilkGraphics and cached as one texture.',
             ],
         ],
     ],

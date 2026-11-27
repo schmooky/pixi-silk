@@ -20,6 +20,7 @@ export interface HudEvents {
     betChanged: { bet: number };
     toggled: { id: string; on: boolean };
     menuRequested: undefined;
+    featureRequested: { id: string };
 }
 
 type Handler<T> = (payload: T) => void;

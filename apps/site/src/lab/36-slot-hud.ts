@@ -1,6 +1,7 @@
 import { UPDATE_PRIORITY } from 'pixi.js';
 import { HudModel } from './_hud/core';
 import { createHud } from './_hud/hud';
+import { type Hud, SKINS } from './_hud/skins';
 import { boot } from './_shared/kit';
 
 const proto = await boot({
@@ -16,7 +17,14 @@ const model = new HudModel({
     betIndex: 2,
     autoplayCount: 25,
 });
-const hud = createHud(app, model);
+// four layouts on one model: ?skin=chips|console|strip|floating
+const BUILDERS: Record<string, (a: typeof app, m: HudModel) => Hud> = { chips: createHud, ...SKINS };
+let skinName = new URLSearchParams(location.search).get('skin') ?? 'chips';
+
+if (!(skinName in BUILDERS)) skinName = 'chips';
+let hud = BUILDERS[skinName](app, model);
+const awake = () => hud.surfaces.some((s) => s.stats.awake);
+const repaints = () => hud.surfaces.reduce((n, s) => n + s.stats.repaints, 0);
 
 // ------------------------------------------------------------------ the host: it runs the round
 
@@ -44,6 +52,9 @@ async function round(): Promise<void> {
 
 model.on('spinRequested', round);
 model.on('skipRequested', () => skip?.());
+model.on('featureRequested', ({ id }) => {
+    model.message.value = `${id.toUpperCase()} MENU`;
+});
 model.on('autoplayStarted', () => {
     if (model.spin.state.value === 'idle') round();
 });
@@ -97,15 +108,16 @@ app.ticker.add(() => {
     const now = performance.now();
 
     if (lastCalls > 1) peak = Math.max(peak, lastCalls);
-    idleFrames = hud.bar.stats.awake ? 0 : idleFrames + 1;
+    idleFrames = awake() ? 0 : idleFrames + 1;
     if (now - repaintsAt >= 500) {
-        lastRepaints = hud.bar.stats.repaints;
+        lastRepaints = repaints();
         repaintsAt = now;
     }
     stats.textContent = [
         gl ? `draw calls last frame  ${lastCalls}` : 'draw calls  (counted on WebGL2 only)',
         `peak while repainting  ${peak}`,
-        `HUD loop               ${hud.bar.stats.awake ? 'awake (repainting)' : `asleep ${idleFrames} frames`}`,
+        `skin                   ${skinName} (${hud.surfaces.length} docks)`,
+        `HUD loop               ${awake() ? 'awake (repainting)' : `asleep ${idleFrames} frames`}`,
         `repaints since start   ${lastRepaints}`,
     ].join('\n');
 });
@@ -115,7 +127,7 @@ app.ticker.add(() => {
 
 const tools = document.createElement('div');
 
-tools.style.cssText = 'position:fixed;left:16px;top:216px;display:flex;gap:6px;flex-wrap:wrap;max-width:300px';
+tools.style.cssText = 'position:fixed;left:16px;top:236px;display:flex;gap:6px;flex-wrap:wrap;max-width:300px';
 document.body.appendChild(tools);
 
 const tool = (label: string, fn: (b: HTMLButtonElement) => void) => {
@@ -141,6 +153,18 @@ tool('Add $1,000', () => model.balance.set(model.balance.get() + 1000));
 tool('Reset peak', () => {
     peak = 0;
 });
+for (const name of Object.keys(BUILDERS)) {
+    tool(name, () => {
+        hud.destroy();
+        hud = BUILDERS[name](app, model);
+        skinName = name;
+        peak = 0;
+        const url = new URL(location.href);
+
+        url.searchParams.set('skin', name);
+        history.replaceState(null, '', url);
+    });
+}
 
 // for poking at it from the console
 (globalThis as Record<string, unknown>).__hud = { hud, model, app };
