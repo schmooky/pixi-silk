@@ -4,6 +4,16 @@ export { enableSilkBatching, SilkPipe } from './batch';
 export { type ColorSpace, linearToOklab, oklabToLinear, parseColor, type RGBA } from './color';
 export { catmullRom, monotoneX, type PointsInput, toFlat } from './curves';
 export {
+    enableLowEnd,
+    type FrameGate,
+    isLowEndDevice,
+    type LowEnd,
+    type LowEndOptions,
+    type RenderOnDemandOptions,
+    renderOnDemand,
+    requestFrame,
+} from './frames';
+export {
     along,
     ConicGradient,
     type ConicGradientOptions,

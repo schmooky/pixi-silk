@@ -33,7 +33,7 @@ Import each from its own path. The root import does not re-export the others.
 
 | Import | Area | What it holds |
 | --- | --- | --- |
-| [`pixi-silk`](https://pixi-silk.schmooky.dev/api.md) | Core | SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching. |
+| [`pixi-silk`](https://pixi-silk.schmooky.dev/api.md) | Core | SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching, renderOnDemand and enableLowEnd. |
 | [`pixi-silk/glass`](https://pixi-silk.schmooky.dev/api/glass.md) | Paint | Glass: a frosted pane that blurs and bends what is behind it. |
 | [`pixi-silk/glow`](https://pixi-silk.schmooky.dev/api/glow.md) | Paint | Glow, Aurora and light helpers (neon, halo, rays, spectrum). |
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
@@ -58,7 +58,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/arc`](https://pixi-silk.schmooky.dev/api/ui/arc.md) | UI widgets | Angle maths for ring widgets: angleDelta, wrapAngle, snapTo, rubberBand. |
 | [`pixi-silk/ui/keys`](https://pixi-silk.schmooky.dev/api/ui/keys.md) | UI widgets | Shared keyboard state: isKeyDown, modifier checks, onKey, isTypingTarget. |
 | [`pixi-silk/ui/pill`](https://pixi-silk.schmooky.dev/api/ui/pill.md) | UI widgets | ValuePill: a small rounded label for live readouts (angles, sizes, distances). |
-| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group: UI that paints shapes and text into one SilkGraphics and caches itself, one draw call at rest and while it moves. |
+| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group. UI that paints shapes and text into a cached still layer, and a live layer for what moves. |
 | [`pixi-silk/ui`](https://pixi-silk.schmooky.dev/api/ui.md) | UI widgets | Every widget and editor tool in one import. The per-widget subpaths ship less code. |
 | [`pixi-silk/selection`](https://pixi-silk.schmooky.dev/api/selection.md) | Editor kit | Selection store and bindOutline, bindGizmo, bindMeasure. |
 | [`pixi-silk/history`](https://pixi-silk.schmooky.dev/api/history.md) | Editor kit | History (undo and redo), recordSignals, recordGizmo, bindHistoryKeys. |
@@ -3945,6 +3945,12 @@ export default defineDemo({
 GPU cost follows covered area, like any 2D renderer. A full-screen blurred shape costs more than a
 thousand small dots.
 
+Inside a solid rectangle, rounded rectangle, circle or ellipse, away from its edge and its
+stroke, the shader skips the distance and returns the fill. A gradient fill takes this path too,
+except a mesh or path gradient. Blur, spread, dashes, inner shadows and shape operations do not.
+On a full-width panel it saves 20 to 45 percent. The rest of the cost is the size of the shader
+itself, so a panel that never changes is still cheaper cached as a texture.
+
 ### CPU cost measured
 
 The benchmark in [`packages/pixi-silk/bench/primitives.mjs`](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/bench/primitives.mjs)
@@ -4004,9 +4010,34 @@ Stop redrawing when nothing moves. Check `Spring.settled`, or redraw only when t
 Draw labels with `drawText` into the `SilkGraphics` they sit on. Each `SilkText` is a draw call
 of its own, while glyphs drawn with `drawText` share the call of the shapes around them.
 
-For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It repaints only while
-something moves and draws one cached texture at rest, so an idle interface runs no distance field
-at all. See [UI in one draw call with blocks](https://pixi-silk.schmooky.dev/docs/layout/#ui-in-one-draw-call-with-blocks).
+For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It keeps what does not
+change in a cached layer and repaints only the blocks that move, so an idle interface runs no
+distance field at all. See [UI in one draw call with blocks](https://pixi-silk.schmooky.dev/docs/layout/#ui-in-one-draw-call-with-blocks).
+
+### Render only frames that change
+
+Pixi renders every frame, even when nothing changed. `renderOnDemand(app)` keeps the ticker
+running but renders only when something asks. The canvas keeps the last frame in between. A
+`BlockSurface` asks whenever it paints, so an idle HUD costs no GPU time at all. Anything else
+asks with `gate.invalidate()` after a change, or holds frames with `gate.hold()` while it
+animates on its own, such as reels or a Spine skeleton.
+
+```ts
+
+const gate = renderOnDemand(app);
+const release = gate.hold();
+
+// the reels stopped
+release();
+```
+
+### Weak devices
+
+`enableLowEnd(app)` is one switch for phones with a weak GPU. It caps the resolution at 1.5,
+renders only frames that change, and gives blocks their cheap look (flat buttons, no corner
+smoothing, 30 repaints a second). `when: 'auto'` asks `isLowEndDevice()` first, which guesses from
+the core count, the memory and the screen. Pass the `SilkApp` from `createSilkApp` rather than
+its `app`, so the cap holds when the window resizes.
 
 ---
 
@@ -4960,6 +4991,44 @@ Like [damp](https://pixi-silk.schmooky.dev/api/functions/damp/) for angles in ra
 
 `number`
 
+## enableLowEnd (Function, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/functions/enableLowEnd/
+
+```ts
+import { enableLowEnd } from 'pixi-silk';
+```
+
+```ts
+function enableLowEnd(target: SilkApp | Application<Renderer>, options?: LowEndOptions): LowEnd;
+```
+
+One switch for weak devices. It caps the renderer resolution and renders only frames that
+change. Pass the [SilkApp](https://pixi-silk.schmooky.dev/api/interfaces/SilkApp/) when you made the application with `createSilkApp`, so the
+cap holds when the window resizes. With a plain Application the cap holds until something else
+sets the resolution. Blocks made after it, in `pixi-silk/ui/blocks`, use their cheap look: flat buttons
+(one shape and no blur), panels without corner smoothing, and repaints at 30 frames per second.
+Call it once, after the application starts and before you build the UI.
+
+### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `target` | [`SilkApp`](https://pixi-silk.schmooky.dev/api/interfaces/SilkApp/) \| `Application`\<`Renderer`\> |
+| `options` | [`LowEndOptions`](https://pixi-silk.schmooky.dev/api/interfaces/LowEndOptions/) |
+
+### Returns
+
+[`LowEnd`](https://pixi-silk.schmooky.dev/api/interfaces/LowEnd/)
+
+### Example
+
+```ts
+import { enableLowEnd } from 'pixi-silk';
+
+const lowEnd = enableLowEnd(app, { when: 'auto' });
+```
+
 ## enableSilkBatching (Function, `pixi-silk`)
 
 URL: https://pixi-silk.schmooky.dev/api/functions/enableSilkBatching/
@@ -5019,6 +5088,25 @@ Left-to-right linear gradient across each painted shape's box.
 ### Returns
 
 [`LinearGradient`](https://pixi-silk.schmooky.dev/api/classes/LinearGradient/)
+
+## isLowEndDevice (Function, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/
+
+```ts
+import { isLowEndDevice } from 'pixi-silk';
+```
+
+```ts
+function isLowEndDevice(): boolean;
+```
+
+A guess at a weak device from what the browser tells: 4 or fewer cores, 4 GB or less of
+memory, or a small screen with a high pixel ratio. Returns false where it cannot tell.
+
+### Returns
+
+`boolean`
 
 ## linear (Function, `pixi-silk`)
 
@@ -5235,6 +5323,69 @@ Radial gradient from `center` (default the box centre) out to `radius`, optional
 ### Returns
 
 [`RadialGradient`](https://pixi-silk.schmooky.dev/api/classes/RadialGradient/)
+
+## renderOnDemand (Function, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/
+
+```ts
+import { renderOnDemand } from 'pixi-silk';
+```
+
+```ts
+function renderOnDemand(app: Application, options?: RenderOnDemandOptions): FrameGate;
+```
+
+Renders a frame only when something asks for it. The ticker keeps running, so layout,
+springs and game logic go on, but Pixi draws nothing on frames where nothing changed, and the
+canvas keeps showing the last frame. A frame is drawn after `invalidate()`, after
+`requestFrame()` (BlockSurface calls it), while a `hold()` is open, and after a resize.
+
+Content that changes on its own, such as reels, a Spine skeleton or a video, needs a `hold()`
+while it plays. A gate per application: a second call returns a new gate and the first one
+stops answering `requestFrame`.
+
+### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `app` | `Application` |
+| `options` | [`RenderOnDemandOptions`](https://pixi-silk.schmooky.dev/api/interfaces/RenderOnDemandOptions/) |
+
+### Returns
+
+[`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/)
+
+### Example
+
+```ts
+import { renderOnDemand } from 'pixi-silk';
+
+const gate = renderOnDemand(app);
+// while the reels spin
+const release = gate.hold();
+// when they stop
+release();
+```
+
+## requestFrame (Function, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/functions/requestFrame/
+
+```ts
+import { requestFrame } from 'pixi-silk';
+```
+
+```ts
+function requestFrame(): void;
+```
+
+Asks for one render on the next frame when [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/) is on. Does nothing
+otherwise. BlockSurface calls it whenever it paints or bakes, so blocks need no extra code.
+
+### Returns
+
+`void`
 
 ## toFlat (Function, `pixi-silk`)
 
@@ -6348,6 +6499,67 @@ Options of [conic](https://pixi-silk.schmooky.dev/api/functions/conic/): stops p
 |  `sweep?` | `number` | Angular length of the ramp. Defaults to the arc sweep for arcs/sectors, otherwise a full turn. | - | [packages/pixi-silk/src/gradient.ts:350](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L350) |
 |  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [packages/pixi-silk/src/gradient.ts:49](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L49) |
 
+## FrameGate (Interface, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/
+
+```ts
+import type { FrameGate } from 'pixi-silk';
+```
+
+What [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/) returns.
+
+### Properties
+
+| Property | Modifier | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ | ------ |
+|  `stats` | `readonly` | \{ `rendered`: `number`; `skipped`: `number`; \} | Frames rendered and frames skipped since the gate was made. | packages/pixi-silk/src/frames.ts:39 |
+| `stats.rendered` | `public` | `number` | - | packages/pixi-silk/src/frames.ts:39 |
+| `stats.skipped` | `public` | `number` | - | packages/pixi-silk/src/frames.ts:39 |
+
+### Methods
+
+#### destroy()
+
+```ts
+destroy(): void;
+```
+
+Puts the application's own render listener back.
+
+##### Returns
+
+`void`
+
+***
+
+#### hold()
+
+```ts
+hold(): () => void;
+```
+
+Renders every frame until the returned function is called. Hold it while something animates
+that the gate does not know about, such as spinning reels or a Spine animation.
+
+##### Returns
+
+() => `void`
+
+***
+
+#### invalidate()
+
+```ts
+invalidate(): void;
+```
+
+Renders the next frame. Call it after you change the scene outside a BlockSurface.
+
+##### Returns
+
+`void`
+
 ## GradientOptions (Interface, `pixi-silk`)
 
 URL: https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/
@@ -6422,6 +6634,55 @@ Options of [linear](https://pixi-silk.schmooky.dev/api/functions/linear/): stops
 |  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | [packages/pixi-silk/src/gradient.ts:41](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L41) |
 |  `to?` | [`Vec2`](https://pixi-silk.schmooky.dev/api/types/Vec2/) | End point. Default `[0, 1]` (bottom). | - | [packages/pixi-silk/src/gradient.ts:270](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L270) |
 |  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [packages/pixi-silk/src/gradient.ts:49](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L49) |
+
+## LowEnd (Interface, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/interfaces/LowEnd/
+
+```ts
+import type { LowEnd } from 'pixi-silk';
+```
+
+What [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLowEnd/) returns.
+
+### Properties
+
+| Property | Modifier | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ | ------ |
+|  `gate` | `readonly` | [`FrameGate`](https://pixi-silk.schmooky.dev/api/interfaces/FrameGate/) \| `null` | The frame gate, when `renderOnDemand` is on. Hold it while reels spin. | packages/pixi-silk/src/frames.ts:144 |
+|  `on` | `readonly` | `boolean` | Whether the preset is on (false when `when: 'auto'` found a strong device). | packages/pixi-silk/src/frames.ts:142 |
+
+### Methods
+
+#### disable()
+
+```ts
+disable(): void;
+```
+
+Turns the preset off: resolution, frame gate and block settings go back.
+
+##### Returns
+
+`void`
+
+## LowEndOptions (Interface, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/interfaces/LowEndOptions/
+
+```ts
+import type { LowEndOptions } from 'pixi-silk';
+```
+
+Options of [enableLowEnd](https://pixi-silk.schmooky.dev/api/functions/enableLowEnd/).
+
+### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+|  `maxResolution?` | `number` | Highest renderer resolution. Distance fields stay sharp at a lower one. Default 1.5. | packages/pixi-silk/src/frames.ts:134 |
+|  `renderOnDemand?` | `boolean` | Render only frames that change, with [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/). Default true. | packages/pixi-silk/src/frames.ts:136 |
+|  `when?` | `boolean` \| `"auto"` | `'auto'` turns the preset on only when [isLowEndDevice](https://pixi-silk.schmooky.dev/api/functions/isLowEndDevice/) says so. Default `true`: always. | packages/pixi-silk/src/frames.ts:132 |
 
 ## MeshGradientOptions (Interface, `pixi-silk`)
 
@@ -6505,6 +6766,22 @@ Options of [radial](https://pixi-silk.schmooky.dev/api/functions/radial/): stops
 |  `space?` | [`ColorSpace`](https://pixi-silk.schmooky.dev/api/types/ColorSpace/) | Interpolation space. OKLab keeps hue and lightness perceptually even. Default `oklab`. | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`space`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#space) | [packages/pixi-silk/src/gradient.ts:43](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L43) |
 |  `stops` | [`StopInput`](https://pixi-silk.schmooky.dev/api/types/StopInput/)[] | Colour stops. Bare colours are spread evenly. See [StopInput](https://pixi-silk.schmooky.dev/api/types/StopInput/). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`stops`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#stops) | [packages/pixi-silk/src/gradient.ts:41](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L41) |
 |  `units?` | [`GradientUnits`](https://pixi-silk.schmooky.dev/api/types/GradientUnits/) | Coordinates of the gradient's points and radii: each shape's box (`shape`, default) or local units (`local`). | [`GradientOptions`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/).[`units`](https://pixi-silk.schmooky.dev/api/interfaces/GradientOptions/#units) | [packages/pixi-silk/src/gradient.ts:49](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/gradient.ts#L49) |
+
+## RenderOnDemandOptions (Interface, `pixi-silk`)
+
+URL: https://pixi-silk.schmooky.dev/api/interfaces/RenderOnDemandOptions/
+
+```ts
+import type { RenderOnDemandOptions } from 'pixi-silk';
+```
+
+Options of [renderOnDemand](https://pixi-silk.schmooky.dev/api/functions/renderOnDemand/).
+
+### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+|  `idleFps?` | `number` | Renders at least this many frames per second while nothing asks, for content that changes without telling the gate. Default 0: no frame without a request. | packages/pixi-silk/src/frames.ts:26 |
 
 ## SilkApp (Interface, `pixi-silk`)
 

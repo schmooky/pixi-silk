@@ -1,4 +1,5 @@
 import { UPDATE_PRIORITY } from 'pixi.js';
+import { enableLowEnd, type LowEnd } from 'pixi-silk';
 import { HudModel } from './_hud/core';
 import { createHud } from './_hud/hud';
 import { type Hud, SKINS } from './_hud/skins';
@@ -10,7 +11,7 @@ const proto = await boot({
         'Built with pixi-silk/ui/blocks. Flex slots place the controls and one SilkGraphics paints shapes and text. It is one draw call while it moves and one cached texture at rest.',
     background: 0x04050a,
 });
-const { app } = proto;
+const { app, silk } = proto;
 const model = new HudModel({
     balance: 1000,
     betLevels: [0.2, 0.5, 1, 2, 5, 10, 20, 50],
@@ -22,6 +23,8 @@ const BUILDERS: Record<string, (a: typeof app, m: HudModel) => Hud> = { chips: c
 let skinName = new URLSearchParams(location.search).get('skin') ?? 'chips';
 
 if (!(skinName in BUILDERS)) skinName = 'chips';
+// ?lowend=1: the preset for weak devices, before the HUD is built (blocks read it when made)
+let low: LowEnd | null = new URLSearchParams(location.search).get('lowend') === '1' ? enableLowEnd(silk) : null;
 let hud = BUILDERS[skinName](app, model);
 const awake = () => hud.surfaces.some((s) => s.stats.awake);
 const repaints = () => hud.surfaces.reduce((n, s) => n + s.stats.repaints, 0);
@@ -119,6 +122,10 @@ app.ticker.add(() => {
         `skin                   ${skinName} (${hud.surfaces.length} docks)`,
         `HUD loop               ${awake() ? 'awake (repainting)' : `asleep ${idleFrames} frames`}`,
         `repaints since start   ${lastRepaints}`,
+        `still paints / live    ${hud.surfaces.reduce((n, s) => n + s.stats.stillPaints, 0)} / ${hud.surfaces.reduce((n, s) => n + s.stats.liveBlocks, 0)} blocks`,
+        low?.gate
+            ? `frames drawn / skipped ${low.gate.stats.rendered} / ${low.gate.stats.skipped}`
+            : 'low end                off',
     ].join('\n');
 });
 
@@ -127,7 +134,7 @@ app.ticker.add(() => {
 
 const tools = document.createElement('div');
 
-tools.style.cssText = 'position:fixed;left:16px;top:236px;display:flex;gap:6px;flex-wrap:wrap;max-width:300px';
+tools.style.cssText = 'position:fixed;left:16px;top:270px;display:flex;gap:6px;flex-wrap:wrap;max-width:300px';
 document.body.appendChild(tools);
 
 const tool = (label: string, fn: (b: HTMLButtonElement) => void) => {
@@ -153,18 +160,37 @@ tool('Add $1,000', () => model.balance.set(model.balance.get() + 1000));
 tool('Reset peak', () => {
     peak = 0;
 });
-for (const name of Object.keys(BUILDERS)) {
-    tool(name, () => {
-        hud.destroy();
-        hud = BUILDERS[name](app, model);
-        skinName = name;
-        peak = 0;
-        const url = new URL(location.href);
+const rebuild = (name: string) => {
+    hud.destroy();
+    hud = BUILDERS[name](app, model);
+    skinName = name;
+    peak = 0;
+    const url = new URL(location.href);
 
-        url.searchParams.set('skin', name);
-        history.replaceState(null, '', url);
-    });
-}
+    url.searchParams.set('skin', name);
+    if (low) url.searchParams.set('lowend', '1');
+    else url.searchParams.delete('lowend');
+    history.replaceState(null, '', url);
+};
+
+tool(low ? 'Low end: on' : 'Low end: off', (b) => {
+    if (low) {
+        low.disable();
+        low = null;
+    } else low = enableLowEnd(silk);
+    b.textContent = low ? 'Low end: on' : 'Low end: off';
+    rebuild(skinName);
+});
+for (const name of Object.keys(BUILDERS)) tool(name, () => rebuild(name));
 
 // for poking at it from the console
-(globalThis as Record<string, unknown>).__hud = { hud, model, app };
+(globalThis as Record<string, unknown>).__hud = {
+    get hud() {
+        return hud;
+    },
+    get low() {
+        return low;
+    },
+    model,
+    app,
+};

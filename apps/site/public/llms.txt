@@ -43,7 +43,7 @@ Import each from its own path. The root import does not re-export the others.
 
 | Import | Area | What it holds |
 | --- | --- | --- |
-| [`pixi-silk`](https://pixi-silk.schmooky.dev/api.md) | Core | SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching. |
+| [`pixi-silk`](https://pixi-silk.schmooky.dev/api.md) | Core | SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching, renderOnDemand and enableLowEnd. |
 | [`pixi-silk/glass`](https://pixi-silk.schmooky.dev/api/glass.md) | Paint | Glass: a frosted pane that blurs and bends what is behind it. |
 | [`pixi-silk/glow`](https://pixi-silk.schmooky.dev/api/glow.md) | Paint | Glow, Aurora and light helpers (neon, halo, rays, spectrum). |
 | [`pixi-silk/webgpu`](https://pixi-silk.schmooky.dev/api/webgpu.md) | Rendering | enableWebGPU: installs the WGSL shader for your own WebGPU Application. |
@@ -68,7 +68,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/arc`](https://pixi-silk.schmooky.dev/api/ui/arc.md) | UI widgets | Angle maths for ring widgets: angleDelta, wrapAngle, snapTo, rubberBand. |
 | [`pixi-silk/ui/keys`](https://pixi-silk.schmooky.dev/api/ui/keys.md) | UI widgets | Shared keyboard state: isKeyDown, modifier checks, onKey, isTypingTarget. |
 | [`pixi-silk/ui/pill`](https://pixi-silk.schmooky.dev/api/ui/pill.md) | UI widgets | ValuePill: a small rounded label for live readouts (angles, sizes, distances). |
-| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group: UI that paints shapes and text into one SilkGraphics and caches itself, one draw call at rest and while it moves. |
+| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group. UI that paints shapes and text into a cached still layer, and a live layer for what moves. |
 | [`pixi-silk/ui`](https://pixi-silk.schmooky.dev/api/ui.md) | UI widgets | Every widget and editor tool in one import. The per-widget subpaths ship less code. |
 | [`pixi-silk/selection`](https://pixi-silk.schmooky.dev/api/selection.md) | Editor kit | Selection store and bindOutline, bindGizmo, bindMeasure. |
 | [`pixi-silk/history`](https://pixi-silk.schmooky.dev/api/history.md) | Editor kit | History (undo and redo), recordSignals, recordGizmo, bindHistoryKeys. |

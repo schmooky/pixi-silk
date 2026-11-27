@@ -611,6 +611,44 @@ const cases = {
 
         return { scene: make(true), kind: 'same', ref: make(false), tolerance: 0, counts: true };
     },
+    // the fast path for the inside of solid rectangles and ellipses, against the full shader: a union
+    // with a small rectangle inside each shape takes the slow path and has the same distance field
+    'solid-fast-path': () => {
+        const make = (slow) => {
+            const g = new SilkGraphics();
+            const shape = (draw, inner, paint) => {
+                draw();
+                if (slow) g.rect(...inner);
+                g.fill({ ...paint, ...(slow ? { union: true } : {}) });
+            };
+            const grad = linear(
+                [
+                    [0, 0x6b55c0],
+                    [1, 0x1a1030],
+                ],
+                { from: [0, 0], to: [0, 1] },
+            );
+
+            shape(() => g.roundRect(6, 6, 300, 90, 28, 0.6), [140, 40, 4, 4], { color: 0x10131c, alpha: 0.94 });
+            shape(() => g.rect(14, 104, 120, 90), [60, 140, 4, 4], { color: 0xff5a5f });
+            shape(() => g.roundRect(150, 104, 156, 90, 20), [220, 140, 4, 4], { gradient: grad, color: 0xffffff });
+            shape(() => g.circle(70, 250, 46), [68, 248, 4, 4], { color: 0x2fd27a });
+            shape(() => g.ellipse(220, 250, 80, 40), [218, 248, 4, 4], { color: 0x5ac8fa, alpha: 0.6 });
+            // stroked: the fast path stays inside the stroke band
+            g.roundRect(14, 310, 290, 60, 16);
+            if (slow) g.rect(150, 338, 4, 4);
+            g.fill({ color: 0x262a38, ...(slow ? { union: true } : {}) }).stroke({
+                width: 6,
+                color: 0xffc94d,
+                alignment: 'inside',
+                ...(slow ? { union: true } : {}),
+            });
+
+            return g;
+        };
+
+        return { scene: make(false), kind: 'same', ref: make(true), tolerance: 2 };
+    },
 };
 
 // baked localized text (pixi-silk/i18n): the shop example the site compiles, in three locales.

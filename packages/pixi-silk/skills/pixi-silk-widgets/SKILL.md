@@ -87,7 +87,7 @@ app.stage.addChild(dock, total, zoom);
 
 ### One-draw-call UI with blocks
 
-`pixi-silk/ui/blocks` paints every block of a `BlockSurface` (shapes and text) into one SilkGraphics. It draws live while something moves and as one cached texture at rest. Blocks read signals and repaint when they change.
+`pixi-silk/ui/blocks` paints the blocks of a `BlockSurface` (shapes and text) into two SilkGraphics layers. Blocks that never change stay in a still layer, painted once and cached. A block moves to the live layer the first time it animates or changes, and only that layer draws while something moves. Blocks read signals and repaint when they change. For weak devices call `enableLowEnd(silk)` from `pixi-silk` before building the UI: flat buttons, 30 repaints a second, resolution 1.5, and frames only when something changes.
 
 ```ts
 import { signal } from 'pixi-silk/signal';
@@ -153,6 +153,14 @@ Symptom: the widget freezes mid-animation. With `ticker: null` you drive it: cal
 ### [HIGH] A block added with `add(block)` and no style
 
 Symptom: the block sits at the wrong place or paints at size 0. A block is an empty Container, so the layout measures it as 0 by 0. Add it with `container.add(block, block.layout())`, or with `stack(container, [block])`.
+
+### [MEDIUM] A big block that changes every round in the auto layer
+
+Symptom: `bar.stats.stillPaints` stays low, but every frame of an animation is slow. A full-width plate that changes colour moved to the live layer, and its distance field runs every frame something moves. Give it `layer: 'still'`: each change then repaints the still layer once.
+
+### [MEDIUM] renderOnDemand with reels or Spine and no hold
+
+Symptom: the reels freeze while the HUD is idle. The gate renders only frames something asked for. Hold it while content the gate does not know about moves: `const release = gate.hold()`, then `release()` when it stops.
 
 ### [MEDIUM] A BlockSurface without `ticker: app.ticker`
 

@@ -981,6 +981,47 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     var strokeScale = hw / max(hwEff, 1e-9);
     let align = vDash.w;
 
+    // Fast path: inside a plain rectangle, rounded rectangle or ellipse, away from the edge and the
+    // stroke band, the colour is the fill. Big panels skip the distance and the coverage there.
+    // Not for dashes, inner shadows, progressive blur, stroke gradients, spread or blur.
+    let gkFast = i32(vPaint.x + 0.5);
+    if ((prim == 0 || prim == 1) && hasFill && (flags & 102408) == 0 && gSigma == 0.0 && vFx.x == 0.0 && gkFast <= 3) {
+        var m = 2.0 * gPx + px;
+        if (hasStroke) {
+            m += hwEff * (1.0 + abs(align));
+        }
+        var q = p - vShape0.xy;
+        if (vShape2.w != 0.0) {
+            q = rotate(q, -vShape2.w);
+        }
+        var deep: bool;
+        if (prim == 0) {
+            let rmax = max(max(vShape1.x, vShape1.y), max(vShape1.z, vShape1.w));
+            deep = all(abs(q) < vShape0.zw - vec2<f32>(rmax + m));
+        } else {
+            let ab = vShape0.zw - vec2<f32>(m);
+            deep = ab.x > 0.0 && ab.y > 0.0 && dot(q / ab, q / ab) < 1.0;
+        }
+        if (deep) {
+            var fc = vFill;
+            if (gkFast > 0) {
+                fc *= gradientColor(p, 0.0, 1.0, gkFast);
+            }
+            fc *= vTint;
+            if (fc.a <= 0.0 && max(fc.r, max(fc.g, fc.b)) <= 0.0) {
+                discard;
+            }
+            if ((flags & 4) != 0) {
+                let n = ign(input.position.xy) - 0.5;
+                fc = vec4<f32>(clamp(fc.rgb + n * (uSilk.x / 255.0), vec3<f32>(0.0), vec3<f32>(fc.a)), fc.a);
+            }
+            if ((flags & 16384) != 0) {
+                fc.a = 0.0;
+            }
+            return fc;
+        }
+    }
+
     var d = 1e6;   // closed shapes: signed distance to the fill boundary
     var sd = 1e6;  // open paths: signed distance to the stroke
     var isOpen = false;

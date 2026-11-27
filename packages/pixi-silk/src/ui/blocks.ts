@@ -1,4 +1,5 @@
 import { Circle, Container, type ContainerChild, type IHitArea, Rectangle, Ticker, UPDATE_PRIORITY } from 'pixi.js';
+import { requestFrame, silkFrames } from '../frames';
 import { Spring } from '../motion';
 import { type FillInput, SilkGraphics, type SilkGraphicsOptions, type StrokeInput } from '../SilkGraphics';
 import type { ReadSignal } from '../signal';
@@ -7,14 +8,18 @@ import { FlexContainer, type SmartLayout } from './layout/flex-container';
 import { SmartContainer, type SmartContainerOptions } from './layout/smart-container';
 
 /*
- * Blocks: UI that draws in one call and costs nothing at rest.
+ * Blocks: UI that draws in one call and costs almost nothing at rest.
  *
- * A BlockSurface is a SmartContainer with one SilkGraphics, the painter. Blocks are empty flex
- * slots that take input. When something changes, the surface walks its tree and every block
- * paints itself into the painter at its slot, shapes and text alike (text goes through
- * drawText, so it is part of the same instanced draw). Then, by default, the surface caches
- * itself as a texture: on screen it is one textured quad until the next change. The loop runs
- * only while a spring moves, a counter counts or a signal fires, and sleeps after.
+ * A BlockSurface is a SmartContainer with two SilkGraphics layers. Blocks are empty flex slots
+ * that take input, and each paints itself into a layer at its slot, shapes and text alike (text
+ * goes through drawText, so it is part of the same instanced draw).
+ *
+ * - The still layer holds what does not change: plates, panels, captions. It is painted once and
+ *   cached as a texture, so the distance field of a big plate runs once, not every frame.
+ * - The live layer holds the blocks that animate or change. A block moves there the first time it
+ *   does. While something moves, only the live layer draws its shapes; at rest it is cached too.
+ *
+ * The loop runs only while a spring moves, a counter counts or a signal fires, and sleeps after.
  */
 
 /** A value a block reads: a plain value, or a signal the block follows. */
@@ -35,7 +40,17 @@ export interface BlockOptions {
     width?: number;
     /** Height. Default 0 (set by the layout through `onSize`). */
     height?: number;
+    /**
+     * Which layer of the surface paints the block. `'auto'` (default) starts in the cached still
+     * layer and moves to the live layer the first time the block animates or changes. `'still'`
+     * stays in the still layer: a change repaints and re-caches that layer, and the block keeps its
+     * place under live blocks. `'live'` starts in the live layer.
+     */
+    layer?: BlockLayer;
 }
+
+/** A layer of a {@link BlockSurface}: see {@link BlockOptions.layer}. */
+export type BlockLayer = 'auto' | 'still' | 'live';
 
 /** Hover and press state of a `pressable` block: springs from 0 to 1. */
 export interface PressState {
@@ -69,6 +84,12 @@ export abstract class Block extends Container {
     w: number;
     /** Height of the slot, design units. The layout sets it. */
     h: number;
+    /** The layer it asked for. See {@link BlockOptions.layer}. */
+    readonly layer: BlockLayer;
+    /** @internal Painted by the live layer. */
+    _live: boolean;
+    /** @internal Changed since the last paint. */
+    _dirty = false;
     private readonly _springs: Spring[] = [];
     private readonly _offs: (() => void)[] = [];
 
@@ -76,6 +97,22 @@ export abstract class Block extends Container {
         super();
         this.w = options.width ?? 0;
         this.h = options.height ?? 0;
+        this.layer = options.layer ?? 'auto';
+        this._live = this.layer === 'live';
+    }
+
+    /** The surface the block is in, or null. */
+    get surface(): BlockSurface | null {
+        let c: Container | null = this.parent;
+
+        while (c && !(c instanceof BlockSurface)) c = c.parent;
+
+        return c;
+    }
+
+    /** Whether its surface uses the cheap look for weak devices (`lowEnd`). */
+    protected get lowEnd(): boolean {
+        return this.surface?.lowEnd ?? silkFrames.lowEnd;
     }
 
     /** Draws the block into `g` with its slot's top-left corner at `(x, y)`, in the surface's space. */
@@ -96,12 +133,13 @@ export abstract class Block extends Container {
         return moving;
     }
 
-    /** Asks the surface for a repaint. The surface repaints until every block settles, then sleeps. */
+    /**
+     * Asks the surface to repaint this block. The surface repaints until every block settles, then
+     * sleeps. The first call moves an `'auto'` block to the live layer.
+     */
     wake(): void {
-        let c: Container | null = this.parent;
-
-        while (c && !(c instanceof BlockSurface)) c = c.parent;
-        c?.wake();
+        this._dirty = true;
+        this.surface?._run();
     }
 
     /**
@@ -127,7 +165,8 @@ export abstract class Block extends Container {
                 this.h = h;
                 this._layoutHit();
                 onSize?.(w, h, child);
-                this.wake();
+                // a new size repaints every layer, without moving the block to the live one
+                this.surface?.wake();
             },
         };
     }
@@ -222,32 +261,49 @@ export abstract class Block extends Container {
 /** Options of a {@link BlockSurface}. */
 export interface BlockSurfaceOptions extends SmartContainerOptions {
     /**
-     * Cache the surface as a texture between changes, so at rest it draws one textured quad and
-     * runs no distance field. Default true. Turn it off for a surface that moves every frame.
+     * Cache each layer as a texture between changes, so at rest the surface draws textured quads
+     * and runs no distance field. Default true. Turn it off for a surface that moves every frame.
      */
     cache?: boolean;
+    /**
+     * The cheap look for weak devices: flat buttons, panels without corner smoothing, and repaints
+     * at most 30 times a second. Default on after `enableLowEnd()` from `pixi-silk`, else off.
+     */
+    lowEnd?: boolean;
+    /**
+     * Most repaints per second while something moves. 0 repaints every frame. Default 30 with
+     * `lowEnd`, else 0.
+     */
+    maxFps?: number;
     /**
      * Device pixels per CSS pixel for the cache. Default the viewport's renderer resolution, else
      * `devicePixelRatio`. The surface multiplies it by its own scale.
      */
     resolution?: number;
-    /** Settings of the painter (dither, AA width, hairlines). */
+    /** Settings of both layers (dither, AA width, hairlines). */
     painter?: SilkGraphicsOptions;
 }
 
 /** What a {@link BlockSurface} has done: for a debug overlay. */
 export interface BlockSurfaceStats {
-    /** Repaints since it was created. */
+    /** Frames that repainted a layer, since it was created. */
     repaints: number;
+    /** Repaints of the still layer. Each one runs the distance field of every still block once. */
+    stillPaints: number;
+    /** Blocks in the live layer. */
+    liveBlocks: number;
     /** True while the repaint loop runs. */
     awake: boolean;
 }
 
 /**
- * A SmartContainer that paints every {@link Block} inside it with one SilkGraphics. While
- * something moves it draws live, shapes and text in one instanced draw. When everything settles
- * it caches itself as a texture and draws one textured quad, with no distance field, until the
- * next change. Either way the surface is one draw call. Lay blocks out with `add(block, block.layout())` or {@link stack}.
+ * A SmartContainer that paints every {@link Block} inside it into two SilkGraphics layers.
+ * Blocks that never change (plates, panels, captions) go into the still layer, which is painted
+ * once and cached as a texture. A block moves to the live layer the first time it animates or
+ * changes (see {@link BlockOptions.layer}). While something moves, only the live layer draws
+ * shapes, in one instanced draw on top of the still texture. At rest both layers are textures.
+ * A block drawn over a live one goes live with it, so the order on screen stays the tree order.
+ * Lay blocks out with `add(block, block.layout())` or {@link stack}.
  *
  * Pass `ticker: app.ticker` so layout, repaint and render run in that order in one frame.
  *
@@ -274,16 +330,23 @@ export interface BlockSurfaceStats {
  * ```
  */
 export class BlockSurface extends SmartContainer {
-    /** The one SilkGraphics every block paints into. */
+    /** The live layer: blocks that animate or change paint here, every frame while they move. */
     readonly painter: SilkGraphics;
+    /** The still layer: blocks that do not change paint here once, then it is a cached texture. */
+    readonly stillPainter: SilkGraphics;
     /** Repaints and loop state. */
-    readonly stats: BlockSurfaceStats = { repaints: 0, awake: false };
+    readonly stats: BlockSurfaceStats = { repaints: 0, stillPaints: 0, liveBlocks: 0, awake: false };
+    /** Whether blocks use their cheap look. See {@link BlockSurfaceOptions.lowEnd}. */
+    readonly lowEnd: boolean;
+    /** Most repaints per second while something moves, 0 for every frame. */
+    maxFps: number;
     private readonly _ticker: Ticker;
     private readonly _cache: boolean;
     private readonly _resolution: number | undefined;
     private readonly _viewport: unknown;
-    private _dirty = true;
-    private _cacheRes = 0;
+    private readonly _layers: { box: Container; g: SilkGraphics; moved: boolean; res: number }[];
+    private _all = true;
+    private _wait = 0;
     private readonly _blocks: Block[] = [];
 
     constructor(options: BlockSurfaceOptions = {}) {
@@ -303,37 +366,54 @@ export class BlockSurface extends SmartContainer {
         this._cache = options.cache ?? true;
         this._resolution = options.resolution;
         this._viewport = options.viewport;
+        this.lowEnd = options.lowEnd ?? silkFrames.lowEnd;
+        this.maxFps = options.maxFps ?? (this.lowEnd ? 30 : 0);
+        this.stillPainter = new SilkGraphics(options.painter);
         this.painter = new SilkGraphics(options.painter);
-        // at the surface's origin, outside the flow
-        this.add(this.painter, { position: 'absolute', left: 0, top: 0, onSize: () => {} });
+        this._layers = [this.stillPainter, this.painter].map((g) => {
+            const box = new Container();
+
+            box.addChild(g);
+            // at the surface's origin, outside the flow
+            this.add(box, { position: 'absolute', left: 0, top: 0, onSize: () => {} });
+
+            return { box, g, moved: false, res: 0 };
+        });
         this.wake();
     }
 
-    /** Asks for a repaint on the next frame. Blocks call it through {@link Block.wake}. */
+    /** Repaints every layer on the next frame. Blocks call {@link Block.wake} instead. */
     wake(): void {
-        this._dirty = true;
+        this._all = true;
+        this._run();
+    }
+
+    /** @internal Starts the loop. */
+    _run(): void {
         if (this.stats.awake || this.destroyed) return;
         this.stats.awake = true;
         // after the layout pass (normal priority), before Pixi renders (low priority)
         this._ticker.add(this._frame, this, UPDATE_PRIORITY.LOW + 1);
     }
 
-    /** Steps every block and repaints now, outside the loop, and bakes the cache. Returns true while a block moves. */
+    /** Steps every block, repaints both layers now, outside the loop, and caches them. Returns true while a block moves. */
     paintNow(dt = 0): boolean {
         const blocks = this._collect();
         let moving = false;
 
         for (const b of blocks) if (b.step(dt)) moving = true;
-        this._paint(blocks);
-        if (this._cache) {
-            this._ensureCache();
-            this.updateCacheTexture();
+        for (let i = 0; i < 2; i++) {
+            this._paint(i, blocks);
+            this._bake(i);
         }
+        for (const b of blocks) b._dirty = false;
+        this._all = false;
+        requestFrame();
 
         return moving;
     }
 
-    /** Stops the loop and drops the cache. Pass `{ children: true }` to destroy the blocks too. */
+    /** Stops the loop and drops the caches. Pass `{ children: true }` to destroy the blocks too. */
     override destroy(options?: Parameters<Container['destroy']>[0]): void {
         this._sleep();
         super.destroy(options);
@@ -346,25 +426,60 @@ export class BlockSurface extends SmartContainer {
     }
 
     private _frame(t: Ticker): void {
-        const dt = Math.min(t.deltaMS / 1000, 0.1);
+        this._wait += Math.min(t.deltaMS / 1000, 0.1);
+        if (this.maxFps > 0 && !this._all && this._wait < 1 / this.maxFps - 1e-4) return;
+        const dt = Math.min(this._wait, 0.1);
+
+        this._wait = 0;
         const blocks = this._collect();
-        let moving = false;
+        // per layer: something to repaint, something still moving
+        const dirty = [this._all, this._all];
+        const moving = [false, false];
+        let promoted = false;
 
-        for (const b of blocks) if (b.step(dt)) moving = true;
-        if (!moving && !this._dirty) {
-            // settled: bake what is on screen, then cost one textured quad until the next change
-            if (this._cache) {
-                this._ensureCache();
-                this.updateCacheTexture();
+        for (const b of blocks) {
+            const m = b.step(dt);
+
+            if (!m && !b._dirty) continue;
+            if (!b._live && b.layer === 'auto') {
+                // first change: it leaves the still layer for good
+                b._live = true;
+                dirty[0] = true;
+                promoted = true;
             }
-            this._sleep();
+            const i = b._live ? 1 : 0;
 
-            return;
+            dirty[i] = true;
+            if (m) moving[i] = true;
         }
-        // moving: draw live (one instanced draw) rather than into the cache and then out of it
-        if (this.isCachedAsTexture) this.cacheAsTexture(false);
-        this._dirty = false;
-        this._paint(blocks);
+        // blocks drawn over a live one go live too, so the order on screen stays the tree order
+        if (promoted) this._cover(blocks);
+        let painted = false;
+
+        for (let i = 0; i < 2; i++) {
+            const layer = this._layers[i];
+
+            if (moving[i]) {
+                // moving: draw live (one instanced draw), not into the cache and out of it
+                this._paint(i, blocks);
+                if (layer.box.isCachedAsTexture) layer.box.cacheAsTexture(false);
+                layer.moved = true;
+                painted = true;
+            } else if (dirty[i] || layer.moved) {
+                // changed, or settled: paint the final state once and cache it
+                this._paint(i, blocks);
+                this._bake(i);
+                layer.moved = false;
+                painted = true;
+            }
+        }
+        for (const b of blocks) b._dirty = false;
+        this._all = false;
+        if (painted) {
+            this.stats.repaints++;
+            requestFrame();
+        }
+        if (!moving[0] && !moving[1]) this._sleep();
     }
 
     /** Every visible block under the surface, in tree order (which is paint order). */
@@ -385,27 +500,65 @@ export class BlockSurface extends SmartContainer {
         return out;
     }
 
-    private _paint(blocks: readonly Block[]): void {
-        const g = this.painter;
+    /** Moves every `'auto'` block that comes after a live block and overlaps it to the live layer. */
+    private _cover(blocks: readonly Block[]): void {
+        const rects = blocks.map((b) => {
+            const [x, y] = this._slotAt(b);
+
+            return [x, y, x + b.w, y + b.h];
+        });
+
+        for (let i = 0; i < blocks.length; i++) {
+            if (!blocks[i]._live) continue;
+            const a = rects[i];
+
+            for (let j = i + 1; j < blocks.length; j++) {
+                const k = blocks[j];
+                const r = rects[j];
+
+                if (k._live || k.layer !== 'auto') continue;
+                if (r[0] < a[2] && a[0] < r[2] && r[1] < a[3] && a[1] < r[3]) k._live = true;
+            }
+        }
+    }
+
+    /** Top-left of a block's slot in the surface's space, from local positions (world transforms may be stale). */
+    private _slotAt(b: Block): [number, number] {
+        let x = 0;
+        let y = 0;
+        let c: Container | null = b;
+
+        while (c && c !== this) {
+            x = c.x + x * c.scale.x;
+            y = c.y + y * c.scale.y;
+            c = c.parent;
+        }
+
+        return [x, y];
+    }
+
+    /** Paints layer `i` (0 still, 1 live) from the blocks that belong to it. */
+    private _paint(i: number, blocks: readonly Block[]): void {
+        const g = this._layers[i].g;
+        const live = i === 1;
+        let n = 0;
 
         g.clear();
         for (const b of blocks) {
-            // origin in the surface's space, from local positions (world transforms may be stale)
-            let x = 0;
-            let y = 0;
-            let c: Container | null = b;
+            if (b._live !== live) continue;
+            n++;
+            const [x, y] = this._slotAt(b);
 
-            while (c && c !== this) {
-                x = c.x + x * c.scale.x;
-                y = c.y + y * c.scale.y;
-                c = c.parent;
-            }
             b.paint(g, x, y);
         }
-        this.stats.repaints++;
+        if (live) this.stats.liveBlocks = n;
+        else this.stats.stillPaints++;
     }
 
-    private _ensureCache(): void {
+    /** Caches layer `i` as a texture at the resolution it shows at, or refreshes its cache. */
+    private _bake(i: number): void {
+        if (!this._cache) return;
+        const layer = this._layers[i];
         const v = this._viewport as { renderer?: { resolution?: number }; resolution?: number } | undefined;
         const base =
             this._resolution ??
@@ -416,11 +569,16 @@ export class BlockSurface extends SmartContainer {
 
         for (let c: Container | null = this; c; c = c.parent) scale *= Math.abs(c.scale.x);
         const res = base * scale;
+        const box = layer.box;
 
-        if (Math.abs(res - this._cacheRes) < 1e-3 && this.isCachedAsTexture) return;
-        this._cacheRes = res;
-        if (this.isCachedAsTexture) this.cacheAsTexture(false);
-        this.cacheAsTexture({ resolution: res, antialias: false });
+        if (box.isCachedAsTexture && Math.abs(res - layer.res) < 1e-3) {
+            box.updateCacheTexture();
+
+            return;
+        }
+        layer.res = res;
+        if (box.isCachedAsTexture) box.cacheAsTexture(false);
+        box.cacheAsTexture({ resolution: res, antialias: false });
     }
 }
 
@@ -497,7 +655,7 @@ export function group(items: readonly StackItem[], style: SmartLayout = {}): Fle
 export interface PanelBlockOptions extends BlockOptions {
     /** Corner radius, design units. Default 24. */
     radius?: number;
-    /** Squircle smoothing, 0 to 1. Default 0.6. */
+    /** Squircle smoothing, 0 to 1. Default 0.6, or 0 on a `lowEnd` surface (it costs more per pixel). */
     smoothing?: number;
     /** Fill. Default a dark grey. */
     fill?: Value<FillInput>;
@@ -518,10 +676,11 @@ export class PanelBlock extends Block {
     paint(g: SilkGraphics, x: number, y: number): void {
         const o = this._o;
         const r = o.radius ?? 24;
-        const s = o.smoothing ?? 0.6;
+        const s = o.smoothing ?? (this.lowEnd ? 0 : 0.6);
 
+        // fill and border on one path: one instance, and the solid inside takes the fast path
         g.roundRect(x, y, this.w, this.h, r, s).fill(read(o.fill ?? 0x1c1f2a));
-        if (o.stroke !== undefined) g.roundRect(x, y, this.w, this.h, r, s).stroke(read(o.stroke));
+        if (o.stroke !== undefined) g.stroke(read(o.stroke));
     }
 }
 
@@ -684,6 +843,12 @@ export interface ButtonBlockOptions extends BlockOptions {
     pressScale?: number;
     /** Soft shadow under the face: blur in design units, 0 for none. Default 0. Free at rest when the surface caches. */
     shadow?: number;
+    /**
+     * The cheap look: the face is one shape with its border, its colour mixed on the CPU from the
+     * base, active, hover and disabled states, and no blurred shadow. A full button stacks up to
+     * six layers over its face while it animates. Default on for a `lowEnd` surface, else off.
+     */
+    flat?: boolean;
 }
 
 /**
@@ -736,11 +901,16 @@ export class ButtonBlock extends Block {
             if (shape === 'circle') return gg.circle(cx, cy, Math.min(w, h) / 2);
             const r = shape === 'pill' ? Math.min(w, h) / 2 : (o.radius ?? 16) * s;
 
-            return gg.roundRect(cx - w / 2, cy - h / 2, w, h, r, 0.6);
+            return gg.roundRect(cx - w / 2, cy - h / 2, w, h, r, this.lowEnd ? 0 : 0.6);
         };
         const a = this._active.value;
         const dim = 1 - 0.55 * this._dim.value;
 
+        if (o.flat ?? this.lowEnd) {
+            this._paintFlat(g, face, cx, cy, Math.min(w, h), s);
+
+            return;
+        }
         if (o.shadow) {
             g.save();
             g.translateTransform(0, o.shadow * 0.4);
@@ -763,6 +933,52 @@ export class ButtonBlock extends Block {
             );
         }
         if (this._dim.value > 0.005) face(g).fill({ color: 0x000000, alpha: 0.4 * this._dim.value });
+    }
+
+    /** The flat look: one face with its border, then the content. */
+    private _paintFlat(
+        g: SilkGraphics,
+        face: (g: SilkGraphics) => SilkGraphics,
+        cx: number,
+        cy: number,
+        size: number,
+        s: number,
+    ): void {
+        const o = this._o;
+        const c = o.colors ?? {};
+        const a = this._active.value;
+        const hover = this._state.hover.value;
+        const dim = this._dim.value;
+        const base = asStyle(c.fill ?? 0x262a38) as { color?: unknown; alpha?: number; gradient?: unknown };
+        const lit = asStyle(c.active ?? 0x0a84ff) as { color?: unknown; alpha?: number; gradient?: unknown };
+        const mixable =
+            !base.gradient && !lit.gradient && typeof base.color === 'number' && typeof lit.color === 'number';
+        let fill: object;
+
+        if (mixable) {
+            let col = mixColor(base.color as number, lit.color as number, a);
+
+            col = mixColor(col, 0xffffff, 0.1 * hover);
+            col = mixColor(col, 0x000000, 0.4 * dim);
+            fill = { color: col, alpha: (base.alpha ?? 1) + ((lit.alpha ?? 1) - (base.alpha ?? 1)) * a };
+        } else {
+            // gradients do not mix: switch half way
+            fill = a > 0.5 ? lit : base;
+        }
+        face(g)
+            .fill(fill as FillInput)
+            .stroke({ width: 1.5, color: 0xffffff, alpha: 0.1 + 0.15 * hover, alignment: 'inside' });
+        let content = mixColor(c.content ?? 0xffffff, c.contentActive ?? c.content ?? 0xffffff, a);
+
+        content = mixColor(content, 0x000000, 0.45 * dim);
+        if (o.icon) o.icon(g, cx, cy, size * 0.42, a, content);
+        if (o.label !== undefined) {
+            const style = { fontSize: 20, fontWeight: 700, ...o.labelStyle };
+
+            drawText(g, read(o.label), cx, cy, { ...style, fontSize: (style.fontSize ?? 20) * s, anchor: 0.5 }).fill(
+                content,
+            );
+        }
     }
 }
 

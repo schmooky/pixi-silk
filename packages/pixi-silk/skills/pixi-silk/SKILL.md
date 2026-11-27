@@ -56,7 +56,7 @@ Import each from its own path. The root import does not re-export the others.
 
 | Import | What it holds |
 |---|---|
-| `pixi-silk` | SilkGraphics, createSilkApp, gradients, colour and curve helpers, motion helpers (`damp`, `Spring`, `ease`), `enableSilkBatching`. |
+| `pixi-silk` | SilkGraphics, createSilkApp, gradients, colour and curve helpers, motion helpers (`damp`, `Spring`, `ease`), `enableSilkBatching`, `renderOnDemand`, `enableLowEnd`. |
 | `pixi-silk/webgpu` | `enableWebGPU` for your own WebGPU Application. |
 | `pixi-silk/webgl1` | `enableWebGL1`, opt-in shaders for Pixi's WebGL1 fallback. |
 | `pixi-silk/glass` | `Glass`, a frosted pane. |
@@ -74,7 +74,7 @@ Import each from its own path. The root import does not re-export the others.
 | `pixi-silk/ui/button` | `SilkButton`. |
 | `pixi-silk/ui/radial` | `RadialMenu`, `bindRadialTrigger`. |
 | `pixi-silk/ui/dock` | `ButtonDock`. |
-| `pixi-silk/ui/blocks` | `BlockSurface`, `Block`, `ButtonBlock`, `CounterBlock`, `TextBlock`, `PanelBlock`, `stack`, `group`: one-draw-call UI. |
+| `pixi-silk/ui/blocks` | `BlockSurface`, `Block`, `ButtonBlock`, `CounterBlock`, `TextBlock`, `PanelBlock`, `stack`, `group`: UI in a cached still layer and a live layer. |
 | `pixi-silk/ui/pill` | `ValuePill`. |
 | `pixi-silk/ui/odometer` | `Odometer`. |
 | `pixi-silk/ui/dial` | `JogDial`, `Scrubber`. |
