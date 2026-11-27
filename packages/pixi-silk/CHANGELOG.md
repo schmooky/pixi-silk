@@ -1,5 +1,24 @@
 # pixi-silk
 
+## 1.4.0
+
+### Minor Changes
+
+- [#24](https://github.com/schmooky/pixi-silk/pull/24) [`3d6f5ed`](https://github.com/schmooky/pixi-silk/commit/3d6f5ed3653d9d2822fe47e5105b0f3a6675203b) Thanks [@igaming-bulochka](https://github.com/igaming-bulochka)! - Text and shapes in one draw call, and UI built from blocks.
+  
+  - `SilkGraphics.glyph()` and `Prim.Glyph`: a glyph cell of the text atlas is a closed shape. Fill, stroke, blur, gradients, shape operations and hit testing work on it like on any shape, on WebGL2, WebGPU and WebGL1.
+  - `drawText()` and `measureText()` in `pixi-silk/text`: lay out a string and add its glyphs to a SilkGraphics. The text draws in the call of the shapes around it and batches with other objects. Layouts of recent strings are cached.
+  - `pixi-silk/ui/blocks`: `BlockSurface`, `Block`, `ButtonBlock`, `CounterBlock`, `TextBlock`, `PanelBlock`, `stack` and `group`. Blocks are flex slots that paint into the surface and follow signals. The surface caches what does not move, and its loop sleeps when nothing moves.
+
+- [#24](https://github.com/schmooky/pixi-silk/pull/24) [`3d6f5ed`](https://github.com/schmooky/pixi-silk/commit/3d6f5ed3653d9d2822fe47e5105b0f3a6675203b) Thanks [@igaming-bulochka](https://github.com/igaming-bulochka)! - Cheaper GPU frames for UI.
+  
+  - `BlockSurface` paints into two layers. Blocks that do not change stay in a still layer, painted once and cached. A block moves to the live layer the first time it animates or changes, and only that layer draws while something moves. A win count-up in the slot HUD lab went from 1364 to 110 microseconds of GPU time per frame. `BlockOptions.layer` sets the layer by hand, and `stats` counts `stillPaints` and `liveBlocks`.
+  - `ButtonBlock` takes `flat: true`: one face with its border, colours mixed on the CPU, no blurred shadow.
+  - The shader returns the fill at once inside solid rectangles, rounded rectangles and ellipses, away from the edge and the stroke. Big panels cost 20 to 45 percent less.
+  - `renderOnDemand(app)` renders only frames that something asked for. `requestFrame()` asks, and `BlockSurface` calls it when it paints.
+  - `enableLowEnd(app)` caps the resolution at 1.5, renders on demand, and gives blocks their cheap look: flat buttons, no corner smoothing, 30 repaints a second. It is turned on by hand and does not guess the device.
+  - A SilkGraphics redraw, a `pixi-silk/ui` widget step and input on the canvas ask for a frame on their own, so they keep showing under `renderOnDemand`.
+
 ## 1.3.0
 
 ### Minor Changes
