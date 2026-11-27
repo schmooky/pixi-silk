@@ -200,6 +200,10 @@
       "types": "./dist/layout.d.ts",
       "default": "./dist/layout.js"
     },
+    "./ui/blocks": {
+      "types": "./dist/ui/blocks.d.ts",
+      "default": "./dist/ui/blocks.js"
+    },
     "./ui/layout": {
       "types": "./dist/ui/layout.d.ts",
       "default": "./dist/ui/layout.js"

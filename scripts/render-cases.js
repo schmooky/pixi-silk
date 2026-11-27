@@ -9,7 +9,7 @@ import { Silk, SilkMessage, SilkMessageLayer } from '/packages/pixi-silk/dist/i1
 import { enableSilkBatching, linear, radial, SilkGraphics } from '/packages/pixi-silk/dist/index.js';
 import { silkGl1 } from '/packages/pixi-silk/dist/shader-slot.js';
 import { pathStrokeDist } from '/packages/pixi-silk/dist/stroke.js';
-import { SilkText } from '/packages/pixi-silk/dist/text.js';
+import { drawText, SilkText } from '/packages/pixi-silk/dist/text.js';
 import { enableWebGL1 } from '/packages/pixi-silk/dist/webgl1.js';
 import { enableWebGPU } from '/packages/pixi-silk/dist/webgpu.js';
 import { Application, Container, RenderTexture } from '/packages/pixi-silk/node_modules/pixi.js/dist/pixi.mjs';
@@ -565,6 +565,51 @@ const cases = {
         root.addChild(emoji, justified, cut);
 
         return { scene: root, kind: 'none' };
+    },
+    // text as SilkGraphics glyphs (Prim.Glyph, drawText): outline pass then fill, a blurred shadow,
+    // a gradient, rotation and 9 px text with the four-tap path (compared between renderers)
+    'glyph-paint': () => {
+        const g = new SilkGraphics();
+        const big = { fontSize: 40, fontWeight: 800 };
+
+        g.roundRect(4, 4, 248, 248, 20).fill(0x1c2030);
+        g.save();
+        g.translateTransform(2, 3);
+        drawText(g, 'Win 1,234', 14, 16, big).fill({ color: 0x000000, alpha: 0.7, blur: 3 });
+        g.restore();
+        drawText(g, 'Win 1,234', 14, 16, big).stroke({ width: 4, color: 0x3a1d00, alignment: 'outside' });
+        drawText(g, 'Win 1,234', 14, 16, big).fill(linear([0xffe08a, 0xff9f1c], { from: [0, 0], to: [0, 1] }));
+        g.save();
+        g.translateTransform(128, 150);
+        g.rotateTransform(-0.3);
+        drawText(g, 'ROTATED', 0, 0, { fontSize: 28, fontWeight: 700, anchor: 0.5 }).fill(0x5ac8fa);
+        g.restore();
+        drawText(g, 'nine pixel text, four taps per pixel', 12, 220, { fontSize: 9 }).fill(0xffffff);
+
+        return { scene: g, kind: 'none' };
+    },
+    // glyphs and shapes of several objects in one batched draw: same pixels as unbatched
+    'glyph-batch': () => {
+        const make = (batch) => {
+            const root = new Container();
+
+            for (let i = 0; i < 3; i++) {
+                const g = new SilkGraphics({ batch });
+
+                g.roundRect(8, 8 + i * 80, 240, 68, 18).fill(0x262a38);
+                drawText(g, `BALANCE ${i}`, 24, 24 + i * 80, { fontSize: 14, fontWeight: 700 }).fill(0x8e93a6);
+                drawText(g, `$${(1234.5 * (i + 1)).toFixed(2)}`, 24, 42 + i * 80, {
+                    fontSize: 26,
+                    fontWeight: 700,
+                    tabularNumbers: true,
+                }).fill(0xffffff);
+                root.addChild(g);
+            }
+
+            return root;
+        };
+
+        return { scene: make(true), kind: 'same', ref: make(false), tolerance: 0, counts: true };
     },
 };
 

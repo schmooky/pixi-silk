@@ -1,4 +1,4 @@
-import type { Geometry, GlProgram, GpuProgram, Shader } from 'pixi.js';
+import type { Geometry, GlProgram, GpuProgram, Shader, TextureSource } from 'pixi.js';
 
 /**
  * @internal Where the WebGPU program of the uber shader goes once `pixi-silk/webgpu` installs it.
@@ -42,3 +42,30 @@ export interface SilkGl1 {
 
 /** @internal Set by `enableWebGL1()` from `pixi-silk/webgl1`. */
 export const silkGl1: { hooks: SilkGl1 | null } = { hooks: null };
+
+/**
+ * @internal The glyph texture the uber shader samples for `Prim.Glyph`: the text atlas that
+ * `pixi-silk/text` draws glyphs from. The core never imports the text module. The text module sets
+ * the source with {@link setGlyphSource}, and again each time the atlas moves to a bigger texture.
+ * `shaders` holds the unbatched SilkGraphics that drew a glyph, so they follow that move. Batches
+ * read `source` when they draw.
+ */
+export const silkGlyphs: { source: TextureSource | null; readonly shaders: Set<Shader> } = {
+    source: null,
+    shaders: new Set(),
+};
+
+/** @internal Points a uber shader at the glyph texture `source`, when it is not already. */
+export function bindGlyphs(shader: Shader, source: TextureSource): void {
+    if (shader.resources.uGlyphs === source) return;
+    shader.resources.uGlyphs = source;
+    shader.resources.uGlyphsSampler = source.style;
+    silkGl1.hooks?.syncSizes(shader);
+}
+
+/** @internal Sets the glyph texture and repoints every shader that drew a glyph. */
+export function setGlyphSource(source: TextureSource): void {
+    if (silkGlyphs.source === source) return;
+    silkGlyphs.source = source;
+    for (const shader of silkGlyphs.shaders) bindGlyphs(shader, source);
+}

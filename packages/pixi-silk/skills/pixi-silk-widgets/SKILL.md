@@ -85,6 +85,33 @@ total.skip(); // straight to the end
 app.stage.addChild(dock, total, zoom);
 ```
 
+### One-draw-call UI with blocks
+
+`pixi-silk/ui/blocks` paints every block of a `BlockSurface` (shapes and text) into one SilkGraphics. It draws live while something moves and as one cached texture at rest. Blocks read signals and repaint when they change.
+
+```ts
+import { signal } from 'pixi-silk/signal';
+import { BlockSurface, ButtonBlock, CounterBlock, PanelBlock, stack } from 'pixi-silk/ui/blocks';
+
+const coins = signal(0);
+const bar = new BlockSurface({
+    viewport: app,
+    ticker: app.ticker,
+    layout: { direction: 'row', alignItems: 'center', gap: 24, padding: [0, 32] },
+    landscapeData: { valign: 'bottom', width: 1920, height: 160, extendWidth: true },
+});
+const plate = new PanelBlock({ radius: 32, fill: 0x14161f });
+
+bar.add(plate, plate.layout({ position: 'absolute', inset: 0 }));
+stack(bar, [
+    new CounterBlock({ value: coins, width: 200, height: 48, style: { fontSize: 36, fontWeight: 700 } }),
+    new ButtonBlock({ width: 120, height: 120, shape: 'circle', label: '+10', onPress: () => (coins.value += 10) }),
+]);
+app.stage.addChild(bar);
+```
+
+A custom block extends `Block` and implements `paint(g, x, y)`, drawing at the slot's top-left corner with the size in `w` and `h`. It animates with `this.spring()`, follows signals with `this.watch()` and takes input with `this.pressable()`.
+
 ### Widgets without a ticker
 
 ```ts
@@ -122,6 +149,14 @@ Symptom: subscribers never fire. A signal compares with `Object.is`, so `items.v
 ### [HIGH] `ticker: null` without calling `tick(dt)`
 
 Symptom: the widget freezes mid-animation. With `ticker: null` you drive it: call `widget.tick(dt)` every frame, with `dt` in seconds.
+
+### [HIGH] A block added with `add(block)` and no style
+
+Symptom: the block sits at the wrong place or paints at size 0. A block is an empty Container, so the layout measures it as 0 by 0. Add it with `container.add(block, block.layout())`, or with `stack(container, [block])`.
+
+### [MEDIUM] A BlockSurface without `ticker: app.ticker`
+
+Symptom: changes show one frame late. The surface repaints on the shared ticker while the app renders on its own. Pass the application's ticker so layout, repaint and render run in order.
 
 ### [MEDIUM] A radial menu without `bounds`
 

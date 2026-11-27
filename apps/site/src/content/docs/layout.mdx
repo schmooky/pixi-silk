@@ -4,7 +4,7 @@ seoTitle: 'Responsive containers and flexbox layout for PixiJS'
 description: 'Place blocks on portrait and landscape screens with SmartContainer records and breakpoints, then lay out what is inside them with flexbox. pixi-silk/ui/layout.'
 keywords: ['PixiJS layout', 'responsive container', 'reference resolution', 'responsive canvas UI', 'flexbox', 'safe area']
 updated: 2026-11-08
-api: [SmartContainer, FlexContainer, layoutDebug, simulateViewport, placeBox]
+api: [SmartContainer, FlexContainer, layoutDebug, simulateViewport, placeBox, BlockSurface, Block, stack, group]
 ---
 
 `SmartContainer` places a whole block on the screen, such as a corner readout, the main view or a
@@ -235,6 +235,70 @@ blue, padding in green, gaps in pink and real bounds in white, or red when a chi
 `simulateViewport` shows a device window inside a desktop page, scaled to fit and letterboxed.
 Pass it as the `viewport` of your SmartContainers and add them to its `content`. `DEVICES` lists
 the preset sizes, and a `[width, height]` pair works too.
+
+## UI in one draw call with blocks
+
+`pixi-silk/ui/blocks` builds interfaces such as a game HUD that cost one draw call. A
+`BlockSurface` is a SmartContainer with one `SilkGraphics`, its painter. Blocks are flex slots
+that take input and paint themselves into the painter, text included (with `drawText`). While
+something moves, the surface draws live in one instanced draw. When everything settles it caches
+itself as a texture, and draws one textured quad until the next change.
+
+Blocks connect to state through signals. A `Value` is a plain value or a signal, and a block
+repaints when a signal it reads changes.
+
+```ts
+import { computed, signal } from 'pixi-silk/signal';
+import { BlockSurface, ButtonBlock, CounterBlock, group, PanelBlock, stack, TextBlock } from 'pixi-silk/ui/blocks';
+
+const coins = signal(1000);
+const busy = signal(false);
+const bar = new BlockSurface({
+    viewport: app,
+    ticker: app.ticker,
+    layout: { direction: 'row', alignItems: 'center', gap: 24, padding: [0, 40] },
+    landscapeData: { valign: 'bottom', width: 1920, height: 200, extendWidth: true },
+    portraitData: { valign: 'bottom', width: 1080, height: 240, extendWidth: true },
+});
+const plate = new PanelBlock({ radius: 36, fill: 0x10131c });
+
+bar.add(plate, plate.layout({ position: 'absolute', inset: 0 }));
+stack(bar, [
+    group(
+        [
+            new TextBlock({ text: 'BALANCE', style: { fontSize: 18, fontWeight: 700 }, fill: 0x8e93a6 }),
+            new CounterBlock({ value: coins, width: 220, height: 44, style: { fontSize: 36, fontWeight: 700 } }),
+        ],
+        { direction: 'column', grow: 1 },
+    ),
+    new ButtonBlock({
+        width: 160,
+        height: 160,
+        shape: 'circle',
+        label: computed([busy], () => (busy.value ? 'STOP' : 'SPIN')),
+        active: busy,
+        shadow: 12,
+        onPress: () => {
+            busy.value = !busy.value;
+            if (!busy.value) coins.value += 25;
+        },
+    }),
+]);
+app.stage.addChild(bar);
+```
+
+`stack` adds items to a container: a block takes its own size through `block.layout()`. `group`
+makes a row or a column of items. Give a block an absolute style with `inset: 0` to stretch it
+behind its group, as the plate above.
+
+For a block of your own, extend `Block` and implement `paint(g, x, y)`. Draw at `(x, y)`, the
+top-left corner of the slot, with the size in `w` and `h`. Animate with `this.spring()`, follow
+signals with `this.watch()`, and take input with `this.pressable()`. The surface steps the springs
+and sleeps when they settle.
+
+Pass `ticker: app.ticker` so the layout, the repaint and the render run in that order in each
+frame. The [slot HUD lab](/lab/36-slot-hud/) is a full example: balance, win, bet, spin, turbo,
+autoplay and sound, driven by a game that only listens for intents.
 
 ## Where it stops
 

@@ -93,16 +93,19 @@ describe('WGSL port of the uber program', () => {
             '2/1 uGradients',
             '2/2 uPolys',
             '2/3 uBatch',
+            '2/4 uGlyphs',
+            '2/5 uGlyphsSampler',
         ]);
         expect(program.autoAssignGlobalUniforms).toBe(true);
         expect(program.autoAssignLocalUniforms).toBe(true);
-        // RGBA32F is not filterable on WebGPU without an optional feature
+        // RGBA32F is not filterable on WebGPU without an optional feature; the glyph atlas is R8 and filtered
         const textures = program.gpuLayout[2].filter((e) => e.texture);
 
         expect(textures.map((e) => e.texture?.sampleType)).toEqual([
             'unfilterable-float',
             'unfilterable-float',
             'unfilterable-float',
+            'float',
         ]);
         // the uniform names match the GLSL ones
         for (const name of [...strip(glsl).matchAll(/uniform (?:mat3|vec\d) (\w+);/g)].map((m) => m[1])) {
@@ -155,7 +158,7 @@ describe('WebGPU installation', () => {
         expect(shader.glProgram).toBe(before.glProgram);
         // no resource falls into Pixi's catch-all group 99: all of them have a WGSL binding
         expect(Object.keys(shader.groups)).toEqual(['2']);
-        expect(Object.keys(shader.groups[2].resources)).toEqual(['0', '1', '2', '3']);
+        expect(Object.keys(shader.groups[2].resources)).toEqual(['0', '1', '2', '3', '4', '5']);
 
         // a SilkGraphics made now carries both programs and still finds its uniforms
         const g = new SilkGraphics().circle(0, 0, 10).fill(0xffffff);

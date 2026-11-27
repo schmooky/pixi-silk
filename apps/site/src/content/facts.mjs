@@ -92,6 +92,11 @@ export const ENTRY_POINTS = {
         area: 'widgets',
         description: 'ButtonDock: a row or column of SilkButtons that closes the gap when one hides.',
     },
+    './ui/blocks': {
+        area: 'widgets',
+        description:
+            'BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group: UI that paints shapes and text into one SilkGraphics and caches itself, one draw call at rest and while it moves.',
+    },
     './ui/pill': {
         area: 'widgets',
         description: 'ValuePill: a small rounded label for live readouts (angles, sizes, distances).',

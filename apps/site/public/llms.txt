@@ -68,6 +68,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/arc`](https://pixi-silk.schmooky.dev/api/ui/arc.md) | UI widgets | Angle maths for ring widgets: angleDelta, wrapAngle, snapTo, rubberBand. |
 | [`pixi-silk/ui/keys`](https://pixi-silk.schmooky.dev/api/ui/keys.md) | UI widgets | Shared keyboard state: isKeyDown, modifier checks, onKey, isTypingTarget. |
 | [`pixi-silk/ui/pill`](https://pixi-silk.schmooky.dev/api/ui/pill.md) | UI widgets | ValuePill: a small rounded label for live readouts (angles, sizes, distances). |
+| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group: UI that paints shapes and text into one SilkGraphics and caches itself, one draw call at rest and while it moves. |
 | [`pixi-silk/ui`](https://pixi-silk.schmooky.dev/api/ui.md) | UI widgets | Every widget and editor tool in one import. The per-widget subpaths ship less code. |
 | [`pixi-silk/selection`](https://pixi-silk.schmooky.dev/api/selection.md) | Editor kit | Selection store and bindOutline, bindGizmo, bindMeasure. |
 | [`pixi-silk/history`](https://pixi-silk.schmooky.dev/api/history.md) | Editor kit | History (undo and redo), recordSignals, recordGizmo, bindHistoryKeys. |

@@ -75,7 +75,7 @@ describe('GLSL ES 1.00 conversion', () => {
         expect(varyings(s.vertex.source)).toEqual(['vPos', 'vIndex', 'vProg']);
         expect(attributes(s.vertex.source).length).toBeLessThanOrEqual(8);
         expect(attributes(s.vertex.source)).toContain('aIndex');
-        expect(s.fragment.sized.sort()).toEqual(['uGradients', 'uInstances', 'uPolys']);
+        expect(s.fragment.sized.sort()).toEqual(['uGlyphs', 'uGradients', 'uInstances', 'uPolys']);
         // every instance attribute but the bounds is read back in the fragment stage
         for (const [i, a] of INSTANCE_ATTRIBUTES.entries()) {
             if (a !== 'aBounds') expect(s.fragment.source).toContain(`v${a.slice(1)} = instanceTexel(${i});`);

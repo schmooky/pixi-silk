@@ -19,7 +19,7 @@ import {
 import { POLY_WIDTH, STRIDE } from './constants';
 import { SilkGeometry, SilkGraphics } from './SilkGraphics';
 import { createSilkShader } from './shader';
-import { silkGl1, silkGpu } from './shader-slot';
+import { bindGlyphs, silkGl1, silkGlyphs, silkGpu } from './shader-slot';
 
 /*
  * Batching across objects. Consecutive SilkGraphics with the same blend mode and settings render
@@ -375,6 +375,9 @@ export class SilkPipe implements RenderPipe<SilkGraphics> {
         }
         const shader = b.shader;
         const silk = (shader.resources.silkUniforms as UniformGroup).uniforms.uSilk as Float32Array;
+
+        // text atlas for glyph instances (it moves to a bigger texture as it fills)
+        if (silkGlyphs.source) bindGlyphs(shader, silkGlyphs.source);
 
         if (!sameSettings(silk, b.settings)) {
             silk.set(b.settings);

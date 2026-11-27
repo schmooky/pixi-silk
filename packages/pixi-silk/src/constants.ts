@@ -47,6 +47,12 @@ export const Prim = {
     Path: 10,
     /** Union of closed shapes: `aShape0.xy` = first record texel and record count (4 texels each). */
     Union: 11,
+    /**
+     * Glyph: a closed shape whose distance comes from the text atlas (`uGlyphs`). `aShape0` = centre
+     * and half size of its cell, `aShape1` = the cell in atlas texels, `aShape2` = field radius
+     * (texels), cutoff, 0, rotation.
+     */
+    Glyph: 12,
 } as const;
 export type Prim = (typeof Prim)[keyof typeof Prim];
 

@@ -80,3 +80,10 @@ Cap the resolution of large canvases with `createSilkApp({ maxResolution: 2 })`.
 with the square of the resolution.
 
 Stop redrawing when nothing moves. Check `Spring.settled`, or redraw only when the data changes.
+
+Draw labels with `drawText` into the `SilkGraphics` they sit on. Each `SilkText` is a draw call
+of its own, while glyphs drawn with `drawText` share the call of the shapes around them.
+
+For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It repaints only while
+something moves and draws one cached texture at rest, so an idle interface runs no distance field
+at all. See [UI in one draw call with blocks](/docs/layout/#ui-in-one-draw-call-with-blocks).

@@ -106,7 +106,7 @@ export const DOCS_AREAS = [
             'Ready-made widgets for canvas interfaces, each under its own pixi-silk/ui entry point.',
             'Layout places them on portrait and landscape screens. Interaction and motion cover hit testing, springs and the odometer.',
         ],
-        items: ['radial-menus-and-buttons', 'layout', 'interaction-and-motion'],
+        items: ['radial-menus-and-buttons', { page: 'layout', lab: ['36-slot-hud'] }, 'interaction-and-motion'],
         aliases: ['game-ui', 'building-ui'],
     },
     {

@@ -36,7 +36,7 @@ import { Gradient, type ShapeFrame } from './gradient';
 import { hitTest } from './hit';
 import { drawPath, parseSvgPath } from './path';
 import { createSilkShader } from './shader';
-import { silkGl1 } from './shader-slot';
+import { bindGlyphs, silkGl1, silkGlyphs } from './shader-slot';
 import { joinPolygon, type NearWindow, nearWindows, type StrokeWindow } from './stroke';
 
 // ---------------------------------------------------------------------------------------------
@@ -235,6 +235,18 @@ type Shape = { k: number } & (
           ri: number;
       }
     | { kind: 'triangle'; pts: number[]; corner: number }
+    | {
+          kind: 'glyph';
+          cx: number;
+          cy: number;
+          hw: number;
+          hh: number;
+          /** The cell in atlas texels: x0, y0, x1, y1. */
+          cell: [number, number, number, number];
+          radius: number;
+          cutoff: number;
+          rot: number;
+      }
     | { kind: 'boolean'; op: number; a: Shape[]; b: Shape[] }
 );
 
@@ -332,7 +344,7 @@ interface StrokeCtx {
     gradFlags: number;
 }
 
-const CLOSED_KINDS = new Set(['rect', 'ellipse', 'sector', 'heart', 'star', 'triangle']);
+const CLOSED_KINDS = new Set(['rect', 'ellipse', 'sector', 'heart', 'star', 'triangle', 'glyph']);
 const FILL_KEYS = [
     'color',
     'alpha',
@@ -908,6 +920,52 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         return this.roundRect(x, y, w, h, Math.min(Math.abs(w), Math.abs(h)) / 2);
     }
 
+    /**
+     * One glyph cell of the text atlas as a closed shape. Fill, stroke (an outline), blur (a
+     * shadow), gradients and shape operations work on it like on any other shape, and it draws in
+     * the same call as the rest of the object. You rarely call it yourself: `drawText` from
+     * `pixi-silk/text` lays out a string and calls it once per glyph.
+     *
+     * The distance field reaches about a quarter of the font size past the ink, so wider strokes,
+     * spreads and blurs are cut there.
+     *
+     * `(x, y, w, h)` is the glyph's cell in local units. `cell` is the same cell in atlas texels,
+     * `[x0, y0, x1, y1]`. `radius` and `cutoff` are those of the atlas (`SdfAtlas.radius` and
+     * `SdfAtlas.cutoff`).
+     */
+    glyph(
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        cell: readonly [number, number, number, number],
+        radius: number,
+        cutoff: number,
+    ): this {
+        const source = silkGlyphs.source;
+
+        // the atlas is set by the text module before it places a glyph
+        if (source && this.shader && !silkGlyphs.shaders.has(this.shader)) {
+            silkGlyphs.shaders.add(this.shader);
+            bindGlyphs(this.shader, source);
+        }
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+
+        return this._begin({
+            kind: 'glyph',
+            cx: this._x(cx, cy),
+            cy: this._y(cx, cy),
+            hw: (w / 2) * Math.hypot(this._m.a, this._m.b),
+            hh: (h / 2) * Math.hypot(this._m.c, this._m.d),
+            cell: [cell[0], cell[1], cell[2], cell[3]],
+            radius,
+            cutoff,
+            rot: this._rot,
+            k: this._k,
+        });
+    }
+
     /** Circle centred on (x, y). A negative radius counts as positive. */
     circle(x: number, y: number, radius: number): this {
         return this.ellipse(x, y, radius, radius);
@@ -1449,7 +1507,10 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
         super.destroy(options);
         geometry.destroy(true);
-        if (shader) silkGl1.hooks?.release(shader);
+        if (shader) {
+            silkGl1.hooks?.release(shader);
+            silkGlyphs.shaders.delete(shader);
+        }
         shader?.destroy();
         this._polySource.destroy();
     }
@@ -1596,7 +1657,8 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
         const b = this._box;
 
         switch (shape.kind) {
-            case 'rect': {
+            case 'rect':
+            case 'glyph': {
                 const c = Math.abs(Math.cos(shape.rot));
                 const sn = Math.abs(Math.sin(shape.rot));
                 const ex = shape.hw * c + shape.hh * sn;
@@ -1783,6 +1845,12 @@ export class SilkGraphics extends Mesh<SilkGeometry, Shader> {
 
                 return Prim.Poly;
             }
+            case 'glyph':
+                set(0, shape.cx, shape.cy, shape.hw, shape.hh);
+                set(4, shape.cell[0], shape.cell[1], shape.cell[2], shape.cell[3]);
+                set(8, shape.radius, shape.cutoff, 0, shape.rot);
+
+                return Prim.Glyph;
             default:
                 return -1;
         }

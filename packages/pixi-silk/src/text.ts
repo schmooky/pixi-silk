@@ -23,6 +23,7 @@ export {
     visualOrder,
 } from './text/bidi';
 export { type Cluster, clusters, type WordBreak } from './text/cluster';
+export { type DrawTextStyle, drawText, measureText, type TextMetrics } from './text/draw';
 export { sdfFromAlpha } from './text/edt';
 export { silkLabel, silkRichLabel } from './text/label';
 export {

@@ -157,6 +157,11 @@ export const LAB_SECTIONS = [
                 'Dashboard',
                 'Thirty live widgets in a masonry layout. Scroll to see the frame-rate independent smoothing.',
             ],
+            [
+                '36-slot-hud',
+                'Slot HUD in one draw call',
+                'A slot machine bar laid out with SmartContainer and FlexContainer, painted by one SilkGraphics and cached as one texture.',
+            ],
         ],
     ],
 ];

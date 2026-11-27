@@ -74,6 +74,7 @@ Import each from its own path. The root import does not re-export the others.
 | `pixi-silk/ui/button` | `SilkButton`. |
 | `pixi-silk/ui/radial` | `RadialMenu`, `bindRadialTrigger`. |
 | `pixi-silk/ui/dock` | `ButtonDock`. |
+| `pixi-silk/ui/blocks` | `BlockSurface`, `Block`, `ButtonBlock`, `CounterBlock`, `TextBlock`, `PanelBlock`, `stack`, `group`: one-draw-call UI. |
 | `pixi-silk/ui/pill` | `ValuePill`. |
 | `pixi-silk/ui/odometer` | `Odometer`. |
 | `pixi-silk/ui/dial` | `JogDial`, `Scrubber`. |

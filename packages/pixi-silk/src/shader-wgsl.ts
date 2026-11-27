@@ -7,7 +7,7 @@ import { GpuProgram } from 'pixi.js';
  * Bindings (Pixi's mesh layout):
  *   group 0  globalUniforms  (set by the renderer)
  *   group 1  localUniforms   (set by the mesh pipe)
- *   group 2  silkUniforms, uGradients, uPolys, uBatch (the SilkGraphics' own resources)
+ *   group 2  silkUniforms, uGradients, uPolys, uBatch, uGlyphs (the SilkGraphics' own resources)
  *
  * Differences from GLSL that are forced by WGSL:
  *   - GLSL `mod` floors, WGSL `%` truncates: `fmod` below is the GLSL one.
@@ -47,6 +47,9 @@ struct SilkUniforms {
 @group(2) @binding(2) var uPolys: texture_2d<f32>;
 // batched draws: 3 texels per object (a, b, c, d), (tx, ty, path texel base, 0), premultiplied tint
 @group(2) @binding(3) var uBatch: texture_2d<f32>;
+// glyph distance fields (Prim.Glyph): the text atlas, one channel, filtered
+@group(2) @binding(4) var uGlyphs: texture_2d<f32>;
+@group(2) @binding(5) var uGlyphsSampler: sampler;
 
 struct VSOut {
     @builtin(position) position: vec4<f32>,
@@ -211,6 +214,9 @@ var<private> gAlign: f32;
 var<private> gBase: i32; // first path texel of this object in uPolys (non-zero in batched draws)
 // width of uPolys, read once in fs_main rather than for every texel, as in the GLSL twin
 var<private> gPolysW: i32;
+// position derivatives, for the glyph taps of small text
+var<private> gDdx: vec2<f32>;
+var<private> gDdy: vec2<f32>;
 
 fn polyTexel(i0: i32) -> vec4<f32> {
     let i = i0 + gBase;
@@ -719,6 +725,58 @@ fn gradientColor(p: vec2<f32>, u: f32, L: f32, kind: i32) -> vec4<f32> {
 // Signed distance of a closed shape (rect, ellipse, sector, heart, star, triangle, path fill) at p,
 // with its parameters in s0, s1, s2. Sets gFillScale, and gU / gL (position and length along the
 // outline, for dashes and path gradients).
+// Signed distance in local units at texel t of the glyph atlas, clamped to the glyph's cell.
+// s2.x is the field radius in texels and s2.y the cutoff, as in the text shader.
+fn glyphField(t0: vec2<f32>, cell: vec4<f32>, s2: vec4<f32>, inv: vec2<f32>) -> f32 {
+    let t = clamp(t0, cell.xy + 0.5, cell.zw - 0.5);
+    let r = textureSampleLevel(uGlyphs, uGlyphsSampler, t * inv, 0.0).r;
+
+    return (1.0 - s2.y - r) * s2.x;
+}
+
+// Glyph (Prim.Glyph): s0 centre and half size of the cell, s1 the cell in atlas texels, s2 radius,
+// cutoff, 0, rotation. The field reaches about a quarter of the font size past the ink: wider
+// outlines and blurs are cut there.
+fn sdGlyph(p: vec2<f32>, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>, px: f32) -> f32 {
+    let inv = 1.0 / vec2<f32>(textureDimensions(uGlyphs, 0));
+    var q = p - s0.xy;
+    if (s2.w != 0.0) {
+        q = rotate(q, -s2.w);
+    }
+    let span = s1.zw - s1.xy;
+    let tpl = span / max(2.0 * s0.zw, vec2<f32>(1e-6)); // texels per local unit
+    let k = 1.0 / max(tpl.x, 1e-6); // local units per texel
+    let t = s1.xy + (q + s0.zw) * tpl;
+    if (px <= k) {
+        return glyphField(t, s1, s2, inv) * k;
+    }
+    // a pixel spans several texels: four rotated-grid taps, averaged as coverage. Where they all
+    // agree (far from the edge) the mean distance is kept, so blur and outlines still see it.
+    let ax = rotate(gDdx, -s2.w) * tpl;
+    let ay = rotate(gDdy, -s2.w) * tpl;
+    var c = 0.0;
+    var dm = 0.0;
+    for (var i = 0; i < 4; i++) {
+        var o = vec2<f32>(-0.125, -0.375);
+        if (i == 0) {
+            o = vec2<f32>(0.125, 0.375);
+        } else if (i == 1) {
+            o = vec2<f32>(-0.375, 0.125);
+        } else if (i == 2) {
+            o = vec2<f32>(0.375, -0.125);
+        }
+        let d = glyphField(t + ax * o.x + ay * o.y, s1, s2, inv) * k;
+        c += clamp(0.5 - d / px, 0.0, 1.0);
+        dm += d;
+    }
+    c *= 0.25;
+    dm *= 0.25;
+    if (c > 0.0 && c < 1.0) {
+        return (0.5 - c) * px;
+    }
+    return dm;
+}
+
 fn shapeSD(p: vec2<f32>, prim: i32, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>, px: f32) -> f32 {
     var d = 1e6;
     var fillScale = 1.0;
@@ -793,6 +851,8 @@ fn shapeSD(p: vec2<f32>, prim: i32, s0: vec4<f32>, s1: vec4<f32>, s2: vec4<f32>,
         d = sdTriangle(p, s0.xy, s0.zw, s1.xy) - s1.z;
     } else if (prim == 9) {
         d = sdPoly(p, i32(s0.x + 0.5), i32(s0.y + 0.5)) - s0.z;
+    } else if (prim == 12) {
+        d = sdGlyph(p, s0, s1, s2, px);
     }
 
     gFillScale = fillScale;
@@ -864,6 +924,8 @@ fn mainFragment(input: VSOut) -> @location(0) vec4<f32> {
     let ddx = dpdx(input.vPos);
     let ddy = dpdy(input.vPos);
     var px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
+    gDdx = ddx;
+    gDdy = ddy;
 
     vShape0 = input.vShape0;
     vShape1 = input.vShape1;
@@ -1107,10 +1169,11 @@ export function createSilkGpuProgram(): GpuProgram {
         fragment: { source: wgsl, entryPoint: 'mainFragment' },
     });
     // Pixi lays every texture out as filterable float. The path texture is RGBA32F, which WebGPU
-    // only filters with an optional feature, so bind group creation would fail. Both textures are
-    // read with textureLoad only, so they are declared unfilterable.
+    // only filters with an optional feature, so bind group creation would fail. The ramps, paths
+    // and object table are read with textureLoad only, so they are declared unfilterable. The
+    // glyph atlas (binding 4, R8) is sampled with its filtering sampler and stays filterable.
     for (const entry of program.gpuLayout[2] ?? []) {
-        if (entry.texture) entry.texture.sampleType = 'unfilterable-float';
+        if (entry.texture && entry.binding !== 4) entry.texture.sampleType = 'unfilterable-float';
     }
 
     return program;

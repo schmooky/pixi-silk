@@ -58,6 +58,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/arc`](https://pixi-silk.schmooky.dev/api/ui/arc.md) | UI widgets | Angle maths for ring widgets: angleDelta, wrapAngle, snapTo, rubberBand. |
 | [`pixi-silk/ui/keys`](https://pixi-silk.schmooky.dev/api/ui/keys.md) | UI widgets | Shared keyboard state: isKeyDown, modifier checks, onKey, isTypingTarget. |
 | [`pixi-silk/ui/pill`](https://pixi-silk.schmooky.dev/api/ui/pill.md) | UI widgets | ValuePill: a small rounded label for live readouts (angles, sizes, distances). |
+| [`pixi-silk/ui/blocks`](https://pixi-silk.schmooky.dev/api/ui/blocks.md) | UI widgets | BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group: UI that paints shapes and text into one SilkGraphics and caches itself, one draw call at rest and while it moves. |
 | [`pixi-silk/ui`](https://pixi-silk.schmooky.dev/api/ui.md) | UI widgets | Every widget and editor tool in one import. The per-widget subpaths ship less code. |
 | [`pixi-silk/selection`](https://pixi-silk.schmooky.dev/api/selection.md) | Editor kit | Selection store and bindOutline, bindGizmo, bindMeasure. |
 | [`pixi-silk/history`](https://pixi-silk.schmooky.dev/api/history.md) | Editor kit | History (undo and redo), recordSignals, recordGizmo, bindHistoryKeys. |
@@ -169,7 +170,7 @@ Mesh<SilkGeometry, Shader>.constructor
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [packages/pixi-silk/src/SilkGraphics.ts:625](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L625) |
+|  `defaults` | `static` | `Required`\<`Omit`\<[`SilkGraphicsOptions`](https://pixi-silk.schmooky.dev/api/interfaces/SilkGraphicsOptions/), `"label"` \| `"batch"`\>\> | Settings for new objects. Change them before you create any SilkGraphics. | [packages/pixi-silk/src/SilkGraphics.ts:637](https://github.com/schmooky/pixi-silk/blob/main/packages/pixi-silk/src/SilkGraphics.ts#L637) |
 
 ### Accessors
 
@@ -624,6 +625,50 @@ nothing on an empty path.
 | Parameter | Type |
 | ------ | ------ |
 | `style?` | [`FillInput`](https://pixi-silk.schmooky.dev/api/types/FillInput/) |
+
+##### Returns
+
+`this`
+
+***
+
+#### glyph()
+
+```ts
+glyph(
+   x: number, 
+   y: number, 
+   w: number, 
+   h: number, 
+   cell: readonly [number, number, number, number], 
+   radius: number, 
+   cutoff: number
+): this;
+```
+
+One glyph cell of the text atlas as a closed shape. Fill, stroke (an outline), blur (a
+shadow), gradients and shape operations work on it like on any other shape, and it draws in
+the same call as the rest of the object. You rarely call it yourself: `drawText` from
+`pixi-silk/text` lays out a string and calls it once per glyph.
+
+The distance field reaches about a quarter of the font size past the ink, so wider strokes,
+spreads and blurs are cut there.
+
+`(x, y, w, h)` is the glyph's cell in local units. `cell` is the same cell in atlas texels,
+`[x0, y0, x1, y1]`. `radius` and `cutoff` are those of the atlas (`SdfAtlas.radius` and
+`SdfAtlas.cutoff`).
+
+##### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `x` | `number` |
+| `y` | `number` |
+| `w` | `number` |
+| `h` | `number` |
+| `cell` | readonly \[`number`, `number`, `number`, `number`\] |
+| `radius` | `number` |
+| `cutoff` | `number` |
 
 ##### Returns
 
@@ -3955,6 +4000,13 @@ Cap the resolution of large canvases with `createSilkApp({ maxResolution: 2 })`.
 with the square of the resolution.
 
 Stop redrawing when nothing moves. Check `Spring.settled`, or redraw only when the data changes.
+
+Draw labels with `drawText` into the `SilkGraphics` they sit on. Each `SilkText` is a draw call
+of its own, while glyphs drawn with `drawText` share the call of the shapes around them.
+
+For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It repaints only while
+something moves and draws one cached texture at rest, so an idle interface runs no distance field
+at all. See [UI in one draw call with blocks](https://pixi-silk.schmooky.dev/docs/layout/#ui-in-one-draw-call-with-blocks).
 
 ---
 
