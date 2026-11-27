@@ -63,6 +63,7 @@ const IMPORTS = {
     'ui/snap (SnapEngine only)': ['SnapEngine', ['#version 300 es', 'RadialMenu'], '/ui/snap'],
     'ui/color': ['*', ['RadialMenu', 'TransformGizmo'], '/ui/color'],
     'ui/halo': ['*', ['ColorModel', 'TransformGizmo'], '/ui/halo'],
+    'ui/island': ['*', ['RadialMenu', 'ColorModel', 'TransformGizmo'], '/ui/island'],
     'ui/brush': ['*', ['RadialMenu', 'ColorModel'], '/ui/brush'],
     'ui/modes': ['*', ['ColorModel', 'TransformGizmo'], '/ui/modes'],
     'ui/dial': ['*', ['RadialMenu', 'MiniTimeline'], '/ui/dial'],

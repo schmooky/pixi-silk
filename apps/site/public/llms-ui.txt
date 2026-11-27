@@ -51,6 +51,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/button`](https://pixi-silk.schmooky.dev/api/ui/button.md) | UI widgets | SilkButton: pill, circle or squircle button with press, hold, busy and appear animations. |
 | [`pixi-silk/ui/dock`](https://pixi-silk.schmooky.dev/api/ui/dock.md) | UI widgets | ButtonDock: a row or column of SilkButtons that closes the gap when one hides. |
 | [`pixi-silk/ui/halo`](https://pixi-silk.schmooky.dev/api/ui/halo.md) | UI widgets | ContextHalo: a ring of actions around a selected object. |
+| [`pixi-silk/ui/island`](https://pixi-silk.schmooky.dev/api/ui/island.md) | UI widgets | Island, IslandFrame: surfaces that grow out of the viewport edges (side tabs, notches, bezels), plus gauges, render meters, a settings menu and createRenderStats. |
 | [`pixi-silk/ui/modes`](https://pixi-silk.schmooky.dev/api/ui/modes.md) | UI widgets | SegmentedSwitch and ModeSwitcher: tool mode pickers, including the hold-a-key ring. |
 | [`pixi-silk/ui/dial`](https://pixi-silk.schmooky.dev/api/ui/dial.md) | UI widgets | JogDial and Scrubber: rotary and drag-to-change number inputs. |
 | [`pixi-silk/ui/odometer`](https://pixi-silk.schmooky.dev/api/ui/odometer.md) | UI widgets | Odometer: a rolling number counter with prefix, decimals and count-up timing. |
@@ -2803,6 +2804,1233 @@ The layout runs on the CPU in your frame, once per change. Rotated children keep
 are measured unrotated. The engine has no `order`, `overflow` or borders, and an item's default
 minimum size is 0, not its content. [Layout engine](https://pixi-silk.schmooky.dev/docs/layout-engine/#differences-from-css)
 lists every difference from CSS.
+
+---
+
+# Islands
+
+URL: https://pixi-silk.schmooky.dev/docs/islands/
+Area: Interface
+
+> Side tabs, notches and bezels that grow out of the canvas edges, with gauges, FPS and draw-call meters and a settings menu. pixi-silk/ui/island.
+
+An island is a surface that grows out of an edge of the viewport, as if the bezel of the device
+reached into the app. It rests as a lip you can pull out, opens on a tap or a drag, and springs
+between sizes. Everything on this page comes from `pixi-silk/ui/island`.
+
+Demo sources run in the docs demo runner, `defineDemo({ setup({ stage, params, tick }) })`. In your own app, `stage` is `app.stage` (or a container on it), `params` holds the values of the demo controls, and `tick(fn)` is `app.ticker.add`, with `t` and `dt` in seconds.
+
+Live demo `islands` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import {
+    createRenderStats,
+    fpsTone,
+    gearIcon,
+    Island,
+    IslandFrame,
+    IslandGauge,
+    IslandMeter,
+} from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// Pull the lips out, hover the notch, tap the gear. Every surface follows the bezel.
+export default defineDemo({
+    title: 'Edge islands',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        bezel: { type: 'toggle', label: 'bezel', value: true },
+        side: { type: 'select', label: 'side island', options: ['peek', 'open', 'hidden'], value: 'open' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const frame = new IslandFrame({ viewport: { width: W, height: H }, bands: 8, radius: 22, ticker });
+        const sky = new SilkGraphics();
+
+        const paintSky = () => {
+            const r = frame.inner.value;
+
+            sky.clear()
+                .rect(r.x, r.y, r.width, r.height)
+                .fill({ gradient: linear([0x8fb3c7, 0xd9d4cc, 0xe9c9a8], { from: [0, 0], to: [0.2, 1] }) });
+        };
+
+        frame.inner.subscribe(paintSky);
+        paintSky();
+        const dot = (g: SilkGraphics, s: number) => g.circle(0, 0, s * 0.22).fill(0xffffff);
+        const side = new Island({
+            viewport: frame.inner,
+            edge: 'right',
+            align: 0.3,
+            ticker,
+            items: [
+                new IslandGauge({ value: 0.73, color: 0xff5a1f, icon: dot, size: 44, ticker }),
+                new IslandGauge({ value: 0.21, color: 0x30d158, icon: dot, size: 44, ticker }),
+                new IslandGauge({ value: 0.52, color: 0xffd60a, icon: dot, size: 44, ticker }),
+            ],
+            gap: 12,
+            padding: 14,
+        });
+        const stats = createRenderStats(silk.app);
+        const notch = new Island({
+            viewport: frame.inner,
+            edge: 'top',
+            peek: 24,
+            peekLength: 120,
+            hover: 'open',
+            radius: 22,
+            flare: 16,
+            ticker,
+            items: [
+                new IslandMeter({ title: 'fps', value: stats.fps, tone: fpsTone }),
+                new IslandMeter({ title: 'draws', value: stats.drawCalls }),
+            ],
+            gap: 24,
+        });
+        const gear = new Container();
+        const gearG = new SilkGraphics();
+        const hint = new Text({ text: 'Settings go here', style: { fontSize: 13, fill: 0xffffff, fontWeight: '500' } });
+
+        gearIcon(gearG, 22);
+        gearG.position.set(24, 24);
+        gear.addChild(gearG);
+        hint.anchor.set(0.5);
+        hint.position.set(80, 24);
+        const bud = new Island({
+            viewport: frame.inner,
+            edge: 'bottom',
+            align: 0,
+            peek: 48,
+            peekLength: 48,
+            radius: 24,
+            flare: 16,
+            grip: false,
+            length: 160,
+            depth: 48,
+            views: { peek: gear, open: hint },
+            ticker,
+        });
+
+        stage.addChild(sky, frame, side, notch, bud);
+        side.go(params.side, true);
+        let bezel = params.bezel;
+        let sideState = params.side;
+
+        tick(() => {
+            if (params.bezel !== bezel) {
+                bezel = params.bezel;
+                frame.setBands(
+                    bezel ? { top: 8, right: 8, bottom: 8, left: 8 } : { top: 0, right: 0, bottom: 0, left: 0 },
+                );
+            }
+            if (params.side !== sideState) {
+                sideState = params.side;
+                side.go(sideState);
+            }
+        });
+
+        return () => stats.destroy();
+    },
+});
+```
+
+### Grow an island out of an edge
+
+Live demo `island-sizes` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { gearIcon, Island } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// a line of text centred in a box of w by h, for a view
+const note = (text: string, w: number, h: number) => {
+    const view = new Container();
+    const t = new Text({ text, style: { fontSize: 13, fill: 0xffffff, fontWeight: '500' } });
+
+    t.anchor.set(0.5);
+    t.position.set(w / 2, h / 2);
+    view.addChild(t);
+
+    return view;
+};
+
+// Four closed sizes on four edges: a dot, a lip, a hairline and a button. Pull one, or open them all.
+export default defineDemo({
+    title: 'Island closed sizes',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        state: { type: 'select', label: 'all islands', options: ['peek', 'open'], value: 'peek' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0xc3b1e1, 0x5e60ce], { from: [0, 0], to: [0.3, 1] }) });
+        const gear = new Container();
+        const g = new SilkGraphics();
+
+        gearIcon(g, 22);
+        g.position.set(22, 22);
+        gear.addChild(g);
+        const islands = [
+            // a dot: 22 long, 8 deep
+            new Island({
+                viewport: view,
+                edge: 'left',
+                align: 0.3,
+                peek: 8,
+                peekLength: 22,
+                radius: 18,
+                flare: 12,
+                grip: false,
+                length: 140,
+                depth: 100,
+                views: { open: note('Dot, 22 x 8', 100, 140) },
+                ticker,
+            }),
+            // the default lip: 12 deep
+            new Island({
+                viewport: view,
+                edge: 'right',
+                length: 180,
+                depth: 110,
+                views: { open: note('Lip, 12 deep', 110, 180) },
+                ticker,
+            }),
+            // a hairline as long as the edge (a longer length is clamped to the edge)
+            new Island({
+                viewport: view,
+                edge: 'bottom',
+                peek: 5,
+                peekLength: W,
+                flare: 0,
+                radius: 24,
+                length: W,
+                depth: 110,
+                views: { open: note('Hairline, the whole edge', W, 110) },
+                ticker,
+            }),
+            // a 44-unit button with an icon
+            new Island({
+                viewport: view,
+                edge: 'top',
+                align: 0.75,
+                peek: 44,
+                peekLength: 44,
+                radius: 22,
+                flare: 14,
+                grip: false,
+                length: 200,
+                depth: 80,
+                views: { peek: gear, open: note('Button, 44 x 44', 200, 80) },
+                ticker,
+            }),
+        ];
+
+        stage.addChild(sky, ...islands);
+        let state = params.state;
+
+        tick(() => {
+            if (params.state === state) return;
+            state = params.state;
+            for (const island of islands) island.go(state);
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const island = new Island({
+    viewport: app,
+    edge: 'right',
+    align: 0.4,
+    items: [
+        new IslandGauge({ value: 0.73, color: 0xff5a1f }),
+        new IslandGauge({ value: 0.21, color: 0x30d158 }),
+    ],
+});
+
+app.stage.addChild(island);
+island.open();
+```
+
+The outline is one shape: a body with rounded far corners, joined to the edge by two concave
+flares. It is exact at any size, and the flares shrink with the depth, so the outline stays smooth
+while the island opens. It redraws only while it moves.
+
+`viewport` is what the island sits on. Pass the Application for a full-screen canvas. Pass a
+rectangle in the parent's space to grow it out of the side of a panel. Pass `frame.inner` to grow
+it out of a bezel, as shown further down.
+
+Live demo `island-cards` (source):
+
+```ts
+import { Text } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { Island, type IslandEdge, IslandStack } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// An island on the side of any rectangle: each card hides a drawer of actions. Pull one out, or tap
+// its lip.
+export default defineDemo({
+    title: 'Islands inside cards',
+    size: [W, H],
+    touchAction: 'none',
+    setup({ silk, stage }) {
+        const ticker = silk.app.ticker;
+        const bg = new SilkGraphics().rect(0, 0, W, H).fill(0xeef0f4);
+        const cards: [number, number, IslandEdge, number, string][] = [
+            [24, 24, 'bottom', 0x1c1c1e, 'Order #2048'],
+            [332, 24, 'right', 0x0a84ff, 'Team sync'],
+            [24, 214, 'left', 0xff375f, 'Playlist'],
+            [332, 214, 'top', 0x30d158, 'Savings'],
+        ];
+
+        stage.addChild(bg);
+        for (const [x, y, edge, color, title] of cards) {
+            const rect = { x, y, width: 284, height: 162 };
+            const card = new SilkGraphics().roundRect(x, y, rect.width, rect.height, 22, 0.6).fill(0xffffff);
+            const name = new Text({ text: title, style: { fontSize: 15, fill: 0x1c1c1e, fontWeight: '600' } });
+            const vertical = edge === 'left' || edge === 'right';
+            const icons = new IslandStack(
+                [0, 1, 2].map(() => new SilkGraphics().circle(10, 10, 10).fill({ color: 0xffffff, alpha: 0.92 })),
+                { axis: vertical ? 'y' : 'x', gap: 16 },
+            );
+            const island = new Island({
+                viewport: rect,
+                edge,
+                peek: 8,
+                peekLength: 48,
+                radius: 18,
+                flare: 12,
+                color,
+                length: vertical ? 132 : 150,
+                depth: vertical ? 60 : 56,
+                views: { open: icons },
+                ticker,
+            });
+            const box = island.boxOf('open');
+
+            icons.layout(box.width, box.height);
+            name.position.set(edge === 'left' ? x + 70 : x + 20, edge === 'top' ? y + 112 : y + 18);
+            stage.addChild(card, name, island);
+        }
+
+        return undefined;
+    },
+});
+```
+
+| Option | Default | What it does |
+|---|---|---|
+| `edge` | `'right'` | Edge it grows from. |
+| `align` | `0.5` | Place along the edge, 0 at the start, 1 at the end. |
+| `length`, `depth` | from `items` | Size when open. |
+| `peek` | `12` | Depth of the lip at rest. `0` hides it. |
+| `radius` | `28` | Far corners. |
+| `flare` | `22` | Concave joins with the edge. |
+| `smoothing` | `0.6` | Squircle corners. |
+| `color` | black | Fill. Black reads as part of the bezel. |
+| `safeArea` | none | Insets of notches and rounded screen corners. |
+
+### Open, peek and drag
+
+An island has named states, each a length and a depth: `hidden`, `peek` and `open`. A tap on the
+lip opens it, and a drag pulls it to any depth with a rubber band past the deepest state. On
+release it springs to the nearest state, a flick carries it one further, and the outline morphs
+between the lengths of the states on the way.
+
+Live demo `island-sheet` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { Island, IslandStack } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 360;
+const H = 640;
+
+// A bottom sheet with three stops, on a phone-sized screen. Pull the hairline to half or full, or
+// pick a stop below. A flick carries it one stop further.
+export default defineDemo({
+    title: 'Island bottom sheet',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        stop: { type: 'select', label: 'stop', options: ['peek', 'half', 'open'], value: 'peek' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0xffd6a5, 0xff6b6b], { from: [0, 0], to: [0.3, 1] }) });
+        const text = (s: string, size = 16, color = 0xffffff) =>
+            new Text({ text: s, style: { fontSize: size, fill: color, fontWeight: '500' } });
+        // half: what is playing
+        const half = new Container();
+        const title = text('Night Swim', 18);
+        const by = text('Cloud Atlas', 13, 0x8e8e93);
+        const bar = new SilkGraphics()
+            .pill(24, 92, W - 48, 4)
+            .fill({ color: 0xffffff, alpha: 0.2 })
+            .pill(24, 92, (W - 48) * 0.4, 4)
+            .fill(0xffffff);
+
+        title.position.set(24, 30);
+        by.position.set(24, 56);
+        half.addChild(title, by, bar);
+        // open: the whole queue
+        const queue = new IslandStack(
+            ['Night Swim', 'Low Tide', 'Paper Moon', 'Glass Hours', 'Northbound', 'Static Bloom'].map((s) => text(s)),
+            { gap: 22 },
+        );
+        const full = new Container();
+
+        full.addChild(queue);
+        queue.layout(W, 420);
+        const sheet = new Island({
+            viewport: view,
+            edge: 'bottom',
+            peek: 6,
+            peekLength: W,
+            flare: 0,
+            radius: 28,
+            sizes: { half: { length: W, depth: 130 } },
+            length: W,
+            depth: 480,
+            views: { half, open: full },
+            ticker,
+        });
+
+        stage.addChild(sky, sheet);
+        let stop = params.stop;
+
+        tick(() => {
+            if (params.stop !== stop) {
+                stop = params.stop;
+                sheet.go(stop);
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const island = new Island({ viewport: app, edge: 'bottom', length: 320, depth: 96 });
+
+island.state.name.subscribe((name) => console.log('now', name));
+island.open();
+island.close(); // back to the lip
+island.hide(); // all the way in
+```
+
+`state.openness` goes from 0 at rest to 1 open. Bind content to it for effects of your own. A tap
+on the island's own surface while it is open closes it again. Turn that off with
+`tapToClose: false`.
+
+### Help people find and pull it
+
+A 12-unit lip is easy to miss and hard to hit with a finger. Four options help.
+
+Live demo `island-hints` (source):
+
+```ts
+import { linear, SilkGraphics } from 'pixi-silk';
+import { Island } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// Two lips that ask to be found: one pulses, one wiggles. Change the kind and the strength.
+export default defineDemo({
+    title: 'Island hints',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        kind: { type: 'select', label: 'hint', options: ['pulse', 'wiggle'], value: 'pulse' },
+        strength: { type: 'range', label: 'strength', min: 0.3, max: 2, step: 0.1, value: 1 },
+        every: { type: 'range', label: 'every', min: 0.6, max: 4, step: 0.2, value: 1.6, unit: ' s' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0xfbe3a1, 0xe76f51], { from: [0, 0], to: [0.3, 1] }) });
+        const right = new Island({ viewport: view, edge: 'right', length: 200, depth: 110, ticker });
+        const left = new Island({ viewport: view, edge: 'left', peek: 0, length: 200, depth: 110, ticker });
+        const top = new Island({
+            viewport: view,
+            edge: 'top',
+            peek: 8,
+            peekLength: 60,
+            length: 260,
+            depth: 80,
+            ticker,
+        });
+
+        stage.addChild(sky, right, left, top);
+        let wait = 0;
+
+        // hint on a timer of our own, so the controls apply at once (`hintEvery` does this for you)
+        tick((_, dt) => {
+            wait -= dt;
+            if (wait > 0) return;
+            wait = params.every;
+            for (const island of [right, left, top]) {
+                if (island.state.name.value !== 'open') island.hint(params.kind as 'pulse' | 'wiggle', params.strength);
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const drawer = new Island({
+    viewport: app,
+    edge: 'left',
+    peek: 0, // nothing shows at rest: swipe in from the edge
+    grab: 28, // the touch zone reaches 28 units past the lip
+    hintEvery: 3500, // peek out now and then, until it is first opened
+    hintKind: 'pulse',
+    magnet: { radius: 160, depth: 14, slide: 30 },
+});
+
+app.stage.addChild(drawer);
+drawer.hint('wiggle');
+```
+
+- `grab` widens the zone that takes touches around the lip, along the edge and into the viewport. It takes input only at rest, so it never covers the open island. The default is 24.
+- `magnet` leans the lip toward a pointer near it: it grows and slides along the edge. On a phone it follows the finger that lands near the edge and lets go half a second after the last move. It is on by default with a radius of 120.
+- `hint()` swells the lip out and back (`pulse`) or shakes it along the edge (`wiggle`). A hidden island peeks out for a moment. `hintEvery` plays it on a timer until the island is first opened.
+- With `peek: 0` nothing shows at rest, and a swipe in from the edge pulls it out, like a system drawer.
+
+Live demo `island-magnet` (source):
+
+```ts
+import { linear, SilkGraphics } from 'pixi-silk';
+import { Island } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// Move the pointer toward an edge: the lip there leans out and slides to meet it. On a phone, touch
+// near an edge. The rings show the magnet's reach.
+export default defineDemo({
+    title: 'Island magnet',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        radius: { type: 'range', label: 'radius', min: 40, max: 240, step: 10, value: 150 },
+        depth: { type: 'range', label: 'lean', min: 2, max: 30, step: 1, value: 14 },
+        slide: { type: 'range', label: 'slide', min: 0, max: 80, step: 2, value: 34 },
+        reach: { type: 'toggle', label: 'show reach', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0xa8dadc, 0x1d3557], { from: [0, 0], to: [0.3, 1] }) });
+        const rings = new SilkGraphics();
+        let islands: Island[] = [];
+        const build = () => {
+            for (const island of islands) island.destroy({ children: true });
+            const magnet = { radius: params.radius, depth: params.depth, slide: params.slide };
+
+            islands = [
+                new Island({
+                    viewport: view,
+                    edge: 'right',
+                    peek: 10,
+                    peekLength: 70,
+                    magnet,
+                    length: 200,
+                    depth: 110,
+                    ticker,
+                }),
+                new Island({
+                    viewport: view,
+                    edge: 'left',
+                    peek: 10,
+                    peekLength: 70,
+                    magnet,
+                    length: 200,
+                    depth: 110,
+                    ticker,
+                }),
+                new Island({
+                    viewport: view,
+                    edge: 'bottom',
+                    peek: 10,
+                    peekLength: 90,
+                    magnet,
+                    length: 260,
+                    depth: 90,
+                    ticker,
+                }),
+            ];
+            stage.addChild(...islands);
+            // the reach: how far from each lip the magnet starts to pull
+            rings.clear();
+            if (params.reach) {
+                for (const island of islands) {
+                    const b = island.box;
+
+                    rings
+                        .roundRect(
+                            b.x - params.radius,
+                            b.y - params.radius,
+                            b.width + params.radius * 2,
+                            b.height + params.radius * 2,
+                            params.radius,
+                        )
+                        .stroke({ width: 1, color: 0xffffff, alpha: 0.25, dash: [4, 6] });
+                }
+            }
+        };
+
+        stage.addChild(sky, rings);
+        build();
+        let key = '';
+
+        tick(() => {
+            const next = `${params.radius}/${params.depth}/${params.slide}/${params.reach}`;
+
+            if (next === key) return;
+            key = next;
+            build();
+        });
+
+        return undefined;
+    },
+});
+```
+
+Live demo `island-edge-swipe` (source):
+
+```ts
+import { Container, type Rectangle, Text } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { Island, IslandStack } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// Nothing shows at rest. Swipe in from the left edge, anywhere in the shaded zone, to pull the
+// drawer out. Flick it back to close.
+export default defineDemo({
+    title: 'Island edge swipe',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        grab: { type: 'range', label: 'grab zone', min: 8, max: 60, step: 2, value: 28 },
+        zone: { type: 'toggle', label: 'show zone', value: true },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0x9be7c4, 0x2b6cb0], { from: [0, 0], to: [0.3, 1] }) });
+        const shade = new SilkGraphics();
+        const items = ['Home', 'Search', 'Library', 'Settings'].map(
+            (s) => new Text({ text: s, style: { fontSize: 16, fill: 0xffffff, fontWeight: '500' } }),
+        );
+        const nav = new IslandStack(items, { gap: 22 });
+        const holder = new Container();
+        let drawer: Island | null = null;
+        const build = () => {
+            drawer?.destroy();
+            if (nav.parent) nav.parent.removeChild(nav);
+            holder.addChild(nav);
+            drawer = new Island({
+                viewport: view,
+                edge: 'left',
+                peek: 0,
+                // the whole edge takes the swipe
+                peekLength: H,
+                grab: params.grab,
+                radius: 30,
+                flare: 20,
+                length: 320,
+                depth: 170,
+                hintEvery: 4000,
+                views: { open: holder },
+                ticker,
+            });
+            nav.layout(170, 320);
+            stage.addChild(drawer);
+            shade.clear();
+            // the zone that takes the swipe: the island's grab area
+            const zone = drawer.children[0].hitArea as Rectangle;
+
+            if (params.zone) shade.rect(zone.x, zone.y, zone.width, zone.height).fill({ color: 0xffffff, alpha: 0.18 });
+        };
+
+        stage.addChild(sky, shade);
+        build();
+        let key = '';
+
+        tick(() => {
+            const next = `${params.grab}/${params.zone}`;
+
+            if (next === key) return;
+            key = next;
+            build();
+        });
+
+        return undefined;
+    },
+});
+```
+
+Lips come in any size. Try a dot of 22 by 8, or a hairline as long as the edge (a longer `peekLength` is clamped to the edge). A 44-unit lip with an icon in its `peek` view is a button.
+
+### Flash a notification
+
+`flash(name, ms)` moves to a state and back to rest after `ms`. A tap or a drag keeps it, and a pointer over it holds it until it leaves.
+
+Live demo `island-notch` (source):
+
+```ts
+import { Container, Text } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { Island, IslandGauge } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// One notch, four states: a lip, a live activity with a countdown, a notification that flashes in
+// and leaves, and a panel. Hover it for the panel, or let it flash a message.
+export default defineDemo({
+    title: 'Island notch',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        notify: { type: 'toggle', label: 'flash messages', value: true },
+        state: { type: 'select', label: 'state', options: ['peek', 'live', 'note', 'open'], value: 'live' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0x8fb3c7, 0xe9d8c4], { from: [0, 0], to: [0.3, 1] }) });
+        const text = (s: string, size = 13, color = 0xffffff) =>
+            new Text({ text: s, style: { fontSize: size, fill: color, fontWeight: '600' } });
+        const left = signal(1);
+        // live: a ring and the time left
+        const live = new Container();
+        const ring = new IslandGauge({ value: left, color: 0xffd60a, size: 28, thickness: 4, caption: false, ticker });
+        const time = text('');
+
+        ring.position.set(14, 10);
+        time.anchor.set(1, 0.5);
+        time.position.set(206, 24);
+        live.addChild(ring, time);
+        // note: a dot and a message
+        const note = new Container();
+        const dot = new SilkGraphics().circle(28, 28, 12).fill(0x30d158);
+        const msg = text('Big win +$250', 14);
+
+        msg.anchor.set(0, 0.5);
+        msg.position.set(50, 28);
+        note.addChild(dot, msg);
+        // open: the countdown, large
+        const panel = new Container();
+        const big = new IslandGauge({ value: left, color: 0xffd60a, size: 80, thickness: 8, caption: false, ticker });
+        const heading = text('Bonus round', 18);
+        const sub = text('', 13, 0x8e8e93);
+
+        big.position.set(24, 28);
+        heading.position.set(124, 46);
+        sub.position.set(124, 76);
+        panel.addChild(big, heading, sub);
+        const notch = new Island({
+            viewport: view,
+            edge: 'top',
+            peek: 26,
+            peekLength: 110,
+            radius: 24,
+            flare: 16,
+            grip: false,
+            sizes: { live: { length: 220, depth: 48 }, note: { length: 260, depth: 56 } },
+            rest: 'live',
+            state: 'live',
+            hover: 'open',
+            length: 340,
+            depth: 140,
+            views: { live, note, open: panel },
+            ticker,
+        });
+
+        stage.addChild(sky, notch);
+        const messages = ['Big win +$250', 'Free spins ready', 'Daily bonus x2', 'Friend joined'];
+        let seconds = 30;
+        let clock = 0;
+        let flashIn = 2;
+        let m = 0;
+        let state = params.state;
+
+        tick((_, dt) => {
+            clock += dt;
+            if (clock >= 1) {
+                clock -= 1;
+                seconds = seconds <= 0 ? 30 : seconds - 1;
+                left.value = seconds / 30;
+                time.text = `0:${String(seconds).padStart(2, '0')}`;
+                sub.text = `starts in ${seconds} s`;
+            }
+            if (params.notify && notch.state.name.value === 'live') {
+                flashIn -= dt;
+                if (flashIn <= 0) {
+                    flashIn = 4;
+                    msg.text = messages[m++ % messages.length];
+                    notch.flash('note', 2200);
+                }
+            }
+            if (params.state !== state) {
+                state = params.state;
+                notch.go(state);
+            }
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const message = new Container();
+const notch = new Island({
+    viewport: app,
+    edge: 'top',
+    peek: 22,
+    peekLength: 80,
+    sizes: { note: { length: 220, depth: 56 } },
+    views: { note: message },
+});
+
+app.stage.addChild(notch);
+notch.flash('note', 2200);
+```
+
+A view shows in its own state and fades out in the others, so one island can carry a notification, a compact live activity and a full panel. The [island playground](https://pixi-silk.schmooky.dev/lab/38-island-playground/) has nine of these cases side by side.
+
+### Make a notch
+
+A notch on the top edge rests as a small lip, grows into a pill on hover and into a panel on a
+click. Add the middle size with `sizes`, name it in `hover`, and give each state its own view.
+
+```ts
+
+const pill = new Container();
+const panel = new Container();
+const notch = new Island({
+    viewport: app,
+    edge: 'top',
+    peek: 30,
+    peekLength: 180,
+    hover: 'compact',
+    sizes: { compact: { length: 340, depth: 60 }, open: { length: 560, depth: 240 } },
+    views: { compact: pill, open: panel },
+});
+
+app.stage.addChild(notch);
+```
+
+Each view is laid out in the box of its state, `notch.boxOf('open')`, anchored to the far side,
+and fades in as the island reaches that state. Nothing clips it, so size it for that box. An
+island is never longer than its edge.
+
+### Eat the canvas with a bezel
+
+`IslandFrame` draws bands along the edges with a rounded window cut out of them, so the app reads
+as the screen of a device. A band can hold a rail of icons, and bands spring to new sizes.
+
+Live demo `island-frame` (source):
+
+```ts
+import { linear, SilkGraphics } from 'pixi-silk';
+import { Island, IslandFrame, IslandGauge } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+const icon = (draw: (g: SilkGraphics) => void) => {
+    const g = new SilkGraphics();
+
+    draw(g);
+
+    return g;
+};
+const line = { width: 2, color: 0xffffff, cap: 'round', join: 'round' } as const;
+
+// A bezel that eats into the canvas: a side rail of icons, thin bands elsewhere and a rounded
+// window. Islands grow out of the bezel, and the window is a viewport for the app inside.
+export default defineDemo({
+    title: 'Island frame and rail',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        rail: { type: 'range', label: 'rail', min: 0, max: 80, step: 2, value: 56 },
+        bezel: { type: 'range', label: 'bezel', min: 0, max: 24, step: 1, value: 8 },
+        radius: { type: 'range', label: 'corners', min: 0, max: 40, step: 1, value: 22 },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const frame = new IslandFrame({
+            viewport: { width: W, height: H },
+            bands: { left: params.rail, top: params.bezel, right: params.bezel, bottom: params.bezel },
+            radius: params.radius,
+            rail: {
+                start: [
+                    icon((g) => g.circle(12, 12, 9).stroke(line)),
+                    icon((g) => g.roundRect(3, 3, 18, 18, 5).stroke(line)),
+                    icon((g) => g.moveTo(3, 16).lineTo(9, 10).lineTo(14, 14).lineTo(21, 6).stroke(line)),
+                ],
+                end: [
+                    icon((g) =>
+                        g
+                            .circle(12, 12, 11)
+                            .fill({ gradient: linear([0xff2d55, 0x0a84ff], { from: [0, 0], to: [1, 1] }) }),
+                    ),
+                ],
+            },
+            ticker,
+        });
+        // the app: a sky in the window, repainted when the window changes
+        const sky = new SilkGraphics();
+        const paint = () => {
+            const r = frame.inner.value;
+
+            sky.clear()
+                .rect(r.x, r.y, r.width, r.height)
+                .fill({ gradient: linear([0xe0e1dd, 0x778da9], { from: [0, 0], to: [0.3, 1] }) });
+        };
+        const dot = (g: SilkGraphics, s: number) => g.circle(0, 0, s * 0.2).fill(0xffffff);
+        const side = new Island({
+            viewport: frame.inner,
+            edge: 'right',
+            items: [
+                new IslandGauge({ value: 0.64, color: 0xff9f0a, icon: dot, size: 44, ticker }),
+                new IslandGauge({ value: 0.32, color: 0x30d158, icon: dot, size: 44, ticker }),
+            ],
+            gap: 12,
+            padding: 14,
+            state: 'open',
+            ticker,
+        });
+
+        frame.inner.subscribe(paint);
+        paint();
+        stage.addChild(sky, frame, side);
+        let key = '';
+
+        tick(() => {
+            const next = `${params.rail}/${params.bezel}`;
+
+            if (frame.radius !== params.radius) frame.radius = params.radius;
+            if (next === key) return;
+            key = next;
+            frame.setBands({ left: params.rail, top: params.bezel, right: params.bezel, bottom: params.bezel });
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const frame = new IslandFrame({ viewport: app, bands: { left: 64, top: 10, right: 10, bottom: 10 }, radius: 26 });
+const game = new SmartContainer({ viewport: frame.inner, landscapeData: { width: 1280, height: 720 } });
+const side = new Island({ viewport: frame.inner, edge: 'right' });
+
+app.stage.addChild(game, frame, side);
+// fold the rail away
+frame.setBands({ left: 10 });
+```
+
+`frame.inner` is the window as a signal. A SmartContainer follows it like a screen, and islands on
+it grow out of the bezel. Bands are plain rectangles and each inner corner is one small shape, so
+a frame costs little on any canvas. Keep its colour opaque: the bands overlap at the corners.
+
+### Show FPS and draw calls
+
+`createRenderStats` samples frames per second, CPU time per render and draw calls per frame, as
+signals. `IslandMeter` shows one of them with a row of recent values.
+
+Live demo `island-stats` (source):
+
+```ts
+import { linear, SilkGraphics } from 'pixi-silk';
+import { createRenderStats, fpsTone, Island, IslandMeter } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+
+// Live render stats in a notch. Add shapes and watch the frame time and the draw calls follow.
+// Hover the notch for the meters.
+export default defineDemo({
+    title: 'Island render stats',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        shapes: { type: 'range', label: 'shapes', min: 1, max: 400, step: 1, value: 60 },
+        objects: { type: 'range', label: 'objects', min: 1, max: 40, step: 1, value: 4 },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const sky = new SilkGraphics()
+            .rect(0, 0, W, H)
+            .fill({ gradient: linear([0x1d3557, 0x0b0c10], { from: [0, 0], to: [0.3, 1] }) });
+        const stats = createRenderStats(silk.app);
+        const notch = new Island({
+            viewport: { width: W, height: H },
+            edge: 'top',
+            peek: 26,
+            peekLength: 140,
+            hover: 'open',
+            radius: 24,
+            flare: 16,
+            items: [
+                new IslandMeter({ title: 'fps', value: stats.fps, tone: fpsTone }),
+                new IslandMeter({ title: 'cpu ms', value: stats.frameMs, format: (v) => v.toFixed(2) }),
+                new IslandMeter({ title: 'draws', value: stats.drawCalls }),
+            ],
+            gap: 22,
+            ticker,
+        });
+        // the load: shapes spread over several objects, so each object is one more draw call
+        const layers: SilkGraphics[] = [];
+
+        stage.addChild(sky);
+        tick((t) => {
+            while (layers.length < params.objects) {
+                const g = new SilkGraphics();
+
+                layers.push(g);
+                stage.addChildAt(g, 1);
+            }
+            while (layers.length > params.objects) layers.pop()?.destroy();
+            layers.forEach((g, k) => {
+                g.clear();
+                for (let i = k; i < params.shapes; i += layers.length) {
+                    const a = i * 2.399 + t * 0.4;
+                    const r = 30 + ((i * 37) % 150);
+
+                    g.circle(W / 2 + Math.cos(a) * r * 1.6, H / 2 + 20 + Math.sin(a) * r * 0.8, 6 + (i % 5) * 2).fill({
+                        color: [0xff5a1f, 0x30d158, 0xffd60a, 0x0a84ff, 0xbf5af2][i % 5],
+                        alpha: 0.8,
+                    });
+                }
+            });
+        });
+        stage.addChild(notch);
+
+        return () => stats.destroy();
+    },
+});
+```
+
+```ts
+
+const stats = createRenderStats(app);
+const meters = new Island({
+    viewport: app,
+    edge: 'top',
+    hover: 'open',
+    items: [
+        new IslandMeter({ title: 'fps', value: stats.fps, tone: fpsTone }),
+        new IslandMeter({ title: 'cpu ms', value: stats.frameMs, format: (v) => v.toFixed(1) }),
+        new IslandMeter({ title: 'draws', value: stats.drawCalls }),
+    ],
+});
+
+app.stage.addChild(meters);
+```
+
+Draw calls are counted on WebGL by wrapping the draw functions of the context, and on WebGPU those
+of `GPURenderPassEncoder`, which counts every WebGPU canvas on the page. `stats.destroy()` puts
+them back. Meters redraw when a value changes, about twice a second, not every frame. Under
+`renderOnDemand` that is two frames a second while the numbers move.
+
+### Open a settings menu from a gear
+
+`IslandMenu` lays out switches, choices and plain rows. Put it in the open view of a small island
+whose lip is a gear, and the gear grows into the menu.
+
+Live demo `island-menu` (source):
+
+```ts
+import { Container } from 'pixi.js';
+import { linear, SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { gearIcon, Island, type IslandEdge, IslandMenu } from 'pixi-silk/ui/island';
+import { defineDemo } from './runtime';
+
+const W = 640;
+const H = 400;
+const SKIES: Record<string, [number, number]> = {
+    Dawn: [0xffd6a5, 0xff6b6b],
+    Noon: [0xa8dadc, 0x457b9d],
+    Night: [0x3a0ca3, 0x10002b],
+};
+
+// A gear on the edge grows into a settings menu. The switches change the scene behind it.
+export default defineDemo({
+    title: 'Island settings menu',
+    size: [W, H],
+    touchAction: 'none',
+    controls: {
+        edge: { type: 'select', label: 'edge', options: ['right', 'left', 'bottom', 'top'], value: 'right' },
+    },
+    setup({ silk, stage, params, tick }) {
+        const ticker = silk.app.ticker;
+        const view = { width: W, height: H };
+        const sky = new SilkGraphics();
+        const sun = new SilkGraphics();
+        const theme = signal('Dawn');
+        const showSun = signal(true);
+        const big = signal(false);
+        const paint = () => {
+            const [a, b] = SKIES[theme.value];
+
+            sky.clear()
+                .rect(0, 0, W, H)
+                .fill({ gradient: linear([a, b], { from: [0, 0], to: [0.3, 1] }) });
+            sun.clear();
+            if (showSun.value)
+                sun.circle(W * 0.35, H * 0.45, big.value ? 90 : 50).fill({ color: 0xffffff, alpha: 0.85 });
+        };
+
+        theme.subscribe(paint);
+        showSun.subscribe(paint);
+        big.subscribe(paint);
+        paint();
+        let island: Island | null = null;
+        const build = () => {
+            island?.destroy({ children: true });
+            const menu = new IslandMenu({
+                title: 'Settings',
+                width: 220,
+                items: [
+                    { id: 'sun', label: 'Sun', type: 'toggle', value: showSun },
+                    { id: 'big', label: 'Big sun', type: 'toggle', value: big },
+                    { id: 'sky', label: 'Sky', type: 'choice', options: Object.keys(SKIES), value: theme },
+                ],
+                ticker,
+            });
+            const gear = new Container();
+            const g = new SilkGraphics();
+
+            gearIcon(g, 24);
+            g.position.set(26, 26);
+            gear.addChild(g);
+            island = new Island({
+                viewport: view,
+                edge: params.edge as IslandEdge,
+                align: 0.85,
+                peek: 52,
+                peekLength: 52,
+                radius: 26,
+                flare: 16,
+                grip: false,
+                length: params.edge === 'left' || params.edge === 'right' ? menu.boxHeight : menu.boxWidth,
+                depth: params.edge === 'left' || params.edge === 'right' ? menu.boxWidth : menu.boxHeight,
+                views: { peek: gear, open: menu },
+                ticker,
+            });
+            stage.addChild(island);
+        };
+
+        stage.addChild(sky, sun);
+        let edge = '';
+
+        tick(() => {
+            if (params.edge === edge) return;
+            edge = params.edge;
+            build();
+        });
+
+        return undefined;
+    },
+});
+```
+
+```ts
+
+const sound = signal(true);
+const quality = signal('High');
+const menu = new IslandMenu({
+    title: 'Settings',
+    items: [
+        { id: 'sound', label: 'Sound', type: 'toggle', value: sound },
+        { id: 'quality', label: 'Quality', type: 'choice', options: ['Low', 'High'], value: quality },
+        { id: 'help', label: 'How to play' },
+    ],
+    onSelect: (id) => console.log(id),
+});
+const gear = new Container();
+const icon = new SilkGraphics();
+
+gearIcon(icon, 26);
+icon.position.set(28, 28);
+gear.addChild(icon);
+const settings = new Island({
+    viewport: app,
+    edge: 'right',
+    align: 1,
+    peek: 56,
+    peekLength: 56,
+    grip: false,
+    length: menu.boxHeight,
+    depth: menu.boxWidth,
+    views: { peek: gear, open: menu },
+});
+
+app.stage.addChild(settings);
+```
+
+The [islands lab](https://pixi-silk.schmooky.dev/lab/37-islands/) puts all of it together: a bezel with a rail, a tab of gauges,
+a gear menu, a tray and a notch with live render stats.
 
 ---
 
@@ -7270,6 +8498,66 @@ import { ChoiceField, ColorField, Field, Inspector } from 'pixi-silk/ui/inspecto
 | [fieldValue](https://pixi-silk.schmooky.dev/api/ui/inspector/functions/fieldValue.md) | Folds the values of a multi-selection into what one field shows. Numbers within `epsilon` count as equal. |
 | [getPath](https://pixi-silk.schmooky.dev/api/ui/inspector/functions/getPath.md) | The value at a dot path such as `position.x`. Undefined when a step on the way is missing. |
 | [setPath](https://pixi-silk.schmooky.dev/api/ui/inspector/functions/setPath.md) | Sets the value at a dot path such as `position.x`. Missing objects on the way are not created, and the write is skipped. |
+
+## `pixi-silk/ui/island`
+
+URL: https://pixi-silk.schmooky.dev/api/ui/island/
+
+Island, IslandFrame: surfaces that grow out of the viewport edges (side tabs, notches, bezels), plus gauges, render meters, a settings menu and createRenderStats.
+
+```ts
+import { Island, IslandFrame, IslandGauge, IslandMenu } from 'pixi-silk/ui/island';
+```
+
+#### Classes
+
+| Class | Description |
+| ------ | ------ |
+| [Island](https://pixi-silk.schmooky.dev/api/ui/island/classes/Island.md) | A surface that grows out of an edge of the viewport, like part of the bezel: a rounded body joined to the edge by concave flares, drawn as one exact shape. It rests as a lip you can pull out and opens on a tap or a drag. It springs between named sizes, so a notch can morph from a lip to a pill to a panel. Content fades in per state. |
+| [IslandFrame](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandFrame.md) | Bands along the edges of the viewport with a rounded window cut out of them. The canvas reads as a device with a bezel, and the app as the screen inside it. A band can be a side rail of icons, a thin bezel, or nothing. Bands spring to new sizes with [IslandFrame.setBands](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandFrame.md). |
+| [IslandGauge](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandGauge.md) | A progress ring with an icon in the middle and a caption under it, for quotas, levels and loading. Its box is `size` wide and `size + 24` high with the caption, from (0, 0). The ring eases to new values and redraws only while it moves. |
+| [IslandMenu](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMenu.md) | Rows of switches, choices and actions, sized for the open state of a small island: a settings menu that grows out of a gear. Its box is [IslandMenu.boxWidth](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMenu.md) by [IslandMenu.boxHeight](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMenu.md) from (0, 0). Switches slide when their signal changes, from a tap or from elsewhere. |
+| [IslandMeter](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMeter.md) | A caption, a number and a row of bars with its recent values: FPS, frame time, draw calls or any live count. Its box is `width` by 64 from (0, 0). It redraws when the value changes, not every frame. |
+| [IslandStack](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandStack.md) | A row or a column of items, centred across the axis. Sizes come from each item's local bounds, so items can draw around any origin. Call [IslandStack.layout](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandStack.md) again after an item changes size. An island stacks its `items` in one of these. |
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [IslandFrameOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandFrameOptions.md) | Options of [IslandFrame](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandFrame.md). |
+| [IslandGaugeOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandGaugeOptions.md) | Options of [IslandGauge](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandGauge.md). |
+| [IslandInsets](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandInsets.md) | Distances from the viewport edges: notches, rounded corners, home bars. Default 0 each. |
+| [IslandMagnet](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandMagnet.md) | How the lip of an [Island](https://pixi-silk.schmooky.dev/api/ui/island/classes/Island.md) leans toward a pointer. |
+| [IslandMenuOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandMenuOptions.md) | Options of [IslandMenu](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMenu.md). |
+| [IslandMeterOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandMeterOptions.md) | Options of [IslandMeter](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMeter.md). |
+| [IslandOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandOptions.md) | Options of [Island](https://pixi-silk.schmooky.dev/api/ui/island/classes/Island.md). |
+| [IslandRailOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandRailOptions.md) | A column or row of items in one band of an [IslandFrame](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandFrame.md), such as the icons of a side rail. |
+| [IslandRect](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandRect.md) | A rectangle in the island's parent space. |
+| [IslandShape](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandShape.md) | The pieces of an island outline, in the parent space. |
+| [IslandSize](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandSize.md) | Size of an island in one state, in edge terms. |
+| [IslandStackOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandStackOptions.md) | Options of [IslandStack](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandStack.md). |
+| [IslandState](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandState.md) | Live state of an [Island](https://pixi-silk.schmooky.dev/api/ui/island/classes/Island.md). |
+| [RenderStats](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/RenderStats.md) | What [createRenderStats](https://pixi-silk.schmooky.dev/api/ui/island/functions/createRenderStats.md) returns. Every signal updates once per `interval`. |
+| [RenderStatsOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/RenderStatsOptions.md) | Options of [createRenderStats](https://pixi-silk.schmooky.dev/api/ui/island/functions/createRenderStats.md). |
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [IslandEdge](https://pixi-silk.schmooky.dev/api/ui/island/types/IslandEdge.md) | Side of the viewport an island grows from. |
+| [IslandHint](https://pixi-silk.schmooky.dev/api/ui/island/types/IslandHint.md) | A hint that the island can be pulled out: `pulse` swells it, `wiggle` shakes it along the edge. |
+| [IslandMenuItem](https://pixi-silk.schmooky.dev/api/ui/island/types/IslandMenuItem.md) | One row of an [IslandMenu](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMenu.md). |
+| [IslandViewport](https://pixi-silk.schmooky.dev/api/ui/island/types/IslandViewport.md) | What an island or a frame follows. An Application or a renderer updates it on `resize`. A signal of a rectangle, such as `IslandFrame.inner`, updates it on change. A plain rectangle stays as it is. The same shapes a SmartContainer takes. |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [createRenderStats](https://pixi-silk.schmooky.dev/api/ui/island/functions/createRenderStats.md) | Samples how the renderer is doing: frames per second, CPU time per render and draw calls per frame. Feed the signals to an [IslandMeter](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandMeter.md), or read them anywhere. |
+| [drawIslandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/drawIslandShape.md) | Fills an island outline as one shape: one instance, exact edges, safe with a see-through fill. |
+| [fpsTone](https://pixi-silk.schmooky.dev/api/ui/island/functions/fpsTone.md) | Green at 55 frames per second and up, amber from 30, red below: a `tone` for an FPS meter. |
+| [gearIcon](https://pixi-silk.schmooky.dev/api/ui/island/functions/gearIcon.md) | Draws a gear, `size` wide, centred on (0, 0), in white: an [IconSource](https://pixi-silk.schmooky.dev/api/ui/types/IconSource.md) for a settings island. |
+| [islandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/islandShape.md) | Outline of an island `length` long and `depth` deep, centred at `u` along the edge. The far corners get `radius`, the joins with the edge get concave flares of `flare`. Both shrink when the island is shallow, and the flares always meet the straight part of the sides, so the outline stays smooth at every depth. `smoothing` (0..1) turns the far corners into squircles. Returns null when `depth` is below a quarter unit. |
 
 ## `pixi-silk/ui/keys`
 

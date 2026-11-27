@@ -214,6 +214,38 @@ export {
 } from './halo';
 export type { IconSource } from './icon';
 export type { InputKind, InputProfile, InputProfiles } from './input';
+export {
+    createRenderStats,
+    drawIslandShape,
+    fpsTone,
+    gearIcon,
+    Island,
+    type IslandEdge,
+    IslandFrame,
+    type IslandFrameOptions,
+    IslandGauge,
+    type IslandGaugeOptions,
+    type IslandHint,
+    type IslandInsets,
+    type IslandMagnet,
+    IslandMenu,
+    type IslandMenuItem,
+    type IslandMenuOptions,
+    IslandMeter,
+    type IslandMeterOptions,
+    type IslandOptions,
+    type IslandRailOptions,
+    type IslandRect,
+    type IslandShape,
+    type IslandSize,
+    IslandStack,
+    type IslandStackOptions,
+    type IslandState,
+    type IslandViewport,
+    islandShape,
+    type RenderStats,
+    type RenderStatsOptions,
+} from './island';
 export { altDown, isKeyDown, isTypingTarget, modDown, onKey, shiftDown } from './keys';
 export type { LabelFactory, TextLabel } from './label';
 export {

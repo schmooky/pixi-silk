@@ -41,6 +41,7 @@ const PACKAGES: Record<string, Loader> = {
     'pixi-silk/ui/snap': () => import('pixi-silk/ui/snap'),
     'pixi-silk/ui/color': () => import('pixi-silk/ui/color'),
     'pixi-silk/ui/halo': () => import('pixi-silk/ui/halo'),
+    'pixi-silk/ui/island': () => import('pixi-silk/ui/island'),
     'pixi-silk/ui/brush': () => import('pixi-silk/ui/brush'),
     'pixi-silk/ui/modes': () => import('pixi-silk/ui/modes'),
     'pixi-silk/ui/dial': () => import('pixi-silk/ui/dial'),

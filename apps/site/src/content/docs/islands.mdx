@@ -1,0 +1,271 @@
+---
+title: Islands
+seoTitle: 'Edge islands, notches and bezels for PixiJS'
+description: 'Side tabs, notches and bezels that grow out of the canvas edges, with gauges, FPS and draw-call meters and a settings menu. pixi-silk/ui/island.'
+keywords: ['PixiJS island', 'dynamic island', 'notch', 'edge panel', 'bezel', 'FPS meter', 'draw calls']
+updated: 2026-11-27
+api: [Island, IslandMagnet, IslandFrame, IslandGauge, IslandMeter, IslandMenu, IslandStack, createRenderStats, islandShape]
+---
+
+An island is a surface that grows out of an edge of the viewport, as if the bezel of the device
+reached into the app. It rests as a lip you can pull out, opens on a tap or a drag, and springs
+between sizes. Everything on this page comes from `pixi-silk/ui/island`.
+
+<Demo name="islands" height={420} caption="Pull the lip on the right, hover the notch, tap the gear. Turn the bezel off and every island follows the edge." />
+
+## Grow an island out of an edge
+
+<Demo name="island-sizes" height={420} caption="Four closed sizes on four edges. Pull one, or open them all from the control." />
+
+```ts
+import { Island, IslandGauge } from 'pixi-silk/ui/island';
+
+const island = new Island({
+    viewport: app,
+    edge: 'right',
+    align: 0.4,
+    items: [
+        new IslandGauge({ value: 0.73, color: 0xff5a1f }),
+        new IslandGauge({ value: 0.21, color: 0x30d158 }),
+    ],
+});
+
+app.stage.addChild(island);
+island.open();
+```
+
+The outline is one shape: a body with rounded far corners, joined to the edge by two concave
+flares. It is exact at any size, and the flares shrink with the depth, so the outline stays smooth
+while the island opens. It redraws only while it moves.
+
+`viewport` is what the island sits on. Pass the Application for a full-screen canvas. Pass a
+rectangle in the parent's space to grow it out of the side of a panel. Pass `frame.inner` to grow
+it out of a bezel, as shown further down.
+
+<Demo name="island-cards" height={420} caption="Four cards, each with a drawer on a different side. Pull one out." />
+
+| Option | Default | What it does |
+|---|---|---|
+| `edge` | `'right'` | Edge it grows from. |
+| `align` | `0.5` | Place along the edge, 0 at the start, 1 at the end. |
+| `length`, `depth` | from `items` | Size when open. |
+| `peek` | `12` | Depth of the lip at rest. `0` hides it. |
+| `radius` | `28` | Far corners. |
+| `flare` | `22` | Concave joins with the edge. |
+| `smoothing` | `0.6` | Squircle corners. |
+| `color` | black | Fill. Black reads as part of the bezel. |
+| `safeArea` | none | Insets of notches and rounded screen corners. |
+
+## Open, peek and drag
+
+An island has named states, each a length and a depth: `hidden`, `peek` and `open`. A tap on the
+lip opens it, and a drag pulls it to any depth with a rubber band past the deepest state. On
+release it springs to the nearest state, a flick carries it one further, and the outline morphs
+between the lengths of the states on the way.
+
+<Demo name="island-sheet" height={560} caption="A bottom sheet with three stops. Pull the hairline, or flick it." />
+
+```ts
+import { Island } from 'pixi-silk/ui/island';
+
+const island = new Island({ viewport: app, edge: 'bottom', length: 320, depth: 96 });
+
+island.state.name.subscribe((name) => console.log('now', name));
+island.open();
+island.close(); // back to the lip
+island.hide(); // all the way in
+```
+
+`state.openness` goes from 0 at rest to 1 open. Bind content to it for effects of your own. A tap
+on the island's own surface while it is open closes it again. Turn that off with
+`tapToClose: false`.
+
+## Help people find and pull it
+
+A 12-unit lip is easy to miss and hard to hit with a finger. Four options help.
+
+<Demo name="island-hints" height={420} caption="Lips that pulse or wiggle on a timer. The left one is hidden and peeks out." />
+
+```ts
+import { Island } from 'pixi-silk/ui/island';
+
+const drawer = new Island({
+    viewport: app,
+    edge: 'left',
+    peek: 0, // nothing shows at rest: swipe in from the edge
+    grab: 28, // the touch zone reaches 28 units past the lip
+    hintEvery: 3500, // peek out now and then, until it is first opened
+    hintKind: 'pulse',
+    magnet: { radius: 160, depth: 14, slide: 30 },
+});
+
+app.stage.addChild(drawer);
+drawer.hint('wiggle');
+```
+
+- `grab` widens the zone that takes touches around the lip, along the edge and into the viewport. It takes input only at rest, so it never covers the open island. The default is 24.
+- `magnet` leans the lip toward a pointer near it: it grows and slides along the edge. On a phone it follows the finger that lands near the edge and lets go half a second after the last move. It is on by default with a radius of 120.
+- `hint()` swells the lip out and back (`pulse`) or shakes it along the edge (`wiggle`). A hidden island peeks out for a moment. `hintEvery` plays it on a timer until the island is first opened.
+- With `peek: 0` nothing shows at rest, and a swipe in from the edge pulls it out, like a system drawer.
+
+<Demo name="island-magnet" height={420} caption="Move the pointer toward an edge. The dashed rings show how far the magnet reaches." />
+
+<Demo name="island-edge-swipe" height={420} caption="Swipe in from the left edge, anywhere in the shaded zone." />
+
+Lips come in any size. Try a dot of 22 by 8, or a hairline as long as the edge (a longer `peekLength` is clamped to the edge). A 44-unit lip with an icon in its `peek` view is a button.
+
+## Flash a notification
+
+`flash(name, ms)` moves to a state and back to rest after `ms`. A tap or a drag keeps it, and a pointer over it holds it until it leaves.
+
+<Demo name="island-notch" height={420} caption="A notch with a live countdown that flashes messages. Hover it for the panel." />
+
+```ts
+import { Container } from 'pixi.js';
+import { Island } from 'pixi-silk/ui/island';
+
+const message = new Container();
+const notch = new Island({
+    viewport: app,
+    edge: 'top',
+    peek: 22,
+    peekLength: 80,
+    sizes: { note: { length: 220, depth: 56 } },
+    views: { note: message },
+});
+
+app.stage.addChild(notch);
+notch.flash('note', 2200);
+```
+
+A view shows in its own state and fades out in the others, so one island can carry a notification, a compact live activity and a full panel. The [island playground](/lab/38-island-playground/) has nine of these cases side by side.
+
+## Make a notch
+
+A notch on the top edge rests as a small lip, grows into a pill on hover and into a panel on a
+click. Add the middle size with `sizes`, name it in `hover`, and give each state its own view.
+
+```ts
+import { Container } from 'pixi.js';
+import { Island } from 'pixi-silk/ui/island';
+
+const pill = new Container();
+const panel = new Container();
+const notch = new Island({
+    viewport: app,
+    edge: 'top',
+    peek: 30,
+    peekLength: 180,
+    hover: 'compact',
+    sizes: { compact: { length: 340, depth: 60 }, open: { length: 560, depth: 240 } },
+    views: { compact: pill, open: panel },
+});
+
+app.stage.addChild(notch);
+```
+
+Each view is laid out in the box of its state, `notch.boxOf('open')`, anchored to the far side,
+and fades in as the island reaches that state. Nothing clips it, so size it for that box. An
+island is never longer than its edge.
+
+## Eat the canvas with a bezel
+
+`IslandFrame` draws bands along the edges with a rounded window cut out of them, so the app reads
+as the screen of a device. A band can hold a rail of icons, and bands spring to new sizes.
+
+<Demo name="island-frame" height={420} caption="Drag the rail and bezel sliders: the window, its corners and the island follow." />
+
+```ts
+import { Island, IslandFrame } from 'pixi-silk/ui/island';
+import { SmartContainer } from 'pixi-silk/ui/layout';
+
+const frame = new IslandFrame({ viewport: app, bands: { left: 64, top: 10, right: 10, bottom: 10 }, radius: 26 });
+const game = new SmartContainer({ viewport: frame.inner, landscapeData: { width: 1280, height: 720 } });
+const side = new Island({ viewport: frame.inner, edge: 'right' });
+
+app.stage.addChild(game, frame, side);
+// fold the rail away
+frame.setBands({ left: 10 });
+```
+
+`frame.inner` is the window as a signal. A SmartContainer follows it like a screen, and islands on
+it grow out of the bezel. Bands are plain rectangles and each inner corner is one small shape, so
+a frame costs little on any canvas. Keep its colour opaque: the bands overlap at the corners.
+
+## Show FPS and draw calls
+
+`createRenderStats` samples frames per second, CPU time per render and draw calls per frame, as
+signals. `IslandMeter` shows one of them with a row of recent values.
+
+<Demo name="island-stats" height={420} caption="Add shapes and objects. Hover the notch to read the frame time and the draw calls." />
+
+```ts
+import { createRenderStats, fpsTone, Island, IslandMeter } from 'pixi-silk/ui/island';
+
+const stats = createRenderStats(app);
+const meters = new Island({
+    viewport: app,
+    edge: 'top',
+    hover: 'open',
+    items: [
+        new IslandMeter({ title: 'fps', value: stats.fps, tone: fpsTone }),
+        new IslandMeter({ title: 'cpu ms', value: stats.frameMs, format: (v) => v.toFixed(1) }),
+        new IslandMeter({ title: 'draws', value: stats.drawCalls }),
+    ],
+});
+
+app.stage.addChild(meters);
+```
+
+Draw calls are counted on WebGL by wrapping the draw functions of the context, and on WebGPU those
+of `GPURenderPassEncoder`, which counts every WebGPU canvas on the page. `stats.destroy()` puts
+them back. Meters redraw when a value changes, about twice a second, not every frame. Under
+`renderOnDemand` that is two frames a second while the numbers move.
+
+## Open a settings menu from a gear
+
+`IslandMenu` lays out switches, choices and plain rows. Put it in the open view of a small island
+whose lip is a gear, and the gear grows into the menu.
+
+<Demo name="island-menu" height={420} caption="Tap the gear. The switches change the scene behind the menu." />
+
+```ts
+import { Container } from 'pixi.js';
+import { SilkGraphics } from 'pixi-silk';
+import { signal } from 'pixi-silk/signal';
+import { gearIcon, Island, IslandMenu } from 'pixi-silk/ui/island';
+
+const sound = signal(true);
+const quality = signal('High');
+const menu = new IslandMenu({
+    title: 'Settings',
+    items: [
+        { id: 'sound', label: 'Sound', type: 'toggle', value: sound },
+        { id: 'quality', label: 'Quality', type: 'choice', options: ['Low', 'High'], value: quality },
+        { id: 'help', label: 'How to play' },
+    ],
+    onSelect: (id) => console.log(id),
+});
+const gear = new Container();
+const icon = new SilkGraphics();
+
+gearIcon(icon, 26);
+icon.position.set(28, 28);
+gear.addChild(icon);
+const settings = new Island({
+    viewport: app,
+    edge: 'right',
+    align: 1,
+    peek: 56,
+    peekLength: 56,
+    grip: false,
+    length: menu.boxHeight,
+    depth: menu.boxWidth,
+    views: { peek: gear, open: menu },
+});
+
+app.stage.addChild(settings);
+```
+
+The [islands lab](/lab/37-islands/) puts all of it together: a bezel with a rail, a tab of gauges,
+a gear menu, a tray and a notch with live render stats.

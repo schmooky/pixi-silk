@@ -1,6 +1,6 @@
 ---
 name: pixi-silk-widgets
-description: "Use this skill when building interface widgets on a PixiJS canvas with pixi-silk. Covers SilkButton (shapes, icons, press and hold, busy state, show and hide animations), ButtonDock, RadialMenu with submenus and bindRadialTrigger, ValuePill, Odometer, JogDial and Scrubber, SegmentedSwitch, ContextHalo, trackGesture, input profiles per pointer kind, widget state as signals (signal, computed, watch, batch from pixi-silk/signal), driving widgets without a ticker. Triggers on: SilkButton, button, ButtonDock, RadialMenu, radial menu, ring menu, Odometer, rolling counter, JogDial, Scrubber, SegmentedSwitch, ContextHalo, ValuePill, trackGesture, signal, computed, pixi-silk/ui, pixi-silk/signal."
+description: "Use this skill when building interface widgets on a PixiJS canvas with pixi-silk. Covers SilkButton (shapes, icons, press and hold, busy state, show and hide animations), ButtonDock, RadialMenu with submenus and bindRadialTrigger, ValuePill, Odometer, JogDial and Scrubber, SegmentedSwitch, ContextHalo, Island and IslandFrame (edge islands, notches, bezels), IslandGauge, IslandMeter, IslandMenu, createRenderStats, trackGesture, input profiles per pointer kind, widget state as signals (signal, computed, watch, batch from pixi-silk/signal), driving widgets without a ticker. Triggers on: Island, notch, dynamic island, edge panel, bezel, FPS meter, draw calls, SilkButton, button, ButtonDock, RadialMenu, radial menu, ring menu, Odometer, rolling counter, JogDial, Scrubber, SegmentedSwitch, ContextHalo, ValuePill, trackGesture, signal, computed, pixi-silk/ui, pixi-silk/signal."
 license: MIT
 ---
 
@@ -112,6 +112,34 @@ app.stage.addChild(bar);
 
 A custom block extends `Block` and implements `paint(g, x, y)`, drawing at the slot's top-left corner with the size in `w` and `h`. It animates with `this.spring()`, follows signals with `this.watch()` and takes input with `this.pressable()`.
 
+### Islands on the edges
+
+`pixi-silk/ui/island` draws surfaces that grow out of an edge of the viewport: a rounded body joined to the edge by concave flares, drawn as one exact shape. An `Island` rests as a lip, opens on a tap or a drag and springs between named sizes, so a notch morphs from a lip to a pill to a panel. Content fades in per state. `IslandFrame` adds bands around the viewport with a rounded window, and its `inner` signal is the viewport for the game and for islands on the bezel.
+
+```ts
+import { createRenderStats, Island, IslandFrame, IslandGauge, IslandMeter } from 'pixi-silk/ui/island';
+
+const frame = new IslandFrame({ viewport: app, bands: { left: 64, top: 8, right: 8, bottom: 8 } });
+const side = new Island({
+    viewport: frame.inner,
+    edge: 'right',
+    items: [new IslandGauge({ value: 0.73, color: 0xff5a1f }), new IslandGauge({ value: 0.21 })],
+});
+const stats = createRenderStats(app);
+const notch = new Island({
+    viewport: frame.inner,
+    edge: 'top',
+    peek: 28,
+    hover: 'open',
+    items: [new IslandMeter({ title: 'fps', value: stats.fps }), new IslandMeter({ title: 'draws', value: stats.drawCalls })],
+});
+
+app.stage.addChild(frame, side, notch);
+side.open();
+```
+
+A lip is small, so islands help people find it. `grab` widens the touch zone and `magnet` leans the lip toward a nearby pointer or finger. `hint('pulse' | 'wiggle')` and `hintEvery` nudge it, and `peek: 0` hides it for an edge swipe. `flash(name, ms)` shows a state, such as a notification, and goes back to rest.
+
 ### Widgets without a ticker
 
 ```ts
@@ -166,6 +194,14 @@ Symptom: the reels freeze while the HUD is idle. The gate renders only frames so
 
 Symptom: changes show one frame late. The surface repaints on the shared ticker while the app renders on its own. Pass the application's ticker so layout, repaint and render run in order.
 
+### [MEDIUM] A see-through IslandFrame
+
+Symptom: darker lines where the bands meet, and where an island joins the bezel. The bands are separate rectangles that overlap at the corners, so their alpha adds up. Give the frame and the islands on it an opaque colour.
+
+### [MEDIUM] Island content that does not fit its state
+
+Symptom: content spills past the island while it opens or on a small screen. A view is laid out in the box of its state (`island.boxOf(name)`) and nothing clips it. An island is never longer than its edge, so size views for the smallest screen or pass a view per state.
+
 ### [MEDIUM] A radial menu without `bounds`
 
 Symptom: a partial ring (`sweep` under a full turn) opens off screen near an edge. Pass `bounds`, the screen rectangle, so it turns to face the inside.
@@ -177,6 +213,6 @@ Symptom: labels soften when the stage scales. Widgets use Pixi `Text` by default
 ## API Reference
 
 - [pixi-silk/ui/button](https://pixi-silk.schmooky.dev/api/ui/button.md), [pixi-silk/ui/dock](https://pixi-silk.schmooky.dev/api/ui/dock.md), [pixi-silk/ui/radial](https://pixi-silk.schmooky.dev/api/ui/radial.md)
-- [pixi-silk/ui/odometer](https://pixi-silk.schmooky.dev/api/ui/odometer.md), [pixi-silk/ui/dial](https://pixi-silk.schmooky.dev/api/ui/dial.md), [pixi-silk/ui/pill](https://pixi-silk.schmooky.dev/api/ui/pill.md), [pixi-silk/ui/modes](https://pixi-silk.schmooky.dev/api/ui/modes.md), [pixi-silk/ui/gesture](https://pixi-silk.schmooky.dev/api/ui/gesture.md)
+- [pixi-silk/ui/odometer](https://pixi-silk.schmooky.dev/api/ui/odometer.md), [pixi-silk/ui/dial](https://pixi-silk.schmooky.dev/api/ui/dial.md), [pixi-silk/ui/pill](https://pixi-silk.schmooky.dev/api/ui/pill.md), [pixi-silk/ui/modes](https://pixi-silk.schmooky.dev/api/ui/modes.md), [pixi-silk/ui/gesture](https://pixi-silk.schmooky.dev/api/ui/gesture.md), [pixi-silk/ui/island](https://pixi-silk.schmooky.dev/api/ui/island.md)
 - [pixi-silk/signal](https://pixi-silk.schmooky.dev/api/signal.md)
-- Guides: [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md), [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md)
+- Guides: [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md), [Dials and timeline](https://pixi-silk.schmooky.dev/docs/dials-and-timeline.md), [Islands](https://pixi-silk.schmooky.dev/docs/islands.md)
