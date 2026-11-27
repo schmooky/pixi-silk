@@ -49,6 +49,7 @@ export default defineConfig({
         'src/ui/keys.ts',
         'src/ui/pill.ts',
         'src/ui/layout.ts',
+        'src/ui/blocks.ts',
         'src/ui/textedit.ts',
         'src/ui/panel.ts',
         'src/ui/layers.ts',

@@ -1,9 +1,11 @@
 import { Ticker } from 'pixi.js';
+import { requestFrame } from '../frames';
 
 /**
  * Runs a widget's animation step on a ticker only while something moves. `step` returns true
  * while it still has work. Once it returns false the driver leaves the ticker, so idle widgets
- * cost nothing per frame.
+ * cost nothing per frame. Each step asks for a frame, so widgets keep animating under
+ * `renderOnDemand`.
  */
 export class Driver {
     private _on = false;
@@ -32,6 +34,8 @@ export class Driver {
     tick(dt: number): boolean {
         const busy = this._step(Math.min(Math.max(dt, 0), 0.1));
 
+        // the step changed what is on screen: render it
+        requestFrame();
         if (!busy) this.sleep();
 
         return busy;

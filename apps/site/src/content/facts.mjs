@@ -26,7 +26,7 @@ export const ENTRY_POINTS = {
     '.': {
         area: 'core',
         description:
-            'SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching.',
+            'SilkGraphics, createSilkApp, gradients (linear, radial, conic, along, mesh), colour and curve helpers, motion helpers, enableSilkBatching, renderOnDemand and enableLowEnd.',
     },
     './webgpu': {
         area: 'rendering',
@@ -91,6 +91,11 @@ export const ENTRY_POINTS = {
     './ui/dock': {
         area: 'widgets',
         description: 'ButtonDock: a row or column of SilkButtons that closes the gap when one hides.',
+    },
+    './ui/blocks': {
+        area: 'widgets',
+        description:
+            'BlockSurface, Block, ButtonBlock, CounterBlock, TextBlock, PanelBlock, stack and group. UI that paints shapes and text into a cached still layer, and a live layer for what moves.',
     },
     './ui/pill': {
         area: 'widgets',

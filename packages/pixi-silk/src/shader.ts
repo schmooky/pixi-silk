@@ -3,11 +3,12 @@ import {
     GlProgram,
     Shader,
     type ShaderWithResources,
+    Texture,
     type TextureSource,
     UniformGroup,
 } from 'pixi.js';
 import { GradientAtlas } from './atlas';
-import { silkGl1, silkGpu } from './shader-slot';
+import { silkGl1, silkGlyphs, silkGpu } from './shader-slot';
 
 /*
  * One uber-program draws every primitive. Each instance is a quad; the fragment
@@ -181,6 +182,8 @@ in float vProg;
 
 uniform highp sampler2D uGradients;
 uniform highp sampler2D uPolys;
+// glyph distance fields (Prim.Glyph): the text atlas, one channel, filtered
+uniform highp sampler2D uGlyphs;
 uniform vec2 uResolution;
 uniform vec4 uSilk; // x: dither amplitude (LSB), y: AA ramp width (device px), z: min stroke width (device px)
 
@@ -194,6 +197,9 @@ float gSigma;
 int gBase; // first path texel of this object in uPolys (non-zero in batched draws)
 // Width of uPolys, read once in main rather than for every texel the path loops fetch.
 int gPolysW;
+// position derivatives, for the glyph taps of small text
+vec2 gDdx;
+vec2 gDdy;
 
 vec4 polyTexel(int i)
 {
@@ -682,6 +688,45 @@ float gFillScale;
 float gHwEff;
 float gAlign;
 
+// Signed distance in local units at texel t of the glyph atlas, clamped to the glyph's cell.
+// s2.x is the field radius in texels and s2.y the cutoff, as in the text shader.
+float glyphField(vec2 t, vec4 cell, vec4 s2, vec2 inv)
+{
+    t = clamp(t, cell.xy + 0.5, cell.zw - 0.5);
+    return (1.0 - s2.y - textureLod(uGlyphs, t * inv, 0.0).r) * s2.x;
+}
+
+// Glyph (Prim.Glyph): s0 centre and half size of the cell, s1 the cell in atlas texels, s2 radius,
+// cutoff, 0, rotation. The field reaches about a quarter of the font size past the ink: wider
+// outlines and blurs are cut there.
+float sdGlyph(vec2 p, vec4 s0, vec4 s1, vec4 s2, float px)
+{
+    vec2 inv = 1.0 / vec2(textureSize(uGlyphs, 0));
+    vec2 q = p - s0.xy;
+    if (s2.w != 0.0) q = rotate(q, -s2.w);
+    vec2 span = s1.zw - s1.xy;
+    vec2 tpl = span / max(2.0 * s0.zw, vec2(1e-6)); // texels per local unit
+    float k = 1.0 / max(tpl.x, 1e-6);                // local units per texel
+    vec2 t = s1.xy + (q + s0.zw) * tpl;
+    if (px <= k) return glyphField(t, s1, s2, inv) * k;
+    // a pixel spans several texels: four rotated-grid taps, averaged as coverage. Where they all
+    // agree (far from the edge) the mean distance is kept, so blur and outlines still see it.
+    vec2 ax = rotate(gDdx, -s2.w) * tpl;
+    vec2 ay = rotate(gDdy, -s2.w) * tpl;
+    float c = 0.0;
+    float dm = 0.0;
+    for (int i = 0; i < 4; i++)
+    {
+        vec2 o = i == 0 ? vec2(0.125, 0.375) : i == 1 ? vec2(-0.375, 0.125) : i == 2 ? vec2(0.375, -0.125) : vec2(-0.125, -0.375);
+        float d = glyphField(t + ax * o.x + ay * o.y, s1, s2, inv) * k;
+        c += clamp(0.5 - d / px, 0.0, 1.0);
+        dm += d;
+    }
+    c *= 0.25;
+    dm *= 0.25;
+    return c > 0.0 && c < 1.0 ? (0.5 - c) * px : dm;
+}
+
 float shapeSD(vec2 p, int type, vec4 s0, vec4 s1, vec4 s2, float px)
 {
     float d = 1e6;
@@ -756,6 +801,10 @@ float shapeSD(vec2 p, int type, vec4 s0, vec4 s1, vec4 s2, float px)
     {
         d = sdPoly(p, int(s0.x + 0.5), int(s0.y + 0.5)) - s0.z;
     }
+    else if (type == 12)
+    {
+        d = sdGlyph(p, s0, s1, s2, px);
+    }
 
     gFillScale = fillScale;
     gU = u;
@@ -827,6 +876,8 @@ void main(void)
     vec2 ddx = dFdx(p);
     vec2 ddy = dFdy(p);
     float px = max(sqrt(abs(ddx.x * ddy.y - ddx.y * ddy.x)), 1e-7); // local units per device pixel
+    gDdx = ddx;
+    gDdy = ddy;
     gPx = px * uSilk.y;
     gSigma = vMeta.w;
     gBase = int(vBase + 0.5);
@@ -861,6 +912,43 @@ void main(void)
     float hwEff = max(hw, 0.5 * px * uSilk.z);
     float strokeScale = hw / max(hwEff, 1e-9);
     float align = vDash.w;
+
+    // Fast path: inside a plain rectangle, rounded rectangle or ellipse, away from the edge and the
+    // stroke band, the colour is the fill. Big panels skip the distance and the coverage there.
+    // Not for dashes, inner shadows, progressive blur, stroke gradients, spread or blur.
+    int gkFast = int(vPaint.x + 0.5);
+    if ((type == 0 || type == 1) && (flags & 1) != 0 && (flags & 102408) == 0 && gSigma == 0.0 && vFx.x == 0.0 && gkFast <= 3)
+    {
+        float m = 2.0 * gPx + px + ((flags & 2) != 0 && vMeta.z > 0.0 ? hwEff * (1.0 + abs(align)) : 0.0);
+        vec2 q = p - vShape0.xy;
+        if (vShape2.w != 0.0) q = rotate(q, -vShape2.w);
+        bool deep;
+        if (type == 0)
+        {
+            float rmax = max(max(vShape1.x, vShape1.y), max(vShape1.z, vShape1.w));
+            deep = all(lessThan(abs(q), vShape0.zw - vec2(rmax + m)));
+        }
+        else
+        {
+            vec2 ab = vShape0.zw - vec2(m);
+            deep = ab.x > 0.0 && ab.y > 0.0 && dot2(q / ab) < 1.0;
+        }
+        if (deep)
+        {
+            vec4 fc = vFill;
+            if (gkFast > 0) fc *= gradientColor(p, 0.0, 1.0, gkFast);
+            fc *= vTint;
+            if (fc.a <= 0.0 && max(fc.r, max(fc.g, fc.b)) <= 0.0) discard;
+            if ((flags & 4) != 0)
+            {
+                float n = ign(gl_FragCoord.xy) - 0.5;
+                fc.rgb = clamp(fc.rgb + n * (uSilk.x / 255.0), 0.0, fc.a);
+            }
+            if ((flags & 16384) != 0) fc.a = 0.0;
+            finalColor = fc;
+            return;
+        }
+    }
 
     float d = 1e6;   // closed shapes: signed distance to the fill boundary
     float sd = 1e6;  // open paths: signed distance to the stroke
@@ -1086,7 +1174,7 @@ export function emptyBatchTable(): BufferImageSource {
  * read a group the first never had.
  */
 const SILK_GROUPS: Record<number, Record<number, string>> = {
-    2: { 0: 'silkUniforms', 1: 'uGradients', 2: 'uPolys', 3: 'uBatch' },
+    2: { 0: 'silkUniforms', 1: 'uGradients', 2: 'uPolys', 3: 'uBatch', 4: 'uGlyphs', 5: 'uGlyphsSampler' },
 };
 
 /**
@@ -1099,6 +1187,7 @@ export function createSilkShader(
     batch: TextureSource = emptyBatchTable(),
 ): Shader {
     const gl1 = silkGl1.hooks;
+    const glyphs = { source: silkGlyphs.source ?? Texture.WHITE.source };
 
     program ??= GlProgram.from({
         vertex,
@@ -1120,6 +1209,9 @@ export function createSilkShader(
             uGradients: GradientAtlas.shared.source,
             uPolys: polys,
             uBatch: batch,
+            // until text draws a glyph: a 1x1 texture of the same sample type
+            uGlyphs: glyphs.source,
+            uGlyphsSampler: glyphs.source.style,
             silkUniforms: new UniformGroup({
                 uSilk: {
                     value: new Float32Array([settings.dither, settings.aaWidth, settings.minStrokePx, 0]),

@@ -1,5 +1,5 @@
 import { BufferImageSource, DOMAdapter, type Shader } from 'pixi.js';
-import { silkGl1 } from '../shader-slot';
+import { setGlyphSource, silkGl1, silkGlyphs } from '../shader-slot';
 import { sdfFromAlpha } from './edt';
 
 /** The font of a glyph: CSS family list, weight and style. Size does not matter, glyphs are baked at one size. */
@@ -400,6 +400,8 @@ export class SdfAtlas {
                 shader.resources.uAtlasSampler = this._source.style;
                 silkGl1.hooks?.syncSizes(shader);
             }
+            // SilkGraphics glyphs (drawText) follow the atlas they were drawn from
+            if (silkGlyphs.source === old) setGlyphSource(this._source);
             setTimeout(() => old.destroy(), 0);
 
             return;

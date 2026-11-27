@@ -70,6 +70,30 @@ export {
 } from '../selection';
 export { AngleAccumulator, angleDelta, clamp, rubberBand, snapTo, TAU, wrapAngle } from './arc';
 export { ButtonDock, type ButtonDockOptions } from './ButtonDock';
+export {
+    Block,
+    type BlockOptions,
+    BlockSurface,
+    type BlockSurfaceOptions,
+    type BlockSurfaceStats,
+    ButtonBlock,
+    type ButtonBlockOptions,
+    type ButtonColors,
+    CounterBlock,
+    type CounterBlockOptions,
+    group,
+    type IconPainter,
+    PanelBlock,
+    type PanelBlockOptions,
+    type PressableOptions,
+    type PressState,
+    read,
+    type StackItem,
+    stack,
+    TextBlock,
+    type TextBlockOptions,
+    type Value,
+} from './blocks';
 export { BrushCursor, type BrushCursorOptions, type BrushState } from './brush';
 export {
     Camera,

@@ -4,7 +4,7 @@ seoTitle: 'SDF text labels for PixiJS with SilkText'
 description: 'SilkText draws labels and readouts from a runtime SDF glyph atlas, with outlines, glows, gradients and tabular numbers. It lives in pixi-silk/text.'
 keywords: ['PixiJS text', 'SDF text', 'signed distance field font', 'crisp text zoom', 'PixiJS Text blurry', 'text outline', 'tabular numbers']
 updated: 2026-11-08
-api: [SilkText, SdfAtlas, silkLabel]
+api: [drawText, measureText, SilkText, SdfAtlas, silkLabel]
 ---
 
 `SilkText` from `pixi-silk/text` draws a string from distance-field glyphs, so a label under a
@@ -115,6 +115,48 @@ trend.show('{up} 12%');
 ```
 
 To let people click and type into a text, wrap it in a `TextEditor`. See [Editing text](/docs/editing-text/).
+
+## Text inside a SilkGraphics
+
+`drawText` from `pixi-silk/text` lays out a string and adds one glyph shape per character to a
+`SilkGraphics`. You paint the glyphs with `fill` and `stroke` like any shape. The text then draws
+in the same call as the shapes around it, and batches with other objects. A HUD with ten labels
+is one draw call instead of eleven.
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { drawText, measureText } from 'pixi-silk/text';
+
+const g = new SilkGraphics();
+const style = { fontSize: 28, fontWeight: 700, tabularNumbers: true };
+const { width } = measureText('$1,250.00', style);
+
+g.roundRect(0, 0, width + 40, 64, 18).fill(0x1c1c1e);
+// a shadow: a blurred fill, moved down
+g.save();
+g.translateTransform(0, 2);
+drawText(g, '$1,250.00', 20, 32, { ...style, anchor: [0, 0.5] }).fill({ color: 0x000000, alpha: 0.6, blur: 3 });
+g.restore();
+drawText(g, '$1,250.00', 20, 32, { ...style, anchor: [0, 0.5] }).fill(0xffffff);
+app.stage.addChild(g);
+```
+
+Each glyph is a closed shape whose distance comes from the `SdfAtlas.shared` texture, so the
+anti-aliasing, gradients, blur and hit testing are those of the other shapes. The same rules as
+`SilkText` apply to the field:
+
+- The field reaches about a quarter of the font size outside the ink and a twelfth inside it.
+  An outline wider than that, or one drawn inside the letters, is cut. Draw outlines with
+  `alignment: 'outside'`.
+- An outline painted in the same call as the fill covers the neighbouring letter where two glyphs
+  touch. Stroke the text in one `drawText` call and fill it in a second, as above for the shadow.
+- A gradient spans each glyph, not the whole line.
+- Colour glyphs (emoji) draw in one colour. Use `SilkText` for them.
+- When the atlas fills up, it starts over and its `version` changes. Graphics drawn before then
+  show the wrong letters until you draw them again. A `BlockSurface` repaints on its own.
+
+Use `SilkText` for long text that changes rarely and for editable text. Use `drawText` for many
+short labels and numbers that sit with shapes, such as a game HUD.
 
 ## Right-to-left text
 

@@ -3,8 +3,8 @@ title: Performance
 seoTitle: 'PixiJS vector graphics performance with pixi-silk'
 description: 'What a SilkGraphics costs on the CPU and GPU, how batching joins objects into one draw, and how to keep static layers and large canvases cheap.'
 keywords: ['PixiJS performance', 'instanced rendering', 'draw calls', 'WebGL 2D performance', 'PixiJS batching']
-updated: 2026-11-08
-api: [SilkGraphics, SilkGraphicsOptions, enableSilkBatching]
+updated: 2026-11-26
+api: [SilkGraphics, SilkGraphicsOptions, enableSilkBatching, renderOnDemand, requestFrame, enableLowEnd]
 ---
 
 A `SilkGraphics` is one instanced draw call, whatever it contains. What you pay for is the CPU
@@ -23,6 +23,12 @@ work to rebuild it and the GPU work per covered pixel.
 
 GPU cost follows covered area, like any 2D renderer. A full-screen blurred shape costs more than a
 thousand small dots.
+
+Inside a solid rectangle, rounded rectangle, circle or ellipse, away from its edge and its
+stroke, the shader skips the distance and returns the fill. A gradient fill takes this path too,
+except a mesh or path gradient. Blur, spread, dashes, inner shadows and shape operations do not.
+On a full-width panel it saves 20 to 45 percent. The rest of the cost is the size of the shader
+itself, so a panel that never changes is still cheaper cached as a texture.
 
 ## CPU cost measured
 
@@ -80,3 +86,40 @@ Cap the resolution of large canvases with `createSilkApp({ maxResolution: 2 })`.
 with the square of the resolution.
 
 Stop redrawing when nothing moves. Check `Spring.settled`, or redraw only when the data changes.
+
+Draw labels with `drawText` into the `SilkGraphics` they sit on. Each `SilkText` is a draw call
+of its own, while glyphs drawn with `drawText` share the call of the shapes around them.
+
+For a HUD or a toolbar, use a `BlockSurface` from `pixi-silk/ui/blocks`. It keeps what does not
+change in a cached layer and repaints only the blocks that move, so an idle interface runs no
+distance field at all. See [Cheap UI with blocks](/docs/layout/#cheap-ui-with-blocks).
+
+## Render only frames that change
+
+Pixi renders every frame, even when nothing changed. `renderOnDemand(app)` keeps the ticker
+running but renders only when something asks. The canvas keeps the last frame in between, so an
+idle screen costs no GPU time at all.
+
+pixi-silk asks on its own: a `SilkGraphics` when it is redrawn, the `pixi-silk/ui` widgets while
+they animate, and a `BlockSurface` when it paints. The gate also draws after a resize or input on
+the canvas. Anything else asks with `gate.invalidate()` after a change: moving or fading a display
+object, a Pixi `Text` or `Graphics`. Content that animates on its own, such as reels, a Spine
+skeleton or a video, holds frames with `gate.hold()` while it plays.
+
+```ts
+import { renderOnDemand } from 'pixi-silk';
+
+const gate = renderOnDemand(app);
+const release = gate.hold();
+
+// the reels stopped
+release();
+```
+
+## Weak devices
+
+`enableLowEnd(app)` is one switch for phones with a weak GPU. It caps the resolution at 1.5,
+renders only frames that change, and gives blocks their cheap look (flat buttons, no corner
+smoothing, 30 repaints a second). It is turned on by hand and does not guess the device: call it
+from a quality setting or a device list you trust. Pass the `SilkApp` from `createSilkApp` rather than
+its `app`, so the cap holds when the window resizes.

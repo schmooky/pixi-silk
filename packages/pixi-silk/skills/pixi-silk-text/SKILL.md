@@ -47,6 +47,23 @@ title.set({ fontSize: 40, letterSpacing: 1 }); // change several style fields at
 readout.text = 72.5;
 ```
 
+### Text in the same draw call as shapes
+
+`drawText` adds glyph shapes to a SilkGraphics. Paint them with `fill` and `stroke`. They draw and batch with the shapes around them, where each SilkText is a draw call of its own.
+
+```ts
+import { SilkGraphics } from 'pixi-silk';
+import { drawText } from 'pixi-silk/text';
+
+const g = new SilkGraphics();
+
+g.roundRect(0, 0, 240, 64, 18).fill(0x1c1c1e);
+drawText(g, '$1,250.00', 120, 32, { fontSize: 28, fontWeight: 700, anchor: 0.5, tabularNumbers: true }).fill(0xffffff);
+app.stage.addChild(g);
+```
+
+Outlines: stroke one `drawText` with `alignment: 'outside'`, then fill a second one. The field reaches about a quarter em outside the ink and a twelfth inside it. Emoji draw in one colour: use SilkText for them.
+
 ### Wrapping and caret geometry
 
 ```ts
@@ -155,6 +172,14 @@ const world = new Container();
 
 world.addChild(new SilkText({ text: 'Layer 1', fontSize: 12 }));
 world.scale.set(8); // still sharp
+```
+
+### [HIGH] An outline painted inside the letters with drawText
+
+Symptom: blotchy, eaten letters. The atlas field reaches only about a twelfth of an em inside the ink. Stroke with `alignment: 'outside'`.
+
+```ts nocheck
+drawText(g, 'WIN', 0, 0, { fontSize: 48 }).fill(0xffd60a).stroke({ width: 4, color: 0x000000, alignment: 'inside' });
 ```
 
 ### [MEDIUM] Glows and outlines that stop short

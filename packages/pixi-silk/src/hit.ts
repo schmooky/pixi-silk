@@ -176,6 +176,12 @@ function shapeDist(type: number, s: Float32Array, at: number, x: number, y: numb
             return polygonDist(Array.from(s.subarray(at, at + 6)), x, y) - s[at + 6];
         case Prim.Poly:
             return poly ? polyDist(poly, s[at], s[at + 1], x, y) : Number.NaN;
+        case Prim.Glyph: {
+            // the cell, not the ink: a label is hit anywhere in its letters' boxes
+            const [px, py] = local(x - s[at], y - s[at + 1], s[at + 11]);
+
+            return roundBox(px, py, s[at + 2], s[at + 3], 0);
+        }
         default:
             return Number.NaN;
     }
