@@ -237,6 +237,7 @@ export {
     type IslandRailOptions,
     type IslandRect,
     type IslandShape,
+    type IslandShapeOptions,
     type IslandSize,
     IslandStack,
     type IslandStackOptions,

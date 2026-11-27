@@ -32,7 +32,7 @@ const drag = (i: Island) => i as unknown as Drag;
 
 describe('islandShape', () => {
     it('grows a right-edge body from the edge with two concave flares', () => {
-        const s = islandShape('right', VIEW, 300, 200, 80, 28, 22, 0);
+        const s = islandShape('right', VIEW, 300, 200, 80, 28, 22);
 
         expect(s).not.toBeNull();
         expect(s?.box).toEqual({ x: 720, y: 200, width: 80, height: 200 });
@@ -46,13 +46,39 @@ describe('islandShape', () => {
     });
 
     it('keeps the flares on the straight part of the sides when shallow', () => {
-        const s = islandShape('top', VIEW, 400, 120, 12, 28, 22, 0.6);
+        const s = islandShape('top', VIEW, 400, 120, 12, 28, 22, { smoothing: 0.6 });
 
         // radius capped by depth, flare by what is left of the side
         const r = s?.body.radii[2] ?? 0;
 
         expect(r * 1.6).toBeLessThanOrEqual(12 * 0.6 + 1e-9);
         for (const f of s?.flares ?? []) expect(f.circle.r).toBeLessThanOrEqual(12 - r * 1.6 + 1e-9);
+    });
+
+    it('meets the side edges flush when it runs the whole edge', () => {
+        const s = islandShape('bottom', VIEW, 0, 0 + 800, 130, 26, 0, { full: true });
+
+        expect(s?.box).toEqual({ x: 0, y: 470, width: 800, height: 130 });
+        // square corners on the island, concave corners on the window above it
+        expect(s?.body.radii).toEqual([0, 0, 0, 0]);
+        expect(s?.flares.map((f) => f.circle)).toEqual([
+            { x: 26, y: 600 - 130 - 26, r: 26 },
+            { x: 774, y: 600 - 130 - 26, r: 26 },
+        ]);
+    });
+
+    it('keeps the window corners no deeper than a hairline', () => {
+        const s = islandShape('bottom', VIEW, 0, 800, 5, 26, 0, { full: true });
+
+        expect(s?.flares[0].circle.r).toBe(5);
+    });
+
+    it('does not reach past the edge with no bleed', () => {
+        const card = { x: 100, y: 100, width: 300, height: 200 };
+        const s = islandShape('bottom', card, 150, 120, 50, 18, 12, { bleed: 0 });
+
+        expect((s?.body.y ?? 0) + (s?.body.height ?? 0)).toBe(300);
+        for (const f of s?.flares ?? []) expect(f.square.y + f.square.height).toBe(300);
     });
 
     it('draws nothing at depth 0', () => {
@@ -105,6 +131,15 @@ describe('Island', () => {
         expect(island.state.name.value).toBe('mid');
         settle(island);
         expect(island.box.width).toBe(50);
+    });
+
+    it('spans the edge when its length fills it', () => {
+        const island = make({ edge: 'bottom', peek: 5, peekLength: 2000, flare: 0, length: 2000, depth: 200 });
+
+        expect(island.box).toEqual({ x: 0, y: 595, width: 800, height: 5 });
+        island.go('open', true);
+        expect(island.shape?.body.radii).toEqual([0, 0, 0, 0]);
+        expect(island.shape?.flares).toHaveLength(2);
     });
 
     it('rubber-bands past the deepest state', () => {

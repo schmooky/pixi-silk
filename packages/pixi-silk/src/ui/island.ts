@@ -8,6 +8,7 @@ export {
     type IslandInsets,
     type IslandRect,
     type IslandShape,
+    type IslandShapeOptions,
     type IslandViewport,
     islandShape,
 } from './island/geometry';

@@ -134,17 +134,36 @@ export function edgeInsets(edge: IslandEdge, insets: IslandInsets): { edge: numb
 export interface IslandShape {
     /** Body: rounded on the far side, square where it meets the edge. `radii` is `[tl, tr, br, bl]`. */
     body: IslandRect & { radii: [number, number, number, number]; smoothing: number };
-    /** Concave flares where the body meets the edge: a square with a circle cut out. */
+    /**
+     * Concave pieces, each a square with a circle cut out: the flares where the body meets the
+     * edge, or for a full-length island the rounded corners of the window left above it.
+     */
     flares: { square: IslandRect; circle: { x: number; y: number; r: number } }[];
     /** The visible body, from the edge line to the far side. */
     box: IslandRect;
+}
+
+/** More of the outline of {@link islandShape}. */
+export interface IslandShapeOptions {
+    /** 0..1: squircle far corners. Default 0. */
+    smoothing?: number;
+    /**
+     * How far the body reaches past the edge line, local units, so the join with a bezel shows no
+     * seam. Use 0 for an island inside an object such as a card, or it shows past its edge. Default 1.
+     */
+    bleed?: number;
+    /**
+     * The island runs the whole edge: it meets the two side edges flush, and the window above it
+     * gets concave corners of `radius` instead of the island getting convex ones. Default false.
+     */
+    full?: boolean;
 }
 
 /**
  * Outline of an island `length` long and `depth` deep, centred at `u` along the edge. The far
  * corners get `radius`, the joins with the edge get concave flares of `flare`. Both shrink when
  * the island is shallow, and the flares always meet the straight part of the sides, so the
- * outline stays smooth at every depth. `smoothing` (0..1) turns the far corners into squircles.
+ * outline stays smooth at every depth. A `full` island ignores `u` and `length` and spans the edge.
  * Returns null when `depth` is below a quarter unit.
  */
 export function islandShape(
@@ -155,16 +174,44 @@ export function islandShape(
     depth: number,
     radius: number,
     flare: number,
-    smoothing = 0,
+    options: IslandShapeOptions = {},
 ): IslandShape | null {
     if (depth < 0.25 || length < 0.5) return null;
+    const over = Math.max(0, options.bleed ?? 1);
+    const flares: IslandShape['flares'] = [];
+
+    if (options.full) {
+        const span = edgeSpan(edge, view);
+        // the corners of the window grow with the depth, so a hairline does not round the screen
+        const rc = Math.max(0, Math.min(radius, depth, span / 2));
+        const body = {
+            ...edgeRect(edge, view, 0, span, -over, depth),
+            radii: [0, 0, 0, 0] as [number, number, number, number],
+            smoothing: 0,
+        };
+
+        if (rc >= 0.5) {
+            // each square overlaps the body by one unit: one union, so no seam
+            for (const [s0, s1, cu] of [
+                [-over, rc, rc],
+                [span - rc, span + over, span - rc],
+            ] as const) {
+                const c = edgePoint(edge, view, cu, depth + rc);
+
+                flares.push({
+                    square: edgeRect(edge, view, s0, s1, depth - 1, depth + rc),
+                    circle: { x: c.x, y: c.y, r: rc },
+                });
+            }
+        }
+
+        return { body, flares, box: edgeRect(edge, view, 0, span, 0, depth) };
+    }
     const half = length / 2;
-    const s = Math.max(0, Math.min(1, smoothing));
+    const s = Math.max(0, Math.min(1, options.smoothing ?? 0));
     // a squircle corner bends over (1 + s) times its radius
     const r = Math.max(0, Math.min(radius, half / (1 + s), (depth * 0.6) / (1 + s)));
     const f = Math.max(0, Math.min(flare, depth - r * (1 + s)));
-    // one unit past the edge line, so the edge itself is not anti-aliased
-    const over = 1;
     const a = u - half;
     const b = u + half;
     const far: Record<IslandEdge, [number, number, number, number]> = {
@@ -174,7 +221,6 @@ export function islandShape(
         bottom: [r, r, 0, 0],
     };
     const body = { ...edgeRect(edge, view, a, b, -over, depth), radii: far[edge], smoothing: s };
-    const flares: IslandShape['flares'] = [];
 
     if (f >= 0.5) {
         // each square overlaps the body by one unit: one union, so no seam

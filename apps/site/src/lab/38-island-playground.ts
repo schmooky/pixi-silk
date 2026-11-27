@@ -333,7 +333,14 @@ phone('Cards', 'An island can live on the side of any rectangle. Pull the drawer
             [0, 1, 2].map(() => new SilkGraphics().circle(9, 9, 9).fill({ color: 0xffffff, alpha: 0.9 })),
             { axis: options.edge === 'bottom' ? 'x' : 'y', gap: 14 },
         );
-        const island = new Island({ viewport: rect, radius: 18, flare: 12, views: { open: icons }, ...options });
+        const island = new Island({
+            viewport: rect,
+            radius: 18,
+            flare: 12,
+            bleed: 0,
+            views: { open: icons },
+            ...options,
+        });
         const box = island.boxOf('open');
 
         icons.layout(box.width, box.height);

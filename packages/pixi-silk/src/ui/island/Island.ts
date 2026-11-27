@@ -113,6 +113,12 @@ export interface IslandOptions {
     hintEvery?: number;
     /** What the timed hint plays. Default `pulse`. */
     hintKind?: IslandHint;
+    /**
+     * How far the body reaches past the edge line, local units, so the join with a bezel shows no
+     * seam. Use 0 for an island inside an object such as a card, or a sliver shows past its edge.
+     * Default 1.
+     */
+    bleed?: number;
     /** `null` to step it by hand with {@link Island.tick}. Default `Ticker.shared`. */
     ticker?: Ticker | null;
 }
@@ -196,6 +202,7 @@ export class Island extends Container {
     private readonly _radius: number;
     private readonly _flare: number;
     private readonly _smoothing: number;
+    private readonly _bleed: number;
     private _source: IslandViewport | null = null;
     private _unfollow: (() => void) | null = null;
     private _safe: IslandInsets;
@@ -237,6 +244,7 @@ export class Island extends Container {
         this._radius = options.radius ?? 28;
         this._flare = options.flare ?? 22;
         this._smoothing = options.smoothing ?? 0.6;
+        this._bleed = options.bleed ?? 1;
         this.draggable = options.draggable ?? true;
         this.tapToClose = options.tapToClose ?? true;
         this.rest = options.rest ?? 'peek';
@@ -732,7 +740,13 @@ export class Island extends Container {
         const cu = room > 0 ? Math.max(lo + length / 2, Math.min(hi - length / 2, base + this._slide.value)) : base;
 
         this._cu = base;
-        const shape = islandShape(this.edge, view, cu, length, reach, this._radius, this._flare, this._smoothing);
+        // as long as the edge allows, with no insets at its ends: it spans the edge and meets the sides
+        const full = this._length.value >= this._maxLength - 0.5 && ins.start === 0 && ins.end === 0;
+        const shape = islandShape(this.edge, view, cu, length, reach, this._radius, this._flare, {
+            smoothing: this._smoothing,
+            bleed: this._bleed,
+            full,
+        });
 
         this._shapeData = shape;
         this._box = shape ? shape.box : { x: 0, y: 0, width: 0, height: 0 };

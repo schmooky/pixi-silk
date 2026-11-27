@@ -3122,6 +3122,8 @@ export default defineDemo({
                 peekLength: 48,
                 radius: 18,
                 flare: 12,
+                // inside a card: nothing past its edge
+                bleed: 0,
                 color,
                 length: vertical ? 132 : 150,
                 depth: vertical ? 60 : 56,
@@ -8534,6 +8536,7 @@ import { Island, IslandFrame, IslandGauge, IslandMenu } from 'pixi-silk/ui/islan
 | [IslandRailOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandRailOptions.md) | A column or row of items in one band of an [IslandFrame](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandFrame.md), such as the icons of a side rail. |
 | [IslandRect](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandRect.md) | A rectangle in the island's parent space. |
 | [IslandShape](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandShape.md) | The pieces of an island outline, in the parent space. |
+| [IslandShapeOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandShapeOptions.md) | More of the outline of [islandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/islandShape.md). |
 | [IslandSize](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandSize.md) | Size of an island in one state, in edge terms. |
 | [IslandStackOptions](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandStackOptions.md) | Options of [IslandStack](https://pixi-silk.schmooky.dev/api/ui/island/classes/IslandStack.md). |
 | [IslandState](https://pixi-silk.schmooky.dev/api/ui/island/interfaces/IslandState.md) | Live state of an [Island](https://pixi-silk.schmooky.dev/api/ui/island/classes/Island.md). |
@@ -8557,7 +8560,7 @@ import { Island, IslandFrame, IslandGauge, IslandMenu } from 'pixi-silk/ui/islan
 | [drawIslandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/drawIslandShape.md) | Fills an island outline as one shape: one instance, exact edges, safe with a see-through fill. |
 | [fpsTone](https://pixi-silk.schmooky.dev/api/ui/island/functions/fpsTone.md) | Green at 55 frames per second and up, amber from 30, red below: a `tone` for an FPS meter. |
 | [gearIcon](https://pixi-silk.schmooky.dev/api/ui/island/functions/gearIcon.md) | Draws a gear, `size` wide, centred on (0, 0), in white: an [IconSource](https://pixi-silk.schmooky.dev/api/ui/types/IconSource.md) for a settings island. |
-| [islandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/islandShape.md) | Outline of an island `length` long and `depth` deep, centred at `u` along the edge. The far corners get `radius`, the joins with the edge get concave flares of `flare`. Both shrink when the island is shallow, and the flares always meet the straight part of the sides, so the outline stays smooth at every depth. `smoothing` (0..1) turns the far corners into squircles. Returns null when `depth` is below a quarter unit. |
+| [islandShape](https://pixi-silk.schmooky.dev/api/ui/island/functions/islandShape.md) | Outline of an island `length` long and `depth` deep, centred at `u` along the edge. The far corners get `radius`, the joins with the edge get concave flares of `flare`. Both shrink when the island is shallow, and the flares always meet the straight part of the sides, so the outline stays smooth at every depth. A `full` island ignores `u` and `length` and spans the edge. Returns null when `depth` is below a quarter unit. |
 
 ## `pixi-silk/ui/keys`
 

@@ -39,6 +39,8 @@ export default defineDemo({
                 peekLength: 48,
                 radius: 18,
                 flare: 12,
+                // inside a card: nothing past its edge
+                bleed: 0,
                 color,
                 length: vertical ? 132 : 150,
                 depth: vertical ? 60 : 56,
