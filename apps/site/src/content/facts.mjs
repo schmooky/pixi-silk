@@ -123,6 +123,11 @@ export const ENTRY_POINTS = {
         description: 'Shared keyboard state: isKeyDown, modifier checks, onKey, isTypingTarget.',
     },
     './ui/halo': { area: 'widgets', description: 'ContextHalo: a ring of actions around a selected object.' },
+    './ui/island': {
+        area: 'widgets',
+        description:
+            'Island, IslandFrame: surfaces that grow out of the viewport edges (side tabs, notches, bezels), plus gauges, render meters, a settings menu and createRenderStats.',
+    },
     './ui/brush': { area: 'editor', description: 'BrushCursor: a brush size and hardness cursor.' },
     './selection': { area: 'editor', description: 'Selection store and bindOutline, bindGizmo, bindMeasure.' },
     './history': {

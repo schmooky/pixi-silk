@@ -51,6 +51,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/button`](https://pixi-silk.schmooky.dev/api/ui/button.md) | UI widgets | SilkButton: pill, circle or squircle button with press, hold, busy and appear animations. |
 | [`pixi-silk/ui/dock`](https://pixi-silk.schmooky.dev/api/ui/dock.md) | UI widgets | ButtonDock: a row or column of SilkButtons that closes the gap when one hides. |
 | [`pixi-silk/ui/halo`](https://pixi-silk.schmooky.dev/api/ui/halo.md) | UI widgets | ContextHalo: a ring of actions around a selected object. |
+| [`pixi-silk/ui/island`](https://pixi-silk.schmooky.dev/api/ui/island.md) | UI widgets | Island, IslandFrame: surfaces that grow out of the viewport edges (side tabs, notches, bezels), plus gauges, render meters, a settings menu and createRenderStats. |
 | [`pixi-silk/ui/modes`](https://pixi-silk.schmooky.dev/api/ui/modes.md) | UI widgets | SegmentedSwitch and ModeSwitcher: tool mode pickers, including the hold-a-key ring. |
 | [`pixi-silk/ui/dial`](https://pixi-silk.schmooky.dev/api/ui/dial.md) | UI widgets | JogDial and Scrubber: rotary and drag-to-change number inputs. |
 | [`pixi-silk/ui/odometer`](https://pixi-silk.schmooky.dev/api/ui/odometer.md) | UI widgets | Odometer: a rolling number counter with prefix, decimals and count-up timing. |
@@ -1609,6 +1610,7 @@ The editor kit is experimental in 1.0: its API may change in a minor release.
 | `pixi-silk/ui/pathgizmo` | `PathGizmo`, `PenTool` | [Path editing](https://pixi-silk.schmooky.dev/docs/path-editing/) |
 | `pixi-silk/ui/color` | `ColorPicker`, `ColorWheel`, `OklchPicker`, `Eyedropper`, swatches | [Colour pickers](https://pixi-silk.schmooky.dev/docs/color-pickers/) |
 | `pixi-silk/ui/halo` | `ContextHalo` | [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/) |
+| `pixi-silk/ui/island` | `Island`, `IslandFrame`, `IslandGauge`, `IslandMeter`, `IslandMenu`, `createRenderStats` | [Islands](https://pixi-silk.schmooky.dev/docs/islands/) |
 | `pixi-silk/ui/brush` | `BrushCursor` | [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/) |
 | `pixi-silk/ui/modes` | `ModeSwitcher`, `SegmentedSwitch` | [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/) |
 | `pixi-silk/ui/keys` | `isKeyDown`, `shiftDown`, `altDown`, `modDown`, `onKey` | [Editor tools](https://pixi-silk.schmooky.dev/docs/editor-tools/) |

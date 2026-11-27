@@ -83,6 +83,7 @@ Import each from its own path. The root import does not re-export the others.
 | `pixi-silk/ui/arc` | Angle helpers for ring widgets. |
 | `pixi-silk/ui/keys` | Shared keyboard state. |
 | `pixi-silk/ui/halo` | `ContextHalo`. |
+| `pixi-silk/ui/island` | `Island`, `IslandFrame`, `IslandGauge`, `IslandMeter`, `IslandMenu`, `createRenderStats`. |
 | `pixi-silk/ui/brush` | `BrushCursor`. |
 | `pixi-silk/selection` | `Selection`, `bindOutline`, `bindGizmo`, `bindMeasure`. |
 | `pixi-silk/history` | `History`, `recordSignals`, `recordGizmo`, `bindHistoryKeys`. |

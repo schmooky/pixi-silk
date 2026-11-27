@@ -39,6 +39,7 @@ export default defineConfig({
         'src/ui/snap.ts',
         'src/ui/color.ts',
         'src/ui/halo.ts',
+        'src/ui/island.ts',
         'src/ui/brush.ts',
         'src/ui/modes.ts',
         'src/ui/dial.ts',

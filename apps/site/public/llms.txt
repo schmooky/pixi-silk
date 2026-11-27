@@ -61,6 +61,7 @@ Import each from its own path. The root import does not re-export the others.
 | [`pixi-silk/ui/button`](https://pixi-silk.schmooky.dev/api/ui/button.md) | UI widgets | SilkButton: pill, circle or squircle button with press, hold, busy and appear animations. |
 | [`pixi-silk/ui/dock`](https://pixi-silk.schmooky.dev/api/ui/dock.md) | UI widgets | ButtonDock: a row or column of SilkButtons that closes the gap when one hides. |
 | [`pixi-silk/ui/halo`](https://pixi-silk.schmooky.dev/api/ui/halo.md) | UI widgets | ContextHalo: a ring of actions around a selected object. |
+| [`pixi-silk/ui/island`](https://pixi-silk.schmooky.dev/api/ui/island.md) | UI widgets | Island, IslandFrame: surfaces that grow out of the viewport edges (side tabs, notches, bezels), plus gauges, render meters, a settings menu and createRenderStats. |
 | [`pixi-silk/ui/modes`](https://pixi-silk.schmooky.dev/api/ui/modes.md) | UI widgets | SegmentedSwitch and ModeSwitcher: tool mode pickers, including the hold-a-key ring. |
 | [`pixi-silk/ui/dial`](https://pixi-silk.schmooky.dev/api/ui/dial.md) | UI widgets | JogDial and Scrubber: rotary and drag-to-change number inputs. |
 | [`pixi-silk/ui/odometer`](https://pixi-silk.schmooky.dev/api/ui/odometer.md) | UI widgets | Odometer: a rolling number counter with prefix, decimals and count-up timing. |
@@ -151,6 +152,7 @@ The docs are grouped into areas. Each area overview tours its pages.
 - [Interface overview](https://pixi-silk.schmooky.dev/docs/ui/): Buttons, radial menus, responsive layout, hit testing and motion for canvas interfaces.
 - [Radial menus and buttons](https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons/): RadialMenu is a marking menu with nested rings and per-device tuning. SilkButton animates in and out and ignores input while it moves or is busy. (Markdown: https://pixi-silk.schmooky.dev/docs/radial-menus-and-buttons.md)
 - [Layout and smart containers](https://pixi-silk.schmooky.dev/docs/layout/): Place blocks on portrait and landscape screens with SmartContainer records and breakpoints, then lay out what is inside them with flexbox. pixi-silk/ui/layout. (Markdown: https://pixi-silk.schmooky.dev/docs/layout.md)
+- [Islands](https://pixi-silk.schmooky.dev/docs/islands/): Side tabs, notches and bezels that grow out of the canvas edges, with gauges, FPS and draw-call meters and a settings menu. pixi-silk/ui/island. (Markdown: https://pixi-silk.schmooky.dev/docs/islands.md)
 - [Interaction and motion](https://pixi-silk.schmooky.dev/docs/interaction-and-motion/): Pointer events test the painted shape, so rings are hollow and lines react only on their stroke. damp, Spring and ease move things the same at any refresh rate. (Markdown: https://pixi-silk.schmooky.dev/docs/interaction-and-motion.md)
 
 ### Editor kit

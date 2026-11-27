@@ -99,6 +99,10 @@
       "types": "./dist/ui/halo.d.ts",
       "default": "./dist/ui/halo.js"
     },
+    "./ui/island": {
+      "types": "./dist/ui/island.d.ts",
+      "default": "./dist/ui/island.js"
+    },
     "./ui/brush": {
       "types": "./dist/ui/brush.d.ts",
       "default": "./dist/ui/brush.js"

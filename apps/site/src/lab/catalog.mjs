@@ -162,6 +162,16 @@ export const LAB_SECTIONS = [
                 'Slot HUD on blocks',
                 'Four slot HUD layouts on one model, docked with SmartContainer and laid out with flex. Each dock is painted by one SilkGraphics and cached as one texture.',
             ],
+            [
+                '37-islands',
+                'Islands',
+                'Surfaces that grow out of the viewport edges. A bezel with a side rail, a tab of gauges, a gear that grows into a menu, and a notch with live FPS and draw calls.',
+            ],
+            [
+                '38-island-playground',
+                'Island playground',
+                'Nine phones, one island idea each: lips of every size, hints, a magnet lip, edge swipes, sheets, notifications, a live activity and drawers in cards.',
+            ],
         ],
     ],
 ];

@@ -131,6 +131,10 @@
     "gzip": 30590,
     "brotli": 27021
   },
+  "ui/island": {
+    "gzip": 36223,
+    "brotli": 31945
+  },
   "ui/brush": {
     "gzip": 29431,
     "brotli": 25970

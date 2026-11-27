@@ -106,7 +106,12 @@ export const DOCS_AREAS = [
             'Ready-made widgets for canvas interfaces, each under its own pixi-silk/ui entry point.',
             'Layout places them on portrait and landscape screens. Interaction and motion cover hit testing, springs and the odometer.',
         ],
-        items: ['radial-menus-and-buttons', { page: 'layout', lab: ['36-slot-hud'] }, 'interaction-and-motion'],
+        items: [
+            'radial-menus-and-buttons',
+            { page: 'layout', lab: ['36-slot-hud'] },
+            'islands',
+            'interaction-and-motion',
+        ],
         aliases: ['game-ui', 'building-ui'],
     },
     {
@@ -156,6 +161,8 @@ export const DOCS_AREAS = [
                     '24-journeys',
                     '25-sky',
                     '26-dashboard',
+                    '37-islands',
+                    '38-island-playground',
                 ],
             },
             { page: 'charts', lab: ['15-area-chart', '16-bar-charts', '18-ranges', '20-gauges', '21-sparklines'] },
